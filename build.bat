@@ -21,9 +21,9 @@ IF %CompilationMode%==release (
 	ECHO editor release build:
 	cl %CommonReleaseCompilerFlags% ..\code\editor.cpp imgui_unity_release.obj /link %CommonLinkerFlags% sfml-graphics.lib sfml-system.lib sfml-window.lib /out:editor_release.exe
 
-	cp ..\code\third_party\sfml\bin\sfml-system-2.dll .
-	cp ..\code\third_party\sfml\bin\sfml-graphics-2.dll .
-	cp ..\code\third_party\sfml\bin\sfml-window-2.dll .
+	copy ..\code\third_party\sfml\bin\sfml-system-2.dll .
+	copy ..\code\third_party\sfml\bin\sfml-graphics-2.dll .
+	copy ..\code\third_party\sfml\bin\sfml-window-2.dll .
 
 ) ELSE (
 
@@ -35,9 +35,9 @@ IF %CompilationMode%==release (
 	ECHO editor debug build:
 	cl %CommonDebugCompilerFlags% ..\code\editor.cpp imgui_unity.obj /link %CommonLinkerFlags% sfml-graphics.lib sfml-system.lib sfml-window.lib
 
-	cp ..\code\third_party\sfml\bin\sfml-system-2.dll .
-	cp ..\code\third_party\sfml\bin\sfml-graphics-2.dll .
-	cp ..\code\third_party\sfml\bin\sfml-window-2.dll .
+	copy ..\code\third_party\sfml\bin\sfml-system-2.dll .
+	copy ..\code\third_party\sfml\bin\sfml-graphics-2.dll .
+	copy ..\code\third_party\sfml\bin\sfml-window-2.dll .
 
 )
 

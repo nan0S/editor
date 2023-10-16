@@ -6060,10 +6060,9 @@ UpdateAndRender(f32 DeltaTime, user_input UserInput, editor *Editor)
    }
    
    // NOTE(hbr): Rendering functions are invoked in order to match expected drawing order.
-#if 0
    RenderImages(Editor->State.NumImages, Editor->State.ImagesHead,
                 VP, Editor->Window);
-#endif
+   
    // NOTE(hbr): Render below curves
    UpdateAndRenderDegreeLowering(&Editor->State.DegreeLowering,
                                  VP, Editor->Window);
@@ -6217,11 +6216,13 @@ gl_FrontColor = vec4(0, 1, 0, 1);
             Window.clear(ColorToSFMLColor(Editor.Parameters.BackgroundColor));
             UpdateAndRender(DeltaTime, UserInput, &Editor);
             
+#if 0
             sf::RectangleShape Rectangle;
             Rectangle.setSize(sf::Vector2f(0.5f, 0.5f));
             Rectangle.setOrigin(0.5f * Rectangle.getScale());
             Rectangle.setPosition(0.0f, 0.0f);
             Window.draw(Rectangle, Shader);
+#endif
             
             {
                TimeBlock("ImGui::SFML::Render");

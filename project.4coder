@@ -1,0 +1,80 @@
+version(2);
+project_name = "editor";
+
+patterns =
+{
+   "*.c",
+   "*.cpp",
+   "*.h",
+   "*.bat",
+   "*.sh",
+   "*.4coder",
+   "*.txt",
+   "*.vert",
+   "*.frag",
+};
+
+blacklist_patterns =
+{
+   ".*",
+};
+
+paths =
+{
+   { .path = ".",    .recursive = false, .relative = true, },
+   { .path = "code", .recursive = false,  .relative = true, },
+};
+
+load_paths =
+{
+   .linux = paths,
+   .win = paths,
+};
+
+commands =
+{
+   .build_editor =
+   {
+      .linux            = "./build.sh",
+      .win              = "build.bat",
+      .out              = "*compilation*",
+      .footer_panel     = true,
+      .save_dirty_files = true,
+      .cursor_at_end    = false,
+   },
+   .run_editor =
+   {
+      .linux            = "pushd build && ./editor && popd",
+      .win              = "pushd build && editor.exe && popd",
+      .out              = "*execution*",
+      .footer_panel     = true,
+      .save_dirty_files = true,
+      .cursor_at_end    = true,
+   },
+   .build_editor_release =
+   {
+      .linux            = "./build.sh release",
+      .win              = "build.bat release",
+      .out              = "*compilation*",
+      .footer_panel     = true,
+      .save_dirty_files = true,
+      .cursor_at_end    = false,
+   },
+   .run_editor_release =
+   {
+      .linux            = "pushd build && ./editor_release && popd",
+      .win              = "pushd build && editor_release.exe && popd",
+      .out              = "*execution*",
+      .footer_panel     = true,
+      .save_dirty_files = true,
+      .cursor_at_end    = true,
+   },
+};
+
+fkey_command =
+{
+   .F1 = "build_editor",
+   .F2 = "build_editor_release",
+   .F3 = "run_editor",
+   .F4 = "run_editor_release",
+};

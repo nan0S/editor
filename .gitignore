@@ -1,0 +1,8 @@
+build/
+core*
+*.editor
+zip.sh
+editor_*.zip
+misc/
+data/
+imgui.ini

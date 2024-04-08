@@ -208,7 +208,7 @@ typedef u64 curve_point_index;
 function curve_point_index CheckCollisionWithCurvePoints(curve *Curve,
                                                          world_position CheckPosition,
                                                          f32 CollisionTolerance);
-function collision CheckCollisionWith(curve *CurveListTail, image *ImageList,
+function collision CheckCollisionWith(curve *EntitiesHead, image *EntitiesTail,
                                       world_position CheckPosition,
                                       f32 CollisionTolerance,
                                       editor_parameters EditorParams,
@@ -306,13 +306,6 @@ function editor_mode EditorModeMovingCamera(void);
 function editor_mode EditorModeRotatingCurve(curve *Curve, screen_position RotationCenter);
 function editor_mode EditorModeRotatingImage(image *Image);
 function editor_mode EditorModeRotatingCamera(void);
-
-enum selected_entity_type
-{
-   SelectedEntity_None,
-   SelectedEntity_Curve,
-   SelectedEntity_Image,
-};
 
 struct splitting_bezier_curve
 {
@@ -427,23 +420,14 @@ struct curve_combining
 
 struct editor_state
 {
-   pool *CurvePool;
-   curve *CurvesHead;
-   curve *CurvesTail;
-   u64 NumCurves;
+   pool *EntityPool;
+   entity *EntitiesHead;
+   entity *EntitiesTail;
+   u64 NumEntities;
    
    u64 EverIncreasingCurveCounter;
    
-   pool *ImagePool;
-   image *ImagesHead;
-   image *ImagesTail;
-   u64 NumImages;
-   
-   selected_entity_type SelectedEntityType;
-   union {
-      curve *Curve;
-      image *Image;
-   } SelectedEntity;
+   entity *SelectedEntity;
    
    camera Camera;
    
@@ -457,20 +441,17 @@ struct editor_state
    curve_combining CurveCombining;
 };
 
-function editor_state EditorStateMake(pool *CurvePool, pool *ImagePool, u64 CurveCounter, camera Camera,
+function editor_state EditorStateMake(pool *EntityPool, u64 CurveCounter, camera Camera,
                                       arena *DeCasteljauVisualizationArena, arena *DegreeLoweringArena,
                                       arena *MovingPointArena, arena *CurveAnimationArena,
                                       f32 CurveAnimationSpeed);
-function editor_state EditorStateMakeDefault(pool *CurvePool, pool *ImagePool, arena *DeCasteljauVisualizationArena,
-                                             arena *DegreeLoweringArena, arena *MovingPointArena, arena *CurveAnimationArena);
+function editor_state EditorStateMakeDefault(pool *EntityPool, arena *DeCasteljauVisualizationArena,
+                                             arena *DegreeLoweringArena, arena *MovingPointArena,
+                                             arena *CurveAnimationArena);
 function void         EditorStateDestroy(editor_state *EditorState);
-function curve *      EditorStateAddCurve(editor_state *EditorState, curve Curve);
-function image *      EditorStateAddImage(editor_state *EditorState, image Image);
-function void         EditorStateRemoveCurve(editor_state *EditorState, curve *Curve);
-function void         EditorStateRemoveImage(editor_state *EditorState, image *RemoveImage);
-function void         EditorStateSelectCurve(editor_state *EditorState, curve *Curve,
-                                             u64 SelectedControlPointIndex);
-function void         EditorStateSelectImage(editor_state *EditorState, image *Image);
+function entity *     EditorStateAddEntity(editor_state *EditorState, entity *Entity);
+function void         EditorStateRemoveEntity(editor_state *EditorState, entity *Entity);
+function void         EditorStateSelectEntity(editor_state *EditorState, entity *Entity);
 function void         EditorStateDeselectCurrentEntity(editor_state *EditorState);
 
 enum save_project_format

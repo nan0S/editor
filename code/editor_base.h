@@ -74,6 +74,8 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define MarkUnused(Var) (void)Var
 
 #define cast(Type) (Type)
+#define OffsetOf(Type, Member) (cast(u64)(&((cast(Type *)0)->Member)))
+#define EnclosingTypeAddr(EnclosingType, Member, Ptr) (cast(EnclosingType *)((cast(char *)(Ptr)) - OffsetOf(EnclosingType, Member)))
 
 #if OS_WINDOWS
 # pragma section(".roglob", read)

@@ -41,6 +41,7 @@ NameStringFormat(char const *Format, ...)
    return Result;
 }
 
+//- Curve
 function curve_shape
 CurveShapeMake(interpolation_type InterpolationType,
                polynomial_interpolation_type PolynomialInterpolationType,
@@ -89,7 +90,6 @@ CurveParamsMake(curve_shape CurveShape,
    return Result;
 }
 
-//- Curve
 function curve
 CurveMake(name_string CurveName,
           curve_params CurveParams,
@@ -1351,20 +1351,25 @@ ImageSortEntryCompare(image_sort_entry *A, image_sort_entry *B)
 }
 
 function sorting_layer_sorted_images
-SortingLayerSortedImages(arena *Arena, u64 NumImages, image *ImageList)
+SortingLayerSortedImages(arena *Arena, u64 NumEntities, entity *EntitiesList)
 {
-   image_sort_entry *Entries = PushArray(Arena, NumImages, image_sort_entry);
+   // TODO(hbr): sort both images and entities
+   image_sort_entry *Entries = PushArray(Arena, NumEntities, image_sort_entry);
    
    image_sort_entry *Entry = Entries;
    u64 Index = 0;
-   ListIter(Image, ImageList, image)
+   ListIter(Entity, EntitiesList, entity)
    {
-      Entry->Image = Image;
-      Entry->OriginalOrder = Index;
-      ++Entry;
-      ++Index;
+      if (Entity->Type == Entity_Image)
+      {
+         Entry->Image = &Entity->Image;
+         Entry->OriginalOrder = Index;
+         ++Entry;
+         ++Index;
+      }
    }
    
+   u64 NumImages = Index;
    QuickSort(Entries, NumImages, image_sort_entry, ImageSortEntryCompare);
    
    sorting_layer_sorted_images Result = {};
@@ -1372,4 +1377,34 @@ SortingLayerSortedImages(arena *Arena, u64 NumImages, image *ImageList)
    Result.SortedImages = Entries;
    
    return Result;
+}
+
+function entity
+CurveEntity(curve Curve)
+{
+   entity Result = {};
+   Result.Type = Entity_Curve;
+   Result.Curve = Curve;
+   
+   return Result;
+}
+
+function entity
+ImageEntity(image Image)
+{
+   entity Result = {};
+   Result.Type = Entity_Image;
+   Result.Image = Image;
+   
+   return Result;
+}
+
+function void
+EntityDestroy(entity *Entity)
+{
+   switch (Entity->Type)
+   {
+      case Entity_Curve: { CurveDestroy(&Entity->Curve); } break;
+      case Entity_Image: { ImageDestroy(&Entity->Image); } break;
+   }
 }

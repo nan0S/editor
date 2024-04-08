@@ -70,6 +70,8 @@ TODOs:
 - change curve colors when combining or choosing to transform
 - splitting and splitting on point curves should have either the same name or something better than (left), (right)
 - change the way CurveSetControlPoints works to optimize a little - avoid unnecessary memcpys and allocs
+- take more things by pointer in general
+- maybe don't be so precise when checking curvepoints collisions - jump every 50 points or something like that
 
 DONE:
 - fix convex hull line width problem

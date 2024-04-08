@@ -281,7 +281,7 @@ CheckCollisionWithControlPoints(curve *Curve,
 }
 
 function collision
-CheckCollisionWith(curve *CurveListTail, image *ImageList,
+CheckCollisionWith(entity *EntitiesHead, entity *EntitiesTail,
                    world_position CheckPosition,
                    f32 CollisionTolerance,
                    editor_parameters EditorParams,
@@ -292,70 +292,75 @@ CheckCollisionWith(curve *CurveListTail, image *ImageList,
    if (CheckCollisionWithFlags & CheckCollisionWith_ControlPoints)
    {
       // NOTE(hbr): Check collisions in reversed drawing order.
-      ListIterRev(Curve, CurveListTail, curve)
+      ListIterRev(Entity, EntitiesTail, entity)
       {
-         if (!Curve->CurveParams.Hidden &&
-             !Curve->CurveParams.PointsDisabled)
+         if (Entity->Type == Entity_Curve)
          {
-            local_position *ControlPoints = Curve->ControlPoints;
-            u64 NumControlPoints = Curve->NumControlPoints;
+            curve *Curve = &Entity->Curve;
             
-            f32 OutlineThicknessScale = 0.0f;
-            if (Curve->IsSelected)
+            if (!Curve->CurveParams.Hidden &&
+                !Curve->CurveParams.PointsDisabled)
             {
-               OutlineThicknessScale =
-                  EditorParams.SelectedCurveControlPointOutlineThicknessScale;
-            }
-            
-            f32 NormalPointSize = Curve->CurveParams.PointSize;
-            
-            local_position CheckPositionLocal = WorldToLocalCurvePosition(Curve, CheckPosition);
-            
-            for (u64 ControlPointIndex = 0;
-                 ControlPointIndex < NumControlPoints;
-                 ++ControlPointIndex)
-            {
-               f32 PointSize = NormalPointSize;
-               if (ControlPointIndex == NumControlPoints - 1)
+               local_position *ControlPoints = Curve->ControlPoints;
+               u64 NumControlPoints = Curve->NumControlPoints;
+               
+               f32 OutlineThicknessScale = 0.0f;
+               if (Curve->IsSelected)
                {
-                  PointSize *= EditorParams.LastControlPointSizeMultiplier;
+                  OutlineThicknessScale =
+                     EditorParams.SelectedCurveControlPointOutlineThicknessScale;
                }
                
-               f32 PointSizeWithOutline = (1.0f + OutlineThicknessScale) * PointSize;
+               f32 NormalPointSize = Curve->CurveParams.PointSize;
                
-               if (PointCollision(CheckPositionLocal, ControlPoints[ControlPointIndex],
-                                  PointSizeWithOutline + CollisionTolerance))
-               {
-                  Result = ControlPointCollision(Curve, ControlPointIndex, false);
-                  goto collision_found_label;
-               }
-            }
-            
-            if (!Curve->CurveParams.CubicBezierHelpersDisabled &&
-                Curve->SelectedControlPointIndex != U64_MAX &&
-                Curve->CurveParams.CurveShape.InterpolationType == Interpolation_Bezier &&
-                Curve->CurveParams.CurveShape.BezierType == Bezier_Cubic)
-            {
-               u64 SelectedControlPointIndex = Curve->SelectedControlPointIndex;
-               local_position *CubicBezierPoints = Curve->CubicBezierPoints;
-               f32 CubicBezierPointSize = NormalPointSize + CollisionTolerance;
-               u64 NumCubicBezierPoints = 3 * NumControlPoints;
-               u64 CenterPoint = 3 * SelectedControlPointIndex + 1;
+               local_position CheckPositionLocal = WorldToLocalCurvePosition(Curve, CheckPosition);
                
-               // NOTE(hbr): Slightly complex logic due to unsignedness of u64, maybe refactor
-               for (u64 Index = 0; Index <= 4; ++Index)
+               for (u64 ControlPointIndex = 0;
+                    ControlPointIndex < NumControlPoints;
+                    ++ControlPointIndex)
                {
-                  if (CenterPoint + Index >= 2)
+                  f32 PointSize = NormalPointSize;
+                  if (ControlPointIndex == NumControlPoints - 1)
                   {
-                     u64 CheckIndex = CenterPoint + Index - 2;
-                     if (CheckIndex < NumCubicBezierPoints && CheckIndex != CenterPoint)
+                     PointSize *= EditorParams.LastControlPointSizeMultiplier;
+                  }
+                  
+                  f32 PointSizeWithOutline = (1.0f + OutlineThicknessScale) * PointSize;
+                  
+                  if (PointCollision(CheckPositionLocal, ControlPoints[ControlPointIndex],
+                                     PointSizeWithOutline + CollisionTolerance))
+                  {
+                     Result = ControlPointCollision(Curve, ControlPointIndex, false);
+                     goto collision_found_label;
+                  }
+               }
+               
+               if (!Curve->CurveParams.CubicBezierHelpersDisabled &&
+                   Curve->SelectedControlPointIndex != U64_MAX &&
+                   Curve->CurveParams.CurveShape.InterpolationType == Interpolation_Bezier &&
+                   Curve->CurveParams.CurveShape.BezierType == Bezier_Cubic)
+               {
+                  u64 SelectedControlPointIndex = Curve->SelectedControlPointIndex;
+                  local_position *CubicBezierPoints = Curve->CubicBezierPoints;
+                  f32 CubicBezierPointSize = NormalPointSize + CollisionTolerance;
+                  u64 NumCubicBezierPoints = 3 * NumControlPoints;
+                  u64 CenterPoint = 3 * SelectedControlPointIndex + 1;
+                  
+                  // NOTE(hbr): Slightly complex logic due to unsignedness of u64, maybe refactor
+                  for (u64 Index = 0; Index <= 4; ++Index)
+                  {
+                     if (CenterPoint + Index >= 2)
                      {
-                        local_position CubicBezierPoint = CubicBezierPoints[CheckIndex];
-                        
-                        if (PointCollision(CheckPositionLocal, CubicBezierPoint, CubicBezierPointSize))
+                        u64 CheckIndex = CenterPoint + Index - 2;
+                        if (CheckIndex < NumCubicBezierPoints && CheckIndex != CenterPoint)
                         {
-                           Result = ControlPointCollision(Curve, CheckIndex, true);
-                           goto collision_found_label;
+                           local_position CubicBezierPoint = CubicBezierPoints[CheckIndex];
+                           
+                           if (PointCollision(CheckPositionLocal, CubicBezierPoint, CubicBezierPointSize))
+                           {
+                              Result = ControlPointCollision(Curve, CheckIndex, true);
+                              goto collision_found_label;
+                           }
                         }
                      }
                   }
@@ -368,19 +373,24 @@ CheckCollisionWith(curve *CurveListTail, image *ImageList,
    if (CheckCollisionWithFlags & CheckCollisionWith_CurvePoints)
    {
       // NOTE(hbr): Check collisions in reversed drawing order.
-      ListIterRev(Curve, CurveListTail, curve)
+      ListIterRev(Entity, EntitiesTail, entity)
       {
-         // TODO(hbr): Checking hidden flags should happen inside CheckCollisionWithCurvePoints function
-         if (!Curve->CurveParams.Hidden)
+         if (Entity->Type == Entity_Curve)
          {
-            u64 CurvePointIndex = CheckCollisionWithCurvePoints(Curve,
-                                                                CheckPosition,
-                                                                CollisionTolerance);
+            curve *Curve = &Entity->Curve;
             
-            if (CurvePointIndex != U64_MAX)
+            // TODO(hbr): Checking hidden flags should happen inside CheckCollisionWithCurvePoints function
+            if (!Curve->CurveParams.Hidden)
             {
-               Result = CurvePointCollision(Curve, CurvePointIndex);
-               goto collision_found_label;
+               u64 CurvePointIndex = CheckCollisionWithCurvePoints(Curve,
+                                                                   CheckPosition,
+                                                                   CollisionTolerance);
+               
+               if (CurvePointIndex != U64_MAX)
+               {
+                  Result = CurvePointCollision(Curve, CurvePointIndex);
+                  goto collision_found_label;
+               }
             }
          }
       }
@@ -391,11 +401,12 @@ CheckCollisionWith(curve *CurveListTail, image *ImageList,
       auto Scratch = ScratchArena(0);
       defer { ReleaseScratch(Scratch); };
       
-      u64 NumImages = 0;
-      ListIter(Image, ImageList, image) { NumImages += 1; }
+      // TODO(hbr): Is there a reason to pass NumEntities as well?
+      u64 NumEntities = 0;
+      ListIter(Entity, EntitiesHead, entity) { NumEntities += 1; }
       sorting_layer_sorted_images SortedImages = SortingLayerSortedImages(Scratch.Arena,
-                                                                          NumImages,
-                                                                          ImageList);
+                                                                          NumEntities,
+                                                                          EntitiesHead);
       
       // NOTE(hbr): Check collisions in reversed drawing order.
       for (u64 ImageIndex = SortedImages.NumImages;
@@ -630,7 +641,7 @@ AnimationToString(animation_type Animation)
 }
 
 function editor_state
-EditorStateMake(pool *CurvePool, pool *ImagePool,
+EditorStateMake(pool *EntityPool,
                 u64 CurveCounter, camera Camera,
                 arena *DeCasteljauVisualizationArena,
                 arena *DegreeLoweringArena,
@@ -639,8 +650,7 @@ EditorStateMake(pool *CurvePool, pool *ImagePool,
                 f32 CurveAnimationSpeed)
 {
    editor_state Result = {};
-   Result.CurvePool = CurvePool;
-   Result.ImagePool = ImagePool;
+   Result.EntityPool = EntityPool;
    Result.EverIncreasingCurveCounter = CurveCounter;
    Result.Camera = Camera;
    Result.DeCasteljauVisualization.Arena = DeCasteljauVisualizationArena;
@@ -653,7 +663,7 @@ EditorStateMake(pool *CurvePool, pool *ImagePool,
 }
 
 function editor_state
-EditorStateMakeDefault(pool *CurvePool, pool *ImagePool,
+EditorStateMakeDefault(pool *EntityPool,
                        arena *DeCasteljauVisualizationArena,
                        arena *DegreeLoweringArena,
                        arena *MovingPointArena,
@@ -670,7 +680,7 @@ EditorStateMakeDefault(pool *CurvePool, pool *ImagePool,
                                      DefaultCameraZoomSensitivity,
                                      DefaultCameraReachingTargetSpeed);
    
-   editor_state Result = EditorStateMake(CurvePool, ImagePool, 0,
+   editor_state Result = EditorStateMake(EntityPool, 0,
                                          DefaultCamera,
                                          DeCasteljauVisualizationArena,
                                          DegreeLoweringArena,
@@ -683,178 +693,127 @@ EditorStateMakeDefault(pool *CurvePool, pool *ImagePool,
 function void
 EditorStateDestroy(editor_state *EditorState)
 {
-   ListIter(Curve, EditorState->CurvesHead, curve)
+   ListIter(Entity, EditorState->EntitiesHead, entity)
    {
-      CurveDestroy(Curve);
-      PoolFree(EditorState->CurvePool, Curve);
+      EntityDestroy(Entity);
+      PoolFree(EditorState->EntityPool, Entity);
    }
-   EditorState->CurvesHead = 0;
-   EditorState->CurvesTail = 0;
-   EditorState->NumCurves = 0;
-   
-   ListIter(Image, EditorState->ImagesHead, image)
-   {
-      ImageDestroy(Image);
-      PoolFree(EditorState->ImagePool, Image);
-   }
-   EditorState->ImagesHead = 0;
-   EditorState->ImagesTail = 0;
-   EditorState->NumImages = 0;
+   EditorState->EntitiesHead = 0;
+   EditorState->EntitiesTail = 0;
+   EditorState->NumEntities = 0;
 }
 
-function curve *
-EditorStateAddCurve(editor_state *EditorState, curve Curve)
+function entity *
+EditorStateAddEntity(editor_state *EditorState, entity *Entity)
 {
-   curve *NewCurve = PoolAllocStruct(EditorState->CurvePool, curve);
-   *NewCurve = Curve;
-   DLLPushBack(EditorState->CurvesHead, EditorState->CurvesTail, NewCurve);
-   ++EditorState->NumCurves;
+   entity *NewEntity = PoolAllocStruct(EditorState->EntityPool, entity);
    
-   return NewCurve;
-}
-
-function image *
-EditorStateAddImage(editor_state *EditorState, image AddImage)
-{
-   image *Image = PoolAllocStruct(EditorState->ImagePool, image);
-   
-   MemoryCopy(Image, &AddImage, sizeof(image));
    // NOTE(hbr): Ugly C++ thing we have to do because of constructors/destructors.
-   new (&Image->Texture) sf::Texture(AddImage.Texture);
+   MemoryCopy(NewEntity, Entity, sizeof(entity));
+   if (Entity->Type == Entity_Image)
+   {
+      new (&NewEntity->Image.Texture) sf::Texture(Entity->Image.Texture);
+   }
    
-   DLLPushFront(EditorState->ImagesHead,
-                EditorState->ImagesTail,
-                Image);
-   ++EditorState->NumImages;
+   DLLPushBack(EditorState->EntitiesHead, EditorState->EntitiesTail, NewEntity);
+   ++EditorState->NumEntities;
    
-   return Image;
+   return NewEntity;
 }
 
 function void
-EditorStateRemoveCurve(editor_state *EditorState, curve *Curve)
+EditorStateRemoveEntity(editor_state *EditorState, entity *Entity)
 {
-   CurveDestroy(Curve);
-   
-   DLLRemove(EditorState->CurvesHead, EditorState->CurvesTail, Curve);
-   --EditorState->NumCurves;
-   
-   PoolFree(EditorState->CurvePool, Curve);
-   
-   if (EditorState->SelectedEntityType == SelectedEntity_Curve &&
-       EditorState->SelectedEntity.Curve == Curve)
+   switch (Entity->Type)
    {
-      EditorState->SelectedEntityType = SelectedEntity_None;
-   }
-   
-   if (EditorState->SplittingBezierCurve.IsSplitting &&
-       EditorState->SplittingBezierCurve.SplitCurve == Curve)
-   {
-      EditorState->SplittingBezierCurve.IsSplitting = false;
-      EditorState->SplittingBezierCurve.SplitCurve = 0;
-   }
-   
-   if (EditorState->DeCasteljauVisualization.IsVisualizing &&
-       EditorState->DeCasteljauVisualization.Curve == Curve)
-   {
-      EditorState->DeCasteljauVisualization.IsVisualizing = false;
-      EditorState->DeCasteljauVisualization.Curve = 0;
-   }
-   
-   if (EditorState->DegreeLowering.IsLowering &&
-       EditorState->DegreeLowering.Curve == Curve)
-   {
-      EditorState->DegreeLowering.IsLowering = false;
-      EditorState->DegreeLowering.Curve = 0;
-   }
-   
-   if (EditorState->CurveAnimation.FromCurve == Curve ||
-       EditorState->CurveAnimation.ToCurve == Curve)
-   {
-      EditorState->CurveAnimation.Stage = AnimateCurveAnimation_None;
-   }
-   
-   if (EditorState->CurveCombining.CombineCurve == Curve)
-   {
-      EditorState->CurveCombining.IsCombining = false;
-   }
-   if (EditorState->CurveCombining.TargetCurve == Curve)
-   {
-      EditorState->CurveCombining.TargetCurve = 0;
-   }
-}
-
-function void
-EditorStateRemoveImage(editor_state *EditorState, image *RemoveImage)
-{
-   DLLRemove(EditorState->ImagesHead, EditorState->ImagesTail, RemoveImage);
-   --EditorState->NumImages;
-   
-   ImageDestroy(RemoveImage);
-   PoolFree(EditorState->ImagePool, RemoveImage);
-   
-   if (EditorState->SelectedEntityType == SelectedEntity_Image &&
-       EditorState->SelectedEntity.Image == RemoveImage)
-   {
-      EditorState->SelectedEntityType = SelectedEntity_None;
-   }
-}
-
-function void
-EditorStateSelectCurve(editor_state *EditorState, curve *Curve,
-                       u64 SelectedControlPointIndex)
-{
-   auto *EditorSelectedCurve = &EditorState->SelectedEntity;
-   
-   if (EditorState->SelectedEntityType == SelectedEntity_Curve &&
-       EditorSelectedCurve->Curve == Curve)
-   {
-      // NOTE(hbr): Do nothing
-   }
-   else
-   {
-      EditorStateDeselectCurrentEntity(EditorState);
-   }
-   
-   EditorState->SelectedEntityType = SelectedEntity_Curve;
-   EditorSelectedCurve->Curve = Curve;
-   
-   Curve->IsSelected = true;
-   Curve->SelectedControlPointIndex = SelectedControlPointIndex;
-}
-
-function void
-EditorStateSelectImage(editor_state *EditorState, image *Image)
-{
-   if (EditorState->SelectedEntityType == SelectedEntity_Image &&
-       EditorState->SelectedEntity.Image == Image)
-   {
-      // NOTE(hbr): Do nothing
-   }
-   else
-   {
-      EditorStateDeselectCurrentEntity(EditorState);
+      case Entity_Curve: {
+         curve *Curve = &Entity->Curve;
+         CurveDestroy(Curve);
+         
+         if (EditorState->SplittingBezierCurve.IsSplitting &&
+             EditorState->SplittingBezierCurve.SplitCurve == Curve)
+         {
+            EditorState->SplittingBezierCurve.IsSplitting = false;
+            EditorState->SplittingBezierCurve.SplitCurve = 0;
+         }
+         
+         if (EditorState->DeCasteljauVisualization.IsVisualizing &&
+             EditorState->DeCasteljauVisualization.Curve == Curve)
+         {
+            EditorState->DeCasteljauVisualization.IsVisualizing = false;
+            EditorState->DeCasteljauVisualization.Curve = 0;
+         }
+         
+         if (EditorState->DegreeLowering.IsLowering &&
+             EditorState->DegreeLowering.Curve == Curve)
+         {
+            EditorState->DegreeLowering.IsLowering = false;
+            EditorState->DegreeLowering.Curve = 0;
+         }
+         
+         if (EditorState->CurveAnimation.FromCurve == Curve ||
+             EditorState->CurveAnimation.ToCurve == Curve)
+         {
+            EditorState->CurveAnimation.Stage = AnimateCurveAnimation_None;
+         }
+         
+         if (EditorState->CurveCombining.CombineCurve == Curve)
+         {
+            EditorState->CurveCombining.IsCombining = false;
+         }
+         if (EditorState->CurveCombining.TargetCurve == Curve)
+         {
+            EditorState->CurveCombining.TargetCurve = 0;
+         }
+      } break;
       
-      EditorState->SelectedEntityType = SelectedEntity_Image;
-      EditorState->SelectedEntity.Image = Image;
+      case Entity_Image: {
+         image *RemoveImage = &Entity->Image;
+         ImageDestroy(RemoveImage);
+      } break;
    }
+   
+   if (EditorState->SelectedEntity == Entity)
+   {
+      EditorState->SelectedEntity = 0;
+   }
+   
+   DLLRemove(EditorState->EntitiesHead, EditorState->EntitiesTail, Entity);
+   --EditorState->NumEntities;
+   
+   PoolFree(EditorState->EntityPool, Entity);
+}
+
+function void
+EditorStateSelectEntity(editor_state *EditorState, entity *Entity)
+{
+   if (EditorState->SelectedEntity)
+   {
+      EditorStateDeselectCurrentEntity(EditorState);
+   }
+   
+   switch (Entity->Type)
+   {
+      case Entity_Curve: { Entity->Curve.IsSelected = true; } break;
+      case Entity_Image: { Entity->Image.IsSelected = true; } break;
+   }
+   
+   EditorState->SelectedEntity = Entity;
 }
 
 function void
 EditorStateDeselectCurrentEntity(editor_state *EditorState)
 {
-   switch (EditorState->SelectedEntityType)
+   entity *Entity = EditorState->SelectedEntity;
+   if (Entity)
    {
-      case SelectedEntity_Curve: {
-         curve *SelectedCurve = EditorState->SelectedEntity.Curve;
-         SelectedCurve->IsSelected = false;
-      } break;
-      
-      // NOTE(hbr): Do nothing
-      case SelectedEntity_None: {} break;
-      case SelectedEntity_Image: {} break;
+      switch (Entity->Type)
+      {
+         case Entity_Curve: { Entity->Curve.IsSelected = false; } break;
+         case Entity_Image: { Entity->Image.IsSelected = false; } break;
+      }
    }
-   
-   EditorState->SelectedEntityType = SelectedEntity_None;
+   EditorState->SelectedEntity = 0;
 }
 
 function notification
@@ -1116,17 +1075,9 @@ AreCurvesCompatibleForCombining(curve *CurveA, curve *CurveB)
    {
       switch (ShapeA.InterpolationType)
       {
-         case Interpolation_Polynomial: {
-            Result = true;
-         } break;
-         
-         case Interpolation_CubicSpline: {
-            Result = (ShapeA.CubicSplineType == ShapeB.CubicSplineType);
-         } break;
-         
-         case Interpolation_Bezier: {
-            Result = (ShapeA.BezierType == ShapeB.BezierType);
-         } break;
+         case Interpolation_Polynomial: { Result = true; } break;
+         case Interpolation_CubicSpline: { Result = (ShapeA.CubicSplineType == ShapeB.CubicSplineType); } break;
+         case Interpolation_Bezier: { Result = (ShapeA.BezierType == ShapeB.BezierType); } break;
       }
    }
    
@@ -1165,7 +1116,7 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                      CheckCollisionWith_ControlPoints |
                      CheckCollisionWith_CurvePoints;
                   
-                  Collision = CheckCollisionWith(State.CurvesTail, State.ImagesHead,
+                  Collision = CheckCollisionWith(State.EntitiesHead, State.EntitiesTail,
                                                  ClickPosition, CollisionTolerance,
                                                  EditorParams,  CheckCollisionWithFlags);
                }
@@ -1198,7 +1149,7 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                   if (ClickedOnSplitCurve)
                   {
                      Result.SplittingBezierCurve.T = Clamp(T, 0.0f, 1.0f); // NOTE(hbr): Be safe
-                     EditorStateSelectCurve(&Result, SplitCurve, SplitCurve->SelectedControlPointIndex);
+                     EditorStateSelectEntity(&Result, EntityFromCurve(SplitCurve));
                      SkipNormalModeHandling = true;
                   }
                }
@@ -1219,7 +1170,6 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                            SkipNormalModeHandling = true;
                         }
                      } break;
-                     
                   }
                }
                
@@ -1311,9 +1261,10 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                   {
                      case Collision_None: {
                         curve *AddCurve = 0;
-                        if (State.SelectedEntityType == SelectedEntity_Curve)
+                        if (State.SelectedEntity &&
+                            State.SelectedEntity->Type == Entity_Curve)
                         {
-                           AddCurve = State.SelectedEntity.Curve;
+                           AddCurve = &State.SelectedEntity->Curve;
                         }
                         else
                         {
@@ -1326,23 +1277,24 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                                                           V2F32(0.0f, 0.0f),
                                                           Rotation2DZero());
                            
-                           AddCurve = EditorStateAddCurve(&Result, DefaultCurve);
+                           entity Entity = CurveEntity(DefaultCurve);
+                           entity *AddEntity = EditorStateAddEntity(&Result, &Entity);
+                           AddCurve = &AddEntity->Curve;
                         }
                         Assert(AddCurve);
                         
                         added_point_index AddedPointIndex =
                            CurveAppendControlPoint(AddCurve, ClickPosition,
                                                    EditorParams.DefaultControlPointWeight);
+                        AddCurve->SelectedControlPointIndex = AddedPointIndex;
                         
-                        EditorStateSelectCurve(&Result, AddCurve, AddedPointIndex);
+                        EditorStateSelectEntity(&Result, EntityFromCurve(AddCurve));
                      } break;
                      
                      case Collision_ControlPoint: {
                         if (!Collision.IsCubicBezierPoint)
                         {
-                           EditorStateSelectCurve(&Result,
-                                                  Collision.CollisionCurve,
-                                                  Collision.CollisionPointIndex);
+                           EditorStateSelectEntity(&Result, EntityFromCurve(Collision.CollisionCurve));
                         }
                      } break;
                      
@@ -1359,7 +1311,8 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                         
                         CurveInsertControlPoint(AddCurve, ClickPosition, InsertAfterPointIndex,
                                                 EditorParams.DefaultControlPointWeight);
-                        EditorStateSelectCurve(&Result, AddCurve, InsertAfterPointIndex + 1);
+                        AddCurve->SelectedControlPointIndex = InsertAfterPointIndex + 1;
+                        EditorStateSelectEntity(&Result, EntityFromCurve(AddCurve));
                      } break;
                      
                      
@@ -1376,7 +1329,7 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                
                f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(EditorParams.CollisionToleranceClipSpace,
                                                                     CoordinateSystemData);
-               collision Collision = CheckCollisionWith(State.CurvesTail, State.ImagesHead,
+               collision Collision = CheckCollisionWith(State.EntitiesHead, State.EntitiesTail,
                                                         ClickPosition, CollisionTolerance,
                                                         EditorParams, CheckCollisionWithFlags);
                
@@ -1391,12 +1344,12 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                         u64 RemoveControlPointIndex = Collision.CollisionPointIndex;
                         
                         CurveRemoveControlPoint(RemoveFromCurve, RemoveControlPointIndex);
-                        EditorStateSelectCurve(&Result, RemoveFromCurve, RemoveFromCurve->SelectedControlPointIndex);
+                        EditorStateSelectEntity(&Result, EntityFromCurve(RemoveFromCurve));
                      }
                   } break;
                   
                   case Collision_Image: {
-                     EditorStateRemoveImage(&Result, Collision.CollisionImage);
+                     EditorStateRemoveEntity(&Result, EntityFromImage(Collision.CollisionImage));
                   } break;
                   
                   // NOTE(hbr): Impossible case due to flags.
@@ -1405,7 +1358,6 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
             } break;
             
             case Button_Middle: {} break;
-            
             case Button_Count: { Assert(false); } break;
          }
       } break;
@@ -1442,7 +1394,7 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                      if (PointCollision(SplitPoint, DragFromWorldPosition, SplitPointRadius + CollisionTolerance))
                      {
                         Result.SplittingBezierCurve.DraggingSplitPoint = true;
-                        EditorStateSelectCurve(&Result, SplitCurve, SplitCurve->SelectedControlPointIndex);
+                        EditorStateSelectEntity(&Result, EntityFromCurve(SplitCurve));
                         SkipCheckingNormalModeCollisions = true;
                      }
                   }
@@ -1455,8 +1407,8 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                      CheckCollisionWith_CurvePoints |
                      CheckCollisionWith_Images;
                   
-                  collision Collision = CheckCollisionWith(State.CurvesTail,
-                                                           State.ImagesHead,
+                  collision Collision = CheckCollisionWith(State.EntitiesHead,
+                                                           State.EntitiesTail,
                                                            DragFromWorldPosition,
                                                            CollisionTolerance,
                                                            EditorParams,
@@ -1472,21 +1424,22 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                         b32 IsCubicBezierPoint = Collision.IsCubicBezierPoint;
                         
                         u64 SelectControlPointIndex = (IsCubicBezierPoint ? Curve->SelectedControlPointIndex : PointIndex);
-                        EditorStateSelectCurve(&Result, Curve, SelectControlPointIndex);
+                        Curve->SelectedControlPointIndex = SelectControlPointIndex;
+                        EditorStateSelectEntity(&Result, EntityFromCurve(Curve));
                         Result.Mode = EditorModeMovingPoint(Curve, PointIndex, IsCubicBezierPoint, State.MovingPointArena);
                      } break;
                      
                      case Collision_CurvePoint: {
                         curve *Curve = Collision.CollisionCurve;
                         
-                        EditorStateSelectCurve(&Result, Curve, Curve->SelectedControlPointIndex);
+                        EditorStateSelectEntity(&Result, EntityFromCurve(Curve));
                         Result.Mode = EditorModeMovingCurve(Curve);
                      } break;
                      
                      case Collision_Image: {
                         image *Image = Collision.CollisionImage;
                         
-                        EditorStateSelectImage(&Result, Image);
+                        EditorStateSelectEntity(&Result, EntityFromImage(Image));
                         Result.Mode = EditorModeMovingImage(Image);
                      } break;
                   }
@@ -1494,27 +1447,22 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
             } break;
             
             case Button_Right: {
-               switch (State.SelectedEntityType)
+               entity *Entity = State.SelectedEntity;
+               if (Entity)
                {
-                  case SelectedEntity_None: {
-                     Result.Mode = EditorModeRotatingCamera();
-                  } break;
-                  
-                  case SelectedEntity_Curve: {
-                     Result.Mode = EditorModeRotatingCurve(State.SelectedEntity.Curve,
-                                                           DragFromScreenPosition);
-                  } break;
-                  
-                  case SelectedEntity_Image: {
-                     Result.Mode = EditorModeRotatingImage(State.SelectedEntity.Image);
-                  } break;
+                  switch (Entity->Type)
+                  {
+                     case Entity_Curve: { Result.Mode = EditorModeRotatingCurve(&Entity->Curve, DragFromScreenPosition); } break;
+                     case Entity_Image: { Result.Mode = EditorModeRotatingImage(&Entity->Image); } break;
+                  }
+               }
+               else
+               {
+                  Result.Mode = EditorModeRotatingCamera();
                }
             } break;
             
-            case Button_Middle: {
-               Result.Mode = EditorModeMovingCamera();
-            } break;
-            
+            case Button_Middle: { Result.Mode = EditorModeMovingCamera(); } break;
             case Button_Count: { Assert(false); } break;
          }
       } break;
@@ -1522,10 +1470,7 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
       case UserAction_ButtonReleased: {
          switch (Action.Drag.Button)
          {
-            case Button_Left: {
-               Result.SplittingBezierCurve.DraggingSplitPoint = false;
-            } break;
-            
+            case Button_Left: { Result.SplittingBezierCurve.DraggingSplitPoint = false; } break;
             case Button_Right:
             case Button_Middle: {} break;
             case Button_Count: { Assert(false); } break;
@@ -1678,16 +1623,14 @@ EditorStateMovingPointModeUpdate(editor_state State, user_action Action,
          switch (ReleaseButton)
          {
             case Button_Left: { Result.Mode  = EditorModeNormal(); } break;
-            
-            case Button_Right: {} break;
+            case Button_Right:
             case Button_Middle: {} break;
-            
             case Button_Count: { Assert(false); } break;
          }
       } break;
       
-      case UserAction_None: {} break;
-      case UserAction_ButtonClicked: {} break;
+      case UserAction_None:
+      case UserAction_ButtonClicked:
       case UserAction_ButtonDrag: {} break;
    }
    
@@ -1715,16 +1658,14 @@ EditorStateMovingCurveModeUpdate(editor_state State, user_action Action,
          switch (ReleaseButton)
          {
             case Button_Left: { Result.Mode = EditorModeNormal(); } break;
-            
-            case Button_Right: {} break;
+            case Button_Right:
             case Button_Middle: {} break;
-            
             case Button_Count: { Assert(false); } break;
          }
       } break;
       
-      case UserAction_ButtonClicked: {} break;
-      case UserAction_ButtonDrag: {} break;
+      case UserAction_ButtonClicked:
+      case UserAction_ButtonDrag:
       case UserAction_None: {} break;
    }
    
@@ -1752,16 +1693,14 @@ EditorStateMovingImageModeUpdate(editor_state State, user_action Action,
          switch (ReleaseButton)
          {
             case Button_Left: { Result.Mode  = EditorModeNormal(); } break;
-            
-            case Button_Right: {} break;
+            case Button_Right:
             case Button_Middle: {} break;
-            
             case Button_Count: { Assert(false); } break;
          }
       } break;
       
-      case UserAction_None: {} break;
-      case UserAction_ButtonClicked: {} break;
+      case UserAction_None:
+      case UserAction_ButtonClicked:
       case UserAction_ButtonDrag: {} break;
    }
    
@@ -1790,15 +1729,13 @@ EditorStateMovingCameraModeUpdate(editor_state State, user_action Action,
             case Button_Left: { Result.Mode = EditorModeNormal(); } break;
             // TODO(hbr): Maybe add to the state actual button that was the reason that camera moved
             case Button_Middle: { Result.Mode = EditorModeNormal(); } break;
-            
             case Button_Right: {} break;
-            
             case Button_Count: { Assert(false); } break;
          }
       } break;
       
-      case UserAction_ButtonClicked: {} break;
-      case UserAction_ButtonDrag: {} break;
+      case UserAction_ButtonClicked:
+      case UserAction_ButtonDrag:
       case UserAction_None: {} break;
    }
    
@@ -1878,16 +1815,14 @@ EditorStateRotatingCurveModeUpdate(editor_state State, user_action Action,
          switch (ReleaseButton)
          {
             case Button_Right: { Result.Mode = EditorModeNormal(); } break;
-            
-            case Button_Left: {} break;
+            case Button_Left:
             case Button_Middle: {} break;
-            
             case Button_Count: { Assert(false); } break;
          }
       } break;
       
-      case UserAction_ButtonClicked: {} break;
-      case UserAction_ButtonDrag: {} break;
+      case UserAction_ButtonClicked:
+      case UserAction_ButtonDrag:
       case UserAction_None: {} break;
    }
    
@@ -1929,16 +1864,14 @@ EditorStateRotatingImageModeUpdate(editor_state State, user_action Action,
          switch (ReleaseButton)
          {
             case Button_Right: { Result.Mode = EditorModeNormal(); } break;
-            
-            case Button_Left: {} break;
+            case Button_Left:
             case Button_Middle: {} break;
-            
             case Button_Count: { Assert(false); } break;
          }
       } break;
       
-      case UserAction_ButtonClicked: {} break;
-      case UserAction_ButtonDrag: {} break;
+      case UserAction_ButtonClicked:
+      case UserAction_ButtonDrag:
       case UserAction_None: {} break;
    }
    
@@ -1977,16 +1910,14 @@ EditorStateRotatingCameraModeUpdate(editor_state State, user_action Action,
          switch (ReleaseButton)
          {
             case Button_Right: { Result.Mode = EditorModeNormal(); } break;
-            
             case Button_Left: {} break;
             case Button_Middle: {} break;
-            
             case Button_Count: { Assert(false); } break;
          }
       } break;
       
-      case UserAction_ButtonClicked: {} break;
-      case UserAction_ButtonDrag: {} break;
+      case UserAction_ButtonClicked:
+      case UserAction_ButtonDrag:
       case UserAction_None: {} break;
    }
    
@@ -2132,10 +2063,9 @@ CopyAndAddCurve(curve *Curve, editor *Editor)
    v2f32 SlightTranslation = V2F32(SlightTranslationX, 0.0f);
    CurveTemplate.Position += SlightTranslation;
    
-   curve *CopiedCurve = EditorStateAddCurve(&Editor->State, CurveTemplate);
-   
-   EditorStateSelectCurve(&Editor->State, CopiedCurve,
-                          CopiedCurve->SelectedControlPointIndex);
+   entity EntityTemplate = CurveEntity(CurveTemplate);
+   entity *CopiedEntity = EditorStateAddEntity(&Editor->State, &EntityTemplate);
+   EditorStateSelectEntity(&Editor->State, CopiedEntity);
 }
 
 internal void
@@ -2153,9 +2083,9 @@ CopyAndAddImage(image *Image, editor *Editor)
    v2f32 SlightTranslation = V2F32(SlightTranslationX, 0.0f);
    ImageTemplate.Position += SlightTranslation;
    
-   image *CopiedImage = EditorStateAddImage(&Editor->State, ImageTemplate);
-   
-   EditorStateSelectImage(&Editor->State, CopiedImage);
+   entity EntityTemplate = ImageEntity(ImageTemplate);
+   entity *CopiedEntity = EditorStateAddEntity(&Editor->State, &EntityTemplate);
+   EditorStateSelectEntity(&Editor->State, CopiedEntity);
 }
 
 template<typename enum_type>
@@ -3160,7 +3090,9 @@ SplitCurveOnControlPoint(curve *Curve, editor_state *EditorState)
    
    // TODO(hbr): Optimize to not do so many copies and allocations
    curve *LeftCurve = Curve;
-   curve *RightCurve = EditorStateAddCurve(EditorState, CurveCopy(*LeftCurve));
+   entity RightEntityTemplate = CurveEntity(CurveCopy(*LeftCurve));
+   entity *RightEntity = EditorStateAddEntity(EditorState, &RightEntityTemplate);
+   curve *RightCurve = &RightEntity->Curve;
    
    CurveSetControlPoints(LeftCurve, NumLeftControlPoints, LeftControlPoints,
                          LeftControlPointWeights, LeftCubicBezierPoints);
@@ -3176,7 +3108,8 @@ SplitCurveOnControlPoint(curve *Curve, editor_state *EditorState)
 internal void
 RenderSelectedCurveUI(editor *Editor, coordinate_system_data CoordinateSystemData)
 {
-   Assert(Editor->State.SelectedEntityType == SelectedEntity_Curve);
+   Assert(Editor->State.SelectedEntity &&
+          Editor->State.SelectedEntity->Type == Entity_Curve);
    
    DeferBlock(ImGui::PushID("SelectedCurve"), ImGui::PopID())
    {
@@ -3189,7 +3122,7 @@ RenderSelectedCurveUI(editor *Editor, coordinate_system_data CoordinateSystemDat
          
          if (Editor->UI_Config.ViewSelectedCurveWindow)
          {
-            curve *SelectedCurve = Editor->State.SelectedEntity.Curve;
+            curve *SelectedCurve = &Editor->State.SelectedEntity->Curve;
             curve_params *SelectedCurveParams = &SelectedCurve->CurveParams;
             
             bool DeleteCurve                   = false;
@@ -3297,7 +3230,7 @@ RenderSelectedCurveUI(editor *Editor, coordinate_system_data CoordinateSystemDat
             
             if (DeleteCurve)
             {
-               EditorStateRemoveCurve(&Editor->State, SelectedCurve);
+               EditorStateRemoveEntity(&Editor->State, Editor->State.SelectedEntity);
             }
             
             if (CopyCurve)
@@ -3368,7 +3301,8 @@ RenderSelectedCurveUI(editor *Editor, coordinate_system_data CoordinateSystemDat
 internal void
 RenderSelectedImageUI(editor *Editor, coordinate_system_data CoordinateSystemData)
 {
-   Assert(Editor->State.SelectedEntityType == SelectedEntity_Image);
+   Assert(Editor->State.SelectedEntity &&
+          Editor->State.SelectedEntity->Type == Entity_Image);
    
    DeferBlock(ImGui::PushID("SelectedImage"), ImGui::PopID())
    {
@@ -3381,7 +3315,7 @@ RenderSelectedImageUI(editor *Editor, coordinate_system_data CoordinateSystemDat
          
          if (Editor->UI_Config.ViewSelectedImageWindow)
          {
-            image *SelectedImage = Editor->State.SelectedEntity.Image;
+            image *SelectedImage = &Editor->State.SelectedEntity->Image;
             
             bool Delete           = false;
             bool Copy             = false;
@@ -3467,7 +3401,7 @@ RenderSelectedImageUI(editor *Editor, coordinate_system_data CoordinateSystemDat
             
             if (Delete)
             {
-               EditorStateRemoveImage(&Editor->State, SelectedImage);
+               EditorStateRemoveEntity(&Editor->State, Editor->State.SelectedEntity);
             }
             
             if (Copy)
@@ -3736,103 +3670,108 @@ RenderListOfEntitiesWindow(editor *Editor, coordinate_system_data CoordinateSyst
             DeferBlock(ImGui::PushID("CurveEntities"), ImGui::PopID())
             {
                u64 CurveIndex = 0;
-               ListIter(Curve, Editor->State.CurvesHead, curve)
+               ListIter(Entity, Editor->State.EntitiesHead, entity)
                {
-                  DeferBlock(ImGui::PushID(cast(int)CurveIndex), ImGui::PopID())
+                  if (Entity->Type == Entity_Curve)
                   {
-                     b32 IsSelected = Curve->IsSelected;
-                     b32 IsHidden = Curve->CurveParams.Hidden;
+                     curve *Curve = &Entity->Curve;
                      
-                     bool DeselectCurveSelected = false;
-                     bool DeleteCurveSelected = false;
-                     bool CopyCurveSelected = false;
-                     bool SwitchVisilitySelected = false;
-                     bool RenameCurveSelected = false;
-                     bool FocusSelected = false;
-                     
-                     if (Curve->IsRenamingFrame)
+                     DeferBlock(ImGui::PushID(cast(int)CurveIndex), ImGui::PopID())
                      {
-                        if (Curve->IsRenamingFrame == ImGui::GetFrameCount())
+                        b32 IsSelected = Curve->IsSelected;
+                        b32 IsHidden = Curve->CurveParams.Hidden;
+                        
+                        bool DeselectCurveSelected = false;
+                        bool DeleteCurveSelected = false;
+                        bool CopyCurveSelected = false;
+                        bool SwitchVisilitySelected = false;
+                        bool RenameCurveSelected = false;
+                        bool FocusSelected = false;
+                        
+                        if (Curve->IsRenamingFrame)
                         {
-                           ImGui::SetKeyboardFocusHere(0);
+                           if (Curve->IsRenamingFrame == ImGui::GetFrameCount())
+                           {
+                              ImGui::SetKeyboardFocusHere(0);
+                           }
+                           
+                           // NOTE(hbr): Make sure text starts rendering at the same position
+                           DeferBlock(ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {0, 0}),
+                                      ImGui::PopStyleVar())
+                           {
+                              ImGui::InputText("", Curve->Name.Str, ArrayCount(Curve->Name.Str));
+                           }
+                           
+                           b32 ClickedOutside = (!ImGui::IsItemHovered() && ImGui::IsMouseClicked(0));
+                           b32 PressedEnter = ImGui::IsKeyPressed(ImGuiKey_Enter);
+                           if (ClickedOutside || PressedEnter)
+                           {
+                              Curve->IsRenamingFrame = 0;
+                           }
+                        }
+                        else
+                        {
+                           if (ImGui::Selectable(Curve->Name.Str, IsSelected))
+                           {
+                              EditorStateSelectEntity(EditorState, Entity);
+                           }
+                           
+                           b32 DoubleClickedOrSelectedAndClicked = ((IsSelected && ImGui::IsMouseClicked(0)) ||
+                                                                    ImGui::IsMouseDoubleClicked(0));
+                           if (ImGui::IsItemHovered() && DoubleClickedOrSelectedAndClicked)
+                           {
+                              Curve->IsRenamingFrame = ImGui::GetFrameCount() + 1;
+                           }
+                           
+                           if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(1))
+                           {
+                              ImGui::OpenPopup(RightClickOnEntityContextMenuLabel);
+                           }
+                           if (ImGui::BeginPopup(RightClickOnEntityContextMenuLabel))
+                           {
+                              ImGui::MenuItem("Rename", 0, &RenameCurveSelected);
+                              ImGui::MenuItem("Delete", 0, &DeleteCurveSelected);
+                              ImGui::MenuItem("Copy", 0, &CopyCurveSelected);
+                              ImGui::MenuItem(IsHidden ? "Show" : "Hide", 0, &SwitchVisilitySelected);
+                              if (IsSelected) ImGui::MenuItem("Deselect", 0, &DeselectCurveSelected);
+                              ImGui::MenuItem("Focus", 0, &FocusSelected);
+                              
+                              ImGui::EndPopup();
+                           }
                         }
                         
-                        // NOTE(hbr): Make sure text starts rendering at the same position
-                        DeferBlock(ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {0, 0}),
-                                   ImGui::PopStyleVar())
-                        {
-                           ImGui::InputText("", Curve->Name.Str, ArrayCount(Curve->Name.Str));
-                        }
-                        
-                        b32 ClickedOutside = (!ImGui::IsItemHovered() && ImGui::IsMouseClicked(0));
-                        b32 PressedEnter = ImGui::IsKeyPressed(ImGuiKey_Enter);
-                        if (ClickedOutside || PressedEnter)
-                        {
-                           Curve->IsRenamingFrame = 0;
-                        }
-                     }
-                     else
-                     {
-                        if (ImGui::Selectable(Curve->Name.Str, IsSelected))
-                        {
-                           EditorStateSelectCurve(EditorState, Curve, Curve->SelectedControlPointIndex);
-                        }
-                        
-                        b32 DoubleClickedOrSelectedAndClicked = ((IsSelected && ImGui::IsMouseClicked(0)) ||
-                                                                 ImGui::IsMouseDoubleClicked(0));
-                        if (ImGui::IsItemHovered() && DoubleClickedOrSelectedAndClicked)
+                        if (RenameCurveSelected)
                         {
                            Curve->IsRenamingFrame = ImGui::GetFrameCount() + 1;
                         }
                         
-                        if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(1))
+                        if (DeleteCurveSelected)
                         {
-                           ImGui::OpenPopup(RightClickOnEntityContextMenuLabel);
+                           EditorStateRemoveEntity(EditorState, Entity);
                         }
-                        if (ImGui::BeginPopup(RightClickOnEntityContextMenuLabel))
+                        
+                        if (CopyCurveSelected)
                         {
-                           ImGui::MenuItem("Rename", 0, &RenameCurveSelected);
-                           ImGui::MenuItem("Delete", 0, &DeleteCurveSelected);
-                           ImGui::MenuItem("Copy", 0, &CopyCurveSelected);
-                           ImGui::MenuItem(IsHidden ? "Show" : "Hide", 0, &SwitchVisilitySelected);
-                           if (IsSelected) ImGui::MenuItem("Deselect", 0, &DeselectCurveSelected);
-                           ImGui::MenuItem("Focus", 0, &FocusSelected);
-                           
-                           ImGui::EndPopup();
+                           CopyAndAddCurve(Curve, Editor);
                         }
+                        
+                        if (SwitchVisilitySelected)
+                        {
+                           Curve->CurveParams.Hidden = !IsHidden;
+                        }
+                        
+                        if (DeselectCurveSelected)
+                        {
+                           EditorStateDeselectCurrentEntity(EditorState);
+                        }
+                        
+                        if (FocusSelected)
+                        {
+                           FocusCameraOnCurve(&EditorState->Camera, Curve, CoordinateSystemData);
+                        }
+                        
+                        CurveIndex += 1;
                      }
-                     
-                     if (RenameCurveSelected)
-                     {
-                        Curve->IsRenamingFrame = ImGui::GetFrameCount() + 1;
-                     }
-                     
-                     if (DeleteCurveSelected)
-                     {
-                        EditorStateRemoveCurve(EditorState, Curve);
-                     }
-                     
-                     if (CopyCurveSelected)
-                     {
-                        CopyAndAddCurve(Curve, Editor);
-                     }
-                     
-                     if (SwitchVisilitySelected)
-                     {
-                        Curve->CurveParams.Hidden = !IsHidden;
-                     }
-                     
-                     if (DeselectCurveSelected)
-                     {
-                        EditorStateDeselectCurrentEntity(EditorState);
-                     }
-                     
-                     if (FocusSelected)
-                     {
-                        FocusCameraOnCurve(&EditorState->Camera, Curve, CoordinateSystemData);
-                     }
-                     
-                     CurveIndex += 1;
                   }
                }
             }
@@ -3844,104 +3783,108 @@ RenderListOfEntitiesWindow(editor *Editor, coordinate_system_data CoordinateSyst
             DeferBlock(ImGui::PushID("ImageEntities"), ImGui::PopID())
             {
                u64 ImageIndex = 0;
-               ListIter(Image, Editor->State.ImagesHead, image)
+               ListIter(Entity, Editor->State.EntitiesHead, entity)
                {
-                  DeferBlock(ImGui::PushID(cast(int)ImageIndex), ImGui::PopID())
+                  if (Entity->Type == Entity_Image)
                   {
-                     b32 IsSelected = (EditorState->SelectedEntityType == SelectedEntity_Image &&
-                                       Image == EditorState->SelectedEntity.Image);
-                     b32 IsHidden = Image->Hidden;
+                     image *Image = &Entity->Image;
                      
-                     bool DeselectImageSelected = false;
-                     bool DeleteImageSelected = false;
-                     bool CopyImageSelected = false;
-                     bool SwitchVisilitySelected = false;
-                     bool RenameImageSelected = false;
-                     bool FocusSelected = false;
-                     
-                     if (Image->IsRenamingFrame)
+                     DeferBlock(ImGui::PushID(cast(int)ImageIndex), ImGui::PopID())
                      {
-                        if (Image->IsRenamingFrame == ImGui::GetFrameCount())
+                        b32 IsSelected = (EditorState->SelectedEntity == Entity);
+                        b32 IsHidden = Image->Hidden;
+                        
+                        bool DeselectImageSelected = false;
+                        bool DeleteImageSelected = false;
+                        bool CopyImageSelected = false;
+                        bool SwitchVisilitySelected = false;
+                        bool RenameImageSelected = false;
+                        bool FocusSelected = false;
+                        
+                        if (Image->IsRenamingFrame)
                         {
-                           ImGui::SetKeyboardFocusHere(0);
+                           if (Image->IsRenamingFrame == ImGui::GetFrameCount())
+                           {
+                              ImGui::SetKeyboardFocusHere(0);
+                           }
+                           
+                           // NOTE(hbr): Make sure text starts rendering at the same position
+                           DeferBlock(ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {0, 0}),
+                                      ImGui::PopStyleVar())
+                           {                        
+                              ImGui::InputText("", Image->Name.Str, ArrayCount(Image->Name.Str));
+                           }
+                           
+                           b32 ClickedOutside = (!ImGui::IsItemHovered() && ImGui::IsMouseClicked(0));
+                           b32 PressedEnter = ImGui::IsKeyPressed(ImGuiKey_Enter);
+                           if (ClickedOutside || PressedEnter)
+                           {
+                              Image->IsRenamingFrame = 0;
+                           }
+                        }
+                        else
+                        {
+                           if (ImGui::Selectable(Image->Name.Str, IsSelected))
+                           {
+                              EditorStateSelectEntity(EditorState, Entity);
+                           }
+                           
+                           b32 DoubleClickedOrSelectedAndClicked = ((IsSelected && ImGui::IsMouseClicked(0)) ||
+                                                                    ImGui::IsMouseDoubleClicked(0));
+                           if (ImGui::IsItemHovered() && DoubleClickedOrSelectedAndClicked)
+                           {
+                              Image->IsRenamingFrame = ImGui::GetFrameCount() + 1;
+                           }
+                           
+                           if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(1))
+                           {
+                              ImGui::OpenPopup(RightClickOnEntityContextMenuLabel);
+                           }
+                           if (ImGui::BeginPopup(RightClickOnEntityContextMenuLabel))
+                           {
+                              ImGui::MenuItem("Rename", 0, &RenameImageSelected);
+                              ImGui::MenuItem("Delete", 0, &DeleteImageSelected);
+                              ImGui::MenuItem("Copy", 0, &CopyImageSelected);
+                              ImGui::MenuItem(IsHidden ? "Show" : "Hide", 0, &SwitchVisilitySelected);
+                              if (IsSelected) ImGui::MenuItem("Deselect", 0, &DeselectImageSelected);
+                              ImGui::MenuItem("Focus", 0, &FocusSelected);
+                              
+                              ImGui::EndPopup();
+                           }
                         }
                         
-                        // NOTE(hbr): Make sure text starts rendering at the same position
-                        DeferBlock(ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {0, 0}),
-                                   ImGui::PopStyleVar())
-                        {                        
-                           ImGui::InputText("", Image->Name.Str, ArrayCount(Image->Name.Str));
-                        }
-                        
-                        b32 ClickedOutside = (!ImGui::IsItemHovered() && ImGui::IsMouseClicked(0));
-                        b32 PressedEnter = ImGui::IsKeyPressed(ImGuiKey_Enter);
-                        if (ClickedOutside || PressedEnter)
-                        {
-                           Image->IsRenamingFrame = 0;
-                        }
-                     }
-                     else
-                     {
-                        if (ImGui::Selectable(Image->Name.Str, IsSelected))
-                        {
-                           EditorStateSelectImage(EditorState, Image);
-                        }
-                        
-                        b32 DoubleClickedOrSelectedAndClicked = ((IsSelected && ImGui::IsMouseClicked(0)) ||
-                                                                 ImGui::IsMouseDoubleClicked(0));
-                        if (ImGui::IsItemHovered() && DoubleClickedOrSelectedAndClicked)
+                        if (RenameImageSelected)
                         {
                            Image->IsRenamingFrame = ImGui::GetFrameCount() + 1;
                         }
                         
-                        if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(1))
+                        if (DeleteImageSelected)
                         {
-                           ImGui::OpenPopup(RightClickOnEntityContextMenuLabel);
+                           EditorStateRemoveEntity(EditorState, Entity);
                         }
-                        if (ImGui::BeginPopup(RightClickOnEntityContextMenuLabel))
+                        
+                        if (CopyImageSelected)
                         {
-                           ImGui::MenuItem("Rename", 0, &RenameImageSelected);
-                           ImGui::MenuItem("Delete", 0, &DeleteImageSelected);
-                           ImGui::MenuItem("Copy", 0, &CopyImageSelected);
-                           ImGui::MenuItem(IsHidden ? "Show" : "Hide", 0, &SwitchVisilitySelected);
-                           if (IsSelected) ImGui::MenuItem("Deselect", 0, &DeselectImageSelected);
-                           ImGui::MenuItem("Focus", 0, &FocusSelected);
-                           
-                           ImGui::EndPopup();
+                           CopyAndAddImage(Image, Editor);
                         }
+                        
+                        if (SwitchVisilitySelected)
+                        {
+                           Image->Hidden = !IsHidden;
+                        }
+                        
+                        if (DeselectImageSelected)
+                        {
+                           EditorStateDeselectCurrentEntity(EditorState);
+                        }
+                        
+                        if (FocusSelected)
+                        {
+                           FocusCameraOnImage(&EditorState->Camera, Image, CoordinateSystemData);
+                        }
+                        
+                        ImageIndex += 1;
                      }
-                     
-                     if (RenameImageSelected)
-                     {
-                        Image->IsRenamingFrame = ImGui::GetFrameCount() + 1;
-                     }
-                     
-                     if (DeleteImageSelected)
-                     {
-                        EditorStateRemoveImage(EditorState, Image);
-                     }
-                     
-                     if (CopyImageSelected)
-                     {
-                        CopyAndAddImage(Image, Editor);
-                     }
-                     
-                     if (SwitchVisilitySelected)
-                     {
-                        Image->Hidden = !IsHidden;
-                     }
-                     
-                     if (DeselectImageSelected)
-                     {
-                        EditorStateDeselectCurrentEntity(EditorState);
-                     }
-                     
-                     if (FocusSelected)
-                     {
-                        FocusCameraOnImage(&EditorState->Camera, Image, CoordinateSystemData);
-                     }
-                     
-                     ImageIndex += 1;
                   }
                }
             }
@@ -4326,8 +4269,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
       
       case ActionToDo_NewProject: {
          editor_state NewEditorState =
-            EditorStateMakeDefault(Editor->State.CurvePool,
-                                   Editor->State.ImagePool,
+            EditorStateMakeDefault(Editor->State.EntityPool,
                                    Editor->State.DeCasteljauVisualization.Arena,
                                    Editor->State.DegreeLowering.Arena,
                                    Editor->State.MovingPointArena,
@@ -4368,8 +4310,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
                                                  SelectedPath.size());
          
          load_project_result LoadResult = LoadProjectFromFile(Scratch.Arena,
-                                                              Editor->State.CurvePool,
-                                                              Editor->State.ImagePool,
+                                                              Editor->State.EntityPool,
                                                               Editor->State.DeCasteljauVisualization.Arena,
                                                               Editor->State.DegreeLowering.Arena,
                                                               Editor->State.MovingPointArena,
@@ -4463,9 +4404,10 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
                                        LoadedTexture);
             
             editor_state *EditorState = &Editor->State;
+            entity NewEntity = ImageEntity(NewImage);
             
-            image *AddedImage = EditorStateAddImage(EditorState, NewImage);
-            EditorStateSelectImage(EditorState, AddedImage);
+            entity *AddedEntity = EditorStateAddEntity(EditorState, &NewEntity);
+            EditorStateSelectEntity(EditorState, AddedEntity);
             NotificationSystemAddNotificationFormat(&Editor->NotificationSystem,
                                                     Notification_Success,
                                                     "successfully loaded image from %s",
@@ -4683,12 +4625,12 @@ RenderDebugWindow(editor *Editor)
       
       if (Editor->UI_Config.ViewDebugWindow)
       {
-         ImGui::Text("Number of curves = %lu", Editor->State.NumCurves);
-         ImGui::Text("Number of images = %lu", Editor->State.NumImages);
+         ImGui::Text("Number of entities = %lu", Editor->State.NumEntities);
          
-         if (Editor->State.SelectedEntityType == SelectedEntity_Curve)
+         if (Editor->State.SelectedEntity &&
+             Editor->State.SelectedEntity->Type == Entity_Curve)
          {
-            curve *Curve = Editor->State.SelectedEntity.Curve;
+            curve *Curve = &Editor->State.SelectedEntity->Curve;
             
             ImGui::Text("Number of control points = %lu", Curve->NumControlPoints);
             ImGui::Text("Number of curve points = %lu", Curve->NumCurvePoints);
@@ -4819,7 +4761,9 @@ UpdateAndRenderSplittingBezierCurve(editor_state *EditorState,
       // TODO(hbr): Optimize here not to do so many copies, maybe merge with split on control point code
       curve *LeftSplit = SplitCurve;
       curve RightCurveTemplate = CurveCopy(*SplitCurve);
-      curve *RightSplit = EditorStateAddCurve(EditorState, RightCurveTemplate);
+      entity RightEntityTemplate = CurveEntity(RightCurveTemplate);
+      entity *RightSplitEntity = EditorStateAddEntity(EditorState, &RightEntityTemplate);
+      curve *RightSplit = &RightSplitEntity->Curve;
       
       CurveSetControlPoints(LeftSplit, NumControlPoints,
                             LeftControlPoints, LeftControlPointWeights,
@@ -4874,7 +4818,7 @@ UpdateAndRenderSplittingBezierCurve(editor_state *EditorState,
 }
 
 internal void
-RenderImages(u64 NumImages, image *ImageList, sf::Transform Transform,
+RenderImages(u64 NumEntities, entity *EntitiesList, sf::Transform Transform,
              sf::RenderWindow *Window)
 {
    TimeFunction;
@@ -4883,7 +4827,7 @@ RenderImages(u64 NumImages, image *ImageList, sf::Transform Transform,
    defer { ReleaseScratch(Scratch); };
    
    sorting_layer_sorted_images SortedImages =
-      SortingLayerSortedImages(Scratch.Arena, NumImages, ImageList);
+      SortingLayerSortedImages(Scratch.Arena, NumEntities, EntitiesList);
    
    for (u64 ImageIndex = 0;
         ImageIndex < SortedImages.NumImages;
@@ -5200,7 +5144,7 @@ RenderCubicBezierPointsWithHelperLines(curve *Curve, u64 ControlPointIndex,
 }
 
 internal void
-RenderCurves(curve *CurveList,
+RenderCurves(entity *EntitiesList,
              editor_mode *EditorMode,
              editor_parameters *EditorParams,
              coordinate_system_data CoordinateSystemData,
@@ -5208,119 +5152,123 @@ RenderCurves(curve *CurveList,
 {
    TimeFunction;
    
-   ListIter(Curve, CurveList, curve)
+   ListIter(Entity, EntitiesList, entity)
    {
-      curve_params CurveParams = Curve->CurveParams;
-      
-      if (!CurveParams.Hidden)
+      if (Entity->Type == Entity_Curve)
       {
-         sf::Transform Model = CurveGetAnimate(Curve);
-         sf::Transform MVP = VP * Model;
+         curve *Curve = &Entity->Curve;
+         curve_params CurveParams = Curve->CurveParams;
          
-         if (EditorMode->Type == EditorMode_MovingPoint &&
-             EditorMode->MovingPoint.Curve == Curve)
+         if (!CurveParams.Hidden)
          {
-            Window->draw(EditorMode->MovingPoint.SavedCurveVertices,
-                         EditorMode->MovingPoint.SavedNumCurveVertices,
-                         EditorMode->MovingPoint.SavedPrimitiveType,
-                         MVP);
-         }
-         
-         Window->draw(Curve->CurveVertices.Vertices,
-                      Curve->CurveVertices.NumVertices,
-                      Curve->CurveVertices.PrimitiveType,
-                      MVP);
-         
-         if (CurveParams.PolylineEnabled)
-         {
-            Window->draw(Curve->PolylineVertices.Vertices,
-                         Curve->PolylineVertices.NumVertices,
-                         Curve->PolylineVertices.PrimitiveType,
-                         MVP);
-         }
-         
-         if (CurveParams.ConvexHullEnabled)
-         {
-            Window->draw(Curve->ConvexHullVertices.Vertices,
-                         Curve->ConvexHullVertices.NumVertices,
-                         Curve->ConvexHullVertices.PrimitiveType,
-                         MVP);
-         }
-         
-         if (!CurveParams.PointsDisabled)
-         {
-            b32 IsSelected = Curve->IsSelected;
-            u64 SelectedControlPointIndex = Curve->SelectedControlPointIndex;
+            sf::Transform Model = CurveGetAnimate(Curve);
+            sf::Transform MVP = VP * Model;
             
-            if (!CurveParams.CubicBezierHelpersDisabled &&
-                IsSelected && SelectedControlPointIndex != U64_MAX &&
-                CurveParams.CurveShape.InterpolationType == Interpolation_Bezier &&
-                CurveParams.CurveShape.BezierType == Bezier_Cubic)
+            if (EditorMode->Type == EditorMode_MovingPoint &&
+                EditorMode->MovingPoint.Curve == Curve)
             {
-               f32 HelperLineWidth =
-                  ClipSpaceLengthToWorldSpace(EditorParams->CubicBezierHelperLineWidthClipSpace,
-                                              CoordinateSystemData);
-               
-               RenderCubicBezierPointsWithHelperLines(Curve, SelectedControlPointIndex,
-                                                      true, true, CurveParams.PointSize,
-                                                      CurveParams.PointColor, HelperLineWidth,
-                                                      CurveParams.CurveColor, MVP, Window);
-               if (SelectedControlPointIndex >= 1)
-               {
-                  RenderCubicBezierPointsWithHelperLines(Curve, SelectedControlPointIndex - 1,
-                                                         false, true, CurveParams.PointSize,
-                                                         CurveParams.PointColor, HelperLineWidth,
-                                                         CurveParams.CurveColor, MVP, Window);
-               }
-               if (SelectedControlPointIndex + 1 < Curve->NumControlPoints)
-               {
-                  RenderCubicBezierPointsWithHelperLines(Curve, SelectedControlPointIndex + 1,
-                                                         true, false, CurveParams.PointSize,
-                                                         CurveParams.PointColor, HelperLineWidth,
-                                                         CurveParams.CurveColor, MVP, Window);
-               }
+               Window->draw(EditorMode->MovingPoint.SavedCurveVertices,
+                            EditorMode->MovingPoint.SavedNumCurveVertices,
+                            EditorMode->MovingPoint.SavedPrimitiveType,
+                            MVP);
             }
             
-            f32 NormalControlPointRadius = CurveParams.PointSize;
-            color ControlPointColor = CurveParams.PointColor;
+            Window->draw(Curve->CurveVertices.Vertices,
+                         Curve->CurveVertices.NumVertices,
+                         Curve->CurveVertices.PrimitiveType,
+                         MVP);
             
-            f32 ControlPointOutlineThicknessScale = 0.0f;
-            color NormalControlPointOutlineColor = {};
-            if (IsSelected)
+            if (CurveParams.PolylineEnabled)
             {
-               ControlPointOutlineThicknessScale = EditorParams->SelectedCurveControlPointOutlineThicknessScale;
-               NormalControlPointOutlineColor = EditorParams->SelectedCurveControlPointOutlineColor;
+               Window->draw(Curve->PolylineVertices.Vertices,
+                            Curve->PolylineVertices.NumVertices,
+                            Curve->PolylineVertices.PrimitiveType,
+                            MVP);
             }
             
-            u64 NumControlPoints = Curve->NumControlPoints;
-            local_position *ControlPoints = Curve->ControlPoints;
-            for (u64 ControlPointIndex = 0;
-                 ControlPointIndex < NumControlPoints;
-                 ++ControlPointIndex)
+            if (CurveParams.ConvexHullEnabled)
             {
-               local_position ControlPoint = ControlPoints[ControlPointIndex];
+               Window->draw(Curve->ConvexHullVertices.Vertices,
+                            Curve->ConvexHullVertices.NumVertices,
+                            Curve->ConvexHullVertices.PrimitiveType,
+                            MVP);
+            }
+            
+            if (!CurveParams.PointsDisabled)
+            {
+               b32 IsSelected = Curve->IsSelected;
+               u64 SelectedControlPointIndex = Curve->SelectedControlPointIndex;
                
-               f32 ControlPointRadius = NormalControlPointRadius;
-               if (ControlPointIndex == NumControlPoints - 1)
+               if (!CurveParams.CubicBezierHelpersDisabled &&
+                   IsSelected && SelectedControlPointIndex != U64_MAX &&
+                   CurveParams.CurveShape.InterpolationType == Interpolation_Bezier &&
+                   CurveParams.CurveShape.BezierType == Bezier_Cubic)
                {
-                  ControlPointRadius *= EditorParams->LastControlPointSizeMultiplier;
+                  f32 HelperLineWidth =
+                     ClipSpaceLengthToWorldSpace(EditorParams->CubicBezierHelperLineWidthClipSpace,
+                                                 CoordinateSystemData);
+                  
+                  RenderCubicBezierPointsWithHelperLines(Curve, SelectedControlPointIndex,
+                                                         true, true, CurveParams.PointSize,
+                                                         CurveParams.PointColor, HelperLineWidth,
+                                                         CurveParams.CurveColor, MVP, Window);
+                  if (SelectedControlPointIndex >= 1)
+                  {
+                     RenderCubicBezierPointsWithHelperLines(Curve, SelectedControlPointIndex - 1,
+                                                            false, true, CurveParams.PointSize,
+                                                            CurveParams.PointColor, HelperLineWidth,
+                                                            CurveParams.CurveColor, MVP, Window);
+                  }
+                  if (SelectedControlPointIndex + 1 < Curve->NumControlPoints)
+                  {
+                     RenderCubicBezierPointsWithHelperLines(Curve, SelectedControlPointIndex + 1,
+                                                            true, false, CurveParams.PointSize,
+                                                            CurveParams.PointColor, HelperLineWidth,
+                                                            CurveParams.CurveColor, MVP, Window);
+                  }
                }
                
-               color ControlPointOutlineColor = NormalControlPointOutlineColor;
-               if (ControlPointIndex == SelectedControlPointIndex)
+               f32 NormalControlPointRadius = CurveParams.PointSize;
+               color ControlPointColor = CurveParams.PointColor;
+               
+               f32 ControlPointOutlineThicknessScale = 0.0f;
+               color NormalControlPointOutlineColor = {};
+               if (IsSelected)
                {
-                  ControlPointOutlineColor = EditorParams->SelectedControlPointOutlineColor;
+                  ControlPointOutlineThicknessScale = EditorParams->SelectedCurveControlPointOutlineThicknessScale;
+                  NormalControlPointOutlineColor = EditorParams->SelectedCurveControlPointOutlineColor;
                }
                
-               f32 OutlineThickness = ControlPointOutlineThicknessScale * ControlPointRadius;
-               
-               DrawCircle(ControlPoint,
-                          ControlPointRadius,
-                          ControlPointColor,
-                          MVP,
-                          Window,
-                          OutlineThickness,
-                          ControlPointOutlineColor);
+               u64 NumControlPoints = Curve->NumControlPoints;
+               local_position *ControlPoints = Curve->ControlPoints;
+               for (u64 ControlPointIndex = 0;
+                    ControlPointIndex < NumControlPoints;
+                    ++ControlPointIndex)
+               {
+                  local_position ControlPoint = ControlPoints[ControlPointIndex];
+                  
+                  f32 ControlPointRadius = NormalControlPointRadius;
+                  if (ControlPointIndex == NumControlPoints - 1)
+                  {
+                     ControlPointRadius *= EditorParams->LastControlPointSizeMultiplier;
+                  }
+                  
+                  color ControlPointOutlineColor = NormalControlPointOutlineColor;
+                  if (ControlPointIndex == SelectedControlPointIndex)
+                  {
+                     ControlPointOutlineColor = EditorParams->SelectedControlPointOutlineColor;
+                  }
+                  
+                  f32 OutlineThickness = ControlPointOutlineThicknessScale * ControlPointRadius;
+                  
+                  DrawCircle(ControlPoint,
+                             ControlPointRadius,
+                             ControlPointColor,
+                             MVP,
+                             Window,
+                             OutlineThickness,
+                             ControlPointOutlineColor);
+               }
             }
          }
       }
@@ -5331,7 +5279,7 @@ RenderCurves(curve *CurveList,
 
 internal void
 UpdateAndRenderAnimateCurveAnimation(transform_curve_animation *Animation,
-                                     curve *CurvesList, f32 DeltaTime,
+                                     entity *EntitiesList, f32 DeltaTime,
                                      sf::Transform Transform,
                                      sf::RenderWindow *Window)
 {
@@ -5360,14 +5308,19 @@ UpdateAndRenderAnimateCurveAnimation(transform_curve_animation *Animation,
             char const *ComboPreview = (Animation->ToCurve ? Animation->ToCurve->Name.Str : "");
             if (ImGui::BeginCombo("##AnimationTarget", ComboPreview))
             {
-               ListIter(Curve, CurvesList, curve)
+               ListIter(Entity, EntitiesList, entity)
                {
-                  if (Curve != Animation->FromCurve)
+                  if (Entity->Type == Entity_Curve)
                   {
-                     b32 IsSelected = (Animation->ToCurve == Curve);
-                     if (ImGui::Selectable(Curve->Name.Str, IsSelected))
+                     curve *Curve = &Entity->Curve;
+                     
+                     if (Curve != Animation->FromCurve)
                      {
-                        Animation->ToCurve = Curve;
+                        b32 IsSelected = (Animation->ToCurve == Curve);
+                        if (ImGui::Selectable(Curve->Name.Str, IsSelected))
+                        {
+                           Animation->ToCurve = Curve;
+                        }
                      }
                   }
                }
@@ -5766,7 +5719,7 @@ CombineCurves(curve_combining *Combining, editor_state *EditorState)
                          CombinedCubicBezierPoints);
    
    // TODO(hbr): Maybe update name of combined curve
-   EditorStateRemoveCurve(EditorState, From);
+   EditorStateRemoveEntity(EditorState, EntityFromCurve(From));
    // TODO(hbr): Maybe select To curve
 }
 
@@ -5813,15 +5766,20 @@ UpdateAndRenderCurveCombining(editor_state *EditorState,
             char const *ComboPreview = (Combining->TargetCurve ? Combining->TargetCurve->Name.Str : "");
             if (ImGui::BeginCombo("##CombiningTarget", ComboPreview))
             {
-               ListIter(Curve, EditorState->CurvesHead, curve)
+               ListIter(Entity, EditorState->EntitiesHead, entity)
                {
-                  if (Curve != Combining->CombineCurve &&
-                      AreCurvesCompatibleForCombining(Combining->CombineCurve, Curve))
+                  if (Entity->Type == Entity_Curve)
                   {
-                     b32 IsSelected = (Curve == Combining->TargetCurve);
-                     if (ImGui::Selectable(Curve->Name.Str, IsSelected))
+                     curve *Curve = &Entity->Curve;
+                     
+                     if (Curve != Combining->CombineCurve &&
+                         AreCurvesCompatibleForCombining(Combining->CombineCurve, Curve))
                      {
-                        Combining->TargetCurve = Curve;
+                        b32 IsSelected = (Curve == Combining->TargetCurve);
+                        if (ImGui::Selectable(Curve->Name.Str, IsSelected))
+                        {
+                           Combining->TargetCurve = Curve;
+                        }
                      }
                   }
                }
@@ -5993,23 +5951,24 @@ UpdateAndRender(f32 DeltaTime, user_input UserInput, editor *Editor)
                                Editor->State.Camera,
                                Editor->Projection);
    
-   switch (Editor->State.SelectedEntityType)
+   if (Editor->State.SelectedEntity)
    {
-      case SelectedEntity_None: {} break;
-      
-      case SelectedEntity_Curve: {
-         if (Editor->UI_Config.ViewSelectedCurveWindow)
-         {
-            RenderSelectedCurveUI(Editor, CoordinateSystemData);
-         }
-      } break;
-      
-      case SelectedEntity_Image: {
-         if (Editor->UI_Config.ViewSelectedImageWindow)
-         {
-            RenderSelectedImageUI(Editor, CoordinateSystemData);
-         }
-      } break;
+      switch (Editor->State.SelectedEntity->Type)
+      {
+         case Entity_Curve: {
+            if (Editor->UI_Config.ViewSelectedCurveWindow)
+            {
+               RenderSelectedCurveUI(Editor, CoordinateSystemData);
+            }
+         } break;
+         
+         case Entity_Image: {
+            if (Editor->UI_Config.ViewSelectedImageWindow)
+            {
+               RenderSelectedImageUI(Editor, CoordinateSystemData);
+            }
+         } break;
+      }
    }
    
    if (Editor->UI_Config.ViewListOfEntitiesWindow)
@@ -6060,14 +6019,14 @@ UpdateAndRender(f32 DeltaTime, user_input UserInput, editor *Editor)
    }
    
    // NOTE(hbr): Rendering functions are invoked in order to match expected drawing order.
-   RenderImages(Editor->State.NumImages, Editor->State.ImagesHead,
+   RenderImages(Editor->State.NumEntities, Editor->State.EntitiesHead,
                 VP, Editor->Window);
    
    // NOTE(hbr): Render below curves
    UpdateAndRenderDegreeLowering(&Editor->State.DegreeLowering,
                                  VP, Editor->Window);
    
-   RenderCurves(Editor->State.CurvesHead,
+   RenderCurves(Editor->State.EntitiesHead,
                 &Editor->State.Mode,
                 &Editor->Parameters,
                 CoordinateSystemData,
@@ -6077,7 +6036,7 @@ UpdateAndRender(f32 DeltaTime, user_input UserInput, editor *Editor)
    UpdateAndRenderDeCasteljauVisualization(&Editor->State.DeCasteljauVisualization,
                                            VP, Editor->Window);
    UpdateAndRenderAnimateCurveAnimation(&Editor->State.CurveAnimation,
-                                        Editor->State.CurvesHead,
+                                        Editor->State.EntitiesHead,
                                         DeltaTime, VP, Editor->Window);
    UpdateAndRenderCurveCombining(&Editor->State, VP, Editor->Window);
    UpdateAndRenderSplittingBezierCurve(&Editor->State,
@@ -6138,13 +6097,12 @@ gl_FrontColor = vec4(0, 1, 0, 1);
       bool ImGuiInitSuccess = ImGui::SFML::Init(Window, true);
       if (ImGuiInitSuccess)
       {
-         pool *CurvePool = PoolMakeForType(Gigabytes(1), curve);
-         pool *ImagePool = PoolMakeForType(Gigabytes(1), image);
+         pool *EntityPool = PoolMakeForType(Gigabytes(1), entity);
          arena *DeCasteljauVisualizationArena = ArenaMake(Gigabytes(1));
          arena *DegreeLoweringArena = ArenaMake(Gigabytes(1));
          arena *MovingPointArena = ArenaMake(Gigabytes(1));
          arena *CurveAnimationArena = ArenaMake(Gigabytes(1));
-         editor_state InitialEditorState = EditorStateMakeDefault(CurvePool, ImagePool,
+         editor_state InitialEditorState = EditorStateMakeDefault(EntityPool,
                                                                   DeCasteljauVisualizationArena,
                                                                   DegreeLoweringArena,
                                                                   MovingPointArena,

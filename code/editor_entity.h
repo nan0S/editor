@@ -92,9 +92,6 @@ struct curve_params
 
 struct curve
 {
-   curve *Next;
-   curve *Prev;
-   
    name_string Name;
    
    curve_params CurveParams;
@@ -129,8 +126,6 @@ struct curve
    u64 CurveVersion; // NOTE(hbr): Changes every recomputation
 };
 
-typedef u64 added_point_index;
-
 function curve_shape CurveShapeMake(interpolation_type InterpolationType,
                                     polynomial_interpolation_type PolynomialInterpolationType,
                                     points_arrangement PointsArrangement,
@@ -145,12 +140,18 @@ function curve_params CurveParamsMake(curve_shape CurveShape,
                                       u64 NumCurvePointsPerSegment, color DeCasteljauVisualizationGradientA,
                                       color DeCasteljauVisualizationGradientB);
 
-function curve CurveMake(name_string CurveName, curve_params CurveParams, u64 SelectedControlPointIndex,
-                         world_position Position, rotation_2d Rotation);
+function curve CurveMake(name_string CurveName,
+                         curve_params CurveParams,
+                         u64 SelectedControlPointIndex,
+                         world_position Position,
+                         rotation_2d Rotation);
 function void CurveDestroy(curve *Curve);
 function curve CurveCopy(curve Curve);
+
+typedef u64 added_point_index;
 function added_point_index CurveAppendControlPoint(curve *Curve, world_position ControlPoint,
                                                    f32 ControlPointWeight);
+
 function void CurveInsertControlPoint(curve *Curve, world_position ControlPoint, u64 InsertAfterIndex,
                                       f32 ControlPointWeight);
 function void CurveRemoveControlPoint(curve *Curve, u64 ControlPointIndex);
@@ -174,9 +175,6 @@ function world_position LocalCurvePositionToWorld(curve *Curve, local_position P
 //- Image
 struct image
 {
-   image *Next;
-   image *Prev;
-   
    name_string Name;
    
    world_position Position;
@@ -187,21 +185,10 @@ struct image
    
    b32 Hidden;
    u64 IsRenamingFrame;
+   b32 IsSelected;
    
    string FilePath;
    sf::Texture Texture;
-};
-
-struct image_sort_entry
-{
-   image *Image;
-   u64 OriginalOrder;
-};
-
-struct sorting_layer_sorted_images
-{
-   u64 NumImages;
-   image_sort_entry *SortedImages;
 };
 
 function image ImageMake(name_string Name, world_position Position,
@@ -214,8 +201,45 @@ function void ImageDestroy(image *Image);
 function sf::Texture LoadTextureFromFile(arena *Arena, string FilePath,
                                          error_string *OutError);
 
+struct image_sort_entry
+{
+   image *Image;
+   u64 OriginalOrder;
+};
+struct sorting_layer_sorted_images
+{
+   u64 NumImages;
+   image_sort_entry *SortedImages;
+};
 function sorting_layer_sorted_images SortingLayerSortedImages(arena *Arena,
-                                                              u64 NumImages,
-                                                              image *ImageList);
+                                                              u64 NumEntities,
+                                                              image *EntityList);
+
+//- Entity
+enum entity_type
+{
+   Entity_Curve,
+   Entity_Image,
+};
+
+struct entity
+{
+   entity *Prev;
+   entity *Next;
+   
+   entity_type Type;
+   
+   // TODO(hbr): merge things being there and there
+   curve Curve;
+   image Image;
+};
+
+// TODO(hbr): This should be temporary
+#define EntityFromCurve(CurvePtr) EnclosingTypeAddr(entity, Curve, CurvePtr)
+#define EntityFromImage(ImagePtr) EnclosingTypeAddr(entity, Image, ImagePtr)
+
+function entity CurveEntity(curve Curve);
+function entity ImageEntity(image Image);
+function void EntityDestroy(entity *Entity);
 
 #endif //EDITOR_ENTITY_H

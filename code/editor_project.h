@@ -7,8 +7,7 @@ struct saved_project_header
 {
    u64 MagicValue;
    
-   u64 NumCurves;
-   u64 NumImages;
+   u64 NumEntities;
    u64 CurveCounter;
    
    camera Camera;
@@ -52,6 +51,13 @@ struct saved_project_image
    b32 Hidden;
 };
 
+struct saved_project_entity
+{
+   entity_type Type;
+   saved_project_curve Curve;
+   saved_project_image Image;
+};
+
 struct load_project_result
 {
    editor_state EditorState;
@@ -62,9 +68,8 @@ struct load_project_result
    string_list Warnings;
 };
 
-function saved_project_header SavedProjectHeader(u64 MagicValue, u64 NumCurves,
-                                                 u64 NumImages, u64 CurveCounter,
-                                                 camera Camera,
+function saved_project_header SavedProjectHeader(u64 MagicValue, u64 NumEntities,
+                                                 u64 CurveCounter, camera Camera,
                                                  editor_parameters EditorParameters,
                                                  ui_config UI_Config,
                                                  f32 CurveAnimationSpeed);
@@ -80,8 +85,7 @@ function error_string SaveProjectInFile(arena *Arena,
                                         editor Editor,
                                         string SaveFilePath);
 function load_project_result LoadProjectFromFile(arena *Arena,
-                                                 pool *CurvePool,
-                                                 pool *ImagePool,
+                                                 pool *EntityPool,
                                                  arena *DeCasteljauVisualizationArena,
                                                  arena *DegreeLoweringArena,
                                                  arena *MovingPointArena,

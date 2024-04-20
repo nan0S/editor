@@ -13,6 +13,7 @@
 #include "editor_memory.h"
 #include "editor_string.h"
 #include "editor_os.h"
+#include "editor_profiler.h"
 #include "editor_file.h"
 #include "editor_math.h"
 #include "editor_adapt.h"
@@ -22,7 +23,6 @@
 #include "editor_input.h"
 #include "editor_editor.h"
 #include "editor_project.h"
-#include "editor_profiler.h"
 
 #ifndef EDITOR_DEBUG
 #define EDITOR_DEBUG 0
@@ -65,13 +65,37 @@ TODOs:
 - fix adding cubic bezier points when zero control points - now its hardcoded (0.5f, 0.5f)
 - add hot code reloading
 - add SIMD
-- maybe splitting, decasteljau visualization, degree lowering should be per curve, not global (but maybe not)
+- maybe splitting, deCasteljau visualization, degree lowering should be per curve, not global (but maybe not)
 - better profiler, snapshots, shouldn't update so frequently
 - change curve colors when combining or choosing to transform
 - splitting and splitting on point curves should have either the same name or something better than (left), (right)
 - change the way CurveSetControlPoints works to optimize a little - avoid unnecessary memcpys and allocs
 - take more things by pointer in general
 - maybe don't be so precise when checking curvepoints collisions - jump every 50 points or something like that
+- use u32 instead of u64 in most places
+- don't use constructors, more use designated struct initialization, or nothing?
+- remove defer?
+- make os layer
+- maybe make arenas infinitely growable?
+- use Count rather that Num
+- don't use other type for saving entity, use current type and override pointers - why? simplify by default, don't complicate by default, and more types is more complicated than less types
+- consider not using malloced strings in notification_system and in images, just static string will do?
+- rename [EditorState]
+- rename SizeOf, Cast
+- replace string with ptr and size struct
+- maybe rename EntityDestroy, in general consider using Allocate/Deallocate maybe or Make/Destroy, or something consistent more, just think about it
+- in general do a pass on variable names, make them less descriptive, like [EditorParams], [EditorState], [ChckecCollisionWithFlags], ...
+- when returning named type from function like [added_point_index], include 64 in the name, and don't use this name at call sites, just variable name will do
+- is [CurveRecompute] really needed after every operation to curve like [Append] or [Insert], can't just set the flag instead
+- replace [Assert(false]] with InvalidPath or something like that, and add [InvalidPath] to [base.h]
+- when passing [curve] to a function but as [entity], maybe write a macro that gets [curve] from that [entity] but asserts that it really is a curve
+- get rid of defer and templates
+- get rid of [MemoryZero] in all initialization functions?
+- replace printf
+- replace imgui
+- replace sfml
+- rename functions to more natural language, don't follow those stupid conventions
+- [splitting_curve_point] and similar shouldn't have [IsSplitting] maybe, just some pointer to identify whether this is happening
 
 DONE:
 - fix convex hull line width problem

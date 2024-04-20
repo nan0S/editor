@@ -1,4 +1,52 @@
-function saved_project_header
+#define SAVED_PROJECT_MAGIC_VALUE 0xdeadc0dedeadc0deull
+struct saved_project_header
+{
+   u64 MagicValue;
+   
+   u64 NumEntities;
+   u64 CurveCounter;
+   
+   camera Camera;
+   
+   editor_parameters EditorParameters;
+   
+   ui_config UI_Config;
+   
+   // TODO(hbr): Should it really belong here?
+   f32 CurveAnimationSpeed;
+};
+
+struct saved_project_curve
+{
+   curve_params CurveParams;
+   u64 NumControlPoints;
+   u64 SelectedControlPointIndex;
+};
+
+struct saved_project_image
+{
+   u64 ImagePathSize;
+};
+
+struct saved_project_entity
+{
+   entity_type Type;
+   
+   world_position Position;
+   v2f32 Scale;
+   rotation_2d Rotation;
+   name_string Name;
+   s64 SortingLayer;
+   u64 RenamingFrame;
+   entity_flags Flags;
+   
+   union {
+      saved_project_curve Curve;
+      saved_project_image Image;
+   };
+};
+
+internal saved_project_header
 SavedProjectHeader(u64 MagicValue, u64 NumEntities,
                    u64 CurveCounter, camera Camera,
                    editor_parameters EditorParameters,
@@ -16,96 +64,66 @@ SavedProjectHeader(u64 MagicValue, u64 NumEntities,
    return Result;
 }
 
-function saved_project_entity
-SavedProjectEntity(editor Editor, entity *Entity)
+internal saved_project_curve
+SavedProjectCurve(curve_params CurveParams,
+                  u64 NumControlPoints,
+                  u64 SelectedControlPointIndex)
+{
+   saved_project_curve Result = {};
+   Result.CurveParams = CurveParams;
+   Result.NumControlPoints = NumControlPoints;
+   Result.SelectedControlPointIndex = SelectedControlPointIndex;
+   
+   return Result;
+}
+
+internal saved_project_image
+SavedProjectImage(u64 ImagePathSize)
+{
+   saved_project_image Result = {};
+   Result.ImagePathSize = ImagePathSize;
+   
+   return Result;
+}
+
+internal saved_project_entity
+SavedProjectEntity(entity *Entity)
 {
    saved_project_entity Result = {};
    Result.Type = Entity->Type;
+   Result.Position;
+   Result.Scale = Entity->Scale;
+   Result.Rotation = Entity->Rotation;
+   Result.Name = Entity->Name;
+   Result.SortingLayer = Entity->SortingLayer;
+   Result.Flags = Entity->Flags;
    
-   // TODO(hbr): Clean this up
    switch (Entity->Type)
    {
       case Entity_Curve: {
          curve *Curve = &Entity->Curve;
-         
-         u64 NumControlPoints = Curve->NumControlPoints;
-         
-         saved_project_curve SavedCurve = SavedProjectCurve(Curve->Name,
-                                                            Curve->CurveParams,
-                                                            Curve->Position,
-                                                            Curve->Rotation,
-                                                            NumControlPoints,
-                                                            Curve->IsSelected,
-                                                            Curve->SelectedControlPointIndex);
-         
-         Result.Curve = SavedCurve;
+         Result.Curve = SavedProjectCurve(Curve->CurveParams,
+                                          Curve->NumControlPoints,
+                                          Curve->SelectedControlPointIndex);
       } break;
       
       case Entity_Image: {
-         image *Image = &Entity->Image;
-         
-         b32 IsSelected = (Editor.State.SelectedEntity == Entity);
-         string ImagePath = Image->FilePath;
-         
-         saved_project_image SavedImage = SavedProjectImage(Image->Name, StringSize(ImagePath),
-                                                            Image->Position, Image->Scale, Image->Rotation,
-                                                            Image->SortingLayer, IsSelected, Image->Hidden);
-         
-         Result.Image = SavedImage;
+         Result.Image = SavedProjectImage(StringSize(Entity->Image.FilePath));
       } break;
    }
    
    return Result;
 }
 
-function saved_project_curve
-SavedProjectCurve(name_string CurveName, curve_params CurveParams,
-                  world_position Position, rotation_2d Rotation,
-                  u64 NumControlPoints, b32 IsSelected,
-                  u64 SelectedControlPointIndex)
-{
-   saved_project_curve Result  = {};
-   Result.CurveName = CurveName;
-   Result.CurveParams = CurveParams;
-   Result.Position = Position;
-   Result.Rotation = Rotation;
-   Result.NumControlPoints = NumControlPoints;
-   Result.IsSelected = IsSelected;
-   Result.SelectedControlPointIndex = SelectedControlPointIndex;
-   
-   return Result;
-}
-
-function saved_project_image
-SavedProjectImage(name_string ImageName, u64 ImagePathSize, v2f32 Position,
-                  v2f32 Scale,  rotation_2d Rotation, u64 SortingLayer,
-                  b32 IsSelected, b32 Hidden)
-{
-   saved_project_image Result = {};
-   Result.ImageName = ImageName;
-   Result.ImagePathSize = ImagePathSize;
-   Result.Position = Position;
-   Result.Scale = Scale;
-   Result.Rotation = Rotation;
-   Result.SortingLayer = SortingLayer;
-   Result.IsSelected = IsSelected;
-   Result.Hidden = Hidden;
-   
-   return Result;
-}
-
 // TODO(hbr): Take more things by pointer in general
 function error_string
-SaveProjectInFile(arena *Arena,
-                  editor Editor,
-                  string SaveFilePath)
+SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath)
 {
    auto Scratch = ScratchArena(Arena);
    defer { ReleaseScratch(Scratch); };
    
    string_list SaveData = {};
    
-   //- Save header
    saved_project_header Header = SavedProjectHeader(SAVED_PROJECT_MAGIC_VALUE,
                                                     Editor.State.NumEntities,
                                                     Editor.State.EverIncreasingCurveCounter,
@@ -113,17 +131,14 @@ SaveProjectInFile(arena *Arena,
                                                     Editor.Parameters,
                                                     Editor.UI_Config,
                                                     Editor.State.CurveAnimation.AnimationSpeed);
-   
-   string HeaderData = StringMake(Scratch.Arena, cast(char const *)&Header, sizeof(Header));
+   string HeaderData = StringMake(Scratch.Arena, Cast(char const *)&Header, SizeOf(Header));
    StringListPush(Scratch.Arena, &SaveData, HeaderData);
    
-   //- Save entities
    ListIter(Entity, Editor.State.EntitiesHead, entity)
    {
-      saved_project_entity SavedEntity = SavedProjectEntity(Editor, Entity);
-      
-      string SavedEntityData = StringMake(Scratch.Arena, cast(char const *)&SavedEntity, sizeof(SavedEntity));
-      StringListPush(Scratch.Arena, &SaveData, SavedEntityData);
+      saved_project_entity Saved = SavedProjectEntity(Entity);
+      string SavedData = StringMake(Scratch.Arena, Cast(char const *)&Saved, SizeOf(Saved));
+      StringListPush(Scratch.Arena, &SaveData, SavedData);
       
       switch (Entity->Type)
       {
@@ -132,28 +147,24 @@ SaveProjectInFile(arena *Arena,
             
             u64 NumControlPoints = Curve->NumControlPoints;
             
-            string ControlPoints =
-               StringMake(Scratch.Arena,
-                          cast(char const *)Curve->ControlPoints,
-                          NumControlPoints * sizeof(Curve->ControlPoints[0]));
+            string ControlPoints = StringMake(Scratch.Arena,
+                                              Cast(char const *)Curve->ControlPoints,
+                                              NumControlPoints * SizeOf(Curve->ControlPoints[0]));
             StringListPush(Scratch.Arena, &SaveData, ControlPoints);
             
-            string ControlPointWeights =
-               StringMake(Scratch.Arena,
-                          cast(char const *)Curve->ControlPointWeights,
-                          NumControlPoints * sizeof(Curve->ControlPointWeights[0]));
+            string ControlPointWeights = StringMake(Scratch.Arena,
+                                                    Cast(char const *)Curve->ControlPointWeights,
+                                                    NumControlPoints * SizeOf(Curve->ControlPointWeights[0]));
             StringListPush(Scratch.Arena, &SaveData, ControlPointWeights);
             
-            string CubicBezierPoints =
-               StringMake(Scratch.Arena,
-                          cast(char const *)Curve->CubicBezierPoints,
-                          3 * NumControlPoints * sizeof(Curve->CubicBezierPoints[0]));
+            string CubicBezierPoints = StringMake(Scratch.Arena,
+                                                  Cast(char const *)Curve->CubicBezierPoints,
+                                                  3 * NumControlPoints * SizeOf(Curve->CubicBezierPoints[0]));
             StringListPush(Scratch.Arena, &SaveData, CubicBezierPoints);
          } break;
          
          case Entity_Image: {
-            image *Image = &Entity->Image;
-            StringListPush(Scratch.Arena, &SaveData, Image->FilePath);
+            StringListPush(Scratch.Arena, &SaveData, Entity->Image.FilePath);
          } break;
       }
    }
@@ -169,17 +180,16 @@ ExpectSizeInData(u64 Expected, void **Data, u64 *BytesLeft)
    if (*BytesLeft >= Expected)
    {
       Result = *Data;
-      *Data = cast(u8 *)*Data + Expected;
+      *Data = Cast(u8 *)*Data + Expected;
       *BytesLeft -= Expected;
    }
    
    return Result;
 }
-#define ExpectTypeInData(Type, Data, BytesLeft) \
-cast(Type *)ExpectSizeInData(sizeof(Type), Data, BytesLeft)
-#define ExpectArrayInData(Count, Type, Data, BytesLeft) \
-cast(Type *)ExpectSizeInData((Count) * sizeof(Type), Data, BytesLeft) 
+#define ExpectTypeInData(Type, Data, BytesLeft) Cast(Type *)ExpectSizeInData(SizeOf(Type), Data, BytesLeft)
+#define ExpectArrayInData(Count, Type, Data, BytesLeft) Cast(Type *)ExpectSizeInData((Count) * SizeOf(Type), Data, BytesLeft)
 
+// TODO(hbr): Error doesn't have to be so specific, maybe just "project file is corrupted or something like that"
 function load_project_result
 LoadProjectFromFile(arena *Arena, pool *EntityPool,
                     arena *DeCasteljauVisualizationArena,
@@ -191,6 +201,10 @@ LoadProjectFromFile(arena *Arena, pool *EntityPool,
    error_string Error = 0;
    string_list Warnings = {};
    
+   editor_state *EditorState = &Result.EditorState;
+   editor_parameters *EditorParameters = &Result.EditorParameters;
+   ui_config *UI_Config = &Result.UI_Config;
+   
    auto Scratch = ScratchArena(Arena);
    defer { ReleaseScratch(Scratch); };
    
@@ -200,181 +214,139 @@ LoadProjectFromFile(arena *Arena, pool *EntityPool,
    {
       void *Data = Contents.Contents;
       u64 BytesLeft = Contents.Size;
+      b32 Corrupted = false;
       
-      saved_project_header *Header = ExpectTypeInData(saved_project_header,
-                                                      &Data, &BytesLeft);
-      
-      Result.EditorParameters = Header->EditorParameters;
-      Result.UI_Config = Header->UI_Config;
-      
-      if (Header)
+      saved_project_header *Header = ExpectTypeInData(saved_project_header, &Data, &BytesLeft);
+      if (Header && Header->MagicValue)
       {
-         if (Header->MagicValue == SAVED_PROJECT_MAGIC_VALUE)
+         *EditorParameters = Header->EditorParameters;
+         *UI_Config = Header->UI_Config;
+         *EditorState = EditorStateMake(EntityPool,
+                                        Header->CurveCounter,
+                                        Header->Camera,
+                                        DeCasteljauVisualizationArena,
+                                        DegreeLoweringArena,
+                                        MovingPointArena,
+                                        CurveAnimationArena,
+                                        Header->CurveAnimationSpeed);
+         
+         u64 NumEntities = Header->NumEntities;
+         for (u64 EntityIndex = 0;
+              EntityIndex < NumEntities;
+              ++EntityIndex)
          {
-            editor_state State = EditorStateMake(EntityPool,
-                                                 Header->CurveCounter,
-                                                 Header->Camera,
-                                                 DeCasteljauVisualizationArena,
-                                                 DegreeLoweringArena,
-                                                 MovingPointArena,
-                                                 CurveAnimationArena,
-                                                 Header->CurveAnimationSpeed);
-            defer {
-               if (Error) EditorStateDestroy(&State);
-               else Result.EditorState = State;
-            };
-            
-            //- Parse entities
-            u64 NumEntities = Header->NumEntities;
-            for (u64 EntityIndex = 0;
-                 EntityIndex < NumEntities;
-                 ++EntityIndex)
+            saved_project_entity *SavedEntity = ExpectTypeInData(saved_project_entity, &Data, &BytesLeft);
+            if (SavedEntity)
             {
-               saved_project_entity *SavedEntity = ExpectTypeInData(saved_project_entity,
-                                                                    &Data, &BytesLeft);
+               entity *Entity = AllocateEntity(EditorState);
+               // TODO(hbr): This is really temporary, make some function call here to guard against adding new fields to [entity]
+               Entity->Position = SavedEntity->Position;
+               Entity->Scale = SavedEntity->Scale;
+               Entity->Rotation = SavedEntity->Rotation;
+               Entity->Name = SavedEntity->Name;
+               Entity->SortingLayer = SavedEntity->SortingLayer;
+               Entity->RenamingFrame = SavedEntity->RenamingFrame;
+               Entity->Flags = SavedEntity->Flags;
                
-               if (SavedEntity)
+               Entity->Type = SavedEntity->Type;
+               switch (SavedEntity->Type)
                {
-                  switch (SavedEntity->Type)
-                  {
-                     case Entity_Curve: {
-                        saved_project_curve *SavedCurve = &SavedEntity->Curve;
-                        
-                        curve Curve = CurveMake(SavedCurve->CurveName,
-                                                SavedCurve->CurveParams,
-                                                SavedCurve->SelectedControlPointIndex,
-                                                SavedCurve->Position,
-                                                SavedCurve->Rotation);
-                        
-                        entity Entity = CurveEntity(Curve);
-                        entity *AddEntity = EditorStateAddEntity(&State, &Entity);
-                        curve *AddCurve = &AddEntity->Curve;
-                        
-                        if (SavedCurve->IsSelected)
-                        {
-                           EditorStateSelectEntity(&State, AddEntity);
-                        }
-                        
-                        u64 NumControlPoints = SavedCurve->NumControlPoints;
-                        local_position *ControlPoints = ExpectArrayInData(NumControlPoints,
-                                                                          local_position,
-                                                                          &Data, &BytesLeft);
-                        f32 *ControlPointWeights = ExpectArrayInData(NumControlPoints, f32,
-                                                                     &Data, &BytesLeft);
-                        local_position *CubicBezierPoints = ExpectArrayInData(3 * NumControlPoints,
-                                                                              local_position,
-                                                                              &Data, &BytesLeft);
-                        
-                        if (ControlPoints && ControlPointWeights && CubicBezierPoints)
-                        {
-                           CurveSetControlPoints(AddCurve, NumControlPoints,
-                                                 ControlPoints, ControlPointWeights,
-                                                 CubicBezierPoints);
-                        }
-                        else
-                        {
-                           Error = StringMakeFormat(Arena,
-                                                    "project file %s corrupted (unexpected end of data, expected curve control points data)",
-                                                    ProjectFilePath);
-                        }
-                     } break;
+                  case Entity_Curve: {
+                     saved_project_curve *SavedCurve = &SavedEntity->Curve;
+                     curve *Curve = &Entity->Curve;
                      
-                     case Entity_Image: {
-                        saved_project_image *SavedImage = &SavedEntity->Image;
+                     // TODO(hbr): This is really temporary, make some function call here to guard against adding new fields to [entity]
+                     Curve->CurveParams = SavedCurve->CurveParams;
+                     Curve->SelectedControlPointIndex = SavedCurve->SelectedControlPointIndex;
+                     
+                     u64 NumControlPoints = SavedCurve->NumControlPoints;
+                     local_position *ControlPoints = ExpectArrayInData(NumControlPoints, local_position, &Data, &BytesLeft);
+                     f32 *ControlPointWeights = ExpectArrayInData(NumControlPoints, f32, &Data, &BytesLeft);
+                     local_position *CubicBezierPoints = ExpectArrayInData(3 * NumControlPoints, local_position, &Data, &BytesLeft);
+                     
+                     if (ControlPoints && ControlPointWeights && CubicBezierPoints)
+                     {
+                        CurveSetControlPoints(Curve, NumControlPoints, ControlPoints, ControlPointWeights, CubicBezierPoints);
+                     }
+                     else
+                     {
+                        Corrupted = true;
+                     }
+                  } break;
+                  
+                  case Entity_Image: {
+                     saved_project_image *SavedImage = &SavedEntity->Image;
+                     image *Image = &Entity->Image;
+                     
+                     char *ImagePathStr = ExpectArrayInData(SavedImage->ImagePathSize, char, &Data, &BytesLeft);
+                     if (ImagePathStr)
+                     {
+                        string ImagePath = StringMake(Scratch.Arena, ImagePathStr, SavedImage->ImagePathSize);
                         
-                        u64 ImagePathSize = SavedImage->ImagePathSize;
-                        char *ImagePathStr = ExpectArrayInData(ImagePathSize, char,
-                                                               &Data, &BytesLeft);
+                        string LoadTextureError = 0;
+                        sf::Texture LoadedTexture = LoadTextureFromFile(Scratch.Arena, ImagePath, &LoadTextureError);
                         
-                        if (ImagePathStr)
+                        if (LoadTextureError == 0)
                         {
-                           string ImagePath = StringMake(Scratch.Arena, ImagePathStr, ImagePathSize);
-                           
-                           string LoadTextureError = 0;
-                           sf::Texture LoadedTexture = LoadTextureFromFile(Scratch.Arena,
-                                                                           ImagePath,
-                                                                           &LoadTextureError);
-                           
-                           if (LoadTextureError)
-                           {
-                              string Warning = StringMakeFormat(Arena,
-                                                                "failed to load image while loading project from file: %s",
-                                                                LoadTextureError);
-                              StringListPush(Arena, &Warnings, Warning);
-                           }
-                           else
-                           {
-                              image NewImage = ImageMake(SavedImage->ImageName,
-                                                         SavedImage->Position,
-                                                         SavedImage->Scale,
-                                                         SavedImage->Rotation,
-                                                         SavedImage->SortingLayer,
-                                                         SavedImage->Hidden,
-                                                         ImagePath,
-                                                         LoadedTexture);
-                              
-                              entity Entity = ImageEntity(NewImage);
-                              entity *AddedEntity = EditorStateAddEntity(&State, &Entity);
-                              
-                              if (SavedImage->IsSelected)
-                              {
-                                 EditorStateSelectEntity(&State, AddedEntity);
-                              }
-                           }
+                           // TODO(hbr): Maybe also revise that.
+                           ImageInit(Image, ImagePath, &LoadedTexture);
                         }
                         else
                         {
-                           string Warning = StringMakeFormat(Arena,
-                                                             "project file %s corrupted (unexpected end of data, expected saved image path string)",
-                                                             ProjectFilePath);
+                           string Warning = StringMakeFormat(Arena, "image texture load failed: %s", LoadTextureError);
                            StringListPush(Arena, &Warnings, Warning);
                         }
-                     } break;
-                  }
-               }
-               else
-               {
-                  Error = StringMakeFormat(Arena,
-                                           "project file %s corrupted (unexpected end of data, expected saved entity data)",
-                                           ProjectFilePath);
+                     }
+                     else
+                     {
+                        Corrupted = true;
+                     }
+                  } break;
                }
                
-               if (Error)
+               if (SavedEntity->Flags & EntityFlag_Selected)
                {
-                  break;
+                  EditorStateSelectEntity(EditorState, Entity);
                }
+            }
+            else
+            {
+               Corrupted = true;
             }
             
-            if (!Error)
+            if (Corrupted || Error)
             {
-               if (BytesLeft > 0)
-               {
-                  string Warning = StringMakeFormat(Arena,
-                                                    "project file %s has unexpected trailing data",
-                                                    ProjectFilePath);
-                  StringListPush(Arena, &Warnings, Warning);
-               }
+               break;
             }
-         }
-         else
-         {
-            Error = StringMakeFormat(Arena,
-                                     "project file %s corrupted (magic value doesn't match)",
-                                     ProjectFilePath);
          }
       }
       else
       {
-         Error = StringMakeFormat(Arena,
-                                  "project file %s corrupted (header too short)",
-                                  ProjectFilePath);
+         Corrupted = true;
+      }
+      
+      if (Corrupted)
+      {
+         Error = StringMake(Arena, "project file corrupted");
+      }
+      
+      if (!Error)
+      {
+         if (BytesLeft > 0)
+         {
+            string Warning = StringMake(Arena, "project file has unexpected trailing data");
+            StringListPush(Arena, &Warnings, Warning);
+         }
       }
    }
    else
    {
-      Error = StringMakeFormat(Arena,
-                               "failed to load project from file: %s",
-                               ReadError);
+      Error = StringMake(Arena, ReadError);
+   }
+   
+   if (Error)
+   {
+      EditorStateDestroy(EditorState);
    }
    
    Result.Error = Error;

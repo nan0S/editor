@@ -28,11 +28,11 @@ global context GlobalContext;
 #define ARENA_DEFAULT_ALIGN 16
 #define ARENA_DEFAULT_COMMIT_SIZE Kilobytes(4)
 
-#define PushStruct(Arena, Type) (Type *)ArenaPushSize(Arena, sizeof(Type))
-#define PushStructZero(Arena, Type) (Type *)ArenaPushSizeZero(Arena, sizeof(Type))
-#define PushArray(Arena, Count, Type) (Type *)ArenaPushSize(Arena, (Count) * sizeof(Type))
-#define PushArrayZero(Arena, Count, Type) (Type *)ArenaPushSizeZero(Arena, (Count) * sizeof(Type))
-#define PopArray(Arena, Count, Type) ArenaPopSize(Arena, (Count) * sizeof(Type))
+#define PushStruct(Arena, Type) (Type *)ArenaPushSize(Arena, SizeOf(Type))
+#define PushStructZero(Arena, Type) (Type *)ArenaPushSizeZero(Arena, SizeOf(Type))
+#define PushArray(Arena, Count, Type) (Type *)ArenaPushSize(Arena, (Count) * SizeOf(Type))
+#define PushArrayZero(Arena, Count, Type) (Type *)ArenaPushSizeZero(Arena, (Count) * SizeOf(Type))
+#define PopArray(Arena, Count, Type) ArenaPopSize(Arena, (Count) * SizeOf(Type))
 
 function void SetGlobalContext(u64 ArenaCapacity);
 
@@ -68,10 +68,10 @@ function pool *PoolMake(u64 Capacity, u64 ChunkSize, u64 Align);
 function void *PoolAllocChunk(pool *Pool);
 function void PoolFree(pool *Pool, void *Chunk);
 
-#define PoolMakeForType(Capacity, Type) PoolMake(Capacity, sizeof(Type), alignof(Type))
-// TODO(hbr): Checking that sizeof(Type) and aligof(Type) equal Pool->ChunkSize
+#define PoolMakeForType(Capacity, Type) PoolMake(Capacity, SizeOf(Type), alignof(Type))
+// TODO(hbr): Checking that SizeOf(Type) and aligof(Type) equal Pool->ChunkSize
 // and Pool->Align correspondingly would be useful.
-#define PoolAllocStruct(Pool, Type) cast(Type *)PoolAllocChunk(Pool)
+#define PoolAllocStruct(Pool, Type) Cast(Type *)PoolAllocChunk(Pool)
 
 //- Heap Allocator
 struct heap_allocator {};
@@ -81,7 +81,7 @@ function void *HeapAllocSize(heap_allocator *Heap, u64 Size);
 function void *HeapReallocSize(heap_allocator *Heap, void *Memory, u64 NewSize);
 function void HeapFree(heap_allocator *Heap, void *Pointer);
 
-#define HeapAllocStruct(Heap, Type) cast(Type *)HeapAllocSize(Heap, sizeof(Type))
-#define HeapReallocArray(Heap, Array, NewCount, Type) cast(Type *)HeapReallocSize(Heap, cast(void *)Array, NewCount * sizeof(*Array))
+#define HeapAllocStruct(Heap, Type) Cast(Type *)HeapAllocSize(Heap, SizeOf(Type))
+#define HeapReallocArray(Heap, Array, NewCount, Type) Cast(Type *)HeapReallocSize(Heap, Cast(void *)Array, NewCount * SizeOf(*Array))
 
 #endif //EDITOR_MEMORY_H

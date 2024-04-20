@@ -52,7 +52,7 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define local static
 #define global static
 
-#define ArrayCount(Arr) (sizeof(Arr)/sizeof((Arr)[0]))
+#define ArrayCount(Arr) (SizeOf(Arr)/SizeOf((Arr)[0]))
 
 #define Bytes(N)      (((u64)(N))<<0)
 #define Kilobytes(N)  (((u64)(N))<<10)
@@ -67,8 +67,8 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define AssertStmt(Expr, Stmt) Assert(Expr), Stmt
 #define StaticAssert(Expr, Label) typedef int Static_Assert_Failed_##Label[(Expr) ? 1 : -1]
 #define MarkUnused(Var) (void)Var
-
-#define cast(Type) (Type)
+#define Cast(Type) (Type)
+#define SizeOf(Expr) sizeof(Expr)
 
 #define Maximum(A, B) ((A) < (B) ? (B) : (A))
 #define Minimum(A, B) ((A) < (B) ? (A) : (B))
@@ -85,10 +85,7 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define MemorySet(Ptr, Byte, NumBytes) memset(Ptr, Byte, NumBytes)
 #define MemoryZero(Ptr, NumBytes) MemorySet(Ptr, 0, NumBytes)
 
-#define QuickSort(Array, Count, Type, CompareFunction) qsort((Array), (Count), sizeof(Type), cast(int(*)(const void *, const void *))(CompareFunction))
-
-#define Epsilon32 0.0001f
-#define Epsilon64 0.000000001
+#define QuickSort(Array, Count, Type, CompareFunction) qsort((Array), (Count), SizeOf(Type), Cast(int(*)(const void *, const void *))(CompareFunction))
 
 #define StackPush(Head, Node) \
 (Node)->Next = (Head); \
@@ -150,7 +147,7 @@ VarName = __Prev, __Prev = (__Prev ? __Prev->Prev : 0))
 
 #define CAPACITY_GROW_FORMULA(Capacity) (2 * (Capacity) + 8)
 #define array(Type) Type *
-#define ArrayAlloc(Count, Type) cast(Type *)HeapAllocSize(HeapAllocator(), (Count) * sizeof(Type))
+#define ArrayAlloc(Count, Type) Cast(Type *)HeapAllocSize(HeapAllocator(), (Count) * SizeOf(Type))
 #define ArrayFree(Array) HeapFree(HeapAllocator(), Array)
 #define ArrayReserve(Array, Capacity, Reserve) \
 do { \
@@ -158,7 +155,7 @@ if ((Reserve) > (Capacity)) \
 { \
 (Capacity) = Maximum(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
 HeapFree(HeapAllocator(), (Array)); \
-*(cast(void **)&(Array)) = HeapAllocSize(HeapAllocator(), (Capacity) * sizeof(*(Array))); \
+*(Cast(void **)&(Array)) = HeapAllocSize(HeapAllocator(), (Capacity) * SizeOf(*(Array))); \
 } \
 Assert((Capacity) >= (Reserve)); \
 } while (0)
@@ -167,7 +164,7 @@ do { \
 if ((Reserve) > (Capacity)) \
 { \
 (Capacity) = Maximum(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
-*(cast(void **)&(Array)) = HeapReallocSize(HeapAllocator(), (Array), (Capacity) * sizeof(*(Array))); \
+*(Cast(void **)&(Array)) = HeapReallocSize(HeapAllocator(), (Array), (Capacity) * SizeOf(*(Array))); \
 } \
 Assert((Capacity) >= (Reserve)); \
 } while (0)

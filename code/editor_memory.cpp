@@ -35,7 +35,7 @@ ArenaMake(u64 Capacity, u64 InitialHeaderSize, u64 Align)
 function arena *
 ArenaMake(u64 Capacity)
 {
-   arena *Arena = ArenaMake(Capacity, sizeof(arena), ARENA_DEFAULT_ALIGN);
+   arena *Arena = ArenaMake(Capacity, SizeOf(arena), ARENA_DEFAULT_ALIGN);
    return Arena;
 }
 
@@ -65,7 +65,7 @@ ArenaSetUsed(arena *Arena, u64 NewUsed)
          u64 CommitGrow = NewUsed - Arena->Commited;
          CommitGrow += ARENA_DEFAULT_COMMIT_SIZE-1;
          CommitGrow -= CommitGrow % ARENA_DEFAULT_COMMIT_SIZE;
-         VirtualMemoryCommit(cast(u8 *)Arena->Memory + Arena->Commited, CommitGrow);
+         VirtualMemoryCommit(Cast(u8 *)Arena->Memory + Arena->Commited, CommitGrow);
          Arena->Commited += CommitGrow;
       }
    }
@@ -159,9 +159,9 @@ ScratchArena(arena *Conflict)
 function pool *
 PoolMake(u64 Capacity, u64 ChunkSize, u64 Align)
 {
-   Assert(ChunkSize >= sizeof(pool_node));
+   Assert(ChunkSize >= SizeOf(pool_node));
    
-   pool *Pool = (pool *)ArenaMake(Capacity, sizeof(pool), Align);
+   pool *Pool = (pool *)ArenaMake(Capacity, SizeOf(pool), Align);
    Pool->ChunkSize = ChunkSize;
    Pool->FreeNode = 0;
    
@@ -188,7 +188,7 @@ PoolAllocChunk(pool *Pool)
 function void
 PoolFree(pool *Pool, void *Chunk)
 {
-   StackPush(Pool->FreeNode, cast(pool_node *)Chunk);
+   StackPush(Pool->FreeNode, Cast(pool_node *)Chunk);
 }
 
 //- Heap Allocator

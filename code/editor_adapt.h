@@ -45,9 +45,9 @@ namespace ImGui
       
       bool Result = ColorEdit3(Label, ColorAsArray);
       
-      *Color = ColorMake(cast(u8)(255 * ColorAsArray[0]),
-                         cast(u8)(255 * ColorAsArray[1]),
-                         cast(u8)(255 * ColorAsArray[2]));
+      *Color = ColorMake(Cast(u8)(255 * ColorAsArray[0]),
+                         Cast(u8)(255 * ColorAsArray[1]),
+                         Cast(u8)(255 * ColorAsArray[2]));
       
       return Result;
    }
@@ -63,10 +63,10 @@ namespace ImGui
       
       bool Result = ColorEdit4(Label, ColorAsArray);
       
-      *Color = ColorMake(cast(u8)(255 * ColorAsArray[0]),
-                         cast(u8)(255 * ColorAsArray[1]),
-                         cast(u8)(255 * ColorAsArray[2]),
-                         cast(u8)(255 * ColorAsArray[3]));
+      *Color = ColorMake(Cast(u8)(255 * ColorAsArray[0]),
+                         Cast(u8)(255 * ColorAsArray[1]),
+                         Cast(u8)(255 * ColorAsArray[2]),
+                         Cast(u8)(255 * ColorAsArray[3]));
       
       return Result;
    }

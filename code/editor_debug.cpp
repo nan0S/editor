@@ -2,8 +2,8 @@ function frame_stats
 FrameStatsMake(void)
 {
    frame_stats Result = {};
-   Result.Calculation.MinFrameTime = F32_INF;
-   Result.Calculation.MaxFrameTime = -F32_INF;
+   Result.Calculation.MinFrameTime = INF_F32;
+   Result.Calculation.MaxFrameTime = -INF_F32;
    
    return Result;
 }
@@ -24,8 +24,8 @@ FrameStatsUpdate(frame_stats *Stats, f32 FrameTime)
       Stats->AvgFrameTime = Stats->Calculation.SumFrameTime / Stats->Calculation.FrameCount;
       
       Stats->Calculation.FrameCount = 0;
-      Stats->Calculation.MinFrameTime = F32_INF;
-      Stats->Calculation.MaxFrameTime = -F32_INF;
+      Stats->Calculation.MinFrameTime = INF_F32;
+      Stats->Calculation.MaxFrameTime = -INF_F32;
       Stats->Calculation.SumFrameTime = 0.0f;
    }
 }

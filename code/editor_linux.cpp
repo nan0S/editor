@@ -120,7 +120,7 @@ WriteFile(arena *Arena, file_handle FileHandle, string Content)
    u64 ToWrite = StringSize(Content);
    ssize_t Written = write(FileHandle, Content, ToWrite);
    
-   if (cast(u64)Written != ToWrite)
+   if (Cast(u64)Written != ToWrite)
    {
       if (Written == -1)
       {

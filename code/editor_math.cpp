@@ -284,7 +284,7 @@ CalculateConvexHull(u64 NumPoints, v2f32 *Points,
    
    if (NumPoints > 0)
    {
-      MemoryCopy(OutputConvexHullPoints, Points, NumPoints * sizeof(OutputConvexHullPoints[0]));
+      MemoryCopy(OutputConvexHullPoints, Points, NumPoints * SizeOf(OutputConvexHullPoints[0]));
       AngleSort(NumPoints, OutputConvexHullPoints);
       u64 NumUniquePoints = RemoveDupliatesSorted(NumPoints, OutputConvexHullPoints);
       
@@ -547,10 +547,10 @@ function color
 LerpColor(color From, color To, f32 T)
 {
    color Result = {};
-   Result.R = cast(u8)((1-T) * From.R + T * To.R);
-   Result.G = cast(u8)((1-T) * From.G + T * To.G);
-   Result.B = cast(u8)((1-T) * From.B + T * To.B);
-   Result.A = cast(u8)((1-T) * From.A + T * To.A);
+   Result.R = Cast(u8)((1-T) * From.R + T * To.R);
+   Result.G = Cast(u8)((1-T) * From.G + T * To.G);
+   Result.B = Cast(u8)((1-T) * From.B + T * To.B);
+   Result.A = Cast(u8)((1-T) * From.A + T * To.A);
    
    return Result;
 }
@@ -649,7 +649,7 @@ BarycentricOmegaEquidistant(f32 *Omega, f32 *Ti, u64 N)
       for (u64 I = 0; I < N-1; ++I)
       {
          s64 Num = I - N;
-         f32 Frac = cast(f32)Num / (I + 1);
+         f32 Frac = Cast(f32)Num / (I + 1);
          W *= Frac;
          Omega[I+1] = W;
       }
@@ -783,7 +783,7 @@ template<typename T>
 using vector = std::vector<T>;
 const ldb eps = 0.000001f; // CUSTOM
 int gauss(vector<vector<ldb>> a, vector<ldb> &ans) { // O(n^3)
-   int n = cast(int)a.size(), m = cast(int)a[0].size()-1;
+   int n = Cast(int)a.size(), m = Cast(int)a[0].size()-1;
    vector<int> pos(m, -1);
    ldb det = 1; int rank = 0;
    for (int col = 0, row = 0; col < m && row < n; ++col) {
@@ -995,7 +995,7 @@ BezierCurveEvaluate(f32 T, v2f32 *P, u64 N)
    defer { ReleaseScratch(Scratch); };
    
    v2f32 *E = PushArray(Scratch.Arena, N, v2f32);
-   MemoryCopy(E, P, N * sizeof(E[0]));
+   MemoryCopy(E, P, N * SizeOf(E[0]));
    
    for (u64 I = 1; I < N; ++I)
    {
@@ -1017,8 +1017,8 @@ BezierWeightedCurveEvaluate(f32 T, v2f32 *P, f32 *W, u64 N)
    
    v2f32 *EP = PushArray(Scratch.Arena, N, v2f32);
    f32 *EW = PushArray(Scratch.Arena, N, f32);
-   MemoryCopy(EP, P, N * sizeof(EP[0]));
-   MemoryCopy(EW, W, N * sizeof(EW[0]));
+   MemoryCopy(EP, P, N * SizeOf(EP[0]));
+   MemoryCopy(EW, W, N * SizeOf(EW[0]));
    
    for (u64 I = 1; I < N; ++I)
    {
@@ -1127,7 +1127,7 @@ BezierCurveLowerDegree(v2f32 *P, u64 N)
       v2f32 Prev_Front_P = {};
       for (u64 K = 0; K < H; ++K)
       {
-         f32 Alpha = cast(f32)K / (N-1-K);
+         f32 Alpha = Cast(f32)K / (N-1-K);
          v2f32 New_P = (1 + Alpha) * P[K] - Alpha * Prev_Front_P;
          P[K] = New_P;
          Prev_Front_P = New_P;
@@ -1138,7 +1138,7 @@ BezierCurveLowerDegree(v2f32 *P, u64 N)
       v2f32 Save_P = P[N-1];
       for (u64 K = N-1; K >= H; --K)
       {
-         f32 Alpha = cast(f32)(N-1) / K;
+         f32 Alpha = Cast(f32)(N-1) / K;
          v2f32 New_P = Alpha * Save_P + (1 - Alpha) * Prev_Back_P;
          Save_P = P[K-1];
          P[K-1] = New_P;
@@ -1175,7 +1175,7 @@ BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
       v2f32 Prev_Front_P = {};
       for (u64 K = 0; K < H; ++K)
       {
-         f32 Alpha = cast(f32)K / (N-1-K);
+         f32 Alpha = Cast(f32)K / (N-1-K);
          
          f32 Left_W = (1 + Alpha) * W[K];
          f32 Right_W = Alpha * Prev_Front_W;
@@ -1199,7 +1199,7 @@ BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
       v2f32 Save_P = P[N-1];
       for (u64 K = N-1; K >= H; --K)
       {
-         f32 Alpha = cast(f32)(N-1) / K;
+         f32 Alpha = Cast(f32)(N-1) / K;
          
          f32 Left_W = Alpha * Save_W;
          f32 Right_W = (1 - Alpha) * Prev_Back_W;
@@ -1253,7 +1253,7 @@ BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
          f32 Prev_Front_W = 0.0f;
          for (u64 K = 0; K < N-1; ++K)
          {
-            f32 Alpha = cast(f32)K / (N-1-K);
+            f32 Alpha = Cast(f32)K / (N-1-K);
             Front_W[K] = (1 + Alpha) * W[K] - Alpha * Prev_Front_W;
             Prev_Front_W = Front_W[K];
          }
@@ -1263,7 +1263,7 @@ BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
          f32 Prev_Back_W = 0.0f;
          for (u64 K = N-1; K >= 1; --K)
          {
-            f32 Alpha = cast(f32)(N-1-K) / K;
+            f32 Alpha = Cast(f32)(N-1-K) / K;
             Back_W[K-1] = (1 + Alpha) * W[K] - Alpha * Prev_Back_W;
             Prev_Back_W = Back_W[K-1];
          }
@@ -1277,7 +1277,7 @@ BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
          v2f32 Prev_Front_P = {};
          for (u64 K = 0; K < N-1; ++K)
          {
-            f32 Alpha = cast(f32)K / (N-1-K);
+            f32 Alpha = Cast(f32)K / (N-1-K);
             Front_P[K] = (1 + Alpha) * W[K]/Front_W[K] * P[K] - Alpha * Prev_Front_W/Front_W[K] * Prev_Front_P;
             Prev_Front_P = Front_P[K];
             Prev_Front_W = Front_W[K];
@@ -1289,7 +1289,7 @@ BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
          v2f32 Prev_Back_P = {};
          for (u64 K = N-1; K >= 1; --K)
          {
-            f32 Alpha = cast(f32)(N-1-K) / K;
+            f32 Alpha = Cast(f32)(N-1-K) / K;
             Back_P[K-1] = (1 + Alpha) * W[K]/Back_W[K-1] * P[K] - Alpha * Prev_Back_W/Back_W[K-1] * Prev_Back_P;
             Prev_Back_W = Back_W[K-1];
             Prev_Back_P = Back_P[K-1];
@@ -1297,10 +1297,10 @@ BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
       }
       
       u64 H = (N >> 1) + 1;
-      MemoryCopy(W, Front_W, H * sizeof(W[0]));
-      MemoryCopy(W+H, Back_W+H, (N-1-H) * sizeof(W[0]));
-      MemoryCopy(P, Front_P, H * sizeof(P[0]));
-      MemoryCopy(P+H, Back_P+H, (N-1-H) * sizeof(P[0]));
+      MemoryCopy(W, Front_W, H * SizeOf(W[0]));
+      MemoryCopy(W+H, Back_W+H, (N-1-H) * SizeOf(W[0]));
+      MemoryCopy(P, Front_P, H * SizeOf(P[0]));
+      MemoryCopy(P+H, Back_P+H, (N-1-H) * SizeOf(P[0]));
       
       local f32 Mix = 0.5f;
       W[H-1] = Mix * Front_W[H-1] + (1 - Mix) * Back_W[H-1];
@@ -1415,8 +1415,8 @@ function void
 DeCasteljauAlgorithm(f32 T, v2f32 *P, f32 *W, u64 N,
                      v2f32 *OutputP, f32 *OutputW)
 {
-   MemoryCopy(OutputW, W, N * sizeof(OutputW[0]));
-   MemoryCopy(OutputP, P, N * sizeof(OutputP[0]));
+   MemoryCopy(OutputW, W, N * SizeOf(OutputW[0]));
+   MemoryCopy(OutputP, P, N * SizeOf(OutputP[0]));
    
    for (u64 Iteration = 1;
         Iteration < N;
@@ -1446,7 +1446,7 @@ GaussianElimination(f32 *A, u64 N, f32 *Solution)
    auto Scratch = ScratchArena(0);
    
    s64 *Pos = PushArray(Scratch.Arena, N, s64);
-   MemorySet(Pos, -1, N * sizeof(Pos[0]));
+   MemorySet(Pos, -1, N * SizeOf(Pos[0]));
    
    for (u64 Col = 0, Row = 0;
         Col < N && Row < N;

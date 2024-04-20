@@ -71,7 +71,7 @@ OpenFile(arena *Arena, string FilePath, file_access_flags FileAccessFlags, error
    // rjf: create security attributes
    SECURITY_ATTRIBUTES security_attributes =
    {
-      (DWORD)sizeof(SECURITY_ATTRIBUTES),
+      (DWORD)SizeOf(SECURITY_ATTRIBUTES),
       0,
       0,
    };

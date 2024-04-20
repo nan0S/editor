@@ -49,15 +49,15 @@ typedef float f32;
 typedef double f64;
 union { u32 I; f32 F; } F32Inf = { 0x7f800000 };
 union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
-#define F32_INF F32Inf.F
-#define F64_INF F64Inf.F
+#define INF_F32 F32Inf.F
+#define INF_F64 F64Inf.F
+#define EPS_F32 0.0001f
+#define EPS_F64 0.000000001
 
 #define function static
 #define internal static
 #define local static
 #define global static
-
-#define ArrayCount(Arr) (sizeof(Arr)/sizeof((Arr)[0]))
 
 #define Bytes(N)      (((u64)(N))<<0)
 #define Kilobytes(N)  (((u64)(N))<<10)
@@ -68,14 +68,14 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define Million(N)  ((N) * 1000000)
 #define Billion(N)  ((N) * 1000000000ull)
 
+#define ArrayCount(Arr) (SizeOf(Arr)/SizeOf((Arr)[0]))
 #define Assert(Expr) assert(Expr)
 #define AssertStmt(Expr, Stmt) Assert(Expr), Stmt
 #define StaticAssert(Expr, Label) typedef int Static_Assert_Failed_##Label[(Expr) ? 1 : -1]
 #define MarkUnused(Var) (void)Var
-
-#define cast(Type) (Type)
-#define OffsetOf(Type, Member) (cast(u64)(&((cast(Type *)0)->Member)))
-#define EnclosingTypeAddr(EnclosingType, Member, Ptr) (cast(EnclosingType *)((cast(char *)(Ptr)) - OffsetOf(EnclosingType, Member)))
+#define Cast(Type) (Type)
+#define OffsetOf(Type, Member) (Cast(u64)(&((Cast(Type *)0)->Member)))
+#define SizeOf(Expr) sizeof(Expr)
 
 #if OS_WINDOWS
 # pragma section(".roglob", read)
@@ -91,8 +91,8 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define ClampBot(X, Min) Maximum(X, Min)
 #define Clamp(X, Min, Max) ClampTop(ClampBot(X, Min), Max)
 #define Idx(Row, Column, NColumns) ((Row)*(NColumns) + (Column))
-#define ApproxEq32(X, Y) (Abs(X - Y) <= Epsilon32)
-#define ApproxEq64(X, Y) (Abs(X - Y) <= Epsilon64)
+#define ApproxEq32(X, Y) (Abs(X - Y) <= EPS_F32)
+#define ApproxEq64(X, Y) (Abs(X - Y) <= EPS_F64)
 
 #define MemoryCopy(Dest, Src, NumBytes) memcpy(Dest, Src, NumBytes)
 #define MemoryMove(Dest, Src, NumBytes) memmove(Dest, Src, NumBytes)
@@ -102,8 +102,8 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define QuickSort(Array, Count, Type, CompareFunction) \
 qsort((Array), \
 (Count), \
-sizeof(Type), \
-cast(int(*)(const void *, const void *))(CompareFunction))
+SizeOf(Type), \
+Cast(int(*)(const void *, const void *))(CompareFunction))
 
 #define Swap(A, B) \
 do { \
@@ -175,7 +175,7 @@ VarName = __Prev, __Prev = (__Prev ? __Prev->Prev : 0))
 
 #define CAPACITY_GROW_FORMULA(Capacity) (2 * (Capacity) + 8)
 #define array(Type) Type *
-#define ArrayAlloc(Count, Type) cast(Type *)HeapAllocSize(HeapAllocator(), (Count) * sizeof(Type))
+#define ArrayAlloc(Count, Type) Cast(Type *)HeapAllocSize(HeapAllocator(), (Count) * SizeOf(Type))
 #define ArrayFree(Array) HeapFree(HeapAllocator(), Array)
 #define ArrayReserve(Array, Capacity, Reserve) \
 do { \
@@ -183,7 +183,7 @@ if ((Reserve) > (Capacity)) \
 { \
 (Capacity) = Maximum(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
 HeapFree(HeapAllocator(), (Array)); \
-*(cast(void **)&(Array)) = HeapAllocSize(HeapAllocator(), (Capacity) * sizeof(*(Array))); \
+*(Cast(void **)&(Array)) = HeapAllocSize(HeapAllocator(), (Capacity) * SizeOf(*(Array))); \
 } \
 Assert((Capacity) >= (Reserve)); \
 } while (0)
@@ -192,7 +192,7 @@ do { \
 if ((Reserve) > (Capacity)) \
 { \
 (Capacity) = Maximum(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
-*(cast(void **)&(Array)) = HeapReallocSize(HeapAllocator(), (Array), (Capacity) * sizeof(*(Array))); \
+*(Cast(void **)&(Array)) = HeapReallocSize(HeapAllocator(), (Array), (Capacity) * SizeOf(*(Array))); \
 } \
 Assert((Capacity) >= (Reserve)); \
 } while (0)
@@ -202,9 +202,9 @@ if ((Reserve) > (Capacity)) \
 { \
 auto OldCapacity = (Capacity); \
 (Capacity) = Maximum(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
-*(cast(void **)&(Array)) = HeapReallocSize(HeapAllocator(), (Array), (Capacity) * sizeof(*(Array))); \
+*(Cast(void **)&(Array)) = HeapReallocSize(HeapAllocator(), (Array), (Capacity) * SizeOf(*(Array))); \
 if ((Capacity) > OldCapacity) { \
-MemoryZero((Array) + OldCapacity, ((Capacity)-OldCapacity) * sizeof(*(Array))); \
+MemoryZero((Array) + OldCapacity, ((Capacity)-OldCapacity) * SizeOf(*(Array))); \
 } \
 } \
 Assert((Capacity) >= (Reserve)); \

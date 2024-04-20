@@ -19,7 +19,7 @@ ReadEntireFile(arena *Arena, string FilePath, error_string *OutError)
       if (Read*FileSize == FileSize)
       {
          Result.Contents = Contents;
-         Result.Size = cast(u64)FileSize;
+         Result.Size = Cast(u64)FileSize;
       }
       else
       {

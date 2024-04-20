@@ -116,14 +116,6 @@ function v2f32 LerpV2F32(v2f32 From, v2f32 To, f32 T);
 function color LerpColor(color From, color To, f32 T);
 
 typedef v2f32 rotation_2d;
-#if 0
-struct rotation_2d
-{
-   f32 x;
-   f32 y;
-};
-#endif
-
 function rotation_2d Rotation2D(f32 X, f32 Y);
 function rotation_2d Rotation2DZero(void);
 function rotation_2d Rotation2DFromVector(v2f32 Vector);

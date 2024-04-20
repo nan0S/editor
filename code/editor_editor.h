@@ -171,6 +171,7 @@ function world_position  ScreenToWorldSpace (screen_position Position, coordinat
 function f32 ClipSpaceLengthToWorldSpace(f32 ClipSpaceDistance, coordinate_system_data Data);
 
 //- Collisions
+// TODO(hbr): Try to simplify this [enum] because we have [entity] now
 enum collision_type
 {
    Collision_None,
@@ -182,13 +183,10 @@ enum collision_type
 struct collision
 {
    collision_type Type;
-   
    // NOTE(hbr): Fat-struct to reduce complexity
-   curve *CollisionCurve;
+   entity *Entity;
    u64 CollisionPointIndex;
    b32 IsCubicBezierPoint;
-   
-   image *CollisionImage;
 };
 
 typedef u64 check_collision_with_flags;
@@ -199,9 +197,9 @@ enum
    CheckCollisionWith_Images            = (1<<2),
 };
 
-function collision ControlPointCollision(curve *CollisionCurve, u64 CollisionPointIndex, b32 IsCubicBezierPoint);
-function collision CurvePointCollision(curve *CollisionCurve, u64 CollisionCurvePointIndex);
-function collision ImageCollision(image *CollisionImage);
+function collision ControlPointCollision(entity *CollisionCurveEntity, u64 CollisionPointIndex, b32 IsCubicBezierPoint);
+function collision CurvePointCollision(entity *CollisionCurveEntity, u64 CollisionCurvePointIndex);
+function collision ImageCollision(entity *CollisionImageEntity);
 
 // TODO(hbr): Remove, not used anymore
 typedef u64 curve_point_index;
@@ -258,6 +256,7 @@ function user_action UserActionButtonDrag(button Button, screen_position DragFro
 function user_action UserActionButtonReleased(button Button, screen_position ReleasePosition, user_input *UserInput);
 function user_action UserActionMouseMove(v2s32 FromPosition, screen_position ToPosition, user_input *UserInput);
 
+// TODO(hbr): Simplify this type due to [entity] simplification
 enum editor_mode_type
 {
    EditorMode_Normal,
@@ -270,13 +269,14 @@ enum editor_mode_type
    EditorMode_RotatingCamera,
 };
 
+// TODO(hbr): Simplify this type A LOT, don't use RotatingCurve and MovingCurve when could use only Curve
 struct editor_mode
 {
    editor_mode_type Type;
    union
    {
       struct {
-         curve *Curve;
+         entity *CurveEntity;
          u64 PointIndex;
          b32 CubicBezierPointMoving;
          
@@ -285,44 +285,46 @@ struct editor_mode
          sf::PrimitiveType SavedPrimitiveType;
       } MovingPoint;
       
-      curve *MovingCurve;
+      entity *MovingCurveEntity;
       
-      image *MovingImage;
+      entity *MovingImageEntity;
       
       struct {
-         curve *Curve;
+         entity *CurveEntity;
          screen_position RotationCenter;
       } RotatingCurve;
       
-      image *RotatingImage;
+      entity *RotatingImageEntity;
    };
 };
 
 function editor_mode EditorModeNormal(void);
-function editor_mode EditorModeMovingPoint(curve *Curve, u64 PointIndex, b32 CubicBezierPointMoving, arena *Arena);
-function editor_mode EditorModeMovingCurve(curve *Curve);
-function editor_mode EditorModeMovingImage(image *Image);
+function editor_mode EditorModeMovingPoint(entity *CurveEntity, u64 PointIndex, b32 CubicBezierPointMoving, arena *Arena);
+function editor_mode EditorModeMovingCurve(entity *CurveEntity);
+function editor_mode EditorModeMovingImage(entity *ImageEntity);
 function editor_mode EditorModeMovingCamera(void);
-function editor_mode EditorModeRotatingCurve(curve *Curve, screen_position RotationCenter);
-function editor_mode EditorModeRotatingImage(image *Image);
+function editor_mode EditorModeRotatingCurve(entity *CurveEntity, screen_position RotationCenter);
+function editor_mode EditorModeRotatingImage(entity *ImageEntity);
 function editor_mode EditorModeRotatingCamera(void);
 
+// TODO(hbr): maybe rename to [state] or something, not only this but [de_Casteljau_visualization] as well, because that's what it is
 struct splitting_bezier_curve
 {
+   // TODO(hbr): Get rid of [IsSplitting], encode in [SplitCurveEntity]
    b32 IsSplitting;
-   curve *SplitCurve;
+   entity *SplitCurveEntity;
    f32 T;
    b32 DraggingSplitPoint;
    u64 SavedCurveVersion;
    world_position SplitPoint;
 };
 
-struct de_casteljau_visualization
+struct de_Casteljau_visualization
 {
    b32 IsVisualizing;
    f32 T;
    
-   curve *Curve;
+   entity *CurveEntity;
    u64 SavedCurveVersion;
    
    arena *Arena;
@@ -336,7 +338,7 @@ struct bezier_curve_degree_lowering
 {
    b32 IsLowering;
    
-   curve *Curve;
+   entity *CurveEntity;
    u64 SavedCurveVersion;
    
    arena *Arena;
@@ -371,8 +373,8 @@ struct transform_curve_animation
 {
    animate_curve_animation_stage Stage;
    
-   curve *FromCurve;
-   curve *ToCurve;
+   entity *FromCurveEntity;
+   entity *ToCurveEntity;
    
    arena *Arena;
    u64 SavedToCurveVersion;
@@ -409,8 +411,8 @@ struct curve_combining
 {
    b32 IsCombining;
    
-   curve *CombineCurve;
-   curve *TargetCurve;
+   entity *CombineCurveEntity;
+   entity *TargetCurveEntity;
    
    b32 CombineCurveLastControlPoint;
    b32 TargetCurveFirstControlPoint;
@@ -434,7 +436,7 @@ struct editor_state
    editor_mode Mode;
    
    splitting_bezier_curve SplittingBezierCurve;
-   de_casteljau_visualization DeCasteljauVisualization;
+   de_Casteljau_visualization DeCasteljauVisualization;
    bezier_curve_degree_lowering DegreeLowering;
    transform_curve_animation CurveAnimation;
    arena *MovingPointArena;
@@ -589,5 +591,74 @@ function void EditorSetSaveProjectPath(editor *Editor,
                                        string SaveProjectFilePath);
 
 function void UpdateAndRender(f32 DeltaTime, user_input UserInput, editor *Editor);
+
+function entity *
+AllocateEntity(editor_state *State)
+{
+   entity *Entity = PoolAllocStruct(State->EntityPool, entity);
+   
+   // NOTE(hbr): Ugly C++ thing we have to do because of constructors/destructors.
+   new (&Entity->Image.Texture) sf::Texture();
+   
+   DLLPushBack(State->EntitiesHead, State->EntitiesTail, Entity);
+   ++State->NumEntities;
+   
+   return Entity;
+}
+
+function void
+DeallocateEntity(editor_state *State, entity *Entity)
+{
+   if (State->SplittingBezierCurve.IsSplitting &&
+       State->SplittingBezierCurve.SplitCurveEntity == Entity)
+   {
+      State->SplittingBezierCurve.IsSplitting = false;
+      State->SplittingBezierCurve.SplitCurveEntity = 0;
+   }
+   
+   if (State->DeCasteljauVisualization.IsVisualizing &&
+       State->DeCasteljauVisualization.CurveEntity == Entity)
+   {
+      State->DeCasteljauVisualization.IsVisualizing = false;
+      State->DeCasteljauVisualization.CurveEntity = 0;
+   }
+   
+   if (State->DegreeLowering.IsLowering &&
+       State->DegreeLowering.CurveEntity == Entity)
+   {
+      State->DegreeLowering.IsLowering = false;
+      State->DegreeLowering.CurveEntity = 0;
+   }
+   
+   if (State->CurveAnimation.FromCurveEntity == Entity ||
+       State->CurveAnimation.ToCurveEntity == Entity)
+   {
+      State->CurveAnimation.Stage = AnimateCurveAnimation_None;
+   }
+   
+   if (State->CurveCombining.CombineCurveEntity == Entity)
+   {
+      State->CurveCombining.IsCombining = false;
+   }
+   if (State->CurveCombining.TargetCurveEntity == Entity)
+   {
+      State->CurveCombining.TargetCurveEntity = 0;
+   }
+   
+   EntityDestroy(Entity);
+   
+   DLLRemove(State->EntitiesHead, State->EntitiesTail, Entity);
+   --State->NumEntities;
+   PoolFree(State->EntityPool, Entity);
+}
+
+function name_string
+GenerateNewNameForCurve(editor_state *State)
+{
+   // NOTE(hbr): Simple approach, not bullet-proof but ppb good enough
+   name_string Result = NameStringFormat("curve(%lu)",
+                                         State->EverIncreasingCurveCounter++);
+   return Result;
+}
 
 #endif //EDITOR_EDITOR_H

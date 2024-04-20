@@ -10,7 +10,7 @@ struct string_header
    u64 Size;
 };
 
-#define StringHeader(String) (cast(string_header *)(String) - 1)
+#define StringHeader(String) (Cast(string_header *)(String) - 1)
 
 // NOTE(hbr): Allocates on heap
 function string StringMake(char const *String, u64 Size);

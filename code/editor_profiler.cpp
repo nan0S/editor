@@ -28,9 +28,9 @@ FrameProfilePoint(b32 *ViewProfilerWindow)
    // NOTE(hbr): Render profiler window
    if (*ViewProfilerWindow)
    {      
-      bool ViewProfilerWindowAsBool = cast(bool)*ViewProfilerWindow;
+      bool ViewProfilerWindowAsBool = Cast(bool)*ViewProfilerWindow;
       ImGui::Begin("Profiler", &ViewProfilerWindowAsBool);
-      *ViewProfilerWindow = cast(b32)ViewProfilerWindowAsBool;
+      *ViewProfilerWindow = Cast(b32)ViewProfilerWindowAsBool;
       
       if (*ViewProfilerWindow)
       {
@@ -50,7 +50,7 @@ FrameProfilePoint(b32 *ViewProfilerWindow)
                int Length = 0;
                
                {
-                  f64 TotalSelfTSCPercent = 100.0 * cast(f64)Anchor->TotalSelfTSC / ElapsedTotalTSC;
+                  f64 TotalSelfTSCPercent = 100.0 * Cast(f64)Anchor->TotalSelfTSC / ElapsedTotalTSC;
                   int Result = snprintf(Buffer + Length,
                                         Left,
                                         "%-50s: %10llucy, %10llucy self, %5llu hits, %10llucy/h, %03.2lf%%",
@@ -63,7 +63,7 @@ FrameProfilePoint(b32 *ViewProfilerWindow)
                
                if (Anchor->TotalTSC != Anchor->TotalSelfTSC)
                {
-                  f64 TotalTSCPercent = 100.0 * cast(f64)Anchor->TotalTSC / ElapsedTotalTSC;
+                  f64 TotalTSCPercent = 100.0 * Cast(f64)Anchor->TotalTSC / ElapsedTotalTSC;
                   int Result = snprintf(Buffer + Length, Left, ", %3.2f%% w/children", TotalTSCPercent);
                   int Written = Minimum(Left, Result);
                   Left -= Written;
@@ -80,7 +80,7 @@ FrameProfilePoint(b32 *ViewProfilerWindow)
    }
    
    // NOTE(hbr): Start new timing
-   MemoryZero(GlobalProfiler.Anchors, sizeof(GlobalProfiler.Anchors));
+   MemoryZero(GlobalProfiler.Anchors, SizeOf(GlobalProfiler.Anchors));
    GlobalProfiler.StartTSC = ReadCPUTimer();
 }
 
@@ -100,7 +100,7 @@ PrintProfileAnchor(profile_anchor *Anchor, u64 TotalElapsedTSC,
    if (Anchor->TotalElapsedTSC)
    {
       u64 AnchorTotalElapsedTSC = Anchor->TotalElapsedTSC - Anchor->TotalElapsedChildrenTSC;
-      f64 Percent = 100.0 * cast(f64)AnchorTotalElapsedTSC / TotalElapsedTSC;
+      f64 Percent = 100.0 * Cast(f64)AnchorTotalElapsedTSC / TotalElapsedTSC;
       
       char Temp = SpaceAlignmentString[SpaceAlignment];
       SpaceAlignmentString[SpaceAlignment] = '\0';
@@ -113,7 +113,7 @@ PrintProfileAnchor(profile_anchor *Anchor, u64 TotalElapsedTSC,
       
       if (Anchor->TotalElapsedChildrenTSC)
       {
-         f64 PercentWithChildren = 100.0 * cast(f64)Anchor->TotalElapsedTSC / TotalElapsedTSC;
+         f64 PercentWithChildren = 100.0 * Cast(f64)Anchor->TotalElapsedTSC / TotalElapsedTSC;
          printf(", %.2f%% w/children", PercentWithChildren);
       }
       printf(")\n");

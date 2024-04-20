@@ -8,8 +8,8 @@ StringMake(string_header *Header, char const *String, u64 Size)
    {
       Header->Size = Size;
       
-      Result = cast(string)(Header + 1);
-      MemoryCopy(Result, String, Size * sizeof(Result[0]));
+      Result = Cast(string)(Header + 1);
+      MemoryCopy(Result, String, Size * SizeOf(Result[0]));
       Result[Size] = '\0';
    }
    
@@ -19,8 +19,8 @@ StringMake(string_header *Header, char const *String, u64 Size)
 function string
 StringMake(char const *String, u64 Size)
 {
-   void *Pointer = HeapAllocSize(HeapAllocator(), sizeof(string_header) + Size + 1);
-   string Result = StringMake(cast(string_header *)Pointer, String, Size);
+   void *Pointer = HeapAllocSize(HeapAllocator(), SizeOf(string_header) + Size + 1);
+   string Result = StringMake(Cast(string_header *)Pointer, String, Size);
    
    return Result;
 }
@@ -35,8 +35,8 @@ StringMake(arena *Arena, char const *CString)
 function string
 StringMake(arena *Arena, char const *String, u64 Size)
 {
-   void *Pointer = ArenaPushSize(Arena, sizeof(string_header) + Size + 1);
-   string Result = StringMake(cast(string_header *)Pointer, String, Size);
+   void *Pointer = ArenaPushSize(Arena, SizeOf(string_header) + Size + 1);
+   string Result = StringMake(Cast(string_header *)Pointer, String, Size);
    
    return Result;
 }
@@ -93,10 +93,10 @@ StringMakeFormatV(arena *Arena, char const *Format, va_list ArgList)
    u64 Size = vsnprintf(0, 0, Format, ArgList);
    
    string_header *Header =
-      cast(string_header *)ArenaPushSize(Arena,
-                                         sizeof(string_header)+Size+1);
+      Cast(string_header *)ArenaPushSize(Arena,
+                                         SizeOf(string_header)+Size+1);
    Header->Size = Size;
-   string String = cast(string)(Header + 1);
+   string String = Cast(string)(Header + 1);
    vsnprintf(String, Size + 1, Format, ArgListCopy);
    
    va_end(ArgListCopy);

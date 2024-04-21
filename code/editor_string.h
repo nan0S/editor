@@ -13,26 +13,26 @@ struct string_header
 #define StringHeader(String) (Cast(string_header *)(String) - 1)
 
 // NOTE(hbr): Allocates on heap
-function string StringMake(char const *String, u64 Size);
-function string StringMake(arena *Arena, char const *CString);
-function string StringMake(arena *Arena, char const *String, u64 Size);
-function void StringFree(string String);
-function u64 StringSize(string String);
-function u64 CStringLength(char const *CString);
-function string StringMakeFormat(arena *Arena, char const *Format, ...);
-function string StringMakeFormatV(arena *Arena, char const *Format, va_list ArgList);
-function string StringDuplicate(arena *Arena, string String);
-function string StringDuplicate(string String);
-function b32 StringsAreEqual(string A, string B);
-function void StringRemoveExtension(string Path);
-function b32 StringHasSuffix(string String, string Suffix);
+function string Str(char const *String, u64 Size);
+function string Str(arena *Arena, char const *CString);
+function string Str(arena *Arena, char const *String, u64 Size);
+function void FreeStr(string String);
+function u64 StrLength(string String);
+function u64 CStrLength(char const *CString);
+function string StrF(arena *Arena, char const *Format, ...);
+function string StrFV(arena *Arena, char const *Format, va_list ArgList);
+function string DuplicateStr(arena *Arena, string String);
+function string DuplicateStr(string String);
+function b32 AreStringsEqual(string A, string B);
+function void RemoveExtension(string Path);
+function b32 HasSuffix(string String, string Suffix);
 function string StringChopFileNameWithoutExtension(arena *Arena, string String);
-function string StringSubstring(arena *Arena, string String, u64 FromInclusive, u64 ToExclusive);
+function string Substr(arena *Arena, string String, u64 FromInclusive, u64 ToExclusive);
 
-function char ToUppercase(char C);
+function char ToUpper(char C);
 
-#define StringMakeLit(Lit) StringMake(Lit, ArrayCount(Lit)-1)
-#define StringMakeLitArena(Arena, Lit) StringMake(Arena, Lit, ArrayCount(Lit)-1)
+#define StrLit(Lit) Str(Lit, ArrayCount(Lit)-1)
+#define StrLitArena(Arena, Lit) Str(Arena, Lit, ArrayCount(Lit)-1)
 
 //- String List
 struct string_list_node

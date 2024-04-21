@@ -1,6 +1,6 @@
 //- String
 internal string
-StringMake(string_header *Header, char const *String, u64 Size)
+Str(string_header *Header, char const *String, u64 Size)
 {
    string Result = 0;
    
@@ -17,32 +17,32 @@ StringMake(string_header *Header, char const *String, u64 Size)
 }
 
 function string
-StringMake(char const *String, u64 Size)
+Str(char const *String, u64 Size)
 {
    void *Pointer = HeapAllocSize(HeapAllocator(), SizeOf(string_header) + Size + 1);
-   string Result = StringMake(Cast(string_header *)Pointer, String, Size);
+   string Result = Str(Cast(string_header *)Pointer, String, Size);
    
    return Result;
 }
 
 function string
-StringMake(arena *Arena, char const *CString)
+Str(arena *Arena, char const *CString)
 {
-   string Result = StringMake(Arena, CString, CStringLength(CString));
+   string Result = Str(Arena, CString, CStrLength(CString));
    return Result;
 }
 
 function string
-StringMake(arena *Arena, char const *String, u64 Size)
+Str(arena *Arena, char const *String, u64 Size)
 {
    void *Pointer = ArenaPushSize(Arena, SizeOf(string_header) + Size + 1);
-   string Result = StringMake(Cast(string_header *)Pointer, String, Size);
+   string Result = Str(Cast(string_header *)Pointer, String, Size);
    
    return Result;
 }
 
 function void
-StringFree(string String)
+FreeStr(string String)
 {
    if (String)
    {
@@ -52,7 +52,7 @@ StringFree(string String)
 }
 
 function u64
-StringSize(string String)
+StrLength(string String)
 {
    u64 Result = 0;
    if (String) Result = StringHeader(String)->Size;
@@ -61,7 +61,7 @@ StringSize(string String)
 }
 
 function u64
-CStringLength(char const *CString)
+CStrLength(char const *CString)
 {
    char const *At = CString;
    while (*At) ++At;
@@ -71,12 +71,12 @@ CStringLength(char const *CString)
 }
 
 function string
-StringMakeFormat(arena *Arena, char const *Format, ...)
+StrF(arena *Arena, char const *Format, ...)
 {
    va_list ArgList;
    va_start(ArgList, Format);
    
-   string Result = StringMakeFormatV(Arena, Format, ArgList);
+   string Result = StrFV(Arena, Format, ArgList);
    
    va_end(ArgList);
    
@@ -84,7 +84,7 @@ StringMakeFormat(arena *Arena, char const *Format, ...)
 }
 
 function string
-StringMakeFormatV(arena *Arena, char const *Format, va_list ArgList)
+StrFV(arena *Arena, char const *Format, va_list ArgList)
 {
    va_list ArgListCopy;
    
@@ -105,16 +105,16 @@ StringMakeFormatV(arena *Arena, char const *Format, va_list ArgList)
 }
 
 function string
-StringDuplicate(arena *Arena, string String)
+DuplicateStr(arena *Arena, string String)
 {
-   string Result = StringMake(Arena, String, StringSize(String));
+   string Result = Str(Arena, String, StrLength(String));
    return Result;
 }
 
 function string
-StringDuplicate(string String)
+DuplicateStr(string String)
 {
-   string Result = StringMake(String, StringSize(String));
+   string Result = Str(String, StrLength(String));
    return Result;
 }
 
@@ -135,13 +135,13 @@ AreBytesEqual(char *A, char *B, u64 NumBytes)
 }
 
 function b32
-StringsAreEqual(string A, string B)
+AreStringsEqual(string A, string B)
 {
    Assert(A); Assert(B);
    b32 Result = true;
    
-   u64 ASize = StringSize(A);
-   u64 BSize = StringSize(B);
+   u64 ASize = StrLength(A);
+   u64 BSize = StrLength(B);
    
    if (ASize == BSize) Result = AreBytesEqual(A, B, ASize);
    else Result = false;
@@ -150,11 +150,11 @@ StringsAreEqual(string A, string B)
 }
 
 function void
-StringRemoveExtension(string Path)
+RemoveExtension(string Path)
 {
    if (Path)
    {
-      u64 Index = StringSize(Path);
+      u64 Index = StrLength(Path);
       while (Index && Path[Index-1] != '.')
       {
          --Index;
@@ -164,12 +164,12 @@ StringRemoveExtension(string Path)
 }
 
 function b32
-StringHasSuffix(string String, string Suffix)
+HasSuffix(string String, string Suffix)
 {
    b32 Result = true;
    
-   u64 StrSize = StringSize(String);
-   u64 SuffixSize = StringSize(Suffix);
+   u64 StrSize = StrLength(String);
+   u64 SuffixSize = StrLength(Suffix);
    
    if (StrSize >= SuffixSize)
    {
@@ -185,7 +185,7 @@ function string
 StringChopFileNameWithoutExtension(arena *Arena, string String)
 {
    s64 LastSlashPosition = -1;
-   for (s64 Index = StringSize(String);
+   for (s64 Index = StrLength(String);
         Index >= 0;
         --Index)
    {
@@ -198,7 +198,7 @@ StringChopFileNameWithoutExtension(arena *Arena, string String)
    }
    
    s64 LastDotPosition = -1;
-   for (s64 Index = StringSize(String)-1;
+   for (s64 Index = StrLength(String)-1;
         Index >= 0;
         --Index)
    {
@@ -214,24 +214,24 @@ StringChopFileNameWithoutExtension(arena *Arena, string String)
    if (LastDotPosition == -1 ||
        LastDotPosition <= LastSlashPosition)
    {
-      ToExclusive = StringSize(String);
+      ToExclusive = StrLength(String);
    }
    else
    {
       ToExclusive = LastDotPosition;
    }
    
-   string Result = StringSubstring(Arena, String,
-                                   FromInclusive,
-                                   ToExclusive);
+   string Result = Substr(Arena, String,
+                          FromInclusive,
+                          ToExclusive);
    
    return Result;
 }
 
 function string
-StringSubstring(arena *Arena, string String, u64 FromInclusive, u64 ToExclusive)
+Substr(arena *Arena, string String, u64 FromInclusive, u64 ToExclusive)
 {
-   u64 StrSize = StringSize(String);
+   u64 StrSize = StrLength(String);
    if (FromInclusive > StrSize) FromInclusive = StrSize;
    if (ToExclusive > StrSize) ToExclusive = StrSize;
    if (FromInclusive > ToExclusive)
@@ -242,13 +242,13 @@ StringSubstring(arena *Arena, string String, u64 FromInclusive, u64 ToExclusive)
    }
    
    u64 Size = ToExclusive - FromInclusive;
-   string Substring = StringMake(Arena, String + FromInclusive, Size);
+   string Substring = Str(Arena, String + FromInclusive, Size);
    
    return Substring;
 }
 
 function char
-ToUppercase(char C)
+ToUpper(char C)
 {
    char Result = C;
    if ('a' <= C && C <= 'z')
@@ -268,5 +268,5 @@ StringListPush(arena *Arena, string_list *List, string String)
    QueuePush(List->Head, List->Tail, Node);
    
    ++List->NumNodes;
-   List->TotalSize += StringSize(String);
+   List->TotalSize += StrLength(String);
 }

@@ -96,6 +96,16 @@ TODOs:
 - replace sfml
 - rename functions to more natural language, don't follow those stupid conventions
 - [splitting_curve_point] and similar shouldn't have [IsSplitting] maybe, just some pointer to identify whether this is happening
+- implement [NotImplemented]
+- make sure window resizing works correctly
+ - when initializing entities, image and curve, I use [MemoryZero] a lot, maybe just assume that memory is zeroed already
+- use "Count" instead of "Num"
+- be careful when calling [SetCurveControlPoints] when it comes to whether points are in world or local space
+- probably allocate things like arena in [editor_state], don't pass them into [Make] function, because they are probably not used outside of this function, probably do it to other functions as well
+- go pass through the whole source code and shorten variable names dramatically
+- rename "Copy" button into "Duplicate"
+- pressing Tab hides all the ui
+- do a pass over functions that are called just 1 time and maybe inline them
 
 DONE:
 - fix convex hull line width problem

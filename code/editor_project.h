@@ -14,11 +14,11 @@ struct load_project_result
 
 function error_string SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath);
 function load_project_result LoadProjectFromFile(arena *Arena,
+                                                 string ProjectFilePath,
                                                  pool *EntityPool,
                                                  arena *DeCasteljauVisualizationArena,
                                                  arena *DegreeLoweringArena,
                                                  arena *MovingPointArena,
-                                                 arena *CurveAnimationArena,
-                                                 string ProjectFilePath);
+                                                 arena *CurveAnimationArena);
 
 #endif //EDITOR_PROJECT_H

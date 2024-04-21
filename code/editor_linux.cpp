@@ -54,7 +54,7 @@ OpenFile(arena *Arena, string FilePath, file_access_flags FileAccessFlags, error
    int Descriptor = open(FilePath, Flags);
    if (Descriptor == -1)
    {
-      *OutError = StringMake(Arena, strerror(errno));
+      *OutError = Str(Arena, strerror(errno));
    }
    
    return Descriptor;
@@ -66,7 +66,7 @@ CloseFile(arena *Arena, file_handle FileHandle)
    error_string Result = 0;
    if (close(FileHandle) == -1)
    {
-      Result = StringMake(Arena, strerror(errno));
+      Result = Str(Arena, strerror(errno));
    }
    
    return Result;
@@ -94,19 +94,19 @@ ReadWholeFile(arena *Arena, file_handle FileHandle, error_string *OutError)
       {
          if (Read == -1)
          {
-            *OutError = StringMake(Arena, strerror(errno));
+            *OutError = Str(Arena, strerror(errno));
          }
          else
          {
-            *OutError = StringMakeFormat(Arena,
-                                         "Unexpected read length while reading file %s (%lu bytes expected, actual %lu)",
-                                         FilePath, ToRead, Read);
+            *OutError = StrF(Arena,
+                             "Unexpected read length while reading file %s (%lu bytes expected, actual %lu)",
+                             FilePath, ToRead, Read);
          }
       }
    }
    else
    {
-      *OutError = StringMake(Arena, strerror(errno));
+      *OutError = Str(Arena, strerror(errno));
    }
    
    return Result;
@@ -117,19 +117,19 @@ WriteFile(arena *Arena, file_handle FileHandle, string Content)
 {
    error_string Result = 0;
    
-   u64 ToWrite = StringSize(Content);
+   u64 ToWrite = StrLength(Content);
    ssize_t Written = write(FileHandle, Content, ToWrite);
    
    if (Cast(u64)Written != ToWrite)
    {
       if (Written == -1)
       {
-         Result = StringMake(Arena, strerror(errno));
+         Result = Str(Arena, strerror(errno));
       }
       else
       {
-         Result = StringMakeFormat(Arena, "Unexpected write length (%lu expected, actual %lu)\n",
-                                   ToWrite, Written);
+         Result = StrF(Arena, "Unexpected write length (%lu expected, actual %lu)\n",
+                       ToWrite, Written);
       }
    }
    

@@ -23,9 +23,9 @@ ReadEntireFile(arena *Arena, string FilePath, error_string *OutError)
       }
       else
       {
-         *OutError = StringMakeFormat(Arena,
-                                      "error while reading file %s",
-                                      FilePath);
+         *OutError = StrF(Arena,
+                          "error while reading file %s",
+                          FilePath);
          IsError = true;
       }
       
@@ -33,19 +33,19 @@ ReadEntireFile(arena *Arena, string FilePath, error_string *OutError)
       {
          if (!IsError)
          {
-            *OutError = StringMakeFormat(Arena,
-                                         "error while closing file %s",
-                                         FilePath);
+            *OutError = StrF(Arena,
+                             "error while closing file %s",
+                             FilePath);
             IsError = true;
          }
       }
    }
    else
    {
-      *OutError = StringMakeFormat(Arena,
-                                   "failed to open file %s (%s)",
-                                   FilePath,
-                                   strerror(errno));
+      *OutError = StrF(Arena,
+                       "failed to open file %s (%s)",
+                       FilePath,
+                       strerror(errno));
       IsError = true;
    }
    
@@ -62,14 +62,14 @@ SaveToFile(arena *Arena, string FilePath, string_list Data)
    {
       ListIter(Node, Data.Head, string_list_node)
       {
-         u64 ToWrite = StringSize(Node->String);
+         u64 ToWrite = StrLength(Node->String);
          size_t Written = fwrite(Node->String, ToWrite, 1, File);
          
          if (Written*ToWrite != ToWrite)
          {
-            Error = StringMakeFormat(Arena,
-                                     "Error while writing to file %s",
-                                     FilePath);
+            Error = StrF(Arena,
+                         "Error while writing to file %s",
+                         FilePath);
             break;
          }
       }
@@ -78,18 +78,18 @@ SaveToFile(arena *Arena, string FilePath, string_list Data)
       {
          if (!Error)
          {
-            Error = StringMakeFormat(Arena,
-                                     "error while closing file %s",
-                                     FilePath);
+            Error = StrF(Arena,
+                         "error while closing file %s",
+                         FilePath);
          }
       }
    }
    else
    {
-      Error = StringMakeFormat(Arena,
-                               "failed to open file %s (%s)",
-                               FilePath,
-                               strerror(errno));
+      Error = StrF(Arena,
+                   "failed to open file %s (%s)",
+                   FilePath,
+                   strerror(errno));
    }
    
    return Error;

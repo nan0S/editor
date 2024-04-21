@@ -108,7 +108,7 @@ SavedProjectEntity(entity *Entity)
       } break;
       
       case Entity_Image: {
-         Result.Image = SavedProjectImage(StringSize(Entity->Image.FilePath));
+         Result.Image = SavedProjectImage(StrLength(Entity->Image.FilePath));
       } break;
    }
    
@@ -131,13 +131,13 @@ SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath)
                                                     Editor.Parameters,
                                                     Editor.UI_Config,
                                                     Editor.State.CurveAnimation.AnimationSpeed);
-   string HeaderData = StringMake(Scratch.Arena, Cast(char const *)&Header, SizeOf(Header));
+   string HeaderData = Str(Scratch.Arena, Cast(char const *)&Header, SizeOf(Header));
    StringListPush(Scratch.Arena, &SaveData, HeaderData);
    
    ListIter(Entity, Editor.State.EntitiesHead, entity)
    {
       saved_project_entity Saved = SavedProjectEntity(Entity);
-      string SavedData = StringMake(Scratch.Arena, Cast(char const *)&Saved, SizeOf(Saved));
+      string SavedData = Str(Scratch.Arena, Cast(char const *)&Saved, SizeOf(Saved));
       StringListPush(Scratch.Arena, &SaveData, SavedData);
       
       switch (Entity->Type)
@@ -147,19 +147,19 @@ SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath)
             
             u64 NumControlPoints = Curve->NumControlPoints;
             
-            string ControlPoints = StringMake(Scratch.Arena,
-                                              Cast(char const *)Curve->ControlPoints,
-                                              NumControlPoints * SizeOf(Curve->ControlPoints[0]));
+            string ControlPoints = Str(Scratch.Arena,
+                                       Cast(char const *)Curve->ControlPoints,
+                                       NumControlPoints * SizeOf(Curve->ControlPoints[0]));
             StringListPush(Scratch.Arena, &SaveData, ControlPoints);
             
-            string ControlPointWeights = StringMake(Scratch.Arena,
-                                                    Cast(char const *)Curve->ControlPointWeights,
-                                                    NumControlPoints * SizeOf(Curve->ControlPointWeights[0]));
+            string ControlPointWeights = Str(Scratch.Arena,
+                                             Cast(char const *)Curve->ControlPointWeights,
+                                             NumControlPoints * SizeOf(Curve->ControlPointWeights[0]));
             StringListPush(Scratch.Arena, &SaveData, ControlPointWeights);
             
-            string CubicBezierPoints = StringMake(Scratch.Arena,
-                                                  Cast(char const *)Curve->CubicBezierPoints,
-                                                  3 * NumControlPoints * SizeOf(Curve->CubicBezierPoints[0]));
+            string CubicBezierPoints = Str(Scratch.Arena,
+                                           Cast(char const *)Curve->CubicBezierPoints,
+                                           3 * NumControlPoints * SizeOf(Curve->CubicBezierPoints[0]));
             StringListPush(Scratch.Arena, &SaveData, CubicBezierPoints);
          } break;
          
@@ -191,10 +191,12 @@ ExpectSizeInData(u64 Expected, void **Data, u64 *BytesLeft)
 
 // TODO(hbr): Error doesn't have to be so specific, maybe just "project file is corrupted or something like that"
 function load_project_result
-LoadProjectFromFile(arena *Arena, pool *EntityPool,
+LoadProjectFromFile(arena *Arena,
+                    string ProjectFilePath,
+                    pool *EntityPool,
                     arena *DeCasteljauVisualizationArena,
                     arena *DegreeLoweringArena, arena *MovingPointArena,
-                    arena *CurveAnimationArena, string ProjectFilePath)
+                    arena *CurveAnimationArena)
 {
    // TODO(hbr): Shorten error messages, maybe even don't return
    load_project_result Result = {};
@@ -221,14 +223,14 @@ LoadProjectFromFile(arena *Arena, pool *EntityPool,
       {
          *EditorParameters = Header->EditorParameters;
          *UI_Config = Header->UI_Config;
-         *EditorState = EditorStateMake(EntityPool,
-                                        Header->CurveCounter,
-                                        Header->Camera,
-                                        DeCasteljauVisualizationArena,
-                                        DegreeLoweringArena,
-                                        MovingPointArena,
-                                        CurveAnimationArena,
-                                        Header->CurveAnimationSpeed);
+         *EditorState = CreateEditorState(EntityPool,
+                                          Header->CurveCounter,
+                                          Header->Camera,
+                                          DeCasteljauVisualizationArena,
+                                          DegreeLoweringArena,
+                                          MovingPointArena,
+                                          CurveAnimationArena,
+                                          Header->CurveAnimationSpeed);
          
          u64 NumEntities = Header->NumEntities;
          for (u64 EntityIndex = 0;
@@ -238,27 +240,19 @@ LoadProjectFromFile(arena *Arena, pool *EntityPool,
             saved_project_entity *SavedEntity = ExpectTypeInData(saved_project_entity, &Data, &BytesLeft);
             if (SavedEntity)
             {
-               entity *Entity = AllocateEntity(EditorState);
-               // TODO(hbr): This is really temporary, make some function call here to guard against adding new fields to [entity]
-               Entity->Position = SavedEntity->Position;
-               Entity->Scale = SavedEntity->Scale;
-               Entity->Rotation = SavedEntity->Rotation;
-               Entity->Name = SavedEntity->Name;
-               Entity->SortingLayer = SavedEntity->SortingLayer;
-               Entity->RenamingFrame = SavedEntity->RenamingFrame;
-               Entity->Flags = SavedEntity->Flags;
+               entity *Entity = AllocateAndAddEntity(EditorState);
+               InitEntity(Entity,
+                          SavedEntity->Position, SavedEntity->Scale, SavedEntity->Rotation,
+                          SavedEntity->Name,
+                          SavedEntity->SortingLayer,
+                          SavedEntity->RenamingFrame,
+                          SavedEntity->Flags,
+                          SavedEntity->Type);
                
-               Entity->Type = SavedEntity->Type;
                switch (SavedEntity->Type)
                {
                   case Entity_Curve: {
                      saved_project_curve *SavedCurve = &SavedEntity->Curve;
-                     curve *Curve = &Entity->Curve;
-                     
-                     // TODO(hbr): This is really temporary, make some function call here to guard against adding new fields to [entity]
-                     Curve->CurveParams = SavedCurve->CurveParams;
-                     Curve->SelectedControlPointIndex = SavedCurve->SelectedControlPointIndex;
-                     
                      u64 NumControlPoints = SavedCurve->NumControlPoints;
                      local_position *ControlPoints = ExpectArrayInData(NumControlPoints, local_position, &Data, &BytesLeft);
                      f32 *ControlPointWeights = ExpectArrayInData(NumControlPoints, f32, &Data, &BytesLeft);
@@ -266,7 +260,9 @@ LoadProjectFromFile(arena *Arena, pool *EntityPool,
                      
                      if (ControlPoints && ControlPointWeights && CubicBezierPoints)
                      {
-                        CurveSetControlPoints(Curve, NumControlPoints, ControlPoints, ControlPointWeights, CubicBezierPoints);
+                        InitCurve(&Entity->Curve,
+                                  SavedCurve->CurveParams, SavedCurve->SelectedControlPointIndex,
+                                  NumControlPoints, ControlPoints, ControlPointWeights, CubicBezierPoints);
                      }
                      else
                      {
@@ -281,19 +277,18 @@ LoadProjectFromFile(arena *Arena, pool *EntityPool,
                      char *ImagePathStr = ExpectArrayInData(SavedImage->ImagePathSize, char, &Data, &BytesLeft);
                      if (ImagePathStr)
                      {
-                        string ImagePath = StringMake(Scratch.Arena, ImagePathStr, SavedImage->ImagePathSize);
+                        string ImagePath = Str(Scratch.Arena, ImagePathStr, SavedImage->ImagePathSize);
                         
                         string LoadTextureError = 0;
                         sf::Texture LoadedTexture = LoadTextureFromFile(Scratch.Arena, ImagePath, &LoadTextureError);
                         
                         if (LoadTextureError == 0)
                         {
-                           // TODO(hbr): Maybe also revise that.
-                           ImageInit(Image, ImagePath, &LoadedTexture);
+                           InitImage(Image, ImagePath, &LoadedTexture);
                         }
                         else
                         {
-                           string Warning = StringMakeFormat(Arena, "image texture load failed: %s", LoadTextureError);
+                           string Warning = StrF(Arena, "image texture load failed: %s", LoadTextureError);
                            StringListPush(Arena, &Warnings, Warning);
                         }
                      }
@@ -306,7 +301,7 @@ LoadProjectFromFile(arena *Arena, pool *EntityPool,
                
                if (SavedEntity->Flags & EntityFlag_Selected)
                {
-                  EditorStateSelectEntity(EditorState, Entity);
+                  SelectEntity(EditorState, Entity);
                }
             }
             else
@@ -327,26 +322,26 @@ LoadProjectFromFile(arena *Arena, pool *EntityPool,
       
       if (Corrupted)
       {
-         Error = StringMake(Arena, "project file corrupted");
+         Error = Str(Arena, "project file corrupted");
       }
       
       if (!Error)
       {
          if (BytesLeft > 0)
          {
-            string Warning = StringMake(Arena, "project file has unexpected trailing data");
+            string Warning = Str(Arena, "project file has unexpected trailing data");
             StringListPush(Arena, &Warnings, Warning);
          }
       }
    }
    else
    {
-      Error = StringMake(Arena, ReadError);
+      Error = Str(Arena, ReadError);
    }
    
    if (Error)
    {
-      EditorStateDestroy(EditorState);
+      DestroyEditorState(EditorState);
    }
    
    Result.Error = Error;

@@ -76,6 +76,8 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define Cast(Type) (Type)
 #define OffsetOf(Type, Member) (Cast(u64)(&((Cast(Type *)0)->Member)))
 #define SizeOf(Expr) sizeof(Expr)
+#define NotImplemented Assert(!"Not Implemented")
+#define InvalidPath Assert(!"Invalid Path");
 
 #if OS_WINDOWS
 # pragma section(".roglob", read)

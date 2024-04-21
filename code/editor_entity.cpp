@@ -438,7 +438,7 @@ ImageMake(name_string Name, world_position Position,
    Result.Rotation = Rotation;
    Result.SortingLayer = SortingLayer;
    Result.Hidden = Hidden;
-   Result.FilePath = StringDuplicate(FilePath);
+   Result.FilePath = DuplicateStr(FilePath);
    Result.Texture = Texture;
    
    return Result;
@@ -457,17 +457,17 @@ LoadTextureFromFile(arena *Arena, string FilePath, error_string *OutError)
    
    if (FileReadError)
    {
-      *OutError = StringMakeFormat(Arena,
-                                   "failed to load texture from file: %s",
-                                   FileReadError);
+      *OutError = StrF(Arena,
+                       "failed to load texture from file: %s",
+                       FileReadError);
    }
    else
    {
       if (!Texture.loadFromMemory(TextureFileContents.Contents, TextureFileContents.Size))
       {
-         *OutError = StringMakeFormat(Arena,
-                                      "failed to load texture from file %s",
-                                      FilePath);
+         *OutError = StrF(Arena,
+                          "failed to load texture from file %s",
+                          FilePath);
       }
    }
    
@@ -483,14 +483,6 @@ ImageCopy(image Image)
                             Image.FilePath, Image.Texture);
    
    return Result;
-}
-
-function void
-ImageDestroy(image *Image)
-{
-   StringFree(Image->FilePath);
-   Image->Texture.~Texture();
-   MemoryZero(Cast(void *)Image, SizeOf(Image));
 }
 
 function entity
@@ -518,8 +510,15 @@ EntityDestroy(entity *Entity)
 {
    switch (Entity->Type)
    {
-      case Entity_Curve: { CurveDestroy(&Entity->Curve); } break;
-      case Entity_Image: { ImageDestroy(&Entity->Image); } break;
+      case Entity_Curve: {
+         CurveDestroy(&Entity->Curve);
+      } break;
+      
+      case Entity_Image: {
+         FreeStr(Image->FilePath);
+         Image->Texture.~Texture();
+         MemoryZero(Cast(void *)Image, SizeOf(Image));
+      } break;
    }
 }
 

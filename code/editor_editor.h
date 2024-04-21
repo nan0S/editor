@@ -103,24 +103,6 @@ struct editor_parameters
    f32 DefaultControlPointWeight;
 };
 
-function editor_parameters EditorParametersMake(f32 RotationIndicatorRadiusClipSpace,
-                                                f32 RotationIndicatorOutlineThicknessFraction,
-                                                color RotationIndicatorFillColor,
-                                                color RotationIndicatorOutlineColor,
-                                                f32 BezierSplitPointRadiusClipSpace,
-                                                f32 BezierSplitPointOutlineThicknessFraction,
-                                                color BezierSplitPointFillColor,
-                                                color BezierSplitPointOutlineColor,
-                                                color BackgroundColor,
-                                                f32 CollisionToleranceClipSpace,
-                                                f32 LastControlPointSizeMultiplier,
-                                                f32 SelectedCurveControlPointOutlineThicknessScale,
-                                                color SelectedCurveControlPointOutlineColor,
-                                                color SelectedControlPointOutlineColor,
-                                                f32 CubicBezierHelperLineWidthClipSpace,
-                                                curve_params CurveDefaultParams,
-                                                f32 DefaultControlPointWeight);
-
 //- Camera, Projection and Coordinate Spaces
 struct camera
 {
@@ -144,23 +126,10 @@ struct projection
 
 struct coordinate_system_data
 {
-   sf::RenderWindow *RenderWindow;
+   sf::RenderWindow *Window;
    camera Camera;
    projection Projection;
 };
-
-function camera CameraMake(v2f32 Position, rotation_2d Rotation,
-                           f32 Zoom, f32 ZoomSensitivity, f32 ReachingTargetSpeed);
-function void CameraUpdate(camera *Camera, f32 MouseWheelDelta, f32 DeltaTime);
-function void CameraMove(camera *Camera, v2f32 Translation);
-function void CameraRotate(camera *Camera, rotation_2d Rotation);
-function void CameraSetZoom(camera *Camera, f32 Zoom);
-
-function projection ProjectionMake(u64 Width, u64 Height, f32 FrustumSize);
-function void ProjectionOnWindowResize(projection *Projection, u64 NewWidth, u64 NewHeight);
-
-function coordinate_system_data CoordinateSystemDataMake(sf::RenderWindow *RenderWindow,
-                                                         camera Camera, projection Projection);
 
 function camera_position ScreenToCameraSpace(screen_position Position, coordinate_system_data Data);
 function world_position  CameraToWorldSpace (camera_position Position, coordinate_system_data Data);
@@ -171,22 +140,19 @@ function world_position  ScreenToWorldSpace (screen_position Position, coordinat
 function f32 ClipSpaceLengthToWorldSpace(f32 ClipSpaceDistance, coordinate_system_data Data);
 
 //- Collisions
-// TODO(hbr): Try to simplify this [enum] because we have [entity] now
-enum collision_type
+enum curve_collision_type
 {
-   Collision_None,
-   Collision_ControlPoint,
-   Collision_CurvePoint,
-   Collision_Image,
+   CurveCollision_ControlPoint,
+   CurveCollision_CurvePoint,
+   CurveCollision_CubicBezierPoint,
 };
 
 struct collision
 {
-   collision_type Type;
    // NOTE(hbr): Fat-struct to reduce complexity
    entity *Entity;
-   u64 CollisionPointIndex;
-   b32 IsCubicBezierPoint;
+   curve_collision_type Type;
+   u64 PointIndex;
 };
 
 typedef u64 check_collision_with_flags;
@@ -196,21 +162,6 @@ enum
    CheckCollisionWith_CurvePoints       = (1<<1),
    CheckCollisionWith_Images            = (1<<2),
 };
-
-function collision ControlPointCollision(entity *CollisionCurveEntity, u64 CollisionPointIndex, b32 IsCubicBezierPoint);
-function collision CurvePointCollision(entity *CollisionCurveEntity, u64 CollisionCurvePointIndex);
-function collision ImageCollision(entity *CollisionImageEntity);
-
-// TODO(hbr): Remove, not used anymore
-typedef u64 curve_point_index;
-function curve_point_index CheckCollisionWithCurvePoints(curve *Curve,
-                                                         world_position CheckPosition,
-                                                         f32 CollisionTolerance);
-function collision CheckCollisionWith(curve *EntitiesHead, image *EntitiesTail,
-                                      world_position CheckPosition,
-                                      f32 CollisionTolerance,
-                                      editor_parameters EditorParams,
-                                      check_collision_with_flags CheckCollisionWithFlags);
 
 //- Editor
 enum user_action_type
@@ -256,56 +207,44 @@ function user_action UserActionButtonDrag(button Button, screen_position DragFro
 function user_action UserActionButtonReleased(button Button, screen_position ReleasePosition, user_input *UserInput);
 function user_action UserActionMouseMove(v2s32 FromPosition, screen_position ToPosition, user_input *UserInput);
 
-// TODO(hbr): Simplify this type due to [entity] simplification
 enum editor_mode_type
 {
    EditorMode_Normal,
-   EditorMode_MovingPoint,
-   EditorMode_MovingCurve,
-   EditorMode_MovingImage,
-   EditorMode_MovingCamera,
-   EditorMode_RotatingCurve,
-   EditorMode_RotatingImage,
-   EditorMode_RotatingCamera,
+   EditorMode_Moving,
+   EditorMode_Rotating,
 };
 
-// TODO(hbr): Simplify this type A LOT, don't use RotatingCurve and MovingCurve when could use only Curve
+// TODO(hbr): Try to get rid of this type, if this is necessary, just remove this TODO
+enum moving_mode_type
+{
+   MovingMode_Entity,
+   MovingMode_Camera,
+   MovingMode_CurvePoint,
+};
+
 struct editor_mode
 {
    editor_mode_type Type;
    union
    {
       struct {
-         entity *CurveEntity;
+         moving_mode_type Type;
+         entity *Entity;
+         
          u64 PointIndex;
          b32 CubicBezierPointMoving;
          
          sf::Vertex *SavedCurveVertices;
          u64 SavedNumCurveVertices;
          sf::PrimitiveType SavedPrimitiveType;
-      } MovingPoint;
-      
-      entity *MovingCurveEntity;
-      
-      entity *MovingImageEntity;
+      } Moving;
       
       struct {
-         entity *CurveEntity;
+         entity *Entity;
          screen_position RotationCenter;
-      } RotatingCurve;
-      
-      entity *RotatingImageEntity;
+      } Rotating;
    };
 };
-
-function editor_mode EditorModeNormal(void);
-function editor_mode EditorModeMovingPoint(entity *CurveEntity, u64 PointIndex, b32 CubicBezierPointMoving, arena *Arena);
-function editor_mode EditorModeMovingCurve(entity *CurveEntity);
-function editor_mode EditorModeMovingImage(entity *ImageEntity);
-function editor_mode EditorModeMovingCamera(void);
-function editor_mode EditorModeRotatingCurve(entity *CurveEntity, screen_position RotationCenter);
-function editor_mode EditorModeRotatingImage(entity *ImageEntity);
-function editor_mode EditorModeRotatingCamera(void);
 
 // TODO(hbr): maybe rename to [state] or something, not only this but [de_Casteljau_visualization] as well, because that's what it is
 struct splitting_bezier_curve
@@ -391,9 +330,6 @@ struct transform_curve_animation
    f32 Blend;
 };
 
-function f32 CalculateAnimation(animation_type Animation, f32 T);
-function char const *AnimationToString(animation_type Animation);
-
 enum curve_combination_type
 {
    CurveCombination_Merge,
@@ -443,18 +379,16 @@ struct editor_state
    curve_combining CurveCombining;
 };
 
-function editor_state EditorStateMake(pool *EntityPool, u64 CurveCounter, camera Camera,
-                                      arena *DeCasteljauVisualizationArena, arena *DegreeLoweringArena,
-                                      arena *MovingPointArena, arena *CurveAnimationArena,
-                                      f32 CurveAnimationSpeed);
-function editor_state EditorStateMakeDefault(pool *EntityPool, arena *DeCasteljauVisualizationArena,
-                                             arena *DegreeLoweringArena, arena *MovingPointArena,
-                                             arena *CurveAnimationArena);
-function void         EditorStateDestroy(editor_state *EditorState);
-function entity *     EditorStateAddEntity(editor_state *EditorState, entity *Entity);
-function void         EditorStateRemoveEntity(editor_state *EditorState, entity *Entity);
-function void         EditorStateSelectEntity(editor_state *EditorState, entity *Entity);
-function void         EditorStateDeselectCurrentEntity(editor_state *EditorState);
+function editor_state CreateEditorState(pool *EntityPool, u64 CurveCounter, camera Camera,
+                                        arena *DeCasteljauVisualizationArena, arena *DegreeLoweringArena,
+                                        arena *MovingPointArena, arena *CurveAnimationArena,
+                                        f32 CurveAnimationSpeed);
+
+function entity *AllocateAndAddEntity(editor_state *State);
+function void DeallocateAndRemoveEntity(editor_state *State, entity *Entity);
+
+function void SelectEntity(editor_state *EditorState, entity *Entity);
+function void DestroyEditorState(editor_state *EditorState);
 
 enum save_project_format
 {
@@ -511,24 +445,10 @@ struct notification_system
    sf::RenderWindow *Window;
 };
 
-function notification NotificationMake(string Title,
-                                       color TitleColor,
-                                       string Text,
-                                       f32 PositionY);
-function void NotificationDestroy(notification *Notification);
-
-function notification_system NotificationSystemMake(sf::RenderWindow *Window);
-function void NotificationSystemAddNotificationFormat(notification_system *NotificationSystem,
-                                                      notification_type NotificationType,
-                                                      char const *NotificationTextFormat,
-                                                      ...);
-
 // NOTE(hbr): Not sure if this is the best name
 struct ui_config
 {
-   b32 ViewSelectedCurveWindow;
-   b32 ViewSelectedImageWindow;
-   
+   b32 ViewSelectedEntityWindow;
    b32 ViewListOfEntitiesWindow;
    b32 ViewParametersWindow;
    b32 ViewDiagnosticsWindow;
@@ -538,6 +458,7 @@ struct ui_config
    b32 BezierSplitPointHeaderCollapsed;
    b32 OtherSettingsHeaderCollapsed;
    
+   // TODO(hbr): Are those defines necessary? Tacke or remove TODO
 #if EDITOR_PROFILER
    b32 ViewProfilerWindow;
 #endif
@@ -546,16 +467,6 @@ struct ui_config
    b32 ViewDebugWindow;
 #endif
 };
-
-function ui_config UI_ConfigMake(b32 ViewSelectedCurveWindow,
-                                 b32 ViewSelectedImageWindow,
-                                 b32 ViewListOfEntitiesWindow,
-                                 b32 ViewParametersWindow,
-                                 b32 ViewDiagnosticsWindow,
-                                 b32 DefaultCurveHeaderCollapsed,
-                                 b32 RotationIndicatorHeaderCollapsed,
-                                 b32 BezierSplitPointHeaderCollapsed,
-                                 b32 OtherSettingsHeaderCollapsed);
 
 struct editor
 {
@@ -579,86 +490,5 @@ struct editor
    
    ui_config UI_Config;
 };
-
-function editor EditorMake(sf::RenderWindow *Window,
-                           editor_state EditorState,
-                           projection Projection,
-                           notification_system NotificationSystem,
-                           editor_parameters EditorParameters,
-                           ui_config UI_Config);
-function void EditorSetSaveProjectPath(editor *Editor,
-                                       save_project_format SaveProjectFormat,
-                                       string SaveProjectFilePath);
-
-function void UpdateAndRender(f32 DeltaTime, user_input UserInput, editor *Editor);
-
-function entity *
-AllocateEntity(editor_state *State)
-{
-   entity *Entity = PoolAllocStruct(State->EntityPool, entity);
-   
-   // NOTE(hbr): Ugly C++ thing we have to do because of constructors/destructors.
-   new (&Entity->Image.Texture) sf::Texture();
-   
-   DLLPushBack(State->EntitiesHead, State->EntitiesTail, Entity);
-   ++State->NumEntities;
-   
-   return Entity;
-}
-
-function void
-DeallocateEntity(editor_state *State, entity *Entity)
-{
-   if (State->SplittingBezierCurve.IsSplitting &&
-       State->SplittingBezierCurve.SplitCurveEntity == Entity)
-   {
-      State->SplittingBezierCurve.IsSplitting = false;
-      State->SplittingBezierCurve.SplitCurveEntity = 0;
-   }
-   
-   if (State->DeCasteljauVisualization.IsVisualizing &&
-       State->DeCasteljauVisualization.CurveEntity == Entity)
-   {
-      State->DeCasteljauVisualization.IsVisualizing = false;
-      State->DeCasteljauVisualization.CurveEntity = 0;
-   }
-   
-   if (State->DegreeLowering.IsLowering &&
-       State->DegreeLowering.CurveEntity == Entity)
-   {
-      State->DegreeLowering.IsLowering = false;
-      State->DegreeLowering.CurveEntity = 0;
-   }
-   
-   if (State->CurveAnimation.FromCurveEntity == Entity ||
-       State->CurveAnimation.ToCurveEntity == Entity)
-   {
-      State->CurveAnimation.Stage = AnimateCurveAnimation_None;
-   }
-   
-   if (State->CurveCombining.CombineCurveEntity == Entity)
-   {
-      State->CurveCombining.IsCombining = false;
-   }
-   if (State->CurveCombining.TargetCurveEntity == Entity)
-   {
-      State->CurveCombining.TargetCurveEntity = 0;
-   }
-   
-   EntityDestroy(Entity);
-   
-   DLLRemove(State->EntitiesHead, State->EntitiesTail, Entity);
-   --State->NumEntities;
-   PoolFree(State->EntityPool, Entity);
-}
-
-function name_string
-GenerateNewNameForCurve(editor_state *State)
-{
-   // NOTE(hbr): Simple approach, not bullet-proof but ppb good enough
-   name_string Result = NameStringFormat("curve(%lu)",
-                                         State->EverIncreasingCurveCounter++);
-   return Result;
-}
 
 #endif //EDITOR_EDITOR_H

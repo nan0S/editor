@@ -1,15 +1,3 @@
-function user_input
-UserInputMake(v2s32 MousePosition, u64 WindowWidth, u64 WindowHeight)
-{
-   user_input Result = {};
-   Result.MousePosition = MousePosition;
-   Result.MouseLastPosition = MousePosition;
-   Result.WindowWidth = WindowWidth;
-   Result.WindowHeight = WindowHeight;
-   
-   return Result;
-}
-
 internal key
 KeyFromSFMLKeyCode(sf::Keyboard::Key KeyCode)
 {

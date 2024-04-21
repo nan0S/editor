@@ -1512,7 +1512,6 @@ PointCollision(v2f32 Position, v2f32 Point, f32 PointRadius)
    return Collision;
 }
 
-
 function b32
 SegmentCollision(v2f32 Position,
                  v2f32 LineA, v2f32 LineB, f32 LineWidth)

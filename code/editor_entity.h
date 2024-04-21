@@ -7,9 +7,9 @@ struct name_string
    u64 Size;
 };
 
-function name_string NameStringMake(char *Str, u64 Size);
+function name_string NameStr(char *Str, u64 Size);
 function name_string NameStringFromString(string String);
-#define NameStringFromLiteral(Literal) NameStringMake(Cast(char *)Literal, ArrayCount(Literal)-1)
+#define NameStringFromLiteral(Literal) NameStr(Cast(char *)Literal, ArrayCount(Literal)-1)
 function name_string NameStringFormat(char const *Format, ...);
 
 enum interpolation_type
@@ -155,14 +155,8 @@ ImageInit(image *Image, string ImagePath, sf::Texture *Texture)
 {
    // NOTE(hbr): This is only because of C++ ugliness
    new (&Image->Texture) sf::Texture(*Texture);
-   Image->FilePath = StringDuplicate(ImagePath);
+   Image->FilePath = DuplicateStr(ImagePath);
 }
-
-// TODO(hbr): Remove this signature
-function void CurveSetControlPoints(curve *Curve, u64 NewNumControlPoints,
-                                    local_position *NewControlPoints,
-                                    f32 *NewControlPointWeights,
-                                    local_position *NewCubicBezierPoints);
 
 // TODO(hbr): I'm not sure if this function belongs here, in this file
 function sf::Texture
@@ -178,17 +172,17 @@ LoadTextureFromFile(arena *Arena, string FilePath, error_string *OutError)
    
    if (FileReadError)
    {
-      *OutError = StringMakeFormat(Arena,
-                                   "failed to load texture from file: %s",
-                                   FileReadError);
+      *OutError = StrF(Arena,
+                       "failed to load texture from file: %s",
+                       FileReadError);
    }
    else
    {
       if (!Texture.loadFromMemory(TextureFileContents.Contents, TextureFileContents.Size))
       {
-         *OutError = StringMakeFormat(Arena,
-                                      "failed to load texture from file %s",
-                                      FilePath);
+         *OutError = StrF(Arena,
+                          "failed to load texture from file %s",
+                          FilePath);
       }
    }
    
@@ -630,32 +624,6 @@ LocalEntityPositionToWorld(entity *Entity, local_position Position)
    return Result;
 }
 
-function void
-EntityDestroy(entity *Entity)
-{
-   switch (Entity->Type)
-   {
-      case Entity_Curve: {
-         curve *Curve = &Entity->Curve;
-         ArrayFree(Curve->ControlPoints);
-         ArrayFree(Curve->ControlPointWeights);
-         ArrayFree(Curve->CubicBezierPoints);
-         ArrayFree(Curve->CurvePoints);
-         ArrayFree(Curve->CurveVertices.Vertices);
-         ArrayFree(Curve->PolylineVertices.Vertices);
-         ArrayFree(Curve->ConvexHullVertices.Vertices);
-      } break;
-      
-      case Entity_Image: {
-         image *Image = &Entity->Image;
-         Image->Texture.~Texture();
-         StringFree(Image->FilePath);
-      } break;
-   }
-   
-   MemoryZero(Entity, SizeOf(*Entity));
-}
-
 // TODO(hbr): Probably just implement Append in terms of insert instead of making append special case of insert
 typedef u64 added_point_index_u64;
 function added_point_index_u64
@@ -983,39 +951,70 @@ CurveShapeMake(interpolation_type InterpolationType,
 }
 
 function void
+InitCurve(curve *Curve,
+          curve_params CurveParams, u64 SelectedControlPointIndex,
+          u64 NumControlPoints,
+          world_position *ControlPoints, f32 *ControlPointWeights, world_position *CubicBezierPoints)
+{
+   MemoryZero(Curve, SizeOf(*Curve));
+   Curve->CurveParams = CurveParams;
+   CurveSetControlPoints(Curve, NumControlPoints, ControlPoints, ControlPointWeights, CubicBezierPoints);
+   Curve->SelectedControlPointIndex = SelectedControlPointIndex;
+}
+
+function void
+InitImage(image *Image, string ImageFilePath, sf::Texture *Texture)
+{
+   Image->FilePath = DuplicateStr(ImageFilePath);
+   new (&Image->Texture) sf::Texture(*Texture);
+}
+
+function void
 InitCurveFromCurve(curve *Dst, curve *Src)
 {
-   MemoryZero(Dst, SizeOf(*Dst));
-   
-   CurveSetControlPoints(Dst,
-                         Src->NumControlPoints,
-                         Src->ControlPoints,
-                         Src->ControlPointWeights,
-                         Src->CubicBezierPoints);
-   Dst->CurveParams = Src->CurveParams;
-   Dst->SelectedControlPointIndex = Src->SelectedControlPointIndex;
+   InitCurve(Dst,
+             Src->CurveParams, U64_MAX,
+             Src->NumControlPoints,
+             Src->ControlPoints, Src->ControlPointWeights, Src->CubicBezierPoints);
 }
 
 function void
 InitImageFromImage(image *Dst, image *Src)
 {
+   MemoryZero(Dst, SizeOf(*Dst));
    new (&Dst->Texture) sf::Texture(Src->Texture);
-   Dst->FilePath = StringDuplicate(Src->FilePath);
+   Dst->FilePath = DuplicateStr(Src->FilePath);
+}
+
+function void
+InitEntity(entity *Entity,
+           world_position Position, v2f32 Scale, rotation_2d Rotation,
+           name_string Name,
+           s64 SortingLayer,
+           u64 RenamingFrame,
+           entity_flags Flags,
+           entity_type Type)
+{
+   MemoryZero(Entity, SizeOf(*Entity));
+   Entity->Position = Position;
+   Entity->Scale = Scale;
+   Entity->Rotation = Rotation;
+   Entity->Name = Name;
+   Entity->SortingLayer = SortingLayer;
+   Entity->Flags = Flags;
+   Entity->Type = Type;
 }
 
 function void
 InitEntityFromEntity(entity *Dest, entity *Src)
 {
-   MemoryZero(Dest, SizeOf(*Dest));
-   
-   Dest->Position = Src->Position;
-   Dest->Scale = Src->Scale;
-   Dest->Rotation = Src->Rotation;
-   Dest->Name = Src->Name;
-   Dest->SortingLayer = Src->SortingLayer;
-   Dest->Flags = Src->Flags;
-   
-   Dest->Type = Src->Type;
+   InitEntity(Dest,
+              Src->Position, Src->Scale, Src->Rotation,
+              Src->Name,
+              Src->SortingLayer,
+              Src->RenamingFrame,
+              Src->Flags,
+              Src->Type);
    switch (Src->Type)
    {
       case Entity_Curve: { InitCurveFromCurve(&Dest->Curve, &Src->Curve); } break;
@@ -1024,23 +1023,24 @@ InitEntityFromEntity(entity *Dest, entity *Src)
 }
 
 function void
-InitImage(image *Image, string ImageFilePath, sf::Texture *Texture)
+InitCurveEntity(entity *Entity,
+                world_position Position, v2f32 Scale, rotation_2d Rotation,
+                name_string Name,
+                curve_params CurveParams)
 {
-   Image->FilePath = StringDuplicate(ImageFilePath);
-   new (&Image->Texture) sf::Texture(*Texture);
+   InitEntity(Entity, Position, Scale, Rotation, Name, 0, 0, 0, Entity_Curve);
+   InitCurve(&Entity->Curve, CurveParams, U64_MAX, 0, 0, 0, 0);
 }
 
 function void
-InitImageEntity(entity *Entity, world_position Position, v2f32 Scale, rotation_2d Rotation,
-                name_string Name, string ImageFilePath, sf::Texture *Texture)
+InitImageEntity(entity *Entity,
+                world_position Position, v2f32 Scale, rotation_2d Rotation,
+                name_string Name,
+                string ImageFilePath, sf::Texture *Texture)
 {
    MemoryZero(Entity, SizeOf(*Entity));
    
-   Entity->Position = Position;
-   Entity->Scale = Scale;
-   Entity->Rotation = Rotation;
-   Entity->Name = Name;
-   Entity->Type = Entity_Image;
+   InitEntity(Entity, Position, Scale, Rotation, Name, 0, 0, 0, Entity_Image);
    InitImage(&Entity->Image, ImageFilePath, Texture);
 }
 
@@ -1191,7 +1191,7 @@ CurveGetAnimate(entity *Curve)
 }
 
 function name_string
-NameStringMake(char *Str, u64 Size)
+NameStr(char *Str, u64 Size)
 {
    name_string Result = {};
    
@@ -1207,8 +1207,8 @@ NameStringMake(char *Str, u64 Size)
 function name_string
 NameStringFromString(string String)
 {
-   u64 Size = StringSize(String);
-   name_string Result = NameStringMake(String, Size);
+   u64 Size = StrLength(String);
+   name_string Result = NameStr(String, Size);
    
    return Result;
 }
@@ -1224,12 +1224,52 @@ NameStringFormat(char const *Format, ...)
    int Return = vsnprintf(Result.Str, ArrayCount(Result.Str)-1, Format, ArgList);
    if (Return >= 0)
    {
-      Result.Size = CStringLength(Result.Str);
+      Result.Size = CStrLength(Result.Str);
    }
    
    va_end(ArgList);
    
    return Result;
+}
+
+inline curve *
+CurveFromEntity(entity *Entity)
+{
+   Assert(Entity->Type == Entity_Curve);
+   return &Entity->Curve;
+}
+
+inline image *
+ImageFromEntity(entity *Entity)
+{
+   Assert(Entity->Type == Entity_Image);
+   return &Entity->Image;
+}
+
+function void
+EntityDestroy(entity *Entity)
+{
+   switch (Entity->Type)
+   {
+      case Entity_Curve: {
+         curve *Curve = &Entity->Curve;
+         ArrayFree(Curve->ControlPoints);
+         ArrayFree(Curve->ControlPointWeights);
+         ArrayFree(Curve->CubicBezierPoints);
+         ArrayFree(Curve->CurvePoints);
+         ArrayFree(Curve->CurveVertices.Vertices);
+         ArrayFree(Curve->PolylineVertices.Vertices);
+         ArrayFree(Curve->ConvexHullVertices.Vertices);
+      } break;
+      
+      case Entity_Image: {
+         image *Image = &Entity->Image;
+         Image->Texture.~Texture();
+         FreeStr(Image->FilePath);
+      } break;
+   }
+   
+   MemoryZero(Entity, SizeOf(*Entity));
 }
 
 #endif //EDITOR_ENTITY_H

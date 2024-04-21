@@ -108,7 +108,7 @@ SavedProjectEntity(entity *Entity)
       } break;
       
       case Entity_Image: {
-         Result.Image = SavedProjectImage(StrLength(Entity->Image.FilePath));
+         Result.Image = SavedProjectImage(Entity->Image.FilePath.Count);
       } break;
    }
    
@@ -119,8 +119,8 @@ SavedProjectEntity(entity *Entity)
 function error_string
 SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath)
 {
-   auto Scratch = ScratchArena(Arena);
-   defer { ReleaseScratch(Scratch); };
+   temp_arena Temp = TempArena(Arena);
+   defer { EndTemp(Temp); };
    
    string_list SaveData = {};
    
@@ -131,14 +131,14 @@ SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath)
                                                     Editor.Parameters,
                                                     Editor.UI_Config,
                                                     Editor.State.CurveAnimation.AnimationSpeed);
-   string HeaderData = Str(Scratch.Arena, Cast(char const *)&Header, SizeOf(Header));
-   StringListPush(Scratch.Arena, &SaveData, HeaderData);
+   string HeaderData = Str(Temp.Arena, Cast(char const *)&Header, SizeOf(Header));
+   StringListPush(Temp.Arena, &SaveData, HeaderData);
    
    ListIter(Entity, Editor.State.EntitiesHead, entity)
    {
       saved_project_entity Saved = SavedProjectEntity(Entity);
-      string SavedData = Str(Scratch.Arena, Cast(char const *)&Saved, SizeOf(Saved));
-      StringListPush(Scratch.Arena, &SaveData, SavedData);
+      string SavedData = Str(Temp.Arena, Cast(char const *)&Saved, SizeOf(Saved));
+      StringListPush(Temp.Arena, &SaveData, SavedData);
       
       switch (Entity->Type)
       {
@@ -147,24 +147,24 @@ SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath)
             
             u64 NumControlPoints = Curve->NumControlPoints;
             
-            string ControlPoints = Str(Scratch.Arena,
+            string ControlPoints = Str(Temp.Arena,
                                        Cast(char const *)Curve->ControlPoints,
                                        NumControlPoints * SizeOf(Curve->ControlPoints[0]));
-            StringListPush(Scratch.Arena, &SaveData, ControlPoints);
+            StringListPush(Temp.Arena, &SaveData, ControlPoints);
             
-            string ControlPointWeights = Str(Scratch.Arena,
+            string ControlPointWeights = Str(Temp.Arena,
                                              Cast(char const *)Curve->ControlPointWeights,
                                              NumControlPoints * SizeOf(Curve->ControlPointWeights[0]));
-            StringListPush(Scratch.Arena, &SaveData, ControlPointWeights);
+            StringListPush(Temp.Arena, &SaveData, ControlPointWeights);
             
-            string CubicBezierPoints = Str(Scratch.Arena,
+            string CubicBezierPoints = Str(Temp.Arena,
                                            Cast(char const *)Curve->CubicBezierPoints,
                                            3 * NumControlPoints * SizeOf(Curve->CubicBezierPoints[0]));
-            StringListPush(Scratch.Arena, &SaveData, CubicBezierPoints);
+            StringListPush(Temp.Arena, &SaveData, CubicBezierPoints);
          } break;
          
          case Entity_Image: {
-            StringListPush(Scratch.Arena, &SaveData, Entity->Image.FilePath);
+            StringListPush(Temp.Arena, &SaveData, Entity->Image.FilePath);
          } break;
       }
    }
@@ -200,19 +200,19 @@ LoadProjectFromFile(arena *Arena,
 {
    // TODO(hbr): Shorten error messages, maybe even don't return
    load_project_result Result = {};
-   error_string Error = 0;
+   error_string Error = {};
    string_list Warnings = {};
    
    editor_state *EditorState = &Result.EditorState;
    editor_parameters *EditorParameters = &Result.EditorParameters;
    ui_config *UI_Config = &Result.UI_Config;
    
-   auto Scratch = ScratchArena(Arena);
-   defer { ReleaseScratch(Scratch); };
+   temp_arena Temp = TempArena(Arena);
+   defer { EndTemp(Temp); };
    
-   error_string ReadError = 0;
-   file_contents Contents = ReadEntireFile(Scratch.Arena, ProjectFilePath, &ReadError);
-   if (ReadError == 0)
+   error_string ReadError = {};
+   file_contents Contents = ReadEntireFile(Temp.Arena, ProjectFilePath, &ReadError);
+   if (!IsError(ReadError))
    {
       void *Data = Contents.Contents;
       u64 BytesLeft = Contents.Size;
@@ -277,12 +277,12 @@ LoadProjectFromFile(arena *Arena,
                      char *ImagePathStr = ExpectArrayInData(SavedImage->ImagePathSize, char, &Data, &BytesLeft);
                      if (ImagePathStr)
                      {
-                        string ImagePath = Str(Scratch.Arena, ImagePathStr, SavedImage->ImagePathSize);
+                        string ImagePath = Str(Temp.Arena, ImagePathStr, SavedImage->ImagePathSize);
                         
-                        string LoadTextureError = 0;
-                        sf::Texture LoadedTexture = LoadTextureFromFile(Scratch.Arena, ImagePath, &LoadTextureError);
+                        string LoadTextureError = {};
+                        sf::Texture LoadedTexture = LoadTextureFromFile(Temp.Arena, ImagePath, &LoadTextureError);
                         
-                        if (LoadTextureError == 0)
+                        if (!IsError(LoadTextureError))
                         {
                            InitImage(Image, ImagePath, &LoadedTexture);
                         }
@@ -309,7 +309,7 @@ LoadProjectFromFile(arena *Arena,
                Corrupted = true;
             }
             
-            if (Corrupted || Error)
+            if (Corrupted || IsError(Error))
             {
                break;
             }
@@ -322,24 +322,24 @@ LoadProjectFromFile(arena *Arena,
       
       if (Corrupted)
       {
-         Error = Str(Arena, "project file corrupted");
+         Error = StrC(Arena, "project file corrupted");
       }
       
-      if (!Error)
+      if (!IsError(Error))
       {
          if (BytesLeft > 0)
          {
-            string Warning = Str(Arena, "project file has unexpected trailing data");
+            string Warning = StrC(Arena, "project file has unexpected trailing data");
             StringListPush(Arena, &Warnings, Warning);
          }
       }
    }
    else
    {
-      Error = Str(Arena, ReadError);
+      Error = StrC(Arena, ReadError.Data);
    }
    
-   if (Error)
+   if (IsError(Error))
    {
       DestroyEditorState(EditorState);
    }

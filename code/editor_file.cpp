@@ -6,14 +6,14 @@ ReadEntireFile(arena *Arena, string FilePath, error_string *OutError)
    file_contents Result = {};
    b32 IsError = false;
    
-   FILE *File = fopen(FilePath, "rb");
+   FILE *File = fopen(FilePath.Data, "rb");
    if (File)
    {
       fseek(File, 0L, SEEK_END);
       long FileSize = ftell(File);
       rewind(File);
       
-      void *Contents = ArenaPushSize(Arena, FileSize);
+      void *Contents = PushSize(Arena, FileSize);
       size_t Read = fread(Contents, FileSize, 1, File);
       
       if (Read*FileSize == FileSize)
@@ -55,15 +55,15 @@ ReadEntireFile(arena *Arena, string FilePath, error_string *OutError)
 function error_string
 SaveToFile(arena *Arena, string FilePath, string_list Data)
 {
-   error_string Error = 0;
+   error_string Error = {};
    
-   FILE *File = fopen(FilePath, "wb");
+   FILE *File = fopen(FilePath.Data, "wb");
    if (File)
    {
       ListIter(Node, Data.Head, string_list_node)
       {
-         u64 ToWrite = StrLength(Node->String);
-         size_t Written = fwrite(Node->String, ToWrite, 1, File);
+         u64 ToWrite = Node->String.Count;
+         size_t Written = fwrite(Node->String.Data, ToWrite, 1, File);
          
          if (Written*ToWrite != ToWrite)
          {
@@ -76,20 +76,15 @@ SaveToFile(arena *Arena, string FilePath, string_list Data)
       
       if (fclose(File) != 0)
       {
-         if (!Error)
+         if (IsError(Error))
          {
-            Error = StrF(Arena,
-                         "error while closing file %s",
-                         FilePath);
+            Error = StrF(Arena, "error while closing file %s", FilePath);
          }
       }
    }
    else
    {
-      Error = StrF(Arena,
-                   "failed to open file %s (%s)",
-                   FilePath,
-                   strerror(errno));
+      Error = StrF(Arena, "failed to open file %s (%s)", FilePath, strerror(errno));
    }
    
    return Error;

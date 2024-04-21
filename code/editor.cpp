@@ -1,6 +1,7 @@
 #include "editor.h"
 
 #include "editor_memory.cpp"
+#include "editor_thread_ctx.cpp"
 #include "editor_string.cpp"
 #include "editor_file.cpp"
 #include "editor_math.cpp"
@@ -13,28 +14,29 @@
 #include "editor_profiler.cpp"
 #include "editor_editor.cpp"
 
+
 function void
 ReportError(char const *Fmt, ...)
 {
-   va_list ArgList;
-   va_start(ArgList, Fmt);
+   va_list Args;
+   va_start(Args, Fmt);
    
    fprintf(stderr, "error: ");
-   vfprintf(stderr, Fmt, ArgList);
+   vfprintf(stderr, Fmt, Args);
    fprintf(stderr, "\n");
    
-   va_end(ArgList);
+   va_end(Args);
 }
 
 function void
 Log(char const *Fmt, ...)
 {
-   va_list ArgList;
-   va_start(ArgList, Fmt);
+   va_list Args;
+   va_start(Args, Fmt);
    
    fprintf(stderr, "[LOG]: ");
-   vfprintf(stderr, Fmt, ArgList);
+   vfprintf(stderr, Fmt, Args);
    fprintf(stderr, "\n");
    
-   va_end(ArgList);
+   va_end(Args);
 }

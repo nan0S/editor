@@ -376,7 +376,7 @@ CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
       } break;
       
       case LineVerticesAllocation_Arena: {
-         Vertices = PushArray(Allocation.Arena, MaximumNumVertices, sf::Vertex);
+         Vertices = PushArrayNonZero(Allocation.Arena, MaximumNumVertices, sf::Vertex);
       } break;
    }
    
@@ -601,9 +601,9 @@ BarycentricOmega(f32 *Omega, f32 *Ti, u64 N)
 function void
 BarycentricOmegaWerner(f32 *Omega, f32 *Ti, u64 N)
 {
-   auto Scratch = ScratchArena(0);
+   temp_arena Temp = TempArena(0);
    
-   f32 *Mem = PushArray(Scratch.Arena, N*N, f32);
+   f32 *Mem = PushArrayNonZero(Temp.Arena, N*N, f32);
    
    Mem[Idx(0, 0, N)] = 1.0f;
    for (u64 K = 1; K < N; ++K)
@@ -625,7 +625,7 @@ BarycentricOmegaWerner(f32 *Omega, f32 *Ti, u64 N)
       Omega[I] = Mem[Idx(N-1, I, N)];
    }
    
-   ReleaseScratch(Scratch);
+   EndTemp(Temp);
 }
 
 function void
@@ -714,9 +714,9 @@ BarycentricEvaluate(f32 T, f32 *Omega, f32 *Ti, f32 *Y, u64 N)
 function void
 NewtonBeta(f32 *Beta, f32 *Ti, f32 *Y, u64 N)
 {
-   auto Scratch = ScratchArena(0);
+   temp_arena Temp = TempArena(0);
    
-   f32 *Mem = PushArray(Scratch.Arena, N*N, f32);
+   f32 *Mem = PushArrayNonZero(Temp.Arena, N*N, f32);
    for (u64 J = 0; J < N; ++J)
    {
       Mem[J] = Y[J];
@@ -735,7 +735,7 @@ NewtonBeta(f32 *Beta, f32 *Ti, f32 *Y, u64 N)
       Beta[I] = Mem[I*N + 0];
    }
    
-   ReleaseScratch(Scratch);
+   EndTemp(Temp);
 }
 
 // NOTE(hbr): Memory optimized version
@@ -832,7 +832,7 @@ int gauss(vector<vector<ldb>> a, vector<ldb> &ans) { // O(n^3)
 function void
 CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u64 N)
 {
-   auto Scratch = ScratchArena(0);
+   temp_arena Temp = TempArena(0);
    
    if (N == 0) {} // NOTE(hbr): Nothing to calculate
    else if (N == 1) { M[0] = 0.0f; }
@@ -841,7 +841,7 @@ CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u64 N)
    {
       M[0] = M[N-1] = 0.0f;
       
-      f32 *Diag = PushArray(Scratch.Arena, N, f32);
+      f32 *Diag = PushArrayNonZero(Temp.Arena, N, f32);
       for (u64 I = 1; I < N-1; ++I)
       {
          Diag[I] = Vi(Ti, I);
@@ -865,7 +865,7 @@ CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u64 N)
       M[1] /= Diag[1];
    }
    
-   ReleaseScratch(Scratch);
+   EndTemp(Temp);
 }
 
 // NOTE(hbr): Those should be local conveniance function, but impossible in C.
@@ -885,9 +885,9 @@ CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u64 N)
    {
       Assert(Y[0] == Y[N-1]);
 #if 0
-      auto Scratch = ScratchArena(0);
+      temp_arena Temp = TempArena(0);
       
-      f32 *A = PushArray(Scratch.Arena, (N-1) * N, f32);
+      f32 *A = PushArrayNonZero(Temp.Arena, (N-1) * N, f32);
       for (u64 I = 0; I <= N-2; ++I)
       {
          A[Idx(I, I, N)] = Vi(Ti, I, N);
@@ -910,7 +910,7 @@ CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u64 N)
       GaussianElimination(A, N-1, M+1);
       M[0] = M[N-1];
       
-      ReleaseScratch(Scratch);
+      EndTemp(Temp);
 #else
       vector<vector<ldb>> a(N-1, vector<ldb>(N));
       for (u64 I = 0; I <= N-2; ++I)
@@ -991,10 +991,10 @@ CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u64 N)
 function v2f32
 BezierCurveEvaluate(f32 T, v2f32 *P, u64 N)
 {
-   auto Scratch = ScratchArena(0);
-   defer { ReleaseScratch(Scratch); };
+   temp_arena Temp = TempArena(0);
+   defer { EndTemp(Temp); };
    
-   v2f32 *E = PushArray(Scratch.Arena, N, v2f32);
+   v2f32 *E = PushArrayNonZero(Temp.Arena, N, v2f32);
    MemoryCopy(E, P, N * SizeOf(E[0]));
    
    for (u64 I = 1; I < N; ++I)
@@ -1012,11 +1012,11 @@ BezierCurveEvaluate(f32 T, v2f32 *P, u64 N)
 function v2f32
 BezierWeightedCurveEvaluate(f32 T, v2f32 *P, f32 *W, u64 N)
 {
-   auto Scratch = ScratchArena(0);
-   defer { ReleaseScratch(Scratch); };
+   temp_arena Temp = TempArena(0);
+   defer { EndTemp(Temp); };
    
-   v2f32 *EP = PushArray(Scratch.Arena, N, v2f32);
-   f32 *EW = PushArray(Scratch.Arena, N, f32);
+   v2f32 *EP = PushArrayNonZero(Temp.Arena, N, v2f32);
+   f32 *EW = PushArrayNonZero(Temp.Arena, N, f32);
    MemoryCopy(EP, P, N * SizeOf(EP[0]));
    MemoryCopy(EW, W, N * SizeOf(EW[0]));
    
@@ -1227,8 +1227,8 @@ BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
          Result.MiddlePointIndex = H-1;
          Result.P_I = Prev_Front_P;
          Result.P_II = Prev_Back_P;
-         Result.W_I = ClampBot(Prev_Front_W, Epsilon32);
-         Result.W_II = ClampBot(Prev_Back_W, Epsilon32);
+         Result.W_I = ClampBot(Prev_Front_W, EPS_F32);
+         Result.W_II = ClampBot(Prev_Back_W, EPS_F32);
       }
    }
    
@@ -1243,11 +1243,11 @@ BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
 {
    if (N >= 1)
    {
-      auto Scratch = ScratchArena(0);
-      defer { ReleaseScratch(Scratch); };
+      temp_arena Temp = TempArena(0);
+      defer { EndTemp(Temp); };
       
-      f32 *Front_W = PushArray(Scratch.Arena, N-1, f32);
-      f32 *Back_W = PushArray(Scratch.Arena, N-1, f32);
+      f32 *Front_W = PushArrayNonZero(Temp.Arena, N-1, f32);
+      f32 *Back_W = PushArrayNonZero(Temp.Arena, N-1, f32);
       
       {
          f32 Prev_Front_W = 0.0f;
@@ -1269,8 +1269,8 @@ BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
          }
       }
       
-      v2f32 *Front_P = PushArray(Scratch.Arena, N-1, v2f32);
-      v2f32 *Back_P = PushArray(Scratch.Arena, N-1, v2f32);
+      v2f32 *Front_P = PushArrayNonZero(Temp.Arena, N-1, v2f32);
+      v2f32 *Back_P = PushArrayNonZero(Temp.Arena, N-1, v2f32);
       
       {   
          f32 Prev_Front_W = 0.0f;
@@ -1316,8 +1316,8 @@ BezierCubicCalculateAllControlPoints(v2f32 *P, u64 N, v2f32 *Output)
 {
    if (N > 0)
    {
-      auto Scratch = ScratchArena(0);
-      defer { ReleaseScratch(Scratch); };
+      temp_arena Temp = TempArena(0);
+      defer { EndTemp(Temp); };
       
       // NOTE(hbr): Assume points are equidistant
       f32 DeltaT = 1.0f / (N - 1);
@@ -1326,7 +1326,7 @@ BezierCubicCalculateAllControlPoints(v2f32 *P, u64 N, v2f32 *Output)
       f32 OneThird = 1.0f / 3.0f;
       f32 OneThirdDeltaT = OneThird * DeltaT;
       
-      v2f32 *S = PushArray(Scratch.Arena, N, v2f32);
+      v2f32 *S = PushArrayNonZero(Temp.Arena, N, v2f32);
       for (u64 I = 1; I + 1 < N; ++I)
       {
          // TODO(hbr): Optiomize P lookups
@@ -1388,11 +1388,11 @@ BezierCurveSplit(f32 T, v2f32 *P, f32 *W, u64 N,
                  v2f32 *LeftControlPoints, f32 *LeftControlPointWeights,
                  v2f32 *RightControlPoints, f32 *RightControlPointWeights)
 {
-   auto Scratch = ScratchArena(0);
-   defer { ReleaseScratch(Scratch); };
+   temp_arena Temp = TempArena(0);
+   defer { EndTemp(Temp); };
    
-   f32 *We = PushArray(Scratch.Arena, N * N, f32);
-   v2f32 *Pe = PushArray(Scratch.Arena, N * N, v2f32);
+   f32 *We = PushArrayNonZero(Temp.Arena, N * N, f32);
+   v2f32 *Pe = PushArrayNonZero(Temp.Arena, N * N, v2f32);
    
    DeCasteljauAlgorithm(T, P, W, N, Pe, We);
    
@@ -1443,9 +1443,9 @@ DeCasteljauAlgorithm(f32 T, v2f32 *P, f32 *W, u64 N,
 function void
 GaussianElimination(f32 *A, u64 N, f32 *Solution)
 {
-   auto Scratch = ScratchArena(0);
+   temp_arena Temp = TempArena(0);
    
-   s64 *Pos = PushArray(Scratch.Arena, N, s64);
+   s64 *Pos = PushArrayNonZero(Temp.Arena, N, s64);
    MemorySet(Pos, -1, N * SizeOf(Pos[0]));
    
    for (u64 Col = 0, Row = 0;
@@ -1460,20 +1460,21 @@ GaussianElimination(f32 *A, u64 N, f32 *Solution)
             Max = I;
          }
       }
-      if (Abs(A[Idx(Max, Col, N+1)]) < Epsilon32)
+      if (Abs(A[Idx(Max, Col, N+1)]) < EPS_F32)
       {
          continue;
       }
       for (u64 I = Col; I <= N; ++I)
       {
-         f32 Temp = A[Idx(Row, I, N+1)];
+         // TODO(hbr): Make sure swap is ok here
+         f32 X = A[Idx(Row, I, N+1)];
          A[Idx(Row, I, N+1)] = A[Idx(Max, I, N+1)];
-         A[Idx(Max, I, N+1)] = Temp;
+         A[Idx(Max, I, N+1)] = X;
       }
       Pos[Col] = Row;
       for (u64 I = 0; I < N; ++I)
       {
-         if (I != Row && Abs(A[Idx(I, Col, N+1)]) > Epsilon32)
+         if (I != Row && Abs(A[Idx(I, Col, N+1)]) > EPS_F32)
          {
             f32 C = A[Idx(I, Col, N+1)] / A[Idx(Row, Col, N+1)];
             for (u64 J = Col; J <= N; ++J)
@@ -1499,7 +1500,7 @@ GaussianElimination(f32 *A, u64 N, f32 *Solution)
       }
    }
    
-   ReleaseScratch(Scratch);
+   EndTemp(Temp);
 }
 
 //- Collisions, intersections, geometry

@@ -433,15 +433,14 @@ struct notification
    
    f32 LifeTime;
    
-   f32 PositionY;
-   f32 NotificationWindowHeight;
+   f32 PosY;
+   f32 NotifWindowHeight;
 };
 
-struct notification_system
+struct notifications
 {
-   u64 NumNotifications;
-   notification Notifications[100];
-   
+   u64 NotifCount;
+   notification Notifs[100];
    sf::RenderWindow *Window;
 };
 
@@ -484,7 +483,7 @@ struct editor
    
    projection Projection;
    
-   notification_system NotificationSystem;
+   notifications Notifications;
    
    editor_parameters Parameters;
    

@@ -3,14 +3,14 @@
 
 struct name_string
 {
-   char Str[100];
-   u64 Size;
+   char Data[100];
+   u64 Count;
 };
 
-function name_string NameStr(char *Str, u64 Size);
-function name_string NameStringFromString(string String);
-#define NameStringFromLiteral(Literal) NameStr(Cast(char *)Literal, ArrayCount(Literal)-1)
-function name_string NameStringFormat(char const *Format, ...);
+function name_string NameStr(char *Data, u64 Count);
+function name_string StrToNameStr(string String);
+#define NameStrLit(Literal) NameStr(Cast(char *)Literal, ArrayCount(Literal) - 1)
+function name_string NameStrF(char const *Fmt, ...);
 
 enum interpolation_type
 {
@@ -164,13 +164,12 @@ LoadTextureFromFile(arena *Arena, string FilePath, error_string *OutError)
 {
    sf::Texture Texture;
    
-   auto Scratch = ScratchArena(Arena);
-   defer { ReleaseScratch(Scratch); };
+   temp_arena Temp = TempArena(Arena);
+   defer { EndTemp(Temp); };
    
-   error_string FileReadError = 0;
-   file_contents TextureFileContents = ReadEntireFile(Scratch.Arena, FilePath, &FileReadError);
-   
-   if (FileReadError)
+   error_string FileReadError = {};
+   file_contents TextureFileContents = ReadEntireFile(Temp.Arena, FilePath, &FileReadError);
+   if (IsError(FileReadError))
    {
       *OutError = StrF(Arena,
                        "failed to load texture from file: %s",
@@ -198,8 +197,8 @@ internal points_soa
 SplitPointsIntoComponents(arena *Arena, v2f32 *Points, u64 NumPoints)
 {
    points_soa Result = {};
-   Result.Xs = PushArray(Arena, NumPoints, f32);
-   Result.Ys = PushArray(Arena, NumPoints, f32);
+   Result.Xs = PushArrayNonZero(Arena, NumPoints, f32);
+   Result.Ys = PushArrayNonZero(Arena, NumPoints, f32);
    
    for (u64 I = 0; I < NumPoints; ++I)
    {
@@ -218,15 +217,15 @@ PolynomialInterpolationNewtonCalculateCurvePoints(local_position *ControlPoints,
 {
    if (NumControlPoints > 0)
    {
-      auto Scratch = ScratchArena(0);
-      defer { ReleaseScratch(Scratch); };
+      temp_arena Temp = TempArena(0);
+      defer { EndTemp(Temp); };
       
-      points_soa SOA = SplitPointsIntoComponents(Scratch.Arena,
+      points_soa SOA = SplitPointsIntoComponents(Temp.Arena,
                                                  ControlPoints,
                                                  NumControlPoints);
       
-      f32 *Beta_X = PushArray(Scratch.Arena, NumControlPoints, f32);
-      f32 *Beta_Y = PushArray(Scratch.Arena, NumControlPoints, f32);
+      f32 *Beta_X = PushArrayNonZero(Temp.Arena, NumControlPoints, f32);
+      f32 *Beta_Y = PushArrayNonZero(Temp.Arena, NumControlPoints, f32);
       NewtonBetaFast(Beta_X, Ti, SOA.Xs, NumControlPoints);
       NewtonBetaFast(Beta_Y, Ti, SOA.Ys, NumControlPoints);
       
@@ -257,10 +256,10 @@ PolynomialInterpolationBarycentricCalculateCurvePoints(local_position *ControlPo
 {
    if (NumControlPoints > 0)
    {
-      auto Scratch = ScratchArena(0);
-      defer { ReleaseScratch(Scratch); };
+      temp_arena Temp = TempArena(0);
+      defer { EndTemp(Temp); };
       
-      f32 *Omega = PushArray(Scratch.Arena, NumControlPoints, f32);
+      f32 *Omega = PushArrayNonZero(Temp.Arena, NumControlPoints, f32);
       switch (PointsArrangement)
       {
          case PointsArrangement_Equidistant: {
@@ -272,7 +271,7 @@ PolynomialInterpolationBarycentricCalculateCurvePoints(local_position *ControlPo
          } break;
       }
       
-      points_soa SOA = SplitPointsIntoComponents(Scratch.Arena,
+      points_soa SOA = SplitPointsIntoComponents(Temp.Arena,
                                                  ControlPoints,
                                                  NumControlPoints);
       
@@ -303,14 +302,14 @@ CubicSplineCalculateCurvePoints(cubic_spline_type CubicSplineType,
 {
    if (NumControlPoints > 0)
    {
-      auto Scratch = ScratchArena(0);
-      defer { ReleaseScratch(Scratch); };
+      temp_arena Temp = TempArena(0);
+      defer { EndTemp(Temp); };
       
       if (CubicSplineType == CubicSpline_Periodic)
       {
          local_position *OriginalControlPoints = ControlPoints;
          
-         ControlPoints = PushArray(Scratch.Arena, NumControlPoints + 1, v2f32);
+         ControlPoints = PushArrayNonZero(Temp.Arena, NumControlPoints + 1, v2f32);
          MemoryCopy(ControlPoints,
                     OriginalControlPoints,
                     NumControlPoints * SizeOf(ControlPoints[0]));
@@ -319,13 +318,13 @@ CubicSplineCalculateCurvePoints(cubic_spline_type CubicSplineType,
          NumControlPoints += 1;
       }
       
-      f32 *Ti = PushArray(Scratch.Arena, NumControlPoints, f32);
+      f32 *Ti = PushArrayNonZero(Temp.Arena, NumControlPoints, f32);
       EquidistantPoints(Ti, NumControlPoints);
       
-      points_soa SOA = SplitPointsIntoComponents(Scratch.Arena, ControlPoints, NumControlPoints);
+      points_soa SOA = SplitPointsIntoComponents(Temp.Arena, ControlPoints, NumControlPoints);
       
-      f32 *Mx = PushArray(Scratch.Arena, NumControlPoints, f32);
-      f32 *My = PushArray(Scratch.Arena, NumControlPoints, f32);
+      f32 *Mx = PushArrayNonZero(Temp.Arena, NumControlPoints, f32);
+      f32 *My = PushArrayNonZero(Temp.Arena, NumControlPoints, f32);
       switch (CubicSplineType)
       {
          case CubicSpline_Natural: {
@@ -451,14 +450,14 @@ function void ChebyshevPoints(f32 *Ti, u64 N);
 function void
 CurveEvaluate(curve *Curve, u64 NumOutputCurvePoints, v2f32 *OutputCurvePoints)
 {
-   auto Scratch = ScratchArena(0);
-   defer { ReleaseScratch(Scratch); };
+   temp_arena Temp = TempArena(0);
+   defer { EndTemp(Temp); };
    
    curve_shape CurveShape = Curve->CurveParams.CurveShape;
    switch (CurveShape.InterpolationType)
    {
       case Interpolation_Polynomial: {
-         f32 *Ti = PushArray(Scratch.Arena, Curve->NumControlPoints, f32);
+         f32 *Ti = PushArrayNonZero(Temp.Arena, Curve->NumControlPoints, f32);
          switch (CurveShape.PolynomialInterpolationParams.PointsArrangement)
          {
             case PointsArrangement_Equidistant: { EquidistantPoints(Ti, Curve->NumControlPoints); } break;
@@ -527,8 +526,8 @@ CurveRecompute(curve *Curve)
 {
    TimeFunction;
    
-   auto Scratch = ScratchArena(0);
-   defer { ReleaseScratch(Scratch); };
+   temp_arena Temp = TempArena(0);
+   defer { EndTemp(Temp); };
    
    curve_params CurveParams = Curve->CurveParams;
    curve_shape CurveShape = CurveParams.CurveShape;
@@ -567,7 +566,7 @@ CurveRecompute(curve *Curve)
                                                    LineVerticesAllocationHeap(Curve->PolylineVertices));
    
    {
-      local_position *ConvexHullPoints = PushArray(Scratch.Arena, Curve->NumControlPoints, v2f32);
+      local_position *ConvexHullPoints = PushArrayNonZero(Temp.Arena, Curve->NumControlPoints, v2f32);
       u64 NumConvexHullPoints = CalculateConvexHull(Curve->NumControlPoints,
                                                     Curve->ControlPoints,
                                                     ConvexHullPoints);
@@ -1132,10 +1131,10 @@ struct entity_sort_entry
 };
 struct sorted_entity_array
 {
-   u64 NumEntities;
-   entity_sort_entry  *SortedEntities;
+   u64 EntityCount;
+   entity_sort_entry *Entries;
 };
-function sorted_entity_array SortEntitiesBySortingLayer(arena *Arena, u64 NumEntities, entity *EntityList);
+function sorted_entity_array SortEntitiesBySortingLayer(arena *Arena, entity *Entities);
 
 internal int
 EntitySortEntryCompare(entity_sort_entry *A, entity_sort_entry *B)
@@ -1154,25 +1153,30 @@ EntitySortEntryCompare(entity_sort_entry *A, entity_sort_entry *B)
 }
 
 function sorted_entity_array
-SortEntitiesBySortingLayer(arena *Arena, u64 NumEntities, entity *EntitiesList)
+SortEntitiesBySortingLayer(arena *Arena, entity *Entities)
 {
-   entity_sort_entry *Entries = PushArray(Arena, NumEntities, entity_sort_entry);
-   
-   // TODO(hbr): Simplify this function. don't accept [NumEntities], just a list
-   entity_sort_entry *Entry = Entries;
-   u64 Index = 0;
-   ListIter(Entity, EntitiesList, entity)
-   {
-      Entry->Entity = Entity;
-      Entry->OriginalOrder = Index;
-      ++Entry;
-      ++Index;
-   }
-   QuickSort(Entries, NumEntities, entity_sort_entry, EntitySortEntryCompare);
-   
    sorted_entity_array Result = {};
-   Result.NumEntities = NumEntities;
-   Result.SortedEntities = Entries;
+   
+   ListIter(Entity, Entities, entity) { ++Result.EntityCount; }
+   Result.Entries = PushArrayNonZero(Arena, Result.EntityCount, entity_sort_entry);
+   
+   {
+      entity_sort_entry *Entry = Result.Entries;
+      u64 Index = 0;
+      ListIter(Entity, Entities, entity)
+      {
+         Entry->Entity = Entity;
+         Entry->OriginalOrder = Index;
+         ++Entry;
+         ++Index;
+      }
+   }
+   
+   // TODO(hbr): Use stable sort instead
+   QuickSort(Result.Entries,
+             Result.EntityCount,
+             entity_sort_entry,
+             EntitySortEntryCompare);
    
    return Result;
 }
@@ -1191,43 +1195,42 @@ CurveGetAnimate(entity *Curve)
 }
 
 function name_string
-NameStr(char *Str, u64 Size)
+NameStr(char *Data, u64 Count)
 {
    name_string Result = {};
    
-   u64 FinalSize = Minimum(Size, ArrayCount(Result.Str)-1);
-   MemoryCopy(Result.Str, Str, FinalSize);
-   Result.Str[FinalSize] = 0;
-   
-   Result.Size = FinalSize;
+   u64 FinalCount = Minimum(Count, ArrayCount(Result.Data) - 1);
+   MemoryCopy(Result.Data, Data, FinalCount);
+   Result.Data[FinalCount] = 0;
+   Result.Count = FinalCount;
    
    return Result;
 }
 
 function name_string
-NameStringFromString(string String)
+StrToNameStr(string String)
 {
-   u64 Size = StrLength(String);
-   name_string Result = NameStr(String, Size);
-   
+   name_string Result = NameStr(String.Data, String.Count);
    return Result;
 }
 
 function name_string
-NameStringFormat(char const *Format, ...)
+NameStrF(char const *Fmt, ...)
 {
    name_string Result = {};
    
-   va_list ArgList;
-   va_start(ArgList, Format);
-   
-   int Return = vsnprintf(Result.Str, ArrayCount(Result.Str)-1, Format, ArgList);
-   if (Return >= 0)
+   va_list Args;
+   DeferBlock(va_start(Args, Fmt), va_end(Args))
    {
-      Result.Size = CStrLength(Result.Str);
+      int Return = vsnprintf(Result.Data,
+                             ArrayCount(Result.Data) - 1,
+                             Fmt, Args);
+      if (Return >= 0)
+      {
+         // TODO(hbr): What the fuck is wrong with this function
+         Result.Count = CStrLength(Result.Data);
+      }
    }
-   
-   va_end(ArgList);
    
    return Result;
 }
@@ -1265,7 +1268,7 @@ EntityDestroy(entity *Entity)
       case Entity_Image: {
          image *Image = &Entity->Image;
          Image->Texture.~Texture();
-         FreeStr(Image->FilePath);
+         FreeStr(&Image->FilePath);
       } break;
    }
    

@@ -77,8 +77,8 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define ClampBot(X, Min) Maximum(X, Min)
 #define Clamp(X, Min, Max) ClampTop(ClampBot(X, Min), Max)
 #define Idx(Row, Column, NColumns) Row*NColumns + Column
-#define ApproxEq32(X, Y) (Abs(X - Y) <= Epsilon32)
-#define ApproxEq64(X, Y) (Abs(X - Y) <= Epsilon64)
+#define ApproxEq32(X, Y) (Abs(X - Y) <= EPS_F32)
+#define ApproxEq64(X, Y) (Abs(X - Y) <= EPS_F64)
 
 #define MemoryCopy(Dest, Src, NumBytes) memcpy(Dest, Src, NumBytes)
 #define MemoryMove(Dest, Src, NumBytes) memmove(Dest, Src, NumBytes)

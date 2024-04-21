@@ -55,10 +55,10 @@ ReadOSTimer(void)
 function file_handle
 OpenFile(arena *Arena, string FilePath, file_access_flags FileAccessFlags, error_string *OutError)
 {
-   auto Scratch = ScratchArena(Arena);
-   defer { ReleaseScratch(Scratch); };
+   temp_arena Temp = TempArena(Arena);
+   defer { EndTemp(Temp); };
    
-   string Path16 = Str16From8(Scratch.Arena, FilePath);
+   string Path16 = Str16From8(Temp.Arena, FilePath);
    
    // rjf: map to w32 access flags
    DWORD desired_access = 0;
@@ -125,7 +125,7 @@ ReadWholeFile(arena *Arena, file_handle FileHandle, error_string *OutError)
    {
       U64 bytes_to_read = Dim1U64(range);
       U64 bytes_actually_read = 0;
-      result.str = PushArrayNoZero(arena, U8, bytes_to_read);
+      result.str = PushArrayNonZeroNoZero(arena, U8, bytes_to_read);
       result.size = 0;
       U8 *ptr = result.str;
       U8 *opl = result.str + bytes_to_read;

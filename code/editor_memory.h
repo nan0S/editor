@@ -18,37 +18,25 @@ typedef struct
    u64 SavedUsed;
 } temp_arena;
 
-typedef struct
-{
-   arena *Arenas[2];
-} context;
-
-global context GlobalContext;
-
 #define ARENA_DEFAULT_ALIGN 16
 #define ARENA_DEFAULT_COMMIT_SIZE Kilobytes(4)
 
-#define PushStruct(Arena, Type) (Type *)ArenaPushSize(Arena, SizeOf(Type))
-#define PushStructZero(Arena, Type) (Type *)ArenaPushSizeZero(Arena, SizeOf(Type))
-#define PushArray(Arena, Count, Type) (Type *)ArenaPushSize(Arena, (Count) * SizeOf(Type))
-#define PushArrayZero(Arena, Count, Type) (Type *)ArenaPushSizeZero(Arena, (Count) * SizeOf(Type))
-#define PopArray(Arena, Count, Type) ArenaPopSize(Arena, (Count) * SizeOf(Type))
+#define PushStruct(Arena, Type) (Type *)PushSize(Arena, SizeOf(Type))
+#define PushStructNonZero(Arena, Type) (Type *)PushSizeNonZero(Arena, SizeOf(Type))
+#define PushArray(Arena, Count, Type) (Type *)PushSize(Arena, (Count) * SizeOf(Type))
+#define PushArrayNonZero(Arena, Count, Type) (Type *)PushSizeNonZero(Arena, (Count) * SizeOf(Type))
+#define PopArray(Arena, Count, Type) PopSize(Arena, (Count) * SizeOf(Type))
 
-function void SetGlobalContext(u64 ArenaCapacity);
-
-function arena *ArenaMake(u64 Capacity);
-function void ArenaDealloc(arena *Arena);
+function arena *AllocateArena(u64 Capacity);
+function void FreeArena(arena *Arena);
 function void ArenaGrowUnaligned(arena *Arena, u64 Grow);
-function void *ArenaPushSize(arena *Arena, u64 Size);
-function void *ArenaPushSizeZero(arena *Arena, u64 Size);
-function void ArenaPopSize(arena *Arena, u64 Size);
-function void ArenaClear(arena *Arena);
+function void *PushSize(arena *Arena, u64 Size);
+function void *PushSizeNonZero(arena *Arena, u64 Size);
+function void PopSize(arena *Arena, u64 Size);
+function void ClearArena(arena *Arena);
 
-function temp_arena TempArenaBegin(arena *Arena);
-function void TempArenaEnd(temp_arena Temp);
-
-#define ReleaseScratch(Scratch) TempArenaEnd(Scratch)
-function temp_arena ScratchArena(arena *Conflict);
+function temp_arena BeginTemp(arena *Conflict);
+function void EndTemp(temp_arena Temp);
 
 //- Pool Allocator
 struct pool_node
@@ -64,14 +52,16 @@ struct pool
    pool_node *FreeNode;
 };
 
-function pool *PoolMake(u64 Capacity, u64 ChunkSize, u64 Align);
-function void *PoolAllocChunk(pool *Pool);
-function void PoolFree(pool *Pool, void *Chunk);
+function pool *AllocatePool(u64 Capacity, u64 ChunkSize, u64 Align);
+function void FreePool(pool *Pool);
+function void *AllocateChunk(pool *Pool);
+function void ReleaseChunk(pool *Pool, void *Chunk);
 
-#define PoolMakeForType(Capacity, Type) PoolMake(Capacity, SizeOf(Type), alignof(Type))
+#define AllocatePoolForType(Capacity, Type) AllocatePool(Capacity, SizeOf(Type), AlignOf(Type))
 // TODO(hbr): Checking that SizeOf(Type) and aligof(Type) equal Pool->ChunkSize
 // and Pool->Align correspondingly would be useful.
-#define PoolAllocStruct(Pool, Type) Cast(Type *)PoolAllocChunk(Pool)
+#define PoolAllocStruct(Pool, Type) Cast(Type *)AllocateChunk(Pool)
+#define PoolAllocStructNonZero(Pool, Type) Cast(Type *)AllocateChunkNonZero(Pool)
 
 //- Heap Allocator
 struct heap_allocator {};

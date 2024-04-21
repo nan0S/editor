@@ -1,182 +1,145 @@
 //- String
 internal string
-Str(string_header *Header, char const *String, u64 Size)
+CreateAndCopyStr(char *Dst, char const *Src, u64 Count)
 {
-   string Result = 0;
-   
-   if (Header)
-   {
-      Header->Size = Size;
-      
-      Result = Cast(string)(Header + 1);
-      MemoryCopy(Result, String, Size * SizeOf(Result[0]));
-      Result[Size] = '\0';
-   }
+   string Result = {};
+   Result.Data = Dst;
+   Result.Count = Count;
+   MemoryCopy(Dst, Src, Count);
+   Dst[Count] = 0;
    
    return Result;
 }
 
 function string
-Str(char const *String, u64 Size)
+Str(char const *String, u64 Count)
 {
-   void *Pointer = HeapAllocSize(HeapAllocator(), SizeOf(string_header) + Size + 1);
-   string Result = Str(Cast(string_header *)Pointer, String, Size);
+   char *Data = Cast(char *)HeapAllocSize(HeapAllocator(), Count + 1);
+   string Result = CreateAndCopyStr(Data, String, Count);
    
    return Result;
 }
 
 function string
-Str(arena *Arena, char const *CString)
+Str(arena *Arena, char const *String, u64 Count)
 {
-   string Result = Str(Arena, CString, CStrLength(CString));
-   return Result;
-}
-
-function string
-Str(arena *Arena, char const *String, u64 Size)
-{
-   void *Pointer = ArenaPushSize(Arena, SizeOf(string_header) + Size + 1);
-   string Result = Str(Cast(string_header *)Pointer, String, Size);
+   char *Data = Cast(char *)PushSize(Arena, Count + 1);
+   string Result = CreateAndCopyStr(Data, String, Count);
    
    return Result;
 }
 
+function string
+StrC(arena *Arena, char const *String)
+{
+   string Result = Str(Arena, String, CStrLength(String));
+   return Result;
+}
+
+// TODO(hbr): Make it accept pointer instead
 function void
-FreeStr(string String)
+FreeStr(string *String)
 {
-   if (String)
-   {
-      string_header *Header = StringHeader(String);
-      HeapFree(HeapAllocator(), Header);
-   }
+   HeapFree(HeapAllocator(), String->Data);
+   String->Data = 0;
+   String->Count = 0;
 }
 
 function u64
-StrLength(string String)
+CStrLength(char const *String)
 {
-   u64 Result = 0;
-   if (String) Result = StringHeader(String)->Size;
-   
-   return Result;
-}
-
-function u64
-CStrLength(char const *CString)
-{
-   char const *At = CString;
+   char const *At = String;
    while (*At) ++At;
-   u64 Length = At - CString;
+   u64 Length = At - String;
    
    return Length;
 }
 
 function string
-StrF(arena *Arena, char const *Format, ...)
+StrF(arena *Arena, char const *Fmt, ...)
 {
-   va_list ArgList;
-   va_start(ArgList, Format);
+   string Result = {};
    
-   string Result = StrFV(Arena, Format, ArgList);
-   
-   va_end(ArgList);
+   va_list Args;
+   DeferBlock(va_start(Args, Fmt), va_end(Args))
+   {
+      Result = StrFV(Arena, Fmt, Args);
+   }
    
    return Result;
 }
 
 function string
-StrFV(arena *Arena, char const *Format, va_list ArgList)
+StrFV(arena *Arena, char const *Fmt, va_list Args)
 {
-   va_list ArgListCopy;
+   string Result = {};
    
-   va_copy(ArgListCopy, ArgList);
+   va_list ArgsCopy;
+   DeferBlock(va_copy(ArgsCopy, Args), va_end(ArgsCopy))
+   {
+      u64 Count = vsnprintf(0, 0, Fmt, Args);
+      
+      char *Data = Cast(char *)PushSize(Arena, Count + 1);
+      vsnprintf(Data, Count + 1, Fmt, ArgsCopy);
+      Data[Count] = 0;
+      
+      Result.Data = Data;
+      Result.Count = Count; 
+   }
    
-   u64 Size = vsnprintf(0, 0, Format, ArgList);
-   
-   string_header *Header =
-      Cast(string_header *)ArenaPushSize(Arena,
-                                         SizeOf(string_header)+Size+1);
-   Header->Size = Size;
-   string String = Cast(string)(Header + 1);
-   vsnprintf(String, Size + 1, Format, ArgListCopy);
-   
-   va_end(ArgListCopy);
-   
-   return String;
+   return Result;
 }
 
 function string
 DuplicateStr(arena *Arena, string String)
 {
-   string Result = Str(Arena, String, StrLength(String));
+   string Result = Str(Arena, String.Data, String.Count);
    return Result;
 }
 
 function string
 DuplicateStr(string String)
 {
-   string Result = Str(String, StrLength(String));
-   return Result;
-}
-
-internal b32
-AreBytesEqual(char *A, char *B, u64 NumBytes)
-{
-   b32 Result = true;
-   for (u64 I = 0; I < NumBytes; ++I)
-   {
-      if (A[I] != B[I])
-      {
-         Result = false;
-         break;
-      }
-   }
-   
+   string Result = Str(String.Data, String.Count);
    return Result;
 }
 
 function b32
 AreStringsEqual(string A, string B)
 {
-   Assert(A); Assert(B);
-   b32 Result = true;
-   
-   u64 ASize = StrLength(A);
-   u64 BSize = StrLength(B);
-   
-   if (ASize == BSize) Result = AreBytesEqual(A, B, ASize);
-   else Result = false;
+   b32 Result = false;
+   if (A.Count == B.Count)
+   {
+      Result = MemoryEqual(A.Data, B.Data, A.Count);
+   }
    
    return Result;
 }
 
+// TODO(hbr): Make this function return string instead
 function void
-RemoveExtension(string Path)
+RemoveExtension(string *Path)
 {
-   if (Path)
+   u64 Index = Path->Count;
+   while (Index && Path->Data[Index-1] != '.')
    {
-      u64 Index = StrLength(Path);
-      while (Index && Path[Index-1] != '.')
-      {
-         --Index;
-      }
-      if (Index) StringHeader(Path)->Size = Index-1;
+      --Index;
+   }
+   if (Index)
+   {
+      Path->Count = Index - 1;
    }
 }
 
 function b32
 HasSuffix(string String, string Suffix)
 {
-   b32 Result = true;
-   
-   u64 StrSize = StrLength(String);
-   u64 SuffixSize = StrLength(Suffix);
-   
-   if (StrSize >= SuffixSize)
+   b32 Result = false;
+   if (String.Count >= Suffix.Count)
    {
-      Result = AreBytesEqual(String + (StrSize-SuffixSize),
-                             Suffix, SuffixSize);
+      u64 Offset = String.Count - Suffix.Count;
+      Result = MemoryEqual(String.Data + Offset, Suffix.Data, Suffix.Count);
    }
-   else Result = false;
    
    return Result;
 }
@@ -185,12 +148,12 @@ function string
 StringChopFileNameWithoutExtension(arena *Arena, string String)
 {
    s64 LastSlashPosition = -1;
-   for (s64 Index = StrLength(String);
+   for (s64 Index = String.Count;
         Index >= 0;
         --Index)
    {
-      if (String[Index] == '/' ||
-          String[Index] == '\\')
+      if (String.Data[Index] == '/' ||
+          String.Data[Index] == '\\')
       {
          LastSlashPosition = Index;
          break;
@@ -198,11 +161,11 @@ StringChopFileNameWithoutExtension(arena *Arena, string String)
    }
    
    s64 LastDotPosition = -1;
-   for (s64 Index = StrLength(String)-1;
+   for (s64 Index = String.Count - 1;
         Index >= 0;
         --Index)
    {
-      if (String[Index] == '.')
+      if (String.Data[Index] == '.')
       {
          LastDotPosition = Index;
          break;
@@ -214,7 +177,7 @@ StringChopFileNameWithoutExtension(arena *Arena, string String)
    if (LastDotPosition == -1 ||
        LastDotPosition <= LastSlashPosition)
    {
-      ToExclusive = StrLength(String);
+      ToExclusive = String.Count;
    }
    else
    {
@@ -231,9 +194,8 @@ StringChopFileNameWithoutExtension(arena *Arena, string String)
 function string
 Substr(arena *Arena, string String, u64 FromInclusive, u64 ToExclusive)
 {
-   u64 StrSize = StrLength(String);
-   if (FromInclusive > StrSize) FromInclusive = StrSize;
-   if (ToExclusive > StrSize) ToExclusive = StrSize;
+   if (FromInclusive > String.Count) FromInclusive = String.Count;
+   if (ToExclusive > String.Count) ToExclusive = String.Count;
    if (FromInclusive > ToExclusive)
    {
       u64 Swap = FromInclusive;
@@ -241,11 +203,20 @@ Substr(arena *Arena, string String, u64 FromInclusive, u64 ToExclusive)
       ToExclusive = Swap;
    }
    
-   u64 Size = ToExclusive - FromInclusive;
-   string Substring = Str(Arena, String + FromInclusive, Size);
+   u64 Count = ToExclusive - FromInclusive;
+   string Substring = Str(Arena, String.Data + FromInclusive, Count);
    
    return Substring;
 }
+
+function b32
+IsValid(string String)
+{
+   b32 Result = (String.Data != 0);
+   return Result;
+}
+
+function b32 IsError(error_string String) { return IsValid(String); }
 
 function char
 ToUpper(char C)
@@ -263,10 +234,10 @@ ToUpper(char C)
 function void
 StringListPush(arena *Arena, string_list *List, string String)
 {
-   string_list_node *Node = PushStruct(Arena, string_list_node);
+   string_list_node *Node = PushStructNonZero(Arena, string_list_node);
    Node->String = String;
    QueuePush(List->Head, List->Tail, Node);
    
    ++List->NumNodes;
-   List->TotalSize += StrLength(String);
+   List->TotalSize += String.Count;
 }

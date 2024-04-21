@@ -2,32 +2,30 @@
 #define EDITOR_STRING_H
 
 //- String
-typedef char *string;
+struct string
+{
+   char *Data;
+   u64 Count;
+};
 typedef string error_string;
 
-struct string_header
-{
-   u64 Size;
-};
-
-#define StringHeader(String) (Cast(string_header *)(String) - 1)
-
 // NOTE(hbr): Allocates on heap
-function string Str(char const *String, u64 Size);
-function string Str(arena *Arena, char const *CString);
-function string Str(arena *Arena, char const *String, u64 Size);
-function void FreeStr(string String);
-function u64 StrLength(string String);
-function u64 CStrLength(char const *CString);
-function string StrF(arena *Arena, char const *Format, ...);
-function string StrFV(arena *Arena, char const *Format, va_list ArgList);
+function string Str(char const *String, u64 Count);
+function string Str(arena *Arena, char const *String, u64 Count);
+function string StrC(arena *Arena, char const *String);
+function string StrF(arena *Arena, char const *Fmt, ...);
+function string StrFV(arena *Arena, char const *Fmt, va_list Args);
+function void FreeStr(string *String);
+function u64 CStrLength(char const *String);
 function string DuplicateStr(arena *Arena, string String);
 function string DuplicateStr(string String);
 function b32 AreStringsEqual(string A, string B);
-function void RemoveExtension(string Path);
+function void RemoveExtension(string *Path);
 function b32 HasSuffix(string String, string Suffix);
 function string StringChopFileNameWithoutExtension(arena *Arena, string String);
 function string Substr(arena *Arena, string String, u64 FromInclusive, u64 ToExclusive);
+function b32 IsValid(string String);
+function b32 IsError(error_string String);
 
 function char ToUpper(char C);
 

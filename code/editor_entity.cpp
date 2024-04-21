@@ -349,10 +349,10 @@ CalculateNewLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
    
    if (NumLinePoints >= 2)
    {
-      auto Scratch = ScratchArena(0);
-      defer { ReleaseScratch(Scratch); };
+      temp_arena Temp = TempArena(0);
+      defer { EndTemp(Temp); };
       
-      v2f32 *LinePointsLooped = PushArray(Scratch.Arena, NumLinePoints + 3, v2f32);
+      v2f32 *LinePointsLooped = PushArrayNonZero(Temp.Arena, NumLinePoints + 3, v2f32);
       for (u64 PointIndex = 0;
            PointIndex < NumLinePoints;
            ++PointIndex)
@@ -449,11 +449,11 @@ LoadTextureFromFile(arena *Arena, string FilePath, error_string *OutError)
 {
    sf::Texture Texture;
    
-   auto Scratch = ScratchArena(Arena);
-   defer { ReleaseScratch(Scratch); };
+   temp_arena Temp = TempArena(Arena);
+   defer { EndTemp(Temp); };
    
    error_string FileReadError = 0;
-   file_contents TextureFileContents = ReadEntireFile(Scratch.Arena, FilePath, &FileReadError);
+   file_contents TextureFileContents = ReadEntireFile(Temp.Arena, FilePath, &FileReadError);
    
    if (FileReadError)
    {

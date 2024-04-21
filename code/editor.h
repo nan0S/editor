@@ -11,6 +11,7 @@
 #include "editor_ctx_crack.h"
 #include "editor_base.h"
 #include "editor_memory.h"
+#include "editor_thread_ctx.h"
 #include "editor_string.h"
 #include "editor_os.h"
 #include "editor_profiler.h"
@@ -79,7 +80,7 @@ TODOs:
 - maybe make arenas infinitely growable?
 - use Count rather that Num
 - don't use other type for saving entity, use current type and override pointers - why? simplify by default, don't complicate by default, and more types is more complicated than less types
-- consider not using malloced strings in notification_system and in images, just static string will do?
+- consider not using malloced strings in notifications and in images, just static string will do?
 - rename [EditorState]
 - rename SizeOf, Cast
 - replace string with ptr and size struct

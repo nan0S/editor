@@ -219,20 +219,17 @@ CheckCollisionWith(entity *EntitiesHead, entity *EntitiesTail,
    
    if (CheckCollisionWithFlags & CheckCollisionWith_Images)
    {
-      auto Scratch = ScratchArena(0);
-      defer { ReleaseScratch(Scratch); };
+      temp_arena Temp = TempArena(0);
+      defer { EndTemp(Temp); };
       
-      // TODO(hbr): Is there a reason to pass NumEntities as well?
-      u64 NumEntities = 0;
-      ListIter(Entity, EntitiesHead, entity) { NumEntities += 1; }
-      sorted_entity_array SortedEntities = SortEntitiesBySortingLayer(Scratch.Arena, NumEntities, EntitiesHead);
+      sorted_entity_array SortedEntities = SortEntitiesBySortingLayer(Temp.Arena, EntitiesHead);
       
       // NOTE(hbr): Check collisions in reversed drawing order.
-      for (u64 EntityIndex = SortedEntities.NumEntities;
+      for (u64 EntityIndex = SortedEntities.EntityCount;
            EntityIndex > 0;
            --EntityIndex)
       {
-         entity *Entity = SortedEntities.SortedEntities[EntityIndex - 1].Entity;
+         entity *Entity = SortedEntities.Entries[EntityIndex - 1].Entity;
          if (Entity->Type == Entity_Image && !(Entity->Flags & EntityFlag_Hidden))
          {
             image *Image = &Entity->Image;
@@ -270,7 +267,7 @@ CheckCollisionWith(entity *EntitiesHead, entity *EntitiesTail,
 
 //- Editor
 function user_action
-UserActionButtonClicked(button Button, screen_position ClickPosition, user_input *UserInput)
+CreateClickedAction(button Button, screen_position ClickPosition, user_input *UserInput)
 {
    user_action Result = {};
    Result.Type = UserAction_ButtonClicked;
@@ -282,7 +279,7 @@ UserActionButtonClicked(button Button, screen_position ClickPosition, user_input
 }
 
 function user_action
-UserActionButtonDrag(button Button, screen_position DragFromPosition, user_input *UserInput)
+CreateDragAction(button Button, screen_position DragFromPosition, user_input *UserInput)
 {
    user_action Result = {};
    Result.Type = UserAction_ButtonDrag;
@@ -294,7 +291,7 @@ UserActionButtonDrag(button Button, screen_position DragFromPosition, user_input
 }
 
 function user_action
-UserActionButtonReleased(button Button, screen_position ReleasePosition, user_input *UserInput)
+CreateReleasedAction(button Button, screen_position ReleasePosition, user_input *UserInput)
 {
    user_action Result = {};
    Result.Type = UserAction_ButtonReleased;
@@ -306,7 +303,7 @@ UserActionButtonReleased(button Button, screen_position ReleasePosition, user_in
 }
 
 function user_action
-UserActionMouseMove(v2s32 FromPosition, screen_position ToPosition, user_input *UserInput)
+CreateMouseMoveAction(v2s32 FromPosition, screen_position ToPosition, user_input *UserInput)
 {
    user_action Result = {};
    Result.Type = UserAction_MouseMove;
@@ -419,7 +416,7 @@ DestroyEditorState(editor_state *EditorState)
    ListIter(Entity, EditorState->EntitiesHead, entity)
    {
       EntityDestroy(Entity);
-      PoolFree(EditorState->EntityPool, Entity);
+      ReleaseChunk(EditorState->EntityPool, Entity);
    }
    EditorState->EntitiesHead = 0;
    EditorState->EntitiesTail = 0;
@@ -429,7 +426,7 @@ DestroyEditorState(editor_state *EditorState)
 function entity *
 AllocateAndAddEntity(editor_state *State)
 {
-   entity *Entity = PoolAllocStruct(State->EntityPool, entity);
+   entity *Entity = PoolAllocStructNonZero(State->EntityPool, entity);
    
    // NOTE(hbr): Ugly C++ thing we have to do because of constructors/destructors.
    new (&Entity->Image.Texture) sf::Texture();
@@ -482,7 +479,7 @@ DeallocateAndRemoveEntity(editor_state *State, entity *Entity)
    EntityDestroy(Entity);
    DLLRemove(State->EntitiesHead, State->EntitiesTail, Entity);
    --State->NumEntities;
-   PoolFree(State->EntityPool, Entity);
+   ReleaseChunk(State->EntityPool, Entity);
 }
 
 function void
@@ -511,19 +508,16 @@ SelectEntity(editor_state *State, entity *Entity)
 }
 
 function notification
-NotificationMake(string Title, color TitleColor, string Text, f32 PositionY)
+NotificationMake(string Title, color TitleColor, string Text, f32 PosY)
 {
-   Assert(Title);
-   Assert(Text);
-   
    notification Result = {};
    Result.Title = DuplicateStr(Title);
    Result.TitleColor = TitleColor;
    Result.Text = DuplicateStr(Text);
-   Result.PositionY = PositionY;
-   if (StrLength(Result.Text) > 0)
+   Result.PosY = PosY;
+   if (Result.Text.Count > 0)
    {
-      Result.Text[0] = ToUpper(Result.Text[0]);
+      Result.Text.Data[0] = ToUpper(Result.Text.Data[0]);
    }
    
    return Result;
@@ -532,79 +526,59 @@ NotificationMake(string Title, color TitleColor, string Text, f32 PositionY)
 function void
 NotificationDestroy(notification *Notification)
 {
-   FreeStr(Notification->Title);
-   FreeStr(Notification->Text);
-   Notification->Title = 0;
-   Notification->Text = 0;
+   FreeStr(&Notification->Title);
+   FreeStr(&Notification->Text);
 }
 
 function void
-NotificationSystemAddNotificationFormat(notification_system *NotificationSystem,
-                                        notification_type NotificationType,
-                                        char const *NotificationTextFormat,
-                                        ...)
+AddNotificationF(notifications *Notifs, notification_type Type, char const *Fmt, ...)
 {
-   
-   va_list ArgList;
-   va_start(ArgList, NotificationTextFormat);
-   
-   auto Scratch = ScratchArena(0);
-   defer { ReleaseScratch(Scratch); };
-   
-   string NotificationText = StrFV(Scratch.Arena,
-                                   NotificationTextFormat,
-                                   ArgList);
-   
-   u64 NumNotifications = NotificationSystem->NumNotifications;
-   if (NumNotifications < ArrayCount(NotificationSystem->Notifications))
+   va_list Args;
+   DeferBlock(va_start(Args, Fmt), va_end(Args))
    {
-      char const *NotificationTitleLit = 0;
-      color NotificationTitleColor = {};
-      switch (NotificationType)
+      temp_arena Temp = TempArena(0);
+      defer { EndTemp(Temp); };
+      
+      if (Notifs->NotifCount < ArrayCount(Notifs->Notifs))
       {
-         case Notification_Success: {
-            NotificationTitleLit = "Success";
-            NotificationTitleColor = GreenColor;
-         } break;
+         char const *TitleStr = 0;
+         color Color = {};
+         switch (Type)
+         {
+            case Notification_Success: {
+               TitleStr = "Success";
+               Color = GreenColor;
+            } break;
+            
+            case Notification_Error: {
+               TitleStr = "Error";
+               Color = RedColor;
+            } break;
+            
+            case Notification_Warning: {
+               TitleStr = "Warning";
+               Color = YellowColor;
+            } break;
+         }
          
-         case Notification_Error: {
-            NotificationTitleLit = "Error";
-            NotificationTitleColor = RedColor;
-         } break;
+         string Title = StrLitArena(Temp.Arena, TitleStr);
          
-         case Notification_Warning: {
-            NotificationTitleLit = "Warning";
-            NotificationTitleColor = YellowColor;
-         } break;
+         // NOTE(hbr): Calculate desginated position
+         sf::Vector2u WindowSize = Notifs->Window->getSize();
+         f32 Padding = NotificationWindowPaddingScale * WindowSize.x;
+         f32 PosY = WindowSize.y - Padding;
+         for (u64 NotifIndex = 0; NotifIndex < Notifs->NotifCount; ++NotifIndex)
+         {
+            notification *Notif = Notifs->Notifs + NotifIndex;
+            PosY -= Notif->NotifWindowHeight + Padding;
+         }
+         
+         string Text = StrFV(Temp.Arena, Fmt, Args);
+         
+         Notifs->Notifs[Notifs->NotifCount] = NotificationMake(Title, Color, Text, PosY);;
+         Notifs->NotifCount += 1;
       }
-      
-      string NotificationTitle = StrLitArena(Scratch.Arena, NotificationTitleLit);
-      
-      // NOTE(hbr): Calculate desginated position
-      sf::Vector2u WindowSize = NotificationSystem->Window->getSize();
-      f32 NotificationWindowPadding = NotificationWindowPaddingScale * WindowSize.x;
-      f32 NotificationDesignatedPositionY = WindowSize.y - NotificationWindowPadding;
-      notification *Notifications = NotificationSystem->Notifications;
-      
-      for (u64 NotificationIndex = 0;
-           NotificationIndex < NumNotifications;
-           ++NotificationIndex)
-      {
-         notification *Notification = &Notifications[NotificationIndex];
-         NotificationDesignatedPositionY -=
-            Notification->NotificationWindowHeight + NotificationWindowPadding;
-      }
-      
-      notification NewNotification = NotificationMake(NotificationTitle,
-                                                      NotificationTitleColor,
-                                                      NotificationText,
-                                                      NotificationDesignatedPositionY);
-      
-      NotificationSystem->Notifications[NumNotifications] = NewNotification;
-      NotificationSystem->NumNotifications += 1;
    }
-   
-   va_end(ArgList);
 }
 
 function void
@@ -612,28 +586,28 @@ EditorSetSaveProjectPath(editor *Editor,
                          save_project_format SaveProjectFormat,
                          string SaveProjectFilePath)
 {
-   if (Editor->ProjectSavePath)
+   // TODO(hbr): Don't need to do that
+   if (IsValid(Editor->ProjectSavePath))
    {
-      FreeStr(Editor->ProjectSavePath);
+      FreeStr(&Editor->ProjectSavePath);
    }
    
-   if (SaveProjectFilePath)
+   if (IsValid(SaveProjectFilePath))
    {
       Editor->SaveProjectFormat = SaveProjectFormat;
       Editor->ProjectSavePath = DuplicateStr(SaveProjectFilePath);
       
-      auto Scratch = ScratchArena(0);
-      defer { ReleaseScratch(Scratch); };
+      temp_arena Temp = TempArena(0);
+      defer { EndTemp(Temp); };
       
-      string SaveProjectFileName = StringChopFileNameWithoutExtension(Scratch.Arena,
+      string SaveProjectFileName = StringChopFileNameWithoutExtension(Temp.Arena,
                                                                       SaveProjectFilePath);
-      Editor->Window->setTitle(SaveProjectFileName);
+      Editor->Window->setTitle(SaveProjectFileName.Data);
    }
    else
    {
       Editor->SaveProjectFormat = SaveProjectFormat_None;
-      Editor->ProjectSavePath = 0;
-      
+      Editor->ProjectSavePath = {};
       Editor->Window->setTitle(WINDOW_TITLE);
    }
 }
@@ -747,14 +721,14 @@ CreateMovingCurvePointMode(entity *CurveEntity,
    Result.Moving.PointIndex = PointIndex;
    Result.Moving.CubicBezierPointMoving = CubicBezierPointMoving;
    
-   ArenaClear(Arena);
+   ClearArena(Arena);
    
    // TODO(hbr): Maybe have some more civilized way of saving the vertices than this
    curve *Curve = &CurveEntity->Curve;
    line_vertices CurveVertices = Curve->CurveVertices;
-   sf::Vertex *SavedCurveVertices = PushArray(Arena,
-                                              CurveVertices.NumVertices,
-                                              sf::Vertex);
+   sf::Vertex *SavedCurveVertices = PushArrayNonZero(Arena,
+                                                     CurveVertices.NumVertices,
+                                                     sf::Vertex);
    MemoryCopy(SavedCurveVertices,
               CurveVertices.Vertices,
               CurveVertices.NumVertices * SizeOf(SavedCurveVertices[0]));
@@ -807,8 +781,7 @@ internal name_string
 GenerateNewNameForCurve(editor_state *State)
 {
    // NOTE(hbr): Simple approach, not bullet-proof but ppb good enough
-   name_string Result = NameStringFormat("curve(%lu)",
-                                         State->EverIncreasingCurveCounter++);
+   name_string Result = NameStrF("curve(%lu)", State->EverIncreasingCurveCounter++);
    return Result;
 }
 
@@ -1568,7 +1541,7 @@ SaveProjectInFormat(arena *Arena,
                     string SaveProjectFilePath,
                     editor *Editor)
 {
-   error_string Error = 0;
+   error_string Error = {};
    
    switch (SaveProjectFormat)
    {
@@ -1580,7 +1553,7 @@ SaveProjectInFormat(arena *Arena,
          sf::RenderWindow *Window = Editor->Window;
          sf::Image Screenshot = Window->capture();
          
-         bool SaveSuccess = Screenshot.saveToFile(SaveProjectFilePath);
+         bool SaveSuccess = Screenshot.saveToFile(SaveProjectFilePath.Data);
          if (!SaveSuccess)
          {
             Error = StrF(Arena,
@@ -1602,7 +1575,7 @@ SaveProjectInFormat(arena *Arena,
 internal name_string
 CreateNameForCopiedEntity(name_string OriginalName)
 {
-   name_string Result = NameStringFormat("%s (copy)", OriginalName.Str);
+   name_string Result = NameStrF("%s (copy)", OriginalName.Data);
    return Result;
 }
 
@@ -2039,7 +2012,7 @@ RenderChangeCurveParametersUI(char const *PushID,
          }
          {
             local f32 ControlPointWeightDragSpeed = 0.005f;
-            local f32 ControlPointMinimumWeight = Epsilon32;
+            local f32 ControlPointMinimumWeight = EPS_F32;
             local f32 ControlPointMaximumWeight = FLT_MAX;
             local char const *ControlPointWeightFormat = "%.2f";
             
@@ -2323,7 +2296,7 @@ BeginVisualizingDeCasteljauAlgorithm(de_Casteljau_visualization *Visualization, 
    Visualization->T = 0.0f;
    Visualization->CurveEntity = CurveEntity;
    Visualization->SavedCurveVersion = U64_MAX;
-   ArenaClear(Visualization->Arena);
+   ClearArena(Visualization->Arena);
 }
 
 internal void
@@ -2344,16 +2317,16 @@ LowerBezierCurveDegree(bezier_curve_degree_lowering *Lowering, entity *CurveEnti
    {
       Assert(Curve->CurveParams.CurveShape.InterpolationType == Interpolation_Bezier);
       
-      auto Scratch = ScratchArena(Lowering->Arena);
-      defer { ReleaseScratch(Scratch); };
+      temp_arena Temp = TempArena(Lowering->Arena);
+      defer { EndTemp(Temp); };
       
-      local_position *NewControlPoints = PushArray(Scratch.Arena,
-                                                   NumControlPoints,
-                                                   local_position);
-      f32 *NewControlPointWeights = PushArray(Scratch.Arena, NumControlPoints, f32);
-      local_position *NewCubicBezierPoints = PushArray(Scratch.Arena,
-                                                       3 * (NumControlPoints - 1),
-                                                       local_position);
+      local_position *NewControlPoints = PushArrayNonZero(Temp.Arena,
+                                                          NumControlPoints,
+                                                          local_position);
+      f32 *NewControlPointWeights = PushArrayNonZero(Temp.Arena, NumControlPoints, f32);
+      local_position *NewCubicBezierPoints = PushArrayNonZero(Temp.Arena,
+                                                              3 * (NumControlPoints - 1),
+                                                              local_position);
       MemoryCopy(NewControlPoints,
                  Curve->ControlPoints,
                  NumControlPoints * SizeOf(NewControlPoints[0]));
@@ -2384,11 +2357,11 @@ LowerBezierCurveDegree(bezier_curve_degree_lowering *Lowering, entity *CurveEnti
          Lowering->IsLowering = true;
          Lowering->CurveEntity = CurveEntity;
          
-         ArenaClear(Lowering->Arena);
+         ClearArena(Lowering->Arena);
          
-         Lowering->SavedControlPoints = PushArray(Lowering->Arena, NumControlPoints, local_position);
-         Lowering->SavedControlPointWeights = PushArray(Lowering->Arena, NumControlPoints, f32);
-         Lowering->SavedCubicBezierPoints = PushArray(Lowering->Arena, 3 * NumControlPoints, local_position);
+         Lowering->SavedControlPoints = PushArrayNonZero(Lowering->Arena, NumControlPoints, local_position);
+         Lowering->SavedControlPointWeights = PushArrayNonZero(Lowering->Arena, NumControlPoints, f32);
+         Lowering->SavedCubicBezierPoints = PushArrayNonZero(Lowering->Arena, 3 * NumControlPoints, local_position);
          MemoryCopy(Lowering->SavedControlPoints,
                     Curve->ControlPoints,
                     NumControlPoints * SizeOf(Lowering->SavedControlPoints[0]));
@@ -2401,7 +2374,7 @@ LowerBezierCurveDegree(bezier_curve_degree_lowering *Lowering, entity *CurveEnti
          
          line_vertices CurveVertices = Curve->CurveVertices;
          Lowering->NumSavedCurveVertices = CurveVertices.NumVertices;
-         Lowering->SavedCurveVertices = PushArray(Lowering->Arena, CurveVertices.NumVertices, sf::Vertex);
+         Lowering->SavedCurveVertices = PushArrayNonZero(Lowering->Arena, CurveVertices.NumVertices, sf::Vertex);
          Lowering->SavedPrimitiveType = CurveVertices.PrimitiveType;
          MemoryCopy(Lowering->SavedCurveVertices,
                     CurveVertices.Vertices,
@@ -2460,16 +2433,16 @@ ElevateBezierCurveDegree(curve *Curve, editor_parameters *EditorParams)
    Assert(Curve->CurveParams.CurveShape.InterpolationType ==
           Interpolation_Bezier);
    
-   auto Scratch = ScratchArena(0);
-   defer { ReleaseScratch(Scratch); };
+   temp_arena Temp = TempArena(0);
+   defer { EndTemp(Temp); };
    
    u64 NumControlPoints = Curve->NumControlPoints;
-   local_position *ElevatedControlPoints = PushArray(Scratch.Arena,
-                                                     NumControlPoints + 1,
-                                                     local_position);
-   f32 *ElevatedControlPointWeights = PushArray(Scratch.Arena,
-                                                NumControlPoints + 1,
-                                                f32);
+   local_position *ElevatedControlPoints = PushArrayNonZero(Temp.Arena,
+                                                            NumControlPoints + 1,
+                                                            local_position);
+   f32 *ElevatedControlPointWeights = PushArrayNonZero(Temp.Arena,
+                                                       NumControlPoints + 1,
+                                                       f32);
    MemoryCopy(ElevatedControlPoints,
               Curve->ControlPoints,
               NumControlPoints * SizeOf(ElevatedControlPoints[0]));
@@ -2495,9 +2468,9 @@ ElevateBezierCurveDegree(curve *Curve, editor_parameters *EditorParams)
       case Bezier_Cubic: { Assert(false); } break;
    }
    
-   local_position *ElevatedCubicBezierPoints = PushArray(Scratch.Arena,
-                                                         3 * (NumControlPoints + 1),
-                                                         local_position);
+   local_position *ElevatedCubicBezierPoints = PushArrayNonZero(Temp.Arena,
+                                                                3 * (NumControlPoints + 1),
+                                                                local_position);
    BezierCubicCalculateAllControlPoints(ElevatedControlPoints,
                                         NumControlPoints + 1,
                                         ElevatedCubicBezierPoints + 1);
@@ -2582,21 +2555,21 @@ SplitCurveOnControlPoint(entity *CurveEntity, editor_state *EditorState)
    curve *Curve = &CurveEntity->Curve;
    Assert(Curve->SelectedControlPointIndex < Curve->NumControlPoints);
    
-   auto Scratch = ScratchArena(0);
-   defer { ReleaseScratch(Scratch); };
+   temp_arena Temp = TempArena(0);
+   defer { EndTemp(Temp); };
    
    u64 NumLeftControlPoints = Curve->SelectedControlPointIndex + 1;
    u64 NumRightControlPoints = Curve->NumControlPoints - Curve->SelectedControlPointIndex;
    
-   local_position *LeftControlPoints = PushArray(Scratch.Arena,
-                                                 NumLeftControlPoints,
-                                                 local_position);
-   f32 *LeftControlPointWeights = PushArray(Scratch.Arena,
-                                            NumLeftControlPoints,
-                                            f32);
-   local_position *LeftCubicBezierPoints = PushArray(Scratch.Arena,
-                                                     3 * NumLeftControlPoints,
-                                                     local_position);
+   local_position *LeftControlPoints = PushArrayNonZero(Temp.Arena,
+                                                        NumLeftControlPoints,
+                                                        local_position);
+   f32 *LeftControlPointWeights = PushArrayNonZero(Temp.Arena,
+                                                   NumLeftControlPoints,
+                                                   f32);
+   local_position *LeftCubicBezierPoints = PushArrayNonZero(Temp.Arena,
+                                                            3 * NumLeftControlPoints,
+                                                            local_position);
    
    // TODO(hbr): Isn't here a good place to optimize memory copies?
    MemoryCopy(LeftControlPoints,
@@ -2609,15 +2582,15 @@ SplitCurveOnControlPoint(entity *CurveEntity, editor_state *EditorState)
               Curve->CubicBezierPoints,
               3 * NumLeftControlPoints * SizeOf(LeftControlPoints[0]));
    
-   local_position *RightControlPoints = PushArray(Scratch.Arena,
-                                                  NumRightControlPoints,
-                                                  local_position);
-   f32 *RightControlPointWeights = PushArray(Scratch.Arena,
-                                             NumRightControlPoints,
-                                             f32);
-   local_position *RightCubicBezierPoints = PushArray(Scratch.Arena,
-                                                      3 * NumRightControlPoints,
-                                                      local_position);
+   local_position *RightControlPoints = PushArrayNonZero(Temp.Arena,
+                                                         NumRightControlPoints,
+                                                         local_position);
+   f32 *RightControlPointWeights = PushArrayNonZero(Temp.Arena,
+                                                    NumRightControlPoints,
+                                                    f32);
+   local_position *RightCubicBezierPoints = PushArrayNonZero(Temp.Arena,
+                                                             3 * NumRightControlPoints,
+                                                             local_position);
    
    MemoryCopy(RightControlPoints,
               Curve->ControlPoints + Curve->SelectedControlPointIndex,
@@ -2632,13 +2605,13 @@ SplitCurveOnControlPoint(entity *CurveEntity, editor_state *EditorState)
    // TODO(hbr): Optimize to not do so many copies and allocations
    // TODO(hbr): Maybe mint functions that create duplicate curve but without allocating and with allocating.
    entity *LeftCurveEntity = CurveEntity;
-   LeftCurveEntity->Name = NameStringFormat("%s (left)", CurveEntity->Name.Str);
+   LeftCurveEntity->Name = NameStrF("%s (left)", CurveEntity->Name.Data);
    CurveSetControlPoints(&LeftCurveEntity->Curve, NumLeftControlPoints, LeftControlPoints,
                          LeftControlPointWeights, LeftCubicBezierPoints);
    
    entity *RightCurveEntity = AllocateAndAddEntity(EditorState);
    InitEntityFromEntity(RightCurveEntity, LeftCurveEntity);
-   RightCurveEntity->Name = NameStringFormat("%s (right)", CurveEntity->Name.Str);
+   RightCurveEntity->Name = NameStrF("%s (right)", CurveEntity->Name.Data);
    CurveSetControlPoints(&RightCurveEntity->Curve, NumRightControlPoints, RightControlPoints,
                          RightControlPointWeights, RightCubicBezierPoints);
 }
@@ -2669,7 +2642,7 @@ RenderSelectedEntityUI(editor *Editor, coordinate_system_data CoordinateSystemDa
                case Entity_Image: { Image = &Entity->Image; } break;
             }
             
-            ImGui::InputText("Name", Entity->Name.Str, ArrayCount(Entity->Name.Str));
+            ImGui::InputText("Name", Entity->Name.Data, ArrayCount(Entity->Name.Data));
             
             if (Image)
             {
@@ -2966,114 +2939,83 @@ RenderUIForRenderPointData(char const *Label,
 }
 
 internal void
-UpdateAndRenderNotificationSystem(notification_system *NotificationSystem,
-                                  f32 DeltaTime, sf::RenderWindow *Window)
+UpdateAndRenderNotifications(notifications *Notifs, f32 DeltaTime, sf::RenderWindow *Window)
 {
-   DeferBlock(ImGui::PushID("NotificationSystem"), ImGui::PopID())
+   DeferBlock(ImGui::PushID("Notifications"), ImGui::PopID())
    {
       sf::Vector2u WindowSize = Window->getSize();
-      f32 NotificationWindowPadding = NotificationWindowPaddingScale * WindowSize.x;
-      f32 NotificationWindowPositionX = WindowSize.x - NotificationWindowPadding;
-      f32 NotificationWindowDesignatedPositionY = WindowSize.y - NotificationWindowPadding;
+      f32 Padding = NotificationWindowPaddingScale * WindowSize.x;
+      f32 DesignatedPosY = WindowSize.y - Padding;
       
-      local ImGuiWindowFlags NotificationWindowFlags =
-         ImGuiWindowFlags_AlwaysAutoResize |
-         ImGuiWindowFlags_NoDecoration |
-         ImGuiWindowFlags_NoNavFocus |
-         ImGuiWindowFlags_NoFocusOnAppearing;
+      f32 WindowWidth = 0.1f * WindowSize.x;
+      ImVec2 WindowMinSize = ImVec2(WindowWidth, 0.0f);
+      ImVec2 WindowMaxSize = ImVec2(WindowWidth, FLT_MAX);
       
-      local ImGuiCond NotificationWindowPositionCondition = ImGuiCond_Always;
-      local ImVec2 NotificationWindowPivot = ImVec2(1.0f, 1.0f);
-      
-      // NOTE(hbr): Scale in respect to window size
-      local f32 NotificationWindowWidthScale = 0.1f;
-      local f32 NotificationWindowMovementSpeed = 20.0f;
-      
-      f32 NotificationWindowWidth = NotificationWindowWidthScale * WindowSize.x;
-      ImVec2 NotificationWindowMinSize = ImVec2(NotificationWindowWidth, 0.0f);
-      ImVec2 NotificationWindowMaxSize = ImVec2(NotificationWindowWidth, FLT_MAX);
-      
-      notification *Notifications = NotificationSystem->Notifications;
-      notification *FreeSpace = Notifications;
-      u64 NumNotificationsRemoved = 0;
-      
-      for (u64 NotificationIndex = 0;
-           NotificationIndex < NotificationSystem->NumNotifications;
-           ++NotificationIndex)
+      notification *FreeSpace = Notifs->Notifs;
+      u64 RemoveCount = 0;
+      for (u64 NotifIndex = 0; NotifIndex < Notifs->NotifCount; ++NotifIndex)
       {
-         notification *Notification = &Notifications[NotificationIndex];
+         notification *Notif = Notifs->Notifs + NotifIndex;
          
          b32 ShouldBeRemoved = false;
          
-         f32 NotificationLifeTime = Notification->LifeTime + DeltaTime;
-         Notification->LifeTime= NotificationLifeTime;
+         f32 LifeTime = Notif->LifeTime + DeltaTime;
+         Notif->LifeTime = LifeTime;
          
-         if (NotificationLifeTime < NOTIFICATION_TOTAL_LIFE_TIME)
+         if (LifeTime < NOTIFICATION_TOTAL_LIFE_TIME)
          {
-            color NotificationTitleColor = Notification->TitleColor;
-            
             // NOTE(hbr): Interpolate position
-            f32 NotificationWindowCurrentPositionY = Notification->PositionY;
-            f32 NotificationWindowNextPositionY =
-               LerpF32(NotificationWindowCurrentPositionY,
-                       NotificationWindowDesignatedPositionY,
-                       1.0f - PowF32(2.0f, -NotificationWindowMovementSpeed * DeltaTime));
-            if (ApproxEq32(NotificationWindowDesignatedPositionY,
-                           NotificationWindowNextPositionY))
+            f32 CurrentPosY = Notif->PosY;
+            local f32 MoveSpeed = 20.0f;
+            f32 NextPosY = LerpF32(CurrentPosY, DesignatedPosY,
+                                   1.0f - PowF32(2.0f, -MoveSpeed * DeltaTime));
+            if (ApproxEq32(DesignatedPosY, NextPosY))
             {
-               NotificationWindowNextPositionY = NotificationWindowDesignatedPositionY;
+               NextPosY = DesignatedPosY;
             }
-            Notification->PositionY = NotificationWindowNextPositionY;
+            Notif->PosY = NextPosY;
             
-            ImVec2 NotificationWindowPosition =
-               ImVec2(NotificationWindowPositionX, NotificationWindowNextPositionY);
+            ImVec2 WindowPosition = ImVec2(WindowSize.x - Padding, NextPosY);
+            ImGui::SetNextWindowPos(WindowPosition, ImGuiCond_Always, ImVec2(1.0f, 1.0f));
+            ImGui::SetNextWindowSizeConstraints(WindowMinSize, WindowMaxSize);
             
-            ImGui::SetNextWindowPos(NotificationWindowPosition,
-                                    NotificationWindowPositionCondition,
-                                    NotificationWindowPivot);
-            
-            ImGui::SetNextWindowSizeConstraints(NotificationWindowMinSize,
-                                                NotificationWindowMaxSize);
-            
-            f32 NotificationWindowFadeFraction = 0.0f;
-            if (NotificationLifeTime <= NOTIFICATION_FADE_IN_TIME)
+            f32 Fade = 0.0f;
+            if (LifeTime <= NOTIFICATION_FADE_IN_TIME)
             {
-               NotificationWindowFadeFraction =
-                  NotificationLifeTime / NOTIFICATION_FADE_IN_TIME;
+               Fade = LifeTime / NOTIFICATION_FADE_IN_TIME;
             }
-            else if (NotificationLifeTime <= NOTIFICATION_FADE_IN_TIME +
+            else if (LifeTime <= NOTIFICATION_FADE_IN_TIME +
                      NOTIFICATION_PROPER_LIFE_TIME)
             {
-               NotificationWindowFadeFraction = 1.0f;
+               Fade = 1.0f;
             }
-            else if (NotificationLifeTime <= NOTIFICATION_FADE_IN_TIME +
+            else if (LifeTime <= NOTIFICATION_FADE_IN_TIME +
                      NOTIFICATION_PROPER_LIFE_TIME +
                      NOTIFICATION_FADE_OUT_TIME)
             {
-               NotificationWindowFadeFraction =
-                  1.0f - (NotificationLifeTime -
-                          NOTIFICATION_FADE_IN_TIME -
-                          NOTIFICATION_PROPER_LIFE_TIME) /
-                  NOTIFICATION_FADE_OUT_TIME;
+               Fade = 1.0f - (LifeTime -
+                              NOTIFICATION_FADE_IN_TIME -
+                              NOTIFICATION_PROPER_LIFE_TIME) / NOTIFICATION_FADE_OUT_TIME;
             }
             else
             {
-               NotificationWindowFadeFraction = 0.0f;
+               Fade = 0.0f;
             }
             // NOTE(hbr): Quadratic interpolation instead of linear.
-            NotificationWindowFadeFraction = 1.0f - Square(1.0f - NotificationWindowFadeFraction);
-            Assert(-Epsilon32 <= NotificationWindowFadeFraction &&
-                   NotificationWindowFadeFraction <= 1.0f + Epsilon32);
+            Fade = 1.0f - Square(1.0f - Fade);
+            Assert(-EPS_F32 <= Fade && Fade <= 1.0f + EPS_F32);
             
-            f32 NotificationWindowAlpha = NotificationWindowFadeFraction;
+            char Label[128];
+            sprintf(Label, "Notification#%llu", NotifIndex);
             
-            char NotificationWindowLabel[128];
-            sprintf(NotificationWindowLabel, "Notification#%llu", NotificationIndex);
-            
-            DeferBlock(ImGui::PushStyleVar(ImGuiStyleVar_Alpha, NotificationWindowAlpha),
+            DeferBlock(ImGui::PushStyleVar(ImGuiStyleVar_Alpha, Fade),
                        ImGui::PopStyleVar())
             {
-               DeferBlock(ImGui::Begin(NotificationWindowLabel, 0, NotificationWindowFlags),
+               DeferBlock(ImGui::Begin(Label, 0,
+                                       ImGuiWindowFlags_AlwaysAutoResize |
+                                       ImGuiWindowFlags_NoDecoration |
+                                       ImGuiWindowFlags_NoNavFocus |
+                                       ImGuiWindowFlags_NoFocusOnAppearing),
                           ImGui::End())
                {
                   ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
@@ -3085,27 +3027,26 @@ UpdateAndRenderNotificationSystem(notification_system *NotificationSystem,
                   }
                   
                   DeferBlock(ImGui::PushStyleColor(ImGuiCol_Text,
-                                                   ImVec4(NotificationTitleColor.R,
-                                                          NotificationTitleColor.G,
-                                                          NotificationTitleColor.B,
-                                                          NotificationWindowAlpha)),
+                                                   ImVec4(Notif->TitleColor.R,
+                                                          Notif->TitleColor.G,
+                                                          Notif->TitleColor.B,
+                                                          Fade)),
                              ImGui::PopStyleColor(1 /*count*/))
                   {
-                     ImGui::Text(Notification->Title);
+                     ImGui::Text(Notif->Title.Data);
                   }
                   
                   ImGui::Separator();
                   
                   DeferBlock(ImGui::PushTextWrapPos(0.0f), ImGui::PopTextWrapPos())
                   {
-                     ImGui::TextWrapped(Notification->Text);
+                     ImGui::TextWrapped(Notif->Text.Data);
                   }
                   
-                  f32 NotificationWindowHeight = ImGui::GetWindowHeight();
-                  Notification->NotificationWindowHeight = NotificationWindowHeight;
+                  f32 WindowHeight = ImGui::GetWindowHeight();
+                  Notif->NotifWindowHeight = WindowHeight;
                   
-                  NotificationWindowDesignatedPositionY -=
-                     NotificationWindowHeight + NotificationWindowPadding;
+                  DesignatedPosY -= WindowHeight + Padding;
                }
             }
          }
@@ -3116,15 +3057,15 @@ UpdateAndRenderNotificationSystem(notification_system *NotificationSystem,
          
          if (ShouldBeRemoved)
          {
-            NumNotificationsRemoved += 1;
-            NotificationDestroy(Notification);
+            RemoveCount += 1;
+            NotificationDestroy(Notif);
          }
          else
          {
-            *FreeSpace++ = *Notification;
+            *FreeSpace++ = *Notif;
          }
       }
-      NotificationSystem->NumNotifications -= NumNotificationsRemoved;
+      Notifs->NotifCount -= RemoveCount;
    }
 }
 
@@ -3173,7 +3114,7 @@ RenderListOfEntitiesWindow(editor *Editor, coordinate_system_data CoordinateSyst
                            DeferBlock(ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {0, 0}),
                                       ImGui::PopStyleVar())
                            {
-                              ImGui::InputText("", Entity->Name.Str, ArrayCount(Entity->Name.Str));
+                              ImGui::InputText("", Entity->Name.Data, ArrayCount(Entity->Name.Data));
                            }
                            
                            b32 ClickedOutside = (!ImGui::IsItemHovered() && ImGui::IsMouseClicked(0));
@@ -3187,7 +3128,7 @@ RenderListOfEntitiesWindow(editor *Editor, coordinate_system_data CoordinateSyst
                         {
                            b32 Selected = (Entity->Flags & EntityFlag_Selected);
                            
-                           if (ImGui::Selectable(Entity->Name.Str, Selected))
+                           if (ImGui::Selectable(Entity->Name.Data, Selected))
                            {
                               SelectEntity(EditorState, Entity);
                            }
@@ -3288,7 +3229,7 @@ RenderListOfEntitiesWindow(editor *Editor, coordinate_system_data CoordinateSyst
                            DeferBlock(ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {0, 0}),
                                       ImGui::PopStyleVar())
                            {                        
-                              ImGui::InputText("", Entity->Name.Str, ArrayCount(Entity->Name.Str));
+                              ImGui::InputText("", Entity->Name.Data, ArrayCount(Entity->Name.Data));
                            }
                            
                            b32 ClickedOutside = (!ImGui::IsItemHovered() && ImGui::IsMouseClicked(0));
@@ -3300,7 +3241,7 @@ RenderListOfEntitiesWindow(editor *Editor, coordinate_system_data CoordinateSyst
                         }
                         else
                         {
-                           if (ImGui::Selectable(Entity->Name.Str, Selected))
+                           if (ImGui::Selectable(Entity->Name.Data, Selected))
                            {
                               SelectEntity(EditorState, Entity);
                            }
@@ -3504,28 +3445,28 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
    
    if (SaveProjectSelected || PressedWithKey(UserInput.Keys[Key_S], Modifier_Ctrl))
    {
-      if (Editor->ProjectSavePath)
+      if (IsValid(Editor->ProjectSavePath))
       {
-         auto Scratch = ScratchArena(0);
-         defer { ReleaseScratch(Scratch); };
+         temp_arena Temp = TempArena(0);
+         defer { EndTemp(Temp); };
          
-         error_string SaveProjectInFormatError = SaveProjectInFormat(Scratch.Arena,
+         error_string SaveProjectInFormatError = SaveProjectInFormat(Temp.Arena,
                                                                      Editor->SaveProjectFormat,
                                                                      Editor->ProjectSavePath,
                                                                      Editor);
          
-         if (SaveProjectInFormatError)
+         if (IsError(SaveProjectInFormatError))
          {
-            NotificationSystemAddNotificationFormat(&Editor->NotificationSystem,
-                                                    Notification_Error,
-                                                    SaveProjectInFormatError);
+            AddNotificationF(&Editor->Notifications,
+                             Notification_Error,
+                             SaveProjectInFormatError.Data);
          }
          else
          {
-            NotificationSystemAddNotificationFormat(&Editor->NotificationSystem,
-                                                    Notification_Success,
-                                                    "project successfully saved in %s",
-                                                    Editor->ProjectSavePath);
+            AddNotificationF(&Editor->Notifications,
+                             Notification_Success,
+                             "project successfully saved in %s",
+                             Editor->ProjectSavePath.Data);
          }
       }
       else
@@ -3589,34 +3530,34 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
          {
             if (Yes)
             {
-               if (Editor->ProjectSavePath)
+               if (IsValid(Editor->ProjectSavePath))
                {
-                  auto Scratch = ScratchArena(0);
-                  defer { ReleaseScratch(Scratch); };
+                  temp_arena Temp = TempArena(0);
+                  defer { EndTemp(Temp); };
                   
                   string SaveProjectFilePath = Editor->ProjectSavePath;
                   save_project_format SaveProjectFormat = Editor->SaveProjectFormat;
                   
-                  error_string SaveProjectInFormatError = SaveProjectInFormat(Scratch.Arena,
+                  error_string SaveProjectInFormatError = SaveProjectInFormat(Temp.Arena,
                                                                               SaveProjectFormat,
                                                                               SaveProjectFilePath,
                                                                               Editor);
                   
-                  if (SaveProjectInFormatError)
+                  if (IsError(SaveProjectInFormatError))
                   {
-                     NotificationSystemAddNotificationFormat(&Editor->NotificationSystem,
-                                                             Notification_Error,
-                                                             "failed to discard current project: %s",
-                                                             SaveProjectInFormatError);
+                     AddNotificationF(&Editor->Notifications,
+                                      Notification_Error,
+                                      "failed to discard current project: %s",
+                                      SaveProjectInFormatError.Data);
                      
                      Editor->ActionWaitingToBeDone = ActionToDo_Nothing;
                   }
                   else
                   {
-                     NotificationSystemAddNotificationFormat(&Editor->NotificationSystem,
-                                                             Notification_Success,
-                                                             "project sucessfully saved in %s",
-                                                             SaveProjectFilePath);
+                     AddNotificationF(&Editor->Notifications,
+                                      Notification_Success,
+                                      "project sucessfully saved in %s",
+                                      SaveProjectFilePath.Data);
                      
                      ActionToDo = Editor->ActionWaitingToBeDone;
                      Editor->ActionWaitingToBeDone = ActionToDo_Nothing;
@@ -3653,62 +3594,62 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
    {
       if (FileDialog->IsOk())
       {
-         auto Scratch = ScratchArena(0);
-         defer { ReleaseScratch(Scratch); };
+         temp_arena Temp = TempArena(0);
+         defer { EndTemp(Temp); };
          
          std::string const &SelectedPath = FileDialog->GetFilePathName();
          std::string const &SelectedFilter = FileDialog->GetCurrentFilter();
-         string SaveProjectFilePath = Str(Scratch.Arena,
+         string SaveProjectFilePath = Str(Temp.Arena,
                                           SelectedPath.c_str(),
                                           SelectedPath.size());
-         string SaveProjectExtension = Str(Scratch.Arena,
+         string SaveProjectExtension = Str(Temp.Arena,
                                            SelectedFilter.c_str(),
                                            SelectedFilter.size());
          
-         string Project = StrLitArena(Scratch.Arena, PROJECT_FILE_EXTENSION_SELECTION);
-         string JPG     = StrLitArena(Scratch.Arena, JPG_FILE_EXTENSION_SELECTION);
-         string PNG     = StrLitArena(Scratch.Arena, PNG_FILE_EXTENSION_SELECTION);
+         string Project = StrLitArena(Temp.Arena, PROJECT_FILE_EXTENSION_SELECTION);
+         string JPG     = StrLitArena(Temp.Arena, JPG_FILE_EXTENSION_SELECTION);
+         string PNG     = StrLitArena(Temp.Arena, PNG_FILE_EXTENSION_SELECTION);
          
-         string AddExtension = 0;
+         string AddExtension = {};
          save_project_format SaveProjectFormat = SaveProjectFormat_None;
          if (AreStringsEqual(SaveProjectExtension, Project))
          {
-            AddExtension = StrLitArena(Scratch.Arena, SAVED_PROJECT_FILE_EXTENSION);
+            AddExtension = StrLitArena(Temp.Arena, SAVED_PROJECT_FILE_EXTENSION);
             SaveProjectFormat = SaveProjectFormat_ProjectFile;
          }
          else if (AreStringsEqual(SaveProjectExtension, JPG))
          {
-            AddExtension = StrLitArena(Scratch.Arena, ".jpg");
+            AddExtension = StrLitArena(Temp.Arena, ".jpg");
             SaveProjectFormat = SaveProjectFormat_ImageFile;
          }
          else if (AreStringsEqual(SaveProjectExtension, PNG))
          {
-            AddExtension = StrLitArena(Scratch.Arena, ".png");
+            AddExtension = StrLitArena(Temp.Arena, ".png");
             SaveProjectFormat = SaveProjectFormat_ImageFile;
          }
          
          string SaveProjectFilePathWithExtension = SaveProjectFilePath;
-         if (AddExtension)
+         if (IsValid(AddExtension))
          {
             if (!HasSuffix(SaveProjectFilePathWithExtension, AddExtension))
             {
-               SaveProjectFilePathWithExtension = StrF(Scratch.Arena,
+               SaveProjectFilePathWithExtension = StrF(Temp.Arena,
                                                        "%s%s",
                                                        SaveProjectFilePathWithExtension,
                                                        AddExtension);
             }
          }
          
-         error_string SaveProjectInFormatError = SaveProjectInFormat(Scratch.Arena,
+         error_string SaveProjectInFormatError = SaveProjectInFormat(Temp.Arena,
                                                                      SaveProjectFormat,
                                                                      SaveProjectFilePathWithExtension,
                                                                      Editor);
          
-         if (SaveProjectInFormatError)
+         if (IsError(SaveProjectInFormatError))
          {
-            NotificationSystemAddNotificationFormat(&Editor->NotificationSystem,
-                                                    Notification_Error,
-                                                    SaveProjectInFormatError);
+            AddNotificationF(&Editor->Notifications,
+                             Notification_Error,
+                             SaveProjectInFormatError.Data);
             
             Editor->ActionWaitingToBeDone = ActionToDo_Nothing;
          }
@@ -3716,10 +3657,10 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
          {
             EditorSetSaveProjectPath(Editor, SaveProjectFormat, SaveProjectFilePathWithExtension);
             
-            NotificationSystemAddNotificationFormat(&Editor->NotificationSystem,
-                                                    Notification_Success,
-                                                    "project sucessfully saved in %s",
-                                                    SaveProjectFilePathWithExtension);
+            AddNotificationF(&Editor->Notifications,
+                             Notification_Success,
+                             "project sucessfully saved in %s",
+                             SaveProjectFilePathWithExtension.Data);
             
             ActionToDo = Editor->ActionWaitingToBeDone;
             Editor->ActionWaitingToBeDone = ActionToDo_Nothing;
@@ -3748,7 +3689,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
          DestroyEditorState(&Editor->State);
          Editor->State = NewEditorState;
          
-         EditorSetSaveProjectPath(Editor, SaveProjectFormat_None, 0);
+         EditorSetSaveProjectPath(Editor, SaveProjectFormat_None, {});
       } break;
       
       case ActionToDo_OpenProject: {
@@ -3771,34 +3712,34 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
    {
       if (FileDialog->IsOk())
       {
-         auto Scratch = ScratchArena(0);
-         defer { ReleaseScratch(Scratch); };
+         temp_arena Temp = TempArena(0);
+         defer { EndTemp(Temp); };
          
          std::string const &SelectedPath = FileDialog->GetFilePathName();
-         string OpenProjectFilePath = Str(Scratch.Arena,
+         string OpenProjectFilePath = Str(Temp.Arena,
                                           SelectedPath.c_str(),
                                           SelectedPath.size());
          
-         load_project_result LoadResult = LoadProjectFromFile(Scratch.Arena,
+         load_project_result LoadResult = LoadProjectFromFile(Temp.Arena,
                                                               OpenProjectFilePath,
                                                               Editor->State.EntityPool,
                                                               Editor->State.DeCasteljauVisualization.Arena,
                                                               Editor->State.DegreeLowering.Arena,
                                                               Editor->State.MovingPointArena,
                                                               Editor->State.CurveAnimation.Arena);
-         if (LoadResult.Error)
+         if (IsError(LoadResult.Error))
          {
-            NotificationSystemAddNotificationFormat(&Editor->NotificationSystem,
-                                                    Notification_Error,
-                                                    "failed to open new project: %s",
-                                                    LoadResult.Error);
+            AddNotificationF(&Editor->Notifications,
+                             Notification_Error,
+                             "failed to open new project: %s",
+                             LoadResult.Error.Data);
          }
          else
          {
-            NotificationSystemAddNotificationFormat(&Editor->NotificationSystem,
-                                                    Notification_Success,
-                                                    "project successfully loaded from %s",
-                                                    OpenProjectFilePath);
+            AddNotificationF(&Editor->Notifications,
+                             Notification_Success,
+                             "project successfully loaded from %s",
+                             OpenProjectFilePath.Data);
             
             DestroyEditorState(&Editor->State);
             Editor->State = LoadResult.EditorState;
@@ -3812,9 +3753,9 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
          
          ListIter(Warning, LoadResult.Warnings.Head, string_list_node)
          {
-            NotificationSystemAddNotificationFormat(&Editor->NotificationSystem,
-                                                    Notification_Warning,
-                                                    Warning->String);
+            AddNotificationF(&Editor->Notifications,
+                             Notification_Warning,
+                             Warning->String.Data);
          }
       }
       
@@ -3829,49 +3770,49 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
    {
       if (FileDialog->IsOk())
       {
-         auto Scratch = ScratchArena(0);
-         defer { ReleaseScratch(Scratch); };
+         temp_arena Temp = TempArena(0);
+         defer { EndTemp(Temp); };
          
          std::string const &SelectedPath = FileDialog->GetFilePathName();
-         string NewImageFilePath = Str(Scratch.Arena,
+         string NewImageFilePath = Str(Temp.Arena,
                                        SelectedPath.c_str(),
                                        SelectedPath.size());
          
-         string LoadTextureError = 0;
-         sf::Texture LoadedTexture = LoadTextureFromFile(Scratch.Arena,
+         string LoadTextureError = {};
+         sf::Texture LoadedTexture = LoadTextureFromFile(Temp.Arena,
                                                          NewImageFilePath,
                                                          &LoadTextureError);
          
-         if (LoadTextureError)
+         if (IsError(LoadTextureError))
          {
-            NotificationSystemAddNotificationFormat(&Editor->NotificationSystem,
-                                                    Notification_Error,
-                                                    "failed to load image: %s",
-                                                    LoadTextureError);
+            AddNotificationF(&Editor->Notifications,
+                             Notification_Error,
+                             "failed to load image: %s",
+                             LoadTextureError.Data);
          }
          else
          {
             std::string const &SelectedFileName = FileDialog->GetCurrentFileName();
-            string ImageFileName = Str(Scratch.Arena,
+            string ImageFileName = Str(Temp.Arena,
                                        SelectedFileName.c_str(),
                                        SelectedFileName.size());
-            RemoveExtension(ImageFileName);
+            RemoveExtension(&ImageFileName);
             
             entity *Entity = AllocateAndAddEntity(&Editor->State);
             InitImageEntity(Entity,
                             V2F32(0.0f, 0.0f),
                             V2F32(1.0f, 1.0f),
                             Rotation2DZero(),
-                            NameStringFromString(ImageFileName),
+                            StrToNameStr(ImageFileName),
                             NewImageFilePath,
                             &LoadedTexture);
             
             SelectEntity(&Editor->State, Entity);
             
-            NotificationSystemAddNotificationFormat(&Editor->NotificationSystem,
-                                                    Notification_Success,
-                                                    "successfully loaded image from %s",
-                                                    NewImageFilePath);
+            AddNotificationF(&Editor->Notifications,
+                             Notification_Success,
+                             "successfully loaded image from %s",
+                             NewImageFilePath.Data);
          }
       }
       
@@ -3922,7 +3863,6 @@ RenderParamtersWindow(editor *Editor)
                                           ROTATION_INDICATOR_DEFAULT_OUTLINE_THICKNESS_FRACTION,
                                           ROTATION_INDICATOR_DEFAULT_FILL_COLOR,
                                           ROTATION_INDICATOR_DEFAULT_OUTLINE_COLOR);
-               
             }
          }
          {
@@ -4161,8 +4101,8 @@ UpdateAndRenderSplittingBezierCurve(editor_state *EditorState,
    
    if (PerformSplit)
    {
-      auto Scratch = ScratchArena(0);
-      defer { ReleaseScratch(Scratch); };
+      temp_arena Temp = TempArena(0);
+      defer { EndTemp(Temp); };
       
       u64 NumControlPoints = Curve->NumControlPoints;
       curve_shape CurveShape = Curve->CurveParams.CurveShape;
@@ -4171,7 +4111,7 @@ UpdateAndRenderSplittingBezierCurve(editor_state *EditorState,
       switch (CurveShape.BezierType)
       {
          case Bezier_Normal: {
-            ControlPointWeights = PushArray(Scratch.Arena, NumControlPoints, f32);
+            ControlPointWeights = PushArrayNonZero(Temp.Arena, NumControlPoints, f32);
             for (u64 I = 0; I < NumControlPoints; ++I)
             {
                ControlPointWeights[I] = 1.0f;
@@ -4182,19 +4122,19 @@ UpdateAndRenderSplittingBezierCurve(editor_state *EditorState,
          case Bezier_Cubic: { Assert(false); } break;
       }
       
-      local_position *LeftControlPoints = PushArray(Scratch.Arena,
-                                                    NumControlPoints,
-                                                    local_position);
-      local_position *RightControlPoints = PushArray(Scratch.Arena,
-                                                     NumControlPoints,
-                                                     local_position);
+      local_position *LeftControlPoints = PushArrayNonZero(Temp.Arena,
+                                                           NumControlPoints,
+                                                           local_position);
+      local_position *RightControlPoints = PushArrayNonZero(Temp.Arena,
+                                                            NumControlPoints,
+                                                            local_position);
       
-      f32 *LeftControlPointWeights  = PushArray(Scratch.Arena,
-                                                NumControlPoints,
-                                                f32);
-      f32 *RightControlPointWeights = PushArray(Scratch.Arena,
-                                                NumControlPoints,
-                                                f32);
+      f32 *LeftControlPointWeights  = PushArrayNonZero(Temp.Arena,
+                                                       NumControlPoints,
+                                                       f32);
+      f32 *RightControlPointWeights = PushArrayNonZero(Temp.Arena,
+                                                       NumControlPoints,
+                                                       f32);
       
       BezierCurveSplit(Splitting->T,
                        Curve->ControlPoints,
@@ -4205,12 +4145,12 @@ UpdateAndRenderSplittingBezierCurve(editor_state *EditorState,
                        RightControlPoints,
                        RightControlPointWeights);
       
-      local_position *LeftCubicBezierPoints = PushArray(Scratch.Arena,
-                                                        3 * NumControlPoints,
-                                                        local_position);
-      local_position *RightCubicBezierPoints = PushArray(Scratch.Arena,
-                                                         3 * NumControlPoints,
-                                                         local_position);
+      local_position *LeftCubicBezierPoints = PushArrayNonZero(Temp.Arena,
+                                                               3 * NumControlPoints,
+                                                               local_position);
+      local_position *RightCubicBezierPoints = PushArrayNonZero(Temp.Arena,
+                                                                3 * NumControlPoints,
+                                                                local_position);
       
       BezierCubicCalculateAllControlPoints(LeftControlPoints,
                                            NumControlPoints,
@@ -4224,13 +4164,13 @@ UpdateAndRenderSplittingBezierCurve(editor_state *EditorState,
       // TODO(hbr): Maybe remove this duplication of initialzation, maybe not?
       // TODO(hbr): Refactor that code into common function that splits curve into two curves
       entity *LeftCurveEntity = CurveEntity;
-      LeftCurveEntity->Name = NameStringFormat("%s (left)", LeftCurveEntity->Name.Str);
+      LeftCurveEntity->Name = NameStrF("%s (left)", LeftCurveEntity->Name.Data);
       CurveSetControlPoints(&LeftCurveEntity->Curve,
                             NumControlPoints,
                             LeftControlPoints, LeftControlPointWeights, LeftCubicBezierPoints);
       
       entity *RightCurveEntity = AllocateAndAddEntity(EditorState);
-      RightCurveEntity->Name = NameStringFormat("%s (right)", RightCurveEntity->Name.Str);
+      RightCurveEntity->Name = NameStrF("%s (right)", RightCurveEntity->Name.Data);
       InitEntityFromEntity(RightCurveEntity, LeftCurveEntity);
       CurveSetControlPoints(&RightCurveEntity->Curve,
                             NumControlPoints,
@@ -4276,20 +4216,19 @@ UpdateAndRenderSplittingBezierCurve(editor_state *EditorState,
 }
 
 internal void
-RenderImages(u64 NumEntities, entity *EntitiesList, sf::Transform Transform,
-             sf::RenderWindow *Window)
+RenderImages(entity *Entities, sf::Transform Transform, sf::RenderWindow *Window)
 {
    TimeFunction;
    
-   auto Scratch = ScratchArena(0);
-   defer { ReleaseScratch(Scratch); };
+   temp_arena Temp = TempArena(0);
+   defer { EndTemp(Temp); };
    
-   sorted_entity_array SortedEntities = SortEntitiesBySortingLayer(Scratch.Arena, NumEntities, EntitiesList);
+   sorted_entity_array SortedEntities = SortEntitiesBySortingLayer(Temp.Arena, Entities);
    for (u64 EntityIndex = 0;
-        EntityIndex < SortedEntities.NumEntities;
+        EntityIndex < SortedEntities.EntityCount;
         ++EntityIndex)
    {
-      entity *Entity = SortedEntities.SortedEntities[EntityIndex].Entity;
+      entity *Entity = SortedEntities.Entries[EntityIndex].Entity;
       if (Entity->Type == Entity_Image && !(Entity->Flags & EntityFlag_Hidden))
       {
          image *Image = &Entity->Image;
@@ -4369,26 +4308,26 @@ UpdateAndRenderDeCasteljauVisualization(de_Casteljau_visualization *Visualizatio
       
       if (VisualizationNeedsRecomputation)
       {
-         auto Scratch = ScratchArena(Visualization->Arena);
-         defer { ReleaseScratch(Scratch); };
+         temp_arena Temp = TempArena(Visualization->Arena);
+         defer { EndTemp(Temp); };
          
          u64 NumControlPoints = Curve->NumControlPoints;
          u64 NumIterations = NumControlPoints;
-         color *IterationColors = PushArray(Visualization->Arena, NumIterations, color);
-         line_vertices *LineVerticesPerIteration = PushArrayZero(Visualization->Arena,
-                                                                 NumIterations,
-                                                                 line_vertices);
+         color *IterationColors = PushArrayNonZero(Visualization->Arena, NumIterations, color);
+         line_vertices *LineVerticesPerIteration = PushArray(Visualization->Arena,
+                                                             NumIterations,
+                                                             line_vertices);
          u64 NumAllIntermediatePoints = NumControlPoints * NumControlPoints;
-         local_position *AllIntermediatePoints = PushArray(Visualization->Arena,
-                                                           NumAllIntermediatePoints,
-                                                           local_position);
+         local_position *AllIntermediatePoints = PushArrayNonZero(Visualization->Arena,
+                                                                  NumAllIntermediatePoints,
+                                                                  local_position);
          
          // NOTE(hbr): Deal with cases at once.
          f32 *ControlPointWeights = Curve->ControlPointWeights;
          switch (Curve->CurveParams.CurveShape.BezierType)
          {
             case Bezier_Normal: {
-               ControlPointWeights = PushArray(Scratch.Arena, NumControlPoints, f32);
+               ControlPointWeights = PushArrayNonZero(Temp.Arena, NumControlPoints, f32);
                for (u64 I = 0; I < NumControlPoints; ++I)
                {
                   ControlPointWeights[I] = 1.0f;
@@ -4401,7 +4340,7 @@ UpdateAndRenderDeCasteljauVisualization(de_Casteljau_visualization *Visualizatio
          
          // TODO(hbr): Consider passing 0 as ThrowAwayWeights, but make sure algorithm
          // handles that case
-         f32 *ThrowAwayWeights = PushArray(Scratch.Arena, NumAllIntermediatePoints, f32);
+         f32 *ThrowAwayWeights = PushArrayNonZero(Temp.Arena, NumAllIntermediatePoints, f32);
          DeCasteljauAlgorithm(Visualization->T,
                               Curve->ControlPoints,
                               ControlPointWeights,
@@ -4761,11 +4700,11 @@ UpdateAndRenderAnimateCurveAnimation(transform_curve_animation *Animation,
          {                    
             ImGui::Text("Animate");
             ImGui::SameLine();
-            ImGui::TextColored(CURVE_NAME_HIGHLIGHT_COLOR, Animation->FromCurveEntity->Name.Str);
+            ImGui::TextColored(CURVE_NAME_HIGHLIGHT_COLOR, Animation->FromCurveEntity->Name.Data);
             ImGui::SameLine();
             ImGui::Text("with");
             ImGui::SameLine();
-            char const *ComboPreview = (Animation->ToCurveEntity ? Animation->ToCurveEntity->Name.Str : "");
+            char const *ComboPreview = (Animation->ToCurveEntity ? Animation->ToCurveEntity->Name.Data : "");
             if (ImGui::BeginCombo("##AnimationTarget", ComboPreview))
             {
                ListIter(Entity, EntitiesList, entity)
@@ -4776,7 +4715,7 @@ UpdateAndRenderAnimateCurveAnimation(transform_curve_animation *Animation,
                      {
                         // TODO(hbr): Do a pass over this whole function, [Selected] should not be initialized like this
                         b32 Selected = (Animation->ToCurveEntity == Entity);
-                        if (ImGui::Selectable(Entity->Name.Str, Selected))
+                        if (ImGui::Selectable(Entity->Name.Data, Selected))
                         {
                            Animation->ToCurveEntity = Entity;
                         }
@@ -4886,8 +4825,8 @@ UpdateAndRenderAnimateCurveAnimation(transform_curve_animation *Animation,
          }
          else
          {
-            auto Scratch = ScratchArena(Animation->Arena);
-            defer { ReleaseScratch(Scratch); };
+            temp_arena Temp = TempArena(Animation->Arena);
+            defer { EndTemp(Temp); };
             
             entity *FromCurveEntity = Animation->FromCurveEntity;
             entity *ToCurveEntity = Animation->ToCurveEntity;
@@ -4899,10 +4838,10 @@ UpdateAndRenderAnimateCurveAnimation(transform_curve_animation *Animation,
             if (NumCurvePoints != Animation->NumCurvePoints ||
                 Animation->SavedToCurveVersion != ToCurve->CurveVersion)
             {
-               ArenaClear(Animation->Arena);
+               ClearArena(Animation->Arena);
                
                Animation->NumCurvePoints = NumCurvePoints;
-               Animation->ToCurvePoints = PushArray(Animation->Arena, NumCurvePoints, v2f32);
+               Animation->ToCurvePoints = PushArrayNonZero(Animation->Arena, NumCurvePoints, v2f32);
                CurveEvaluate(ToCurve, NumCurvePoints, Animation->ToCurvePoints);
                Animation->SavedToCurveVersion = ToCurve->CurveVersion;
                
@@ -4913,7 +4852,7 @@ UpdateAndRenderAnimateCurveAnimation(transform_curve_animation *Animation,
             {               
                v2f32 *ToCurvePoints = Animation->ToCurvePoints;
                v2f32 *FromCurvePoints = FromCurve->CurvePoints;
-               v2f32 *AnimatedCurvePoints = PushArray(Scratch.Arena, NumCurvePoints, v2f32);
+               v2f32 *AnimatedCurvePoints = PushArrayNonZero(Temp.Arena, NumCurvePoints, v2f32);
                
                f32 Blend = CalculateAnimation(Animation->Animation, Animation->Blend);
                f32 T = 0.0f;
@@ -5057,19 +4996,18 @@ CombineCurves(curve_combining *Combining, editor_state *EditorState)
                   LocalEntityPositionToWorld(FromEntity, From->ControlPoints[0]);
             }
          }
-         
       } break;
       
       case CurveCombination_Count: { Assert(false); } break;
    }
    
-   auto Scratch = ScratchArena(0);
-   defer { ReleaseScratch(Scratch); };
+   temp_arena Temp = TempArena(0);
+   defer { EndTemp(Temp); };
    
    // NOTE(hbr): Allocate buffers and copy control points into them
-   v2f32 *CombinedControlPoints = PushArray(Scratch.Arena, CombinedNumControlPoints, v2f32);
-   f32 *CombinedControlPointWeights = PushArray(Scratch.Arena, CombinedNumControlPoints, f32);
-   v2f32 *CombinedCubicBezierPoints = PushArray(Scratch.Arena, 3 * CombinedNumControlPoints, v2f32);
+   v2f32 *CombinedControlPoints = PushArrayNonZero(Temp.Arena, CombinedNumControlPoints, v2f32);
+   f32 *CombinedControlPointWeights = PushArrayNonZero(Temp.Arena, CombinedNumControlPoints, f32);
+   v2f32 *CombinedCubicBezierPoints = PushArrayNonZero(Temp.Arena, 3 * CombinedNumControlPoints, v2f32);
    
    MemoryCopy(CombinedControlPoints,
               To->ControlPoints,
@@ -5222,11 +5160,11 @@ UpdateAndRenderCurveCombining(editor_state *EditorState,
          {
             ImGui::Text("Combine");
             ImGui::SameLine();
-            ImGui::TextColored(CURVE_NAME_HIGHLIGHT_COLOR, Combining->CombineCurveEntity->Name.Str);
+            ImGui::TextColored(CURVE_NAME_HIGHLIGHT_COLOR, Combining->CombineCurveEntity->Name.Data);
             ImGui::SameLine();
             ImGui::Text("with");
             ImGui::SameLine();
-            char const *ComboPreview = (Combining->TargetCurveEntity ? Combining->TargetCurveEntity->Name.Str : "");
+            char const *ComboPreview = (Combining->TargetCurveEntity ? Combining->TargetCurveEntity->Name.Data : "");
             if (ImGui::BeginCombo("##CombiningTarget", ComboPreview))
             {
                ListIter(Entity, EditorState->EntitiesHead, entity)
@@ -5240,7 +5178,7 @@ UpdateAndRenderCurveCombining(editor_state *EditorState,
                      {
                         // TODO(hbr): Revise this whole function
                         b32 Selected = (Entity == Combining->TargetCurveEntity);
-                        if (ImGui::Selectable(Entity->Name.Str, Selected))
+                        if (ImGui::Selectable(Entity->Name.Data, Selected))
                         {
                            Combining->TargetCurveEntity = Entity;
                         }
@@ -5343,7 +5281,7 @@ UpdateAndRender(f32 DeltaTime, user_input UserInput, editor *Editor)
    
    FrameStatsUpdate(&Editor->FrameStats, DeltaTime);
    CameraUpdate(&Editor->State.Camera, UserInput.MouseWheelDelta, DeltaTime);
-   UpdateAndRenderNotificationSystem(&Editor->NotificationSystem, DeltaTime, Editor->Window);
+   UpdateAndRenderNotifications(&Editor->Notifications, DeltaTime, Editor->Window);
    
    {
       TimeBlock("editor state update");
@@ -5367,25 +5305,25 @@ UpdateAndRender(f32 DeltaTime, user_input UserInput, editor *Editor)
          
          if (ClickedWithButton(ButtonState, CoordinateSystemData))
          {
-            user_action Action = UserActionButtonClicked(Button, ButtonState.ReleasePosition, &UserInput);
+            user_action Action = CreateClickedAction(Button, ButtonState.ReleasePosition, &UserInput);
             NewState = EditorStateUpdate(NewState, Action, CoordinateSystemData, EditorParams);
          }
          
          if (DraggedWithButton(ButtonState, UserInput.MousePosition, CoordinateSystemData))
          {
-            user_action Action = UserActionButtonDrag(Button, UserInput.MouseLastPosition, &UserInput);
+            user_action Action = CreateDragAction(Button, UserInput.MouseLastPosition, &UserInput);
             NewState = EditorStateUpdate(NewState, Action, CoordinateSystemData, EditorParams);
          }
          
          if (ReleasedButton(ButtonState))
          {
-            user_action Action = UserActionButtonReleased(Button, ButtonState.ReleasePosition, &UserInput);
+            user_action Action = CreateReleasedAction(Button, ButtonState.ReleasePosition, &UserInput);
             NewState = EditorStateUpdate(NewState, Action, CoordinateSystemData, EditorParams);
          }
       }
       if (UserInput.MouseLastPosition != UserInput.MousePosition)
       {
-         user_action Action = UserActionMouseMove(UserInput.MouseLastPosition, UserInput.MousePosition, &UserInput);
+         user_action Action = CreateMouseMoveAction(UserInput.MouseLastPosition, UserInput.MousePosition, &UserInput);
          NewState = EditorStateUpdate(NewState, Action, CoordinateSystemData, EditorParams);
       }
       Editor->State = NewState;
@@ -5393,24 +5331,24 @@ UpdateAndRender(f32 DeltaTime, user_input UserInput, editor *Editor)
    
 #if EDITOR_DEBUG
    {
-      notification_system *NotificationSystem = &Editor->NotificationSystem;
+      notifications *Notifications = &Editor->Notifications;
       if (PressedWithKey(UserInput.Keys[Key_S], 0))
       {
-         NotificationSystemAddNotificationFormat(NotificationSystem,
-                                                 Notification_Success,
-                                                 "example successful notification message");
+         AddNotificationF(Notifications,
+                          Notification_Success,
+                          "example successful notification message");
       }
       if (PressedWithKey(UserInput.Keys[Key_E], 0))
       {
-         NotificationSystemAddNotificationFormat(NotificationSystem,
-                                                 Notification_Error,
-                                                 "example error notification message");
+         AddNotificationF(Notifications,
+                          Notification_Error,
+                          "example error notification message");
       }
       if (PressedWithKey(UserInput.Keys[Key_W], 0))
       {
-         NotificationSystemAddNotificationFormat(NotificationSystem,
-                                                 Notification_Warning,
-                                                 "example warning notification message");
+         AddNotificationF(Notifications,
+                          Notification_Warning,
+                          "example warning notification message");
       }
    }
 #endif
@@ -5474,8 +5412,7 @@ UpdateAndRender(f32 DeltaTime, user_input UserInput, editor *Editor)
    }
    
    // NOTE(hbr): Rendering functions are invoked in order to match expected drawing order.
-   RenderImages(Editor->State.NumEntities, Editor->State.EntitiesHead,
-                VP, Editor->Window);
+   RenderImages(Editor->State.EntitiesHead, VP, Editor->Window);
    
    // NOTE(hbr): Render below curves
    UpdateAndRenderDegreeLowering(&Editor->State.DegreeLowering,
@@ -5528,7 +5465,7 @@ CalculateAspectRatio(u64 Width, u64 Height)
 
 int main()
 {
-   SetGlobalContext(Gigabytes(16));
+   InitThreadCtx(Gigabytes(16));
    
    sf::VideoMode VideoMode = sf::VideoMode::getDesktopMode();
    sf::ContextSettings ContextSettings = sf::ContextSettings();
@@ -5553,11 +5490,11 @@ int main()
       bool ImGuiInitSuccess = ImGui::SFML::Init(Window, true);
       if (ImGuiInitSuccess)
       {
-         pool *EntityPool = PoolMakeForType(Gigabytes(1), entity);
-         arena *DeCasteljauVisualizationArena = ArenaMake(Gigabytes(1));
-         arena *DegreeLoweringArena = ArenaMake(Gigabytes(1));
-         arena *MovingPointArena = ArenaMake(Gigabytes(1));
-         arena *CurveAnimationArena = ArenaMake(Gigabytes(1));
+         pool *EntityPool = AllocatePoolForType(Gigabytes(1), entity);
+         arena *DeCasteljauVisualizationArena = AllocateArena(Gigabytes(1));
+         arena *DegreeLoweringArena = AllocateArena(Gigabytes(1));
+         arena *MovingPointArena = AllocateArena(Gigabytes(1));
+         arena *CurveAnimationArena = AllocateArena(Gigabytes(1));
          editor_state InitialEditorState = CreateDefaultEditorState(EntityPool,
                                                                     DeCasteljauVisualizationArena,
                                                                     DegreeLoweringArena,
@@ -5570,8 +5507,8 @@ int main()
             .FrustumSize = 2.0f,
          };
          
-         notification_system NotificationSystem = {};
-         NotificationSystem.Window = &Window;
+         notifications Notifications = {};
+         Notifications.Window = &Window;
          
          editor_parameters InitialEditorParameters {
             .RotationIndicator = {
@@ -5619,7 +5556,7 @@ int main()
          Editor.FrameStats = FrameStatsMake();
          Editor.State = InitialEditorState;
          Editor.Projection = InitialProjection;
-         Editor.NotificationSystem = NotificationSystem;
+         Editor.Notifications = Notifications;
          Editor.Parameters = InitialEditorParameters;
          Editor.UI_Config = InitialUI_Config;
          
@@ -5679,5 +5616,4 @@ int main()
 }
 
 // NOTE(hbr): Specifically after every file is included. Works in Unity build only.
-StaticAssert(__COUNTER__ < ArrayCount(profiler::Anchors),
-             MakeSureNumberOfProfilePointsFitsIntoArray);
+StaticAssert(__COUNTER__ < ArrayCount(profiler::Anchors), MakeSureNumberOfProfilePointsFitsIntoArray);

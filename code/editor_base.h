@@ -16,11 +16,6 @@ typedef int16_t s16;
 typedef int32_t s32;
 typedef int64_t s64;
 
-#define DeferBlock(Start, End) \
-for (int NameConcat(_i_, __LINE__) = ((Start), 0); \
-NameConcat(_i_, __LINE__) == 0; \
-++NameConcat(_i_, __LINE__), (End))
-
 #define U8_MIN  ((u8)0)
 #define U16_MIN ((u16)0)
 #define U32_MIN ((u32)0)
@@ -59,6 +54,14 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define local static
 #define global static
 
+// TODO(hbr): Include Linux
+#if OS_WINDOWS
+# pragma section(".roglob", read)
+# define read_only __declspec(allocate(".roglob"))
+#else
+# define read_only
+#endif
+
 #define Bytes(N)      (((u64)(N))<<0)
 #define Kilobytes(N)  (((u64)(N))<<10)
 #define Megaobytes(N) (((u64)(N))<<20)
@@ -70,21 +73,14 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 
 #define ArrayCount(Arr) (SizeOf(Arr)/SizeOf((Arr)[0]))
 #define Assert(Expr) assert(Expr)
-#define AssertStmt(Expr, Stmt) Assert(Expr), Stmt
 #define StaticAssert(Expr, Label) typedef int Static_Assert_Failed_##Label[(Expr) ? 1 : -1]
 #define MarkUnused(Var) (void)Var
 #define Cast(Type) (Type)
 #define OffsetOf(Type, Member) (Cast(u64)(&((Cast(Type *)0)->Member)))
 #define SizeOf(Expr) sizeof(Expr)
+#define AlignOf(Type) alignof(Type)
 #define NotImplemented Assert(!"Not Implemented")
 #define InvalidPath Assert(!"Invalid Path");
-
-#if OS_WINDOWS
-# pragma section(".roglob", read)
-# define read_only __declspec(allocate(".roglob"))
-#else
-# define read_only
-#endif
 
 #define Maximum(A, B) ((A) < (B) ? (B) : (A))
 #define Minimum(A, B) ((A) < (B) ? (A) : (B))
@@ -100,6 +96,7 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define MemoryMove(Dest, Src, NumBytes) memmove(Dest, Src, NumBytes)
 #define MemorySet(Ptr, Byte, NumBytes) memset(Ptr, Byte, NumBytes)
 #define MemoryZero(Ptr, NumBytes) MemorySet(Ptr, 0, NumBytes)
+#define MemoryEqual(Ptr1, Ptr2, NumBytes) (memcmp(Ptr1, Ptr2, NumBytes) == 0)
 
 #define QuickSort(Array, Count, Type, CompareFunction) \
 qsort((Array), \
@@ -114,8 +111,10 @@ auto Temp = (A); \
 (B) = Temp; \
 } while (0)
 
-#define Epsilon32 0.0001f
-#define Epsilon64 0.000000001
+#define DeferBlock(Start, End) \
+for (int NameConcat(_i_, __LINE__) = ((Start), 0); \
+NameConcat(_i_, __LINE__) == 0; \
+++NameConcat(_i_, __LINE__), (End))
 
 #define StackPush(Head, Node) \
 (Node)->Next = (Head); \
@@ -220,6 +219,8 @@ Swap((Array)[Index], (Array)[(Count) - 1 - Index]); \
 } \
 } while (0)
 
+// TODO(hbr): Remvoe defer
+#if 1
 template<typename lambda>
 struct scope_guard
 {
@@ -231,5 +232,6 @@ struct scope_guard
 #define DEFER_2(X, Y) DEFER_1(X, Y)
 #define DEFER_3(X) DEFER_2(X, __LINE__)
 #define defer scope_guard DEFER_3(_defer_) = [&]()
+#endif
 
 #endif //EDITOR_TYPES_H

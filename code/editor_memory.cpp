@@ -1,17 +1,6 @@
 //- Memory Arena
-function void
-SetGlobalContext(u64 ArenaCapacity)
-{
-   for (u64 ArenaIndex = 0;
-        ArenaIndex < ArrayCount(GlobalContext.Arenas);
-        ++ArenaIndex)
-   {
-      GlobalContext.Arenas[ArenaIndex] = ArenaMake(ArenaCapacity);
-   }
-}
-
 internal arena *
-ArenaMake(u64 Capacity, u64 InitialHeaderSize, u64 Align)
+AllocateArena(u64 Capacity, u64 InitialHeaderSize, u64 Align)
 {
    arena *Arena = 0;
    
@@ -33,20 +22,22 @@ ArenaMake(u64 Capacity, u64 InitialHeaderSize, u64 Align)
 }
 
 function arena *
-ArenaMake(u64 Capacity)
+AllocateArena(u64 Capacity)
 {
-   arena *Arena = ArenaMake(Capacity, SizeOf(arena), ARENA_DEFAULT_ALIGN);
+   arena *Arena = AllocateArena(Capacity, SizeOf(arena), ARENA_DEFAULT_ALIGN);
    return Arena;
 }
 
 function void
-ArenaDealloc(arena *Arena)
+FreeArena(arena *Arena)
 {
    VirtualMemoryRelease(Arena->Memory, Arena->Capacity);
    Arena->Memory = 0;
    Arena->Capacity = 0;
    Arena->Used = 0;
    Arena->Commited = 0;
+   Arena->Align = 0;
+   Arena->InitialHeaderSize = 0;
 }
 
 internal b32
@@ -81,7 +72,7 @@ ArenaGrowUnaligned(arena *Arena, u64 Grow)
 }
 
 function void *
-ArenaPushSize(arena *Arena, u64 Size)
+PushSizeNonZero(arena *Arena, u64 Size)
 {
    void *Result = 0;
    
@@ -98,30 +89,30 @@ ArenaPushSize(arena *Arena, u64 Size)
    return Result;
 }
 
-function void *
-ArenaPushSizeZero(arena *Arena, u64 Size)
+inline void *
+PushSize(arena *Arena, u64 Size)
 {
-   void *Result = ArenaPushSize(Arena, Size);
+   void *Result = PushSizeNonZero(Arena, Size);
    MemoryZero(Result, Size);
    
    return Result;
 }
 
 function void
-ArenaPopSize(arena *Arena, u64 Size)
+PopSize(arena *Arena, u64 Size)
 {
    Assert(Size <= Arena->Used);
    Arena->Used -= Size;
 }
 
 function void
-ArenaClear(arena *Arena)
+ClearArena(arena *Arena)
 {
-   ArenaPopSize(Arena, Arena->Used - Arena->InitialHeaderSize);
+   PopSize(Arena, Arena->Used - Arena->InitialHeaderSize);
 }
 
 function temp_arena
-TempArenaBegin(arena *Arena)
+BeginTemp(arena *Arena)
 {
    temp_arena Result = {};
    Result.Arena = Arena;
@@ -131,45 +122,32 @@ TempArenaBegin(arena *Arena)
 }
 
 function void
-TempArenaEnd(temp_arena Temp)
+EndTemp(temp_arena Temp)
 {
    Temp.Arena->Used = Temp.SavedUsed;
 }
 
-function temp_arena
-ScratchArena(arena *Conflict)
-{
-   temp_arena Result = {};
-   for (u64 Index = 0;
-        Index < ArrayCount(GlobalContext.Arenas);
-        ++Index)
-   {
-      arena *Arena = GlobalContext.Arenas[Index];
-      if (Arena != Conflict)
-      {
-         Result = TempArenaBegin(Arena);
-         break;
-      }
-   }
-   
-   return Result;
-}
-
 //- Pool Allocator
 function pool *
-PoolMake(u64 Capacity, u64 ChunkSize, u64 Align)
+AllocatePool(u64 Capacity, u64 ChunkSize, u64 Align)
 {
    Assert(ChunkSize >= SizeOf(pool_node));
    
-   pool *Pool = (pool *)ArenaMake(Capacity, SizeOf(pool), Align);
+   pool *Pool = (pool *)AllocateArena(Capacity, SizeOf(pool), Align);
    Pool->ChunkSize = ChunkSize;
    Pool->FreeNode = 0;
    
    return Pool;
 }
 
+function void
+FreePool(pool *Pool)
+{
+   FreeArena(Cast(arena *)Pool);
+}
+
 function void *
-PoolAllocChunk(pool *Pool)
+AllocateChunkNonZero(pool *Pool)
 {
    void *Result = 0;
    if (Pool->FreeNode)
@@ -179,14 +157,23 @@ PoolAllocChunk(pool *Pool)
    }
    else
    {
-      Result = ArenaPushSize(&Pool->BackingArena, Pool->ChunkSize);
+      Result = PushSizeNonZero(&Pool->BackingArena, Pool->ChunkSize);
    }
    
    return Result;
 }
 
+function void *
+AllocateChunk(pool *Pool)
+{
+   void *Result = AllocateChunkNonZero(Pool);
+   MemoryZero(Result, Pool->ChunkSize);
+   
+   return Result;
+}
+
 function void
-PoolFree(pool *Pool, void *Chunk)
+ReleaseChunk(pool *Pool, void *Chunk)
 {
    StackPush(Pool->FreeNode, Cast(pool_node *)Chunk);
 }

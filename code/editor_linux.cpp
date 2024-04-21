@@ -82,7 +82,7 @@ ReadWholeFile(arena *Arena, file_handle FileHandle, error_string *OutError)
    if (fstat(Descriptor, &Stat) == 0)
    {
       off_t ToRead = Stat.st_size;
-      void *Contents = ArenaPushSize(Arena, ToRead);
+      void *Contents = PushSize(Arena, ToRead);
       ssize_t Read = read(Descriptor, Contents, ToRead);
       
       if (ToRead == Read)

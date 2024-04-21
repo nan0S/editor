@@ -157,12 +157,12 @@ EndAndPrintProfile(void)
 {
    u64 EndTSC = ReadCPUTimer();
    
-   auto Scratch = ScratchArena(0);
-   defer { ReleaseScratch(Scratch); };
+   temp_arena Temp = TempArena(0);
+   defer { EndTemp(Temp); };
    
-   anchor_children *AnchorsChildren = PushArrayZero(Scratch.Arena,
-                                                    ArrayCount(GlobalProfiler.Anchors),
-                                                    anchor_children);
+   anchor_children *AnchorsChildren = PushArray(Temp.Arena,
+                                                ArrayCount(GlobalProfiler.Anchors),
+                                                anchor_children);
    
    for (u64 AnchorIndex = 0;
         AnchorIndex < ArrayCount(GlobalProfiler.Anchors);
@@ -174,7 +174,7 @@ EndAndPrintProfile(void)
       {
          anchor_children *AnchorChildren = &AnchorsChildren[Anchor->ParentAnchorIndex];
          
-         anchor_child *NewChild = PushStruct(Scratch.Arena, anchor_child);
+         anchor_child *NewChild = PushStructNonZero(Temp.Arena, anchor_child);
          NewChild->ChildIndex = AnchorIndex;
          
          QueuePush(AnchorChildren->Head,
@@ -187,7 +187,7 @@ EndAndPrintProfile(void)
    
    u64 SpaceAlignmentPerLevel = 3;
    u64 SpaceAlignmentStringLength = SpaceAlignmentPerLevel * ArrayCount(GlobalProfiler.Anchors) + 10;
-   char *SpaceAlignmentString = PushArrayZero(Scratch.Arena, SpaceAlignmentStringLength, char);
+   char *SpaceAlignmentString = PushArray(Temp.Arena, SpaceAlignmentStringLength, char);
    MemorySet(SpaceAlignmentString, ' ', SpaceAlignmentStringLength);
    
    PrintProfileTree(0, AnchorsChildren, TotalElapsedTSC, 0,

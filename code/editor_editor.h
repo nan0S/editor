@@ -1,7 +1,6 @@
 #ifndef EDITOR_EDITOR_H
 #define EDITOR_EDITOR_H
 
-//- Parameters and constants
 #define WINDOW_TITLE "Parametric Curves Editor"
 
 #define SAVED_PROJECT_FILE_EXTENSION ".editor"
@@ -103,7 +102,6 @@ struct editor_parameters
    f32 DefaultControlPointWeight;
 };
 
-//- Camera, Projection and Coordinate Spaces
 struct camera
 {
    world_position Position;
@@ -139,7 +137,6 @@ function world_position  ScreenToWorldSpace (screen_position Position, coordinat
 // NOTE(hbr): Distance in space [-AspectRatio, AspectRatio] x [-1, 1]
 function f32 ClipSpaceLengthToWorldSpace(f32 ClipSpaceDistance, coordinate_system_data Data);
 
-//- Collisions
 enum curve_collision_type
 {
    CurveCollision_ControlPoint,
@@ -163,7 +160,6 @@ enum
    CheckCollisionWith_Images            = (1<<2),
 };
 
-//- Editor
 enum user_action_type
 {
    UserAction_None,

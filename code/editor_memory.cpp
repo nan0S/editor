@@ -1,4 +1,3 @@
-//- Memory Arena
 internal arena *
 AllocateArena(u64 Capacity, u64 InitialHeaderSize, u64 Align)
 {
@@ -21,7 +20,7 @@ AllocateArena(u64 Capacity, u64 InitialHeaderSize, u64 Align)
    return Arena;
 }
 
-function arena *
+inline arena *
 AllocateArena(u64 Capacity)
 {
    arena *Arena = AllocateArena(Capacity, SizeOf(arena), ARENA_DEFAULT_ALIGN);
@@ -98,14 +97,14 @@ PushSize(arena *Arena, u64 Size)
    return Result;
 }
 
-function void
+inline void
 PopSize(arena *Arena, u64 Size)
 {
    Assert(Size <= Arena->Used);
    Arena->Used -= Size;
 }
 
-function void
+inline void
 ClearArena(arena *Arena)
 {
    PopSize(Arena, Arena->Used - Arena->InitialHeaderSize);
@@ -121,13 +120,12 @@ BeginTemp(arena *Arena)
    return Result;
 }
 
-function void
+inline void
 EndTemp(temp_arena Temp)
 {
    Temp.Arena->Used = Temp.SavedUsed;
 }
 
-//- Pool Allocator
 function pool *
 AllocatePool(u64 Capacity, u64 ChunkSize, u64 Align)
 {
@@ -140,7 +138,7 @@ AllocatePool(u64 Capacity, u64 ChunkSize, u64 Align)
    return Pool;
 }
 
-function void
+inline void
 FreePool(pool *Pool)
 {
    FreeArena(Cast(arena *)Pool);
@@ -163,7 +161,7 @@ AllocateChunkNonZero(pool *Pool)
    return Result;
 }
 
-function void *
+inline void *
 AllocateChunk(pool *Pool)
 {
    void *Result = AllocateChunkNonZero(Pool);
@@ -172,13 +170,12 @@ AllocateChunk(pool *Pool)
    return Result;
 }
 
-function void
+inline void
 ReleaseChunk(pool *Pool, void *Chunk)
 {
    StackPush(Pool->FreeNode, Cast(pool_node *)Chunk);
 }
 
-//- Heap Allocator
 #include <malloc.h>
 
 function heap_allocator *
@@ -188,11 +185,20 @@ HeapAllocator(void)
    return Heap;
 }
 
-function void *
-HeapAllocSize(heap_allocator *Heap, u64 Size)
+inline void *
+HeapAllocSizeNonZero(heap_allocator *Heap, u64 Size)
 {
    MarkUnused(Heap);
    void *Result = malloc(Size);
+   
+   return Result;
+}
+
+inline void *
+HeapAllocSize(heap_allocator *Heap, u64 Size)
+{
+   void *Result = HeapAllocSizeNonZero(Heap, Size);
+   MemoryZero(Result, Size);
    
    return Result;
 }

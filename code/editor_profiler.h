@@ -64,7 +64,7 @@ struct profile_block
    u64 OldTotalTSC;
 };
 
-function void InitializeProfiler(void);
+function void InitProfiler(void);
 function void FrameProfilePoint(b32 *ViewProfilerWindow);
 
 #define NameConcat2(A, B) A##B
@@ -73,7 +73,7 @@ function void FrameProfilePoint(b32 *ViewProfilerWindow);
 
 #else
 
-#define InitializeProfiler(...);
+#define InitProfiler(...);
 #define FrameProfilePoint(...);
 #define TimeBlock(...)
 

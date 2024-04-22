@@ -1,7 +1,7 @@
 #ifndef EDITOR_STRING_H
 #define EDITOR_STRING_H
 
-//- String
+//~ String
 struct string
 {
    char *Data;
@@ -32,7 +32,7 @@ function char ToUpper(char C);
 #define StrLit(Lit) Str(Lit, ArrayCount(Lit)-1)
 #define StrLitArena(Arena, Lit) Str(Arena, Lit, ArrayCount(Lit)-1)
 
-//- String List
+//~ String List
 struct string_list_node
 {
    string_list_node *Next;

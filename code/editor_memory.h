@@ -1,7 +1,7 @@
 #ifndef EDITOR_MEMORY_H
 #define EDITOR_MEMORY_H
 
-//- Memory Arena
+//~ Memory Arena
 typedef struct
 {
    void *Memory;
@@ -38,7 +38,7 @@ function void ClearArena(arena *Arena);
 function temp_arena BeginTemp(arena *Conflict);
 function void EndTemp(temp_arena Temp);
 
-//- Pool Allocator
+//~ Pool Allocator
 struct pool_node
 {
    pool_node *Next;
@@ -63,15 +63,17 @@ function void ReleaseChunk(pool *Pool, void *Chunk);
 #define PoolAllocStruct(Pool, Type) Cast(Type *)AllocateChunk(Pool)
 #define PoolAllocStructNonZero(Pool, Type) Cast(Type *)AllocateChunkNonZero(Pool)
 
-//- Heap Allocator
+//~ Heap Allocator
 struct heap_allocator {};
 
 function heap_allocator *HeapAllocator(void);
 function void *HeapAllocSize(heap_allocator *Heap, u64 Size);
+function void *HeapAllocSizeNonZero(heap_allocator *Heap, u64 Size);
 function void *HeapReallocSize(heap_allocator *Heap, void *Memory, u64 NewSize);
 function void HeapFree(heap_allocator *Heap, void *Pointer);
 
 #define HeapAllocStruct(Heap, Type) Cast(Type *)HeapAllocSize(Heap, SizeOf(Type))
+#define HeapAllocStructNonZero(Heap, Type) Cast(Type *)HeapAllocSizeNonZero(Heap, SizeOf(Type))
 #define HeapReallocArray(Heap, Array, NewCount, Type) Cast(Type *)HeapReallocSize(Heap, Cast(void *)Array, NewCount * SizeOf(*Array))
 
 #endif //EDITOR_MEMORY_H

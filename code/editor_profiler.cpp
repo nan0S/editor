@@ -13,7 +13,7 @@ struct anchor_children
 };
 
 function void
-InitializeProfiler(void)
+InitProfiler(void)
 {
    GlobalProfiler.CPUFrequency = EstimateCPUFrequency(10);
 }
@@ -84,7 +84,7 @@ FrameProfilePoint(b32 *ViewProfilerWindow)
    GlobalProfiler.StartTSC = ReadCPUTimer();
 }
 
-// TODO(hbr): Remove
+// TODO(hbr): Remove but probably keep printing
 #if 0
 
 function void

@@ -1,4 +1,3 @@
-//- Virtual Memory
 internal u64
 PageSize(void)
 {
@@ -33,7 +32,6 @@ VirtualMemoryCommit(void *Memory, u64 Size)
    VirtualAlloc(Memory, PageSnappedSize, MEM_COMMIT, PAGE_READWRITE);
 }
 
-//- Timing
 function u64
 ReadOSTimerFrequency(void)
 {
@@ -51,7 +49,6 @@ ReadOSTimer(void)
 }
 
 #if 0
-//- File Handling
 function file_handle
 OpenFile(arena *Arena, string FilePath, file_access_flags FileAccessFlags, error_string *OutError)
 {

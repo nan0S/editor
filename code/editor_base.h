@@ -1,5 +1,5 @@
-#ifndef EDITOR_TYPES_H
-#define EDITOR_TYPES_H
+#ifndef EDITOR_BASE_H
+#define EDITOR_BASE_H
 
 #include <stdint.h>
 #include <assert.h>
@@ -54,18 +54,21 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define local static
 #define global static
 
-// TODO(hbr): Include Linux
 #if OS_WINDOWS
 # pragma section(".roglob", read)
 # define read_only __declspec(allocate(".roglob"))
-#else
-# define read_only
+# define thread_local __declspec(thread)
 #endif
 
-#define Bytes(N)      (((u64)(N))<<0)
-#define Kilobytes(N)  (((u64)(N))<<10)
-#define Megaobytes(N) (((u64)(N))<<20)
-#define Gigabytes(N)  (((u64)(N))<<30)
+#if OS_LINUX
+# define thread_local __thread
+// TODO(hbr): read_only for Linux?
+#endif
+
+#define Bytes(N)      (((u64)(N)) << 0)
+#define Kilobytes(N)  (((u64)(N)) << 10)
+#define Megaobytes(N) (((u64)(N)) << 20)
+#define Gigabytes(N)  (((u64)(N)) << 30)
 
 #define Thousand(N) ((N) * 1000)
 #define Million(N)  ((N) * 1000000)
@@ -82,6 +85,16 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define NotImplemented Assert(!"Not Implemented")
 #define InvalidPath Assert(!"Invalid Path");
 
+#if COMPILER_MSVC
+# define Trap __debugbreak()
+#endif
+#if COMPILER_GCC || COMPILER_CLANG
+# define Trap __builtin_trap()
+#endif
+#ifndef Trap
+# error trap not defined
+#endif
+
 #define Maximum(A, B) ((A) < (B) ? (B) : (A))
 #define Minimum(A, B) ((A) < (B) ? (A) : (B))
 #define Abs(X) ((X) < 0 ? -(X) : (X))
@@ -91,6 +104,7 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define Idx(Row, Column, NColumns) ((Row)*(NColumns) + (Column))
 #define ApproxEq32(X, Y) (Abs(X - Y) <= EPS_F32)
 #define ApproxEq64(X, Y) (Abs(X - Y) <= EPS_F64)
+#define IntCmp(X, Y) (((X) < (Y)) ? -1 : (((X) == (Y)) ? 0 : 1))
 
 #define MemoryCopy(Dest, Src, NumBytes) memcpy(Dest, Src, NumBytes)
 #define MemoryMove(Dest, Src, NumBytes) memmove(Dest, Src, NumBytes)
@@ -176,7 +190,7 @@ VarName = __Prev, __Prev = (__Prev ? __Prev->Prev : 0))
 
 #define CAPACITY_GROW_FORMULA(Capacity) (2 * (Capacity) + 8)
 #define array(Type) Type *
-#define ArrayAlloc(Count, Type) Cast(Type *)HeapAllocSize(HeapAllocator(), (Count) * SizeOf(Type))
+#define ArrayAlloc(Count, Type) Cast(Type *)HeapAllocSizeNonZero(HeapAllocator(), (Count) * SizeOf(Type))
 #define ArrayFree(Array) HeapFree(HeapAllocator(), Array)
 #define ArrayReserve(Array, Capacity, Reserve) \
 do { \
@@ -184,7 +198,7 @@ if ((Reserve) > (Capacity)) \
 { \
 (Capacity) = Maximum(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
 HeapFree(HeapAllocator(), (Array)); \
-*(Cast(void **)&(Array)) = HeapAllocSize(HeapAllocator(), (Capacity) * SizeOf(*(Array))); \
+*(Cast(void **)&(Array)) = HeapAllocSizeNonZero(HeapAllocator(), (Capacity) * SizeOf(*(Array))); \
 } \
 Assert((Capacity) >= (Reserve)); \
 } while (0)
@@ -234,4 +248,4 @@ struct scope_guard
 #define defer scope_guard DEFER_3(_defer_) = [&]()
 #endif
 
-#endif //EDITOR_TYPES_H
+#endif //EDITOR_BASE_H

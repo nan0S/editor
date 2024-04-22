@@ -9,19 +9,19 @@
 #error OS layer not implemented
 #endif
 
-//- Virtual Memory
+//~ Virtual Memory
 function void *VirtualMemoryReserve(u64 Capacity);
 function void VirtualMemoryCommit(void *Memory, u64 Size);
 function void VirtualMemoryRelease(void *Memory, u64 Size);
 
-//- Timing
+//~ Timing
 function u64 ReadOSTimerFrequency(void);
 function u64 ReadOSTimer(void);
 
 function u64 ReadCPUTimer(void);
 function u64 EstimateCPUFrequency(u64 GuessSampleTimeMs);
 
-//- File Handling
+//~ File Handling
 #if 0
 struct file_handle;
 

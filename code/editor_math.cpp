@@ -1,4 +1,3 @@
-//- Vectors
 inline function v2f32
 V2F32(f32 X, f32 Y)
 {
@@ -31,7 +30,6 @@ ColorMake(u8 R, u8 G, u8 B, u8 A)
    return Result;
 }
 
-//- Calculations, algebra
 function f32
 Norm(v2f32 V)
 {
@@ -555,7 +553,6 @@ LerpColor(color From, color To, f32 T)
    return Result;
 }
 
-//- Interpolation
 function void
 EquidistantPoints(f32 *Ti, u64 N)
 {
@@ -1503,7 +1500,6 @@ GaussianElimination(f32 *A, u64 N, f32 *Solution)
    EndTemp(Temp);
 }
 
-//- Collisions, intersections, geometry
 function b32
 PointCollision(v2f32 Position, v2f32 Point, f32 PointRadius)
 {

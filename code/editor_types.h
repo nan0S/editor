@@ -147,7 +147,7 @@ VarName = __Prev, __Prev = (__Prev ? __Prev->Prev : 0))
 
 #define CAPACITY_GROW_FORMULA(Capacity) (2 * (Capacity) + 8)
 #define array(Type) Type *
-#define ArrayAlloc(Count, Type) Cast(Type *)HeapAllocSize(HeapAllocator(), (Count) * SizeOf(Type))
+#define ArrayAlloc(Count, Type) Cast(Type *)HeapAllocSizeNonZero(HeapAllocator(), (Count) * SizeOf(Type))
 #define ArrayFree(Array) HeapFree(HeapAllocator(), Array)
 #define ArrayReserve(Array, Capacity, Reserve) \
 do { \
@@ -155,7 +155,7 @@ if ((Reserve) > (Capacity)) \
 { \
 (Capacity) = Maximum(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
 HeapFree(HeapAllocator(), (Array)); \
-*(Cast(void **)&(Array)) = HeapAllocSize(HeapAllocator(), (Capacity) * SizeOf(*(Array))); \
+*(Cast(void **)&(Array)) = HeapAllocSizeNonZero(HeapAllocator(), (Capacity) * SizeOf(*(Array))); \
 } \
 Assert((Capacity) >= (Reserve)); \
 } while (0)

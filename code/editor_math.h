@@ -13,7 +13,7 @@
 #define RoundF32(X)            roundf(X)
 #define SqrtF32(X)             sqrtf(X)
 
-//- Vectors
+//~ Vectors
 union v2f32
 {
    struct { f32 X, Y; };
@@ -67,7 +67,7 @@ typedef v2f32 camera_position;
 typedef v2f32 world_position;
 typedef v2f32 local_position;
 
-//- Calculations, algebra
+//~ Calculations, algebra
 inline function f32 Cube(f32 X) { return X * X * X; }
 inline function f32 Square(f32 X) { return X * X; }
 
@@ -130,7 +130,7 @@ function rotation_2d Rotation2DFromMovementAroundPoint(v2f32 From, v2f32 To, v2f
 function v2f32 RotateAround(v2f32 Point, v2f32 Center, rotation_2d Rotation);
 function rotation_2d CombineRotations2D(rotation_2d RotationA, rotation_2d RotationB);
 
-//- Interpolation
+//~ Interpolation
 function void EquidistantPoints(f32 *Ti, u64 N);
 function void ChebychevPoints(f32 *Ti, u64 N);
 
@@ -179,7 +179,7 @@ function void DeCasteljauAlgorithm(f32 T, v2f32 *P, f32 *W, u64 N,
 
 function void GaussianElimination(f32 *A, u64 N, f32 *Solution);
 
-//- Collisions, intersections, geometry
+//~ Collisions, intersections, geometry
 struct line_intersection
 {
    b32 IsOneIntersection;

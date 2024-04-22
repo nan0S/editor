@@ -862,7 +862,7 @@ CurveTranslatePoint(entity *CurveEntity, u64 PointIndex, b32 IsCubicBezierPoint,
       }
       else
       {
-         Assert(false);
+         Assert(!"Unexpected point index");
       }
       
       local_position TranslatedPoint =
@@ -1137,17 +1137,20 @@ struct sorted_entity_array
 function sorted_entity_array SortEntitiesBySortingLayer(arena *Arena, entity *Entities);
 
 internal int
-EntitySortEntryCompare(entity_sort_entry *A, entity_sort_entry *B)
+EntitySortEntryCmp(entity_sort_entry *A, entity_sort_entry *B)
 {
-   s64 SortingLayerA = A->Entity->SortingLayer;
-   s64 SortingLayerB = B->Entity->SortingLayer;
-   
-   // TODO(hbr): Maybe improve this
    int Result = 0;
-   if      (SortingLayerA < SortingLayerB)       Result = -1;
-   else if (SortingLayerA > SortingLayerB)       Result = 1;
-   else if (A->OriginalOrder < B->OriginalOrder) Result = -1;
-   else if (A->OriginalOrder > B->OriginalOrder) Result = 1;
+   
+   int Cmp1 = IntCmp(A->Entity->SortingLayer, B->Entity->SortingLayer);
+   if (Cmp1 == 0)
+   {
+      int Cmp2 = IntCmp(A->OriginalOrder, B->OriginalOrder);
+      Result = Cmp2;
+   }
+   else
+   {
+      Result = Cmp1;
+   }
    
    return Result;
 }
@@ -1172,11 +1175,8 @@ SortEntitiesBySortingLayer(arena *Arena, entity *Entities)
       }
    }
    
-   // TODO(hbr): Use stable sort instead
-   QuickSort(Result.Entries,
-             Result.EntityCount,
-             entity_sort_entry,
-             EntitySortEntryCompare);
+   // NOTE(hbr): Compare function makes this sort stable, and we need stable property
+   QuickSort(Result.Entries, Result.EntityCount, entity_sort_entry, EntitySortEntryCmp);
    
    return Result;
 }

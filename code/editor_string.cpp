@@ -1,4 +1,3 @@
-//- String
 internal string
 CreateAndCopyStr(char *Dst, char const *Src, u64 Count)
 {
@@ -14,7 +13,7 @@ CreateAndCopyStr(char *Dst, char const *Src, u64 Count)
 function string
 Str(char const *String, u64 Count)
 {
-   char *Data = Cast(char *)HeapAllocSize(HeapAllocator(), Count + 1);
+   char *Data = Cast(char *)HeapAllocSizeNonZero(HeapAllocator(), Count + 1);
    string Result = CreateAndCopyStr(Data, String, Count);
    
    return Result;
@@ -230,7 +229,6 @@ ToUpper(char C)
    return Result;
 }
 
-//- String List
 function void
 StringListPush(arena *Arena, string_list *List, string String)
 {

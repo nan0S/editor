@@ -242,7 +242,7 @@ struct editor_mode
    };
 };
 
-// TODO(hbr): maybe rename to [state] or something, not only this but [de_Casteljau_visualization] as well, because that's what it is
+// TODO(hbr): maybe rename to [state] or something, not only this but [de_casteljau_visualization] as well, because that's what it is
 struct splitting_bezier_curve
 {
    // TODO(hbr): Get rid of [IsSplitting], encode in [SplitCurveEntity]
@@ -254,7 +254,7 @@ struct splitting_bezier_curve
    world_position SplitPoint;
 };
 
-struct de_Casteljau_visualization
+struct de_casteljau_visualization
 {
    b32 IsVisualizing;
    f32 T;
@@ -368,7 +368,7 @@ struct editor_state
    editor_mode Mode;
    
    splitting_bezier_curve SplittingBezierCurve;
-   de_Casteljau_visualization DeCasteljauVisualization;
+   de_casteljau_visualization DeCasteljauVisualization;
    bezier_curve_degree_lowering DegreeLowering;
    transform_curve_animation CurveAnimation;
    arena *MovingPointArena;

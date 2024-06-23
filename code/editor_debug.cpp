@@ -1,5 +1,5 @@
 function frame_stats
-FrameStatsMake(void)
+CreateFrameStats(void)
 {
    frame_stats Result = {};
    Result.Calculation.MinFrameTime = INF_F32;
@@ -28,4 +28,42 @@ FrameStatsUpdate(frame_stats *Stats, f32 FrameTime)
       Stats->Calculation.MaxFrameTime = -INF_F32;
       Stats->Calculation.SumFrameTime = 0.0f;
    }
+}
+
+internal void
+RenderDebugWindow(editor *Editor)
+{
+   bool ViewDebugWindowAsBool = Cast(bool)Editor->UI_Config.ViewDebugWindow;
+   DeferBlock(ImGui::Begin("Debug", &ViewDebugWindowAsBool), ImGui::End())
+   {
+      Editor->UI_Config.ViewDebugWindow = Cast(b32)ViewDebugWindowAsBool;
+      
+      if (Editor->UI_Config.ViewDebugWindow)
+      {
+         ImGui::Text("Number of entities = %lu", Editor->State.NumEntities);
+         
+         if (Editor->State.SelectedEntity &&
+             Editor->State.SelectedEntity->Type == Entity_Curve)
+         {
+            curve *Curve = &Editor->State.SelectedEntity->Curve;
+            
+            ImGui::Text("Number of control points = %lu", Curve->NumControlPoints);
+            ImGui::Text("Number of curve points = %lu", Curve->NumCurvePoints);
+         }
+         
+         ImGui::Text("Minimum Frame Time = %.3fms", 1000.0f * Editor->FrameStats.MinFrameTime);
+         ImGui::Text("Maximum Frame Time = %.3fms", 1000.0f * Editor->FrameStats.MaxFrameTime);
+         ImGui::Text("Average Frame Time = %.3fms", 1000.0f * Editor->FrameStats.AvgFrameTime);
+      }
+   }
+}
+
+function void
+DebugUpdateAndRender(editor *Editor)
+{
+   if (Editor->UI_Config.ViewDebugWindow)
+   {
+      RenderDebugWindow(Editor);
+   }
+   ImGui::ShowDemoWindow();
 }

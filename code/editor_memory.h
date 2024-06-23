@@ -2,7 +2,7 @@
 #define EDITOR_MEMORY_H
 
 //~ Memory Arena
-typedef struct
+struct arena
 {
    void *Memory;
    u64 Capacity;
@@ -10,13 +10,13 @@ typedef struct
    u64 Commited;
    u64 Align;
    u64 InitialHeaderSize;
-} arena;
+};
 
-typedef struct
+struct temp_arena
 {
    arena *Arena;
    u64 SavedUsed;
-} temp_arena;
+};
 
 #define ARENA_DEFAULT_ALIGN 16
 #define ARENA_DEFAULT_COMMIT_SIZE Kilobytes(4)

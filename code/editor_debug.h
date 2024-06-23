@@ -18,7 +18,9 @@ struct frame_stats
    f32 AvgFrameTime;
 };
 
-function frame_stats FrameStatsMake(void);
+function frame_stats CreateFrameStats(void);
 function void        FrameStatsUpdate(frame_stats *Stats, f32 FrameTime);
+
+function void DebugUpdateAndRender(editor *Editor);
 
 #endif //EDITOR_DEBUG_H

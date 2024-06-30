@@ -28,7 +28,7 @@ AllocateArena(u64 Capacity)
    return Arena;
 }
 
-function void
+internal void
 FreeArena(arena *Arena)
 {
    VirtualMemoryRelease(Arena->Memory, Arena->Capacity);
@@ -64,14 +64,14 @@ ArenaSetUsed(arena *Arena, u64 NewUsed)
    return Result;
 }
 
-function void
+internal void
 ArenaGrowUnaligned(arena *Arena, u64 Grow)
 {
    u64 NewUsed = Arena->Used + Grow;
    ArenaSetUsed(Arena, NewUsed);
 }
 
-function void *
+internal void *
 PushSizeNonZero(arena *Arena, u64 Size)
 {
    void *Result = 0;
@@ -111,7 +111,7 @@ ClearArena(arena *Arena)
    PopSize(Arena, Arena->Used - Arena->InitialHeaderSize);
 }
 
-function temp_arena
+internal temp_arena
 BeginTemp(arena *Arena)
 {
    temp_arena Result = {};
@@ -127,7 +127,7 @@ EndTemp(temp_arena Temp)
    Temp.Arena->Used = Temp.SavedUsed;
 }
 
-function pool *
+internal pool *
 AllocatePool(u64 Capacity, u64 ChunkSize, u64 Align)
 {
    Assert(ChunkSize >= SizeOf(pool_node));
@@ -145,7 +145,7 @@ FreePool(pool *Pool)
    FreeArena(Cast(arena *)Pool);
 }
 
-function void *
+internal void *
 AllocateChunkNonZero(pool *Pool)
 {
    void *Result = 0;
@@ -179,7 +179,7 @@ ReleaseChunk(pool *Pool, void *Chunk)
 
 #include <malloc.h>
 
-function heap_allocator *
+internal heap_allocator *
 HeapAllocator(void)
 {
    heap_allocator *Heap = 0;
@@ -204,7 +204,7 @@ HeapAllocSize(heap_allocator *Heap, u64 Size)
    return Result;
 }
 
-function void *
+internal void *
 HeapReallocSize(heap_allocator *Heap, void *Memory, u64 NewSize)
 {
    MarkUnused(Heap);
@@ -213,7 +213,7 @@ HeapReallocSize(heap_allocator *Heap, void *Memory, u64 NewSize)
    return Result;
 }
 
-function void
+internal void
 HeapFree(heap_allocator *Heap, void *Pointer)
 {
    MarkUnused(Heap);
@@ -223,7 +223,7 @@ HeapFree(heap_allocator *Heap, void *Pointer)
 //- thread context
 global thread_local thread_ctx GlobalCtx;
 
-function void
+internal void
 InitThreadCtx(u64 PerArenaCapacity)
 {
    if (!GlobalCtx.Initialized)
@@ -239,7 +239,7 @@ InitThreadCtx(u64 PerArenaCapacity)
    }
 }
 
-function temp_arena
+internal temp_arena
 TempArena(arena *Conflict)
 {
    temp_arena Result = {};
@@ -259,7 +259,7 @@ TempArena(arena *Conflict)
 }
 
 //- format
-function u64
+internal u64
 Fmt(u64 BufSize, char *Buf, char const *Format, ...)
 {
    u64 Result = 0;
@@ -458,7 +458,7 @@ FmtFloat(out_buf *Out, f64 F, char const *Inf, char const *Nan, u64 Precision,
    }
 }
 
-function u64
+internal u64
 FmtV(u64 BufSize, char *Buf, char const *Format, va_list Args)
 {
    out_buf Out = {};
@@ -658,7 +658,7 @@ CreateAndCopyStr(char *Dst, char const *Src, u64 Count)
    return Result;
 }
 
-function string
+internal string
 Str(char const *String, u64 Count)
 {
    char *Data = Cast(char *)HeapAllocSizeNonZero(HeapAllocator(), Count + 1);
@@ -667,7 +667,7 @@ Str(char const *String, u64 Count)
    return Result;
 }
 
-function string
+internal string
 Str(arena *Arena, char const *String, u64 Count)
 {
    char *Data = Cast(char *)PushSize(Arena, Count + 1);
@@ -676,7 +676,7 @@ Str(arena *Arena, char const *String, u64 Count)
    return Result;
 }
 
-function string
+internal string
 StrC(arena *Arena, char const *String)
 {
    string Result = Str(Arena, String, CStrLength(String));
@@ -684,7 +684,7 @@ StrC(arena *Arena, char const *String)
 }
 
 // TODO(hbr): Make it accept pointer instead
-function void
+internal void
 FreeStr(string *String)
 {
    HeapFree(HeapAllocator(), String->Data);
@@ -692,7 +692,7 @@ FreeStr(string *String)
    String->Count = 0;
 }
 
-function u64
+internal u64
 CStrLength(char const *String)
 {
    char const *At = String;
@@ -702,7 +702,7 @@ CStrLength(char const *String)
    return Length;
 }
 
-function string
+internal string
 StrF(arena *Arena, char const *Fmt, ...)
 {
    string Result = {};
@@ -716,7 +716,7 @@ StrF(arena *Arena, char const *Fmt, ...)
    return Result;
 }
 
-function string
+internal string
 StrFV(arena *Arena, char const *Fmt, va_list Args)
 {
    string Result = {};
@@ -737,21 +737,21 @@ StrFV(arena *Arena, char const *Fmt, va_list Args)
    return Result;
 }
 
-function string
+internal string
 DuplicateStr(arena *Arena, string String)
 {
    string Result = Str(Arena, String.Data, String.Count);
    return Result;
 }
 
-function string
+internal string
 DuplicateStr(string String)
 {
    string Result = Str(String.Data, String.Count);
    return Result;
 }
 
-function b32
+internal b32
 AreStringsEqual(string A, string B)
 {
    b32 Result = false;
@@ -763,8 +763,8 @@ AreStringsEqual(string A, string B)
    return Result;
 }
 
-// TODO(hbr): Make this function return string instead
-function void
+// TODO(hbr): Make this internal return string instead
+internal void
 RemoveExtension(string *Path)
 {
    u64 Index = Path->Count;
@@ -778,7 +778,7 @@ RemoveExtension(string *Path)
    }
 }
 
-function b32
+internal b32
 HasSuffix(string String, string Suffix)
 {
    b32 Result = false;
@@ -791,7 +791,7 @@ HasSuffix(string String, string Suffix)
    return Result;
 }
 
-function string
+internal string
 StringChopFileNameWithoutExtension(arena *Arena, string String)
 {
    s64 LastSlashPosition = -1;
@@ -838,7 +838,7 @@ StringChopFileNameWithoutExtension(arena *Arena, string String)
    return Result;
 }
 
-function string
+internal string
 Substr(arena *Arena, string String, u64 FromInclusive, u64 ToExclusive)
 {
    if (FromInclusive > String.Count) FromInclusive = String.Count;
@@ -856,16 +856,16 @@ Substr(arena *Arena, string String, u64 FromInclusive, u64 ToExclusive)
    return Substring;
 }
 
-function b32
+internal b32
 IsValid(string String)
 {
    b32 Result = (String.Data != 0);
    return Result;
 }
 
-function b32 IsError(error_string String) { return IsValid(String); }
+internal b32 IsError(error_string String) { return IsValid(String); }
 
-function char
+internal char
 ToUpper(char C)
 {
    char Result = C;
@@ -877,14 +877,14 @@ ToUpper(char C)
    return Result;
 }
 
-function b32
+internal b32
 IsDigit(char C)
 {
    b32 Result = ('0' <= C && C <= '9');
    return Result;
 }
 
-function void
+internal void
 StringListPush(arena *Arena, string_list *List, string String)
 {
    string_list_node *Node = PushStructNonZero(Arena, string_list_node);

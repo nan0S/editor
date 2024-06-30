@@ -4,13 +4,13 @@
 # include "editor_linux.cpp"
 #endif
 
-function u64
+internal u64
 ReadCPUTimer(void)
 {
    return __rdtsc();
 }
 
-function u64
+internal u64
 EstimateCPUFrequency(u64 GuessSampleTimeMs)
 {
    u64 OSFreq = ReadOSTimerFrequency();

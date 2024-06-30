@@ -1,7 +1,7 @@
 #ifndef EDITOR_ADAPT_H
 #define EDITOR_ADAPT_H
 
-function inline sf::Vector2f
+internal inline sf::Vector2f
 V2F32ToVector2f(v2f32 V)
 {
    sf::Vector2f Result = {};
@@ -11,7 +11,7 @@ V2F32ToVector2f(v2f32 V)
    return Result;
 }
 
-function inline sf::Vector2i
+internal inline sf::Vector2i
 V2S32ToVector2i(v2s32 V)
 {
    sf::Vector2i Result = {};
@@ -21,7 +21,7 @@ V2S32ToVector2i(v2s32 V)
    return Result;
 }
 
-function inline sf::Color
+internal inline sf::Color
 ColorToSFMLColor(color Color)
 {
    sf::Color Result = {};

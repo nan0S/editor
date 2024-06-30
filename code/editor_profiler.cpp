@@ -12,13 +12,13 @@ struct anchor_children
    anchor_child *Tail;
 };
 
-function void
+internal void
 InitProfiler(void)
 {
    GlobalProfiler.CPUFrequency = EstimateCPUFrequency(10);
 }
 
-function void
+internal void
 FrameProfilePoint(b32 *ViewProfilerWindow)
 {
    // NOTE(hbr): End current timing
@@ -87,7 +87,7 @@ FrameProfilePoint(b32 *ViewProfilerWindow)
 // TODO(hbr): Remove but probably keep printing
 #if 0
 
-function void
+internal void
 BeginProfile(void)
 {
    GlobalProfiler.StartTSC = ReadCPUTimer();
@@ -152,7 +152,7 @@ PrintProfileTree(u64 AnchorIndex, anchor_children *AnchorsChildren,
    }
 }
 
-function void
+internal void
 EndAndPrintProfile(void)
 {
    u64 EndTSC = ReadCPUTimer();

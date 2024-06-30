@@ -1,4 +1,4 @@
-function frame_stats
+internal frame_stats
 CreateFrameStats(void)
 {
    frame_stats Result = {};
@@ -8,7 +8,7 @@ CreateFrameStats(void)
    return Result;
 }
 
-function void
+internal void
 FrameStatsUpdate(frame_stats *Stats, f32 FrameTime)
 {
    Stats->Calculation.FrameCount += 1;
@@ -58,7 +58,7 @@ RenderDebugWindow(editor *Editor)
    }
 }
 
-function void
+internal void
 DebugUpdateAndRender(editor *Editor)
 {
    if (Editor->UI_Config.ViewDebugWindow)

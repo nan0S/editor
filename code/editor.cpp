@@ -14,7 +14,7 @@
 #include "editor_draw.cpp"
 #include "editor_editor.cpp"
 
-function void
+internal void
 ReportError(char const *Fmt, ...)
 {
    va_list Args;
@@ -27,7 +27,7 @@ ReportError(char const *Fmt, ...)
    va_end(Args);
 }
 
-function void
+internal void
 Log(char const *Fmt, ...)
 {
    va_list Args;

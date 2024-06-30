@@ -12,8 +12,8 @@ struct load_project_result
    string_list Warnings;
 };
 
-function error_string SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath);
-function load_project_result LoadProjectFromFile(arena *Arena,
+internal error_string SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath);
+internal load_project_result LoadProjectFromFile(arena *Arena,
                                                  string ProjectFilePath,
                                                  pool *EntityPool,
                                                  arena *DeCasteljauVisualizationArena,

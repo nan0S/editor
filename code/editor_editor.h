@@ -129,13 +129,13 @@ struct coordinate_system_data
    projection Projection;
 };
 
-function camera_position ScreenToCameraSpace(screen_position Position, coordinate_system_data Data);
-function world_position  CameraToWorldSpace (camera_position Position, coordinate_system_data Data);
-function camera_position WorldToCameraSpace (world_position Position,  coordinate_system_data Data);
-function world_position  ScreenToWorldSpace (screen_position Position, coordinate_system_data Data);
+internal camera_position ScreenToCameraSpace(screen_position Position, coordinate_system_data Data);
+internal world_position  CameraToWorldSpace (camera_position Position, coordinate_system_data Data);
+internal camera_position WorldToCameraSpace (world_position Position,  coordinate_system_data Data);
+internal world_position  ScreenToWorldSpace (screen_position Position, coordinate_system_data Data);
 
 // NOTE(hbr): Distance in space [-AspectRatio, AspectRatio] x [-1, 1]
-function f32 ClipSpaceLengthToWorldSpace(f32 ClipSpaceDistance, coordinate_system_data Data);
+internal f32 ClipSpaceLengthToWorldSpace(f32 ClipSpaceDistance, coordinate_system_data Data);
 
 enum curve_collision_type
 {
@@ -198,10 +198,10 @@ struct user_action
    user_input *UserInput;
 };
 
-function user_action UserActionButtonClicked(button Button, screen_position ClickPosition, user_input *UserInput);
-function user_action UserActionButtonDrag(button Button, screen_position DragFromPosition, user_input *UserInput);
-function user_action UserActionButtonReleased(button Button, screen_position ReleasePosition, user_input *UserInput);
-function user_action UserActionMouseMove(v2s32 FromPosition, screen_position ToPosition, user_input *UserInput);
+internal user_action UserActionButtonClicked(button Button, screen_position ClickPosition, user_input *UserInput);
+internal user_action UserActionButtonDrag(button Button, screen_position DragFromPosition, user_input *UserInput);
+internal user_action UserActionButtonReleased(button Button, screen_position ReleasePosition, user_input *UserInput);
+internal user_action UserActionMouseMove(v2s32 FromPosition, screen_position ToPosition, user_input *UserInput);
 
 enum editor_mode_type
 {
@@ -375,16 +375,16 @@ struct editor_state
    curve_combining CurveCombining;
 };
 
-function editor_state CreateEditorState(pool *EntityPool, u64 CurveCounter, camera Camera,
+internal editor_state CreateEditorState(pool *EntityPool, u64 CurveCounter, camera Camera,
                                         arena *DeCasteljauVisualizationArena, arena *DegreeLoweringArena,
                                         arena *MovingPointArena, arena *CurveAnimationArena,
                                         f32 CurveAnimationSpeed);
 
-function entity *AllocateAndAddEntity(editor_state *State);
-function void DeallocateAndRemoveEntity(editor_state *State, entity *Entity);
+internal entity *AllocateAndAddEntity(editor_state *State);
+internal void DeallocateAndRemoveEntity(editor_state *State, entity *Entity);
 
-function void SelectEntity(editor_state *EditorState, entity *Entity);
-function void DestroyEditorState(editor_state *EditorState);
+internal void SelectEntity(editor_state *EditorState, entity *Entity);
+internal void DestroyEditorState(editor_state *EditorState);
 
 enum save_project_format
 {

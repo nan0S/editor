@@ -1,4 +1,4 @@
-function file_contents
+internal file_contents
 ReadEntireFile(arena *Arena, string FilePath, error_string *OutError)
 {
    Assert(OutError);
@@ -52,7 +52,7 @@ ReadEntireFile(arena *Arena, string FilePath, error_string *OutError)
    return Result;
 }
 
-function error_string
+internal error_string
 SaveToFile(arena *Arena, string FilePath, string_list Data)
 {
    error_string Error = {};

@@ -64,7 +64,7 @@ struct user_input
    u64 WindowHeight;
 };
 
-function user_input UserInputMake(v2s32 MousePosition, u64 WindowWidth, u64 WindowHeight);
-function void HandleEvents(sf::RenderWindow *Window, user_input *UserInput);
+internal user_input UserInputMake(v2s32 MousePosition, u64 WindowWidth, u64 WindowHeight);
+internal void HandleEvents(sf::RenderWindow *Window, user_input *UserInput);
 
 #endif //EDITOR_INPUT_H

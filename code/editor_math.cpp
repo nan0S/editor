@@ -1,4 +1,4 @@
-inline function v2f32
+inline internal v2f32
 V2F32(f32 X, f32 Y)
 {
    v2f32 Result = {};
@@ -8,7 +8,7 @@ V2F32(f32 X, f32 Y)
    return Result;
 }
 
-inline function v2s32
+inline internal v2s32
 V2S32(s32 X, s32 Y)
 {
    v2s32 Result = {};
@@ -18,7 +18,7 @@ V2S32(s32 X, s32 Y)
    return Result;
 }
 
-inline function color
+inline internal color
 ColorMake(u8 R, u8 G, u8 B, u8 A)
 {
    color Result = {};
@@ -30,28 +30,28 @@ ColorMake(u8 R, u8 G, u8 B, u8 A)
    return Result;
 }
 
-function f32
+internal f32
 Norm(v2f32 V)
 {
    f32 Result = sqrtf(NormSquared(V));
    return Result;
 }
 
-function f32
+internal f32
 NormSquared(v2f32 V)
 {
    f32 Result = V.X*V.X + V.Y*V.Y;
    return Result;
 }
 
-function s32
+internal s32
 NormSquared(v2s32 V)
 {
    s32 Result = V.X*V.X + V.Y*V.Y;
    return Result;
 }
 
-function void
+internal void
 Normalize(v2f32 *V)
 {
    f32 NormValue = Norm(*V);
@@ -61,21 +61,21 @@ Normalize(v2f32 *V)
    }
 }
 
-function f32
+internal f32
 Dot(v2f32 U, v2f32 V)
 {
    f32 Result = U.X*V.X + U.Y*V.Y;
    return Result;
 }
 
-function f32
+internal f32
 Cross(v2f32 U, v2f32 V)
 {
    f32 Result = U.X*V.Y - U.Y*V.X;
    return Result;
 }
 
-function rotation_2d
+internal rotation_2d
 Rotation2D(f32 X, f32 Y)
 {
    rotation_2d Rotation = {};
@@ -85,14 +85,14 @@ Rotation2D(f32 X, f32 Y)
    return Rotation;
 }
 
-function rotation_2d
+internal rotation_2d
 Rotation2DZero(void)
 {
    rotation_2d Result = Rotation2D(1.0f, 0.0f);
    return Result;
 }
 
-function rotation_2d
+internal rotation_2d
 Rotation2DFromVector(v2f32 Vector)
 {
    Normalize(&Vector);
@@ -101,7 +101,7 @@ Rotation2DFromVector(v2f32 Vector)
    return Result;
 }
 
-function rotation_2d
+internal rotation_2d
 Rotation2DFromDegrees(f32 Degrees)
 {
    f32 Radians = DegToRad32 * Degrees;
@@ -110,14 +110,14 @@ Rotation2DFromDegrees(f32 Degrees)
    return Result;
 }
 
-function rotation_2d
+internal rotation_2d
 Rotation2DFromRadians(f32 Radians)
 {
    rotation_2d Result = Rotation2D(cosf(Radians), sinf(Radians));
    return Result;
 }
 
-function f32
+internal f32
 Rotation2DToDegrees(rotation_2d Rotation)
 {
    f32 Radians = Rotation2DToRadians(Rotation);
@@ -126,35 +126,35 @@ Rotation2DToDegrees(rotation_2d Rotation)
    return Degrees;
 }
 
-function f32
+internal f32
 Rotation2DToRadians(rotation_2d Rotation)
 {
    f32 Radians = atan2f(Rotation.Y, Rotation.X);
    return Radians;
 }
 
-function rotation_2d
+internal rotation_2d
 Rotation2DInverse(rotation_2d Rotation)
 {
    rotation_2d InverseRotation = Rotation2D(Rotation.X, -Rotation.Y);
    return InverseRotation;
 }
 
-function rotation_2d
+internal rotation_2d
 Rotate90DegreesAntiClockwise(rotation_2d Rotation)
 {
    rotation_2d Result = Rotation2D(-Rotation.Y, Rotation.X);
    return Result;
 }
 
-function rotation_2d
+internal rotation_2d
 Rotate90DegreesClockwise(rotation_2d Rotation)
 {
    rotation_2d Result = Rotation2D(Rotation.Y, -Rotation.X);
    return Result;
 }
 
-function rotation_2d
+internal rotation_2d
 Rotation2DFromMovementAroundPoint(v2f32 From, v2f32 To, v2f32 Center)
 {
    v2f32 FromTranslated = From - Center;
@@ -176,7 +176,7 @@ Rotation2DFromMovementAroundPoint(v2f32 From, v2f32 To, v2f32 Center)
    return Rotation;
 }
 
-function v2f32
+internal v2f32
 RotateAround(v2f32 Point, v2f32 Center, rotation_2d Rotation)
 {
    v2f32 Translated = Point - Center;
@@ -187,7 +187,7 @@ RotateAround(v2f32 Point, v2f32 Center, rotation_2d Rotation)
    return Result;
 }
 
-function rotation_2d
+internal rotation_2d
 CombineRotations2D(rotation_2d RotationA, rotation_2d RotationB)
 {
    f32 RotationX = RotationA.X * RotationB.X - RotationA.Y * RotationB.Y;
@@ -274,7 +274,7 @@ RemoveDupliatesSorted(u64 NumPoints, v2f32 *Points)
    return NumUnique;
 }
 
-function num_convex_hull_points
+internal num_convex_hull_points
 CalculateConvexHull(u64 NumPoints, v2f32 *Points,
                     v2f32 *OutputConvexHullPoints)
 {
@@ -315,7 +315,7 @@ CalculateConvexHull(u64 NumPoints, v2f32 *Points,
    return NumConvexHullPoints;
 }
 
-function line_vertices_allocation
+internal line_vertices_allocation
 LineVerticesAllocationNone(sf::Vertex *VerticesBuffer)
 {
    line_vertices_allocation Result = {};
@@ -325,7 +325,7 @@ LineVerticesAllocationNone(sf::Vertex *VerticesBuffer)
    return Result;
 }
 
-function line_vertices_allocation
+internal line_vertices_allocation
 LineVerticesAllocationHeap(line_vertices OldVertices)
 {
    line_vertices_allocation Result = {};
@@ -335,7 +335,7 @@ LineVerticesAllocationHeap(line_vertices OldVertices)
    return Result;
 }
 
-function line_vertices_allocation
+internal line_vertices_allocation
 LineVerticesAllocationArena(arena *Arena)
 {
    line_vertices_allocation Result = {};
@@ -348,7 +348,7 @@ LineVerticesAllocationArena(arena *Arena)
 // NOTE(hbr): Trinale-strip-based, no mitter, no-spiky line version.
 // TODO(hbr): Loop logic is very ugly but works. Clean it up.
 // Might have only work because we need only loop on convex hull order points.
-function line_vertices
+internal line_vertices
 CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
                       f32 LineWidth, color LineColor, b32 Loop,
                       line_vertices_allocation Allocation)
@@ -529,19 +529,19 @@ CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
    return Result;
 }
 
-function f32
+internal f32
 LerpF32(f32 From, f32 To, f32 T)
 {
    return (1-T) * From + T * To;
 }
 
-function v2f32
+internal v2f32
 LerpV2F32(v2f32 From, v2f32 To, f32 T)
 {
    return (1-T) * From + T * To;
 }
 
-function color
+internal color
 LerpColor(color From, color To, f32 T)
 {
    color Result = {};
@@ -553,7 +553,7 @@ LerpColor(color From, color To, f32 T)
    return Result;
 }
 
-function void
+internal void
 EquidistantPoints(f32 *Ti, u64 N)
 {
    if (N > 1)
@@ -568,7 +568,7 @@ EquidistantPoints(f32 *Ti, u64 N)
    }
 }
 
-function void
+internal void
 ChebyshevPoints(f32 *Ti, u64 N)
 {
    for (u64 K = 0; K < N; ++K)
@@ -577,7 +577,7 @@ ChebyshevPoints(f32 *Ti, u64 N)
    }
 }
 
-function void
+internal void
 BarycentricOmega(f32 *Omega, f32 *Ti, u64 N)
 {
    for (u64 I = 0; I < N; ++I)
@@ -595,7 +595,7 @@ BarycentricOmega(f32 *Omega, f32 *Ti, u64 N)
 }
 
 // TODO(hbr): Figure out with it doesn't work
-function void
+internal void
 BarycentricOmegaWerner(f32 *Omega, f32 *Ti, u64 N)
 {
    temp_arena Temp = TempArena(0);
@@ -625,7 +625,7 @@ BarycentricOmegaWerner(f32 *Omega, f32 *Ti, u64 N)
    EndTemp(Temp);
 }
 
-function void
+internal void
 BarycentricOmegaEquidistant(f32 *Omega, f32 *Ti, u64 N)
 {
    if (N <= 1)
@@ -668,7 +668,7 @@ PowerOf2(u64 K)
    return Result;
 }
 
-function void
+internal void
 BarycentricOmegaChebychev(f32 *Omega, u64 N)
 {
    if (N > 0)
@@ -683,7 +683,7 @@ BarycentricOmegaChebychev(f32 *Omega, u64 N)
    }
 }
 
-function f32
+internal f32
 BarycentricEvaluate(f32 T, f32 *Omega, f32 *Ti, f32 *Y, u64 N)
 {
    for (u64 I = 0; I < N; ++I)
@@ -708,7 +708,7 @@ BarycentricEvaluate(f32 T, f32 *Omega, f32 *Ti, f32 *Y, u64 N)
 }
 
 // NOTE(hbr): Compute directly from definition
-function void
+internal void
 NewtonBeta(f32 *Beta, f32 *Ti, f32 *Y, u64 N)
 {
    temp_arena Temp = TempArena(0);
@@ -736,7 +736,7 @@ NewtonBeta(f32 *Beta, f32 *Ti, f32 *Y, u64 N)
 }
 
 // NOTE(hbr): Memory optimized version
-function void
+internal void
 NewtonBetaFast(f32 *Beta, f32 *Ti, f32 *Y, u64 N)
 {
    for (u64 J = 0; J < N; ++J)
@@ -756,7 +756,7 @@ NewtonBetaFast(f32 *Beta, f32 *Ti, f32 *Y, u64 N)
    }
 }
 
-function f32
+internal f32
 NewtonEvaluate(f32 T, f32 *Beta, f32 *Ti, u64 N)
 {
    f32 Result = 0.0f;
@@ -768,7 +768,7 @@ NewtonEvaluate(f32 T, f32 *Beta, f32 *Ti, u64 N)
    return Result;
 }
 
-// NOTE(hbr): Those should be local conveniance function, but impossible in C.
+// NOTE(hbr): Those should be local conveniance internal, but impossible in C.
 inline internal f32 Hi(f32 *Ti, u64 I) { return Ti[I+1] - Ti[I]; }
 inline internal f32 Bi(f32 *Ti, f32 *Y, u64 I) { return 1.0f / Hi(Ti, I) * (Y[I+1] - Y[I]); }
 inline internal f32 Vi(f32 *Ti, u64 I) { return 2.0f * (Hi(Ti, I-1) + Hi(Ti, I)); }
@@ -826,7 +826,7 @@ int gauss(vector<vector<ldb>> a, vector<ldb> &ans) { // O(n^3)
    return free_vars;
 }
 
-function void
+internal void
 CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u64 N)
 {
    temp_arena Temp = TempArena(0);
@@ -865,14 +865,14 @@ CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u64 N)
    EndTemp(Temp);
 }
 
-// NOTE(hbr): Those should be local conveniance function, but impossible in C.
+// NOTE(hbr): Those should be local conveniance internal, but impossible in C.
 inline internal f32 Hi(f32 *Ti, u64 I, u64 N) { if (I == N-1) I -= N-1; return Ti[I+1] - Ti[I]; }
 inline internal f32 Yi(f32 *Y, u64 I, u64 N) { if (I == N) I = 1; return Y[I]; }
 inline internal f32 Bi(f32 *Ti, f32 *Y, u64 I, u64 N) { return 1.0f / Hi(Ti, I, N) * (Yi(Y, I+1, N) - Yi(Y, I, N)); }
 inline internal f32 Vi(f32 *Ti, u64 I, u64 N) { return 2.0f * (Hi(Ti, I, N) + Hi(Ti, I+1, N)); }
 inline internal f32 Ui(f32 *Ti, f32 *Y, u64 I, u64 N) { return 6.0f * (Bi(Ti, Y, I+1, N) - Bi(Ti, Y, I, N)); }
 
-function void
+internal void
 CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u64 N)
 {
    if (N == 0) {} // NOTE(hbr): Nothing to calculate
@@ -940,7 +940,7 @@ CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u64 N)
    }
 }
 
-function f32
+internal f32
 CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u64 N)
 {
    f32 Result = 0.0f;
@@ -985,7 +985,7 @@ CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u64 N)
    return Result;
 }
 
-function v2f32
+internal v2f32
 BezierCurveEvaluate(f32 T, v2f32 *P, u64 N)
 {
    temp_arena Temp = TempArena(0);
@@ -1007,7 +1007,7 @@ BezierCurveEvaluate(f32 T, v2f32 *P, u64 N)
    return Result;
 }
 
-function v2f32
+internal v2f32
 BezierWeightedCurveEvaluate(f32 T, v2f32 *P, f32 *W, u64 N)
 {
    temp_arena Temp = TempArena(0);
@@ -1037,7 +1037,7 @@ BezierWeightedCurveEvaluate(f32 T, v2f32 *P, f32 *W, u64 N)
    return Result;
 }
 
-function v2f32
+internal v2f32
 BezierCurveEvaluateFast(f32 T, v2f32 *P, u64 N)
 {
    f32 H = 1.0f;
@@ -1054,7 +1054,7 @@ BezierCurveEvaluateFast(f32 T, v2f32 *P, u64 N)
    return Q;
 }
 
-function v2f32
+internal v2f32
 BezierWeightedCurveEvaluateFast(f32 T, v2f32 *P, f32 *W, u64 N)
 {
    f32 H = 1.0f;
@@ -1071,7 +1071,7 @@ BezierWeightedCurveEvaluateFast(f32 T, v2f32 *P, f32 *W, u64 N)
    return Q;
 }
 
-function void
+internal void
 BezierCurveElevateDegree(v2f32 *P, u64 N)
 {
    if (N >= 1)
@@ -1088,7 +1088,7 @@ BezierCurveElevateDegree(v2f32 *P, u64 N)
    }
 }
 
-function void
+internal void
 BezierWeightedCurveElevateDegree(v2f32 *P, f32 *W, u64 N)
 {
    if (N >= 1)
@@ -1114,7 +1114,7 @@ BezierWeightedCurveElevateDegree(v2f32 *P, f32 *W, u64 N)
    }
 }
 
-function bezier_lower_degree
+internal bezier_lower_degree
 BezierCurveLowerDegree(v2f32 *P, u64 N)
 {
    bezier_lower_degree Result = {};
@@ -1161,7 +1161,7 @@ BezierCurveLowerDegree(v2f32 *P, u64 N)
 #if 1
 
 // NOTE(hbr): Optimized, O(1) memory version
-function bezier_lower_degree
+internal bezier_lower_degree
 BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
 {
    bezier_lower_degree Result = {};
@@ -1237,7 +1237,7 @@ BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
 #else
 
 // NOTE(hbr): Non-optimzed, O(N) memory version for reference
-function void
+internal void
 BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
 {
    if (N >= 1)
@@ -1310,7 +1310,7 @@ BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
 #endif
 
 // TODO(hbr): Refactor
-function void
+internal void
 BezierCubicCalculateAllControlPoints(v2f32 *P, u64 N, v2f32 *Output)
 {
    if (N > 0)
@@ -1383,7 +1383,7 @@ BezierCubicCalculateAllControlPoints(v2f32 *P, u64 N, v2f32 *Output)
    }
 }
 
-function void
+internal void
 BezierCurveSplit(f32 T, v2f32 *P, f32 *W, u64 N,
                  v2f32 *LeftControlPoints, f32 *LeftControlPointWeights,
                  v2f32 *RightControlPoints, f32 *RightControlPointWeights)
@@ -1412,7 +1412,7 @@ BezierCurveSplit(f32 T, v2f32 *P, f32 *W, u64 N,
    EndTemp(Temp);
 }
 
-function void
+internal void
 DeCasteljauAlgorithm(f32 T, v2f32 *P, f32 *W, u64 N,
                      v2f32 *OutputP, f32 *OutputW)
 {
@@ -1441,7 +1441,7 @@ DeCasteljauAlgorithm(f32 T, v2f32 *P, f32 *W, u64 N,
    }
 }
 
-function void
+internal void
 GaussianElimination(f32 *A, u64 N, f32 *Solution)
 {
    temp_arena Temp = TempArena(0);
@@ -1504,7 +1504,7 @@ GaussianElimination(f32 *A, u64 N, f32 *Solution)
    EndTemp(Temp);
 }
 
-function b32
+internal b32
 PointCollision(v2f32 Position, v2f32 Point, f32 PointRadius)
 {
    v2f32 Delta = Position - Point;
@@ -1513,7 +1513,7 @@ PointCollision(v2f32 Position, v2f32 Point, f32 PointRadius)
    return Collision;
 }
 
-function b32
+internal b32
 SegmentCollision(v2f32 Position,
                  v2f32 LineA, v2f32 LineB, f32 LineWidth)
 {
@@ -1578,7 +1578,7 @@ SegmentCollision(v2f32 Position,
    return Result;
 }
 
-function line_intersection
+internal line_intersection
 LineIntersection(v2f32 A, v2f32 B, v2f32 C, v2f32 D)
 {
    line_intersection Result = {};

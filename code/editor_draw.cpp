@@ -1,4 +1,4 @@
-function void
+internal void
 DrawCircle(v2f32 Position, f32 Radius,
            color Color, sf::Transform Transform,
            sf::RenderWindow *RenderWindow,
@@ -17,7 +17,7 @@ DrawCircle(v2f32 Position, f32 Radius,
    RenderWindow->draw(Circle, Transform);
 }
 
-function void
+internal void
 DrawSquare(v2f32 Position, f32 Side,
            color Color, sf::Transform Transform,
            sf::RenderWindow *RenderWindow)
@@ -26,7 +26,7 @@ DrawSquare(v2f32 Position, f32 Side,
                  Color, Transform, RenderWindow);
 }
 
-function void
+internal void
 DrawRectangle(v2f32 Position, v2f32 Size, rotation_2d Rotation,
               color Color, sf::Transform Transform,
               sf::RenderWindow *RenderWindow)
@@ -42,7 +42,7 @@ DrawRectangle(v2f32 Position, v2f32 Size, rotation_2d Rotation,
    RenderWindow->draw(Rectangle, Transform);
 }
 
-function void
+internal void
 DrawLine(v2f32 BeginPoint, v2f32 EndPoint,
          f32 LineWidth, color Color,
          sf::Transform Transform,
@@ -61,7 +61,7 @@ DrawLine(v2f32 BeginPoint, v2f32 EndPoint,
                  RenderWindow);
 }
 
-function void
+internal void
 DrawTriangle(v2f32 P0, v2f32 P1, v2f32 P2,
              color Color, sf::Transform Transform,
              sf::RenderWindow *Window)

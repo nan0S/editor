@@ -6,7 +6,7 @@ PageSize(void)
    return Info.dwPageSize;
 }
 
-function void *
+internal void *
 VirtualMemoryReserve(u64 Capacity)
 {
    u64 GbSnappedCapacity = Capacity;
@@ -17,13 +17,13 @@ VirtualMemoryReserve(u64 Capacity)
    return Result;
 }
 
-function void
+internal void
 VirtualMemoryRelease(void *Memory, u64 Size)
 {
    VirtualFree(Memory, 0, MEM_RELEASE);
 }
 
-function void
+internal void
 VirtualMemoryCommit(void *Memory, u64 Size)
 {
    u64 PageSnappedSize = Size;
@@ -32,7 +32,7 @@ VirtualMemoryCommit(void *Memory, u64 Size)
    VirtualAlloc(Memory, PageSnappedSize, MEM_COMMIT, PAGE_READWRITE);
 }
 
-function u64
+internal u64
 ReadOSTimerFrequency(void)
 {
 	LARGE_INTEGER Freq;
@@ -40,7 +40,7 @@ ReadOSTimerFrequency(void)
 	return Freq.QuadPart;
 }
 
-function u64
+internal u64
 ReadOSTimer(void)
 {
    LARGE_INTEGER Counter;
@@ -49,10 +49,11 @@ ReadOSTimer(void)
 }
 
 #if 0
-function u64
+internal u64
 OS_OpenFile(string Path)
 {
    temp_arena Temp = TempArena(0);
+   
    
    EndTemp(Temp);
 }

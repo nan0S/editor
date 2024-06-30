@@ -29,8 +29,8 @@
 #define LOG(...)
 #endif
 
-function void Log(char const *Fmt, ...);
-function void ReportError(char const *Fmt, ...);
+internal void Log(char const *Fmt, ...);
+internal void ReportError(char const *Fmt, ...);
 
 /* TODO(hbr):
 Refactors:
@@ -41,7 +41,7 @@ Refactors:
 
 Functionality:
 - fix camera rotating
-- consider changing left mouse button functionality - pressing adds new point which is automatically moved until release
+- consider changing left mouse button internalality - pressing adds new point which is automatically moved until release
 - consider changing the way removing points work - if press and release on the same point then delete, otherwise nothing,
 this would remove necessity of using Are PressPoint and ReleasePoints close
 
@@ -80,27 +80,27 @@ TODOs:
 - replace string with ptr and size struct
 - maybe rename EntityDestroy, in general consider using Allocate/Deallocate maybe or Make/Destroy, or something consistent more, just think about it
 - in general do a pass on variable names, make them less descriptive, like [EditorParams], [EditorState], [ChckecCollisionWithFlags], ...
-- when returning named type from function like [added_point_index], include 64 in the name, and don't use this name at call sites, just variable name will do
+- when returning named type from internal like [added_point_index], include 64 in the name, and don't use this name at call sites, just variable name will do
 - is [CurveRecompute] really needed after every operation to curve like [Append] or [Insert], can't just set the flag instead
 - replace [Assert(false]] with InvalidPath or something like that, and add [InvalidPath] to [base.h]
-- when passing [curve] to a function but as [entity], maybe write a macro that gets [curve] from that [entity] but asserts that it really is a curve
+- when passing [curve] to a internal but as [entity], maybe write a macro that gets [curve] from that [entity] but asserts that it really is a curve
 - get rid of defer and templates
-- get rid of [MemoryZero] in all initialization functions?
+- get rid of [MemoryZero] in all initialization internals?
 - replace printf
 - replace imgui
 - replace sfml
-- rename functions to more natural language, don't follow those stupid conventions
+- rename internals to more natural language, don't follow those stupid conventions
 - [splitting_curve_point] and similar shouldn't have [IsSplitting] maybe, just some pointer to identify whether this is happening
 - implement [NotImplemented]
 - make sure window resizing works correctly
  - when initializing entities, image and curve, I use [MemoryZero] a lot, maybe just assume that memory is zeroed already
 - use "Count" instead of "Num"
 - be careful when calling [SetCurveControlPoints] when it comes to whether points are in world or local space
-- probably allocate things like arena in [editor_state], don't pass them into [Make] function, because they are probably not used outside of this function, probably do it to other functions as well
+- probably allocate things like arena in [editor_state], don't pass them into [Make] internal, because they are probably not used outside of this internal, probably do it to other internals as well
 - go pass through the whole source code and shorten variable names dramatically
 - rename "Copy" button into "Duplicate"
 - pressing Tab hides all the ui
-- do a pass over functions that are called just 1 time and maybe inline them
+- do a pass over internals that are called just 1 time and maybe inline them
 
 DONE:
 - fix convex hull line width problem
@@ -119,7 +119,7 @@ DONE:
 - rotating camera
 - semi-transparent circle when rotating with mouse
 - rotation indicator is too big when zooming in camera
-- move functions to their corresponding struct definitions
+- move internals to their corresponding struct definitions
 - notification system
 - better notifications and error messages
 - update TODO comments

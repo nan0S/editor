@@ -1,29 +1,29 @@
-function void *
+internal void *
 VirtualMemoryReserve(u64 Capacity)
 {
    void *Result = mmap(0, Capacity, PROT_NONE, MAP_ANON|MAP_PRIVATE, -1, 0);
    return Result;
 }
 
-function void
+internal void
 VirtualMemoryCommit(void *Memory, u64 Size)
 {
    mprotect(Memory, Size, PROT_READ|PROT_WRITE);
 }
 
-function void
+internal void
 VirtualMemoryRelease(void *Memory, u64 Size)
 {
    munmap(Memory, Size);
 }
 
-function u64
+internal u64
 ReadOSTimerFrequency(void)
 {
    return 1000000;
 }
 
-function u64
+internal u64
 ReadOSTimer(void)
 {
    struct timeval Time;

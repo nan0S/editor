@@ -2,7 +2,7 @@
 
 mkdir -p build
 
-COMMON_COMPILER_FLAGS='-I./code -I./code/third_party/sfml/include -I./code/third_party/imgui -Wall -Wextra -Wno-unused-function -Wno-unused-variable -Wno-unused-parameter'
+COMMON_COMPILER_FLAGS='-I./code -I./code/third_party/sfml/include -I./code/third_party/imgui -Wall -Wextra -Wno-unused-internal -Wno-unused-variable -Wno-unused-parameter'
 COMMON_DEBUG_COMPILER_FLAGS="-O0 -DBUILD_DEBUG=1 -ggdb -fno-omit-frame-pointer $COMMON_COMPILER_FLAGS"
 COMMON_RELEASE_COMPILER_FLAGS="-O3 -DBUILD_DEBUG=0 $COMMON_COMPILER_FLAGS"
 COMMON_LINKER_FLAGS='-L./code/third_party/sfml/lib -Wl,-rpath,''$ORIGIN/../code/third_party/sfml/lib'' -lsfml-graphics -lsfml-window -lsfml-system -lGL'

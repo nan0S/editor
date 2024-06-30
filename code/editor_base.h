@@ -82,25 +82,28 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #if !defined(COMPILER_CLANG)
 # define COMPILER_CLANG 0
 #endif
-
 #if !defined(BUILD_DEBUG)
 # define BUILD_DEBUG 0
 #endif
 
-#define function static
 #define internal static
-#define local static
-#define global static
+#define local    static
+#define global   static
 
 #if OS_WINDOWS
 # pragma section(".roglob", read)
 # define read_only __declspec(allocate(".roglob"))
-# define thread_local __declspec(thread)
+#elif (OS_LINUX && COMPILER_CLANG)
+# define read_only __attribute__((section(".rodata")))
+#else
+# define read_only
 #endif
 
+#if OS_WINDOWS
+# define thread_local __declspec(thread)
+#endif
 #if OS_LINUX
 # define thread_local __thread
-// TODO(hbr): read_only for Linux?
 #endif
 
 #define Bytes(N)      (((u64)(N)) << 0)
@@ -258,16 +261,16 @@ struct temp_arena
 #define PushArrayNonZero(Arena, Count, Type) (Type *)PushSizeNonZero(Arena, (Count) * SizeOf(Type))
 #define PopArray(Arena, Count, Type) PopSize(Arena, (Count) * SizeOf(Type))
 
-function arena *AllocateArena(u64 Capacity);
-function void FreeArena(arena *Arena);
-function void ArenaGrowUnaligned(arena *Arena, u64 Grow);
-function void *PushSize(arena *Arena, u64 Size);
-function void *PushSizeNonZero(arena *Arena, u64 Size);
-function void PopSize(arena *Arena, u64 Size);
-function void ClearArena(arena *Arena);
+internal arena *AllocateArena(u64 Capacity);
+internal void FreeArena(arena *Arena);
+internal void ArenaGrowUnaligned(arena *Arena, u64 Grow);
+internal void *PushSize(arena *Arena, u64 Size);
+internal void *PushSizeNonZero(arena *Arena, u64 Size);
+internal void PopSize(arena *Arena, u64 Size);
+internal void ClearArena(arena *Arena);
 
-function temp_arena BeginTemp(arena *Conflict);
-function void EndTemp(temp_arena Temp);
+internal temp_arena BeginTemp(arena *Conflict);
+internal void EndTemp(temp_arena Temp);
 
 struct pool_node
 {
@@ -280,10 +283,10 @@ struct pool
    u64 ChunkSize;
    pool_node *FreeNode;
 };
-function pool *AllocatePool(u64 Capacity, u64 ChunkSize, u64 Align);
-function void FreePool(pool *Pool);
-function void *AllocateChunk(pool *Pool);
-function void ReleaseChunk(pool *Pool, void *Chunk);
+internal pool *AllocatePool(u64 Capacity, u64 ChunkSize, u64 Align);
+internal void FreePool(pool *Pool);
+internal void *AllocateChunk(pool *Pool);
+internal void ReleaseChunk(pool *Pool, void *Chunk);
 
 #define AllocatePoolForType(Capacity, Type) AllocatePool(Capacity, SizeOf(Type), AlignOf(Type))
 // TODO(hbr): Checking that SizeOf(Type) and aligof(Type) equal Pool->ChunkSize
@@ -293,11 +296,11 @@ function void ReleaseChunk(pool *Pool, void *Chunk);
 
 struct heap_allocator {};
 
-function heap_allocator *HeapAllocator(void);
-function void *HeapAllocSize(heap_allocator *Heap, u64 Size);
-function void *HeapAllocSizeNonZero(heap_allocator *Heap, u64 Size);
-function void *HeapReallocSize(heap_allocator *Heap, void *Memory, u64 NewSize);
-function void HeapFree(heap_allocator *Heap, void *Pointer);
+internal heap_allocator *HeapAllocator(void);
+internal void *HeapAllocSize(heap_allocator *Heap, u64 Size);
+internal void *HeapAllocSizeNonZero(heap_allocator *Heap, u64 Size);
+internal void *HeapReallocSize(heap_allocator *Heap, void *Memory, u64 NewSize);
+internal void HeapFree(heap_allocator *Heap, void *Pointer);
 
 #define HeapAllocStruct(Heap, Type) Cast(Type *)HeapAllocSize(Heap, SizeOf(Type))
 #define HeapAllocStructNonZero(Heap, Type) Cast(Type *)HeapAllocSizeNonZero(Heap, SizeOf(Type))
@@ -310,12 +313,12 @@ typedef struct
    arena *Arenas[2];
 } thread_ctx;
 
-function void InitThreadCtx(u64 PerArenaCapacity);
-function temp_arena TempArena(arena *Conflict);
+internal void InitThreadCtx(u64 PerArenaCapacity);
+internal temp_arena TempArena(arena *Conflict);
 
 //- format
-function u64 Fmt(u64 BufSize, char *Buf, char const *Format, ...);
-function u64 FmtV(u64 BufSize, char *Buf, char const *Format, va_list Args);
+internal u64 Fmt(u64 BufSize, char *Buf, char const *Format, ...);
+internal u64 FmtV(u64 BufSize, char *Buf, char const *Format, va_list Args);
 
 //- strings
 struct string
@@ -326,25 +329,25 @@ struct string
 typedef string error_string;
 
 // NOTE(hbr): Allocates on heap
-function string Str(char const *String, u64 Count);
-function string Str(arena *Arena, char const *String, u64 Count);
-function string StrC(arena *Arena, char const *String);
-function string StrF(arena *Arena, char const *Fmt, ...);
-function string StrFV(arena *Arena, char const *Fmt, va_list Args);
-function void FreeStr(string *String);
-function u64 CStrLength(char const *String);
-function string DuplicateStr(arena *Arena, string String);
-function string DuplicateStr(string String);
-function b32 AreStringsEqual(string A, string B);
-function void RemoveExtension(string *Path);
-function b32 HasSuffix(string String, string Suffix);
-function string StringChopFileNameWithoutExtension(arena *Arena, string String);
-function string Substr(arena *Arena, string String, u64 FromInclusive, u64 ToExclusive);
-function b32 IsValid(string String);
-function b32 IsError(error_string String);
+internal string Str(char const *String, u64 Count);
+internal string Str(arena *Arena, char const *String, u64 Count);
+internal string StrC(arena *Arena, char const *String);
+internal string StrF(arena *Arena, char const *Fmt, ...);
+internal string StrFV(arena *Arena, char const *Fmt, va_list Args);
+internal void FreeStr(string *String);
+internal u64 CStrLength(char const *String);
+internal string DuplicateStr(arena *Arena, string String);
+internal string DuplicateStr(string String);
+internal b32 AreStringsEqual(string A, string B);
+internal void RemoveExtension(string *Path);
+internal b32 HasSuffix(string String, string Suffix);
+internal string StringChopFileNameWithoutExtension(arena *Arena, string String);
+internal string Substr(arena *Arena, string String, u64 FromInclusive, u64 ToExclusive);
+internal b32 IsValid(string String);
+internal b32 IsError(error_string String);
 
-function char ToUpper(char C);
-function b32 IsDigit(char C);
+internal char ToUpper(char C);
+internal b32 IsDigit(char C);
 
 #define StrLit(Lit) Str(Lit, ArrayCount(Lit)-1)
 #define StrLitArena(Arena, Lit) Str(Arena, Lit, ArrayCount(Lit)-1)
@@ -364,6 +367,6 @@ struct string_list
    u64 TotalSize;
 };
 
-function void StringListPush(arena *Arena, string_list *List, string String);
+internal void StringListPush(arena *Arena, string_list *List, string String);
 
 #endif //EDITOR_BASE_H

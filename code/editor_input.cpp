@@ -19,7 +19,7 @@ KeyFromSFMLKeyCode(sf::Keyboard::Key KeyCode)
    return Key_Count;
 }
 
-function void
+internal void
 HandleEvents(sf::RenderWindow *Window, user_input *UserInput)
 {
    TimeFunction;

@@ -1,11 +1,11 @@
-function void
+internal void
 CameraSetZoom(camera *Camera, f32 Zoom)
 {
    Camera->Zoom = Zoom;
    Camera->ReachingTarget = false;
 }
 
-function void
+internal void
 CameraUpdate(camera *Camera, f32 MouseWheelDelta, f32 DeltaTime)
 {
    if (MouseWheelDelta != 0.0f)
@@ -29,21 +29,21 @@ CameraUpdate(camera *Camera, f32 MouseWheelDelta, f32 DeltaTime)
    }
 }
 
-function void
+internal void
 CameraMove(camera *Camera, v2f32 Translation)
 {
    Camera->Position += Translation;
    Camera->ReachingTarget = false;
 }
 
-function void
+internal void
 CameraRotate(camera *Camera, rotation_2d Rotation)
 {
    Camera->Rotation = CombineRotations2D(Camera->Rotation, Rotation);
    Camera->ReachingTarget = false;
 }
 
-function world_position
+internal world_position
 CameraToWorldSpace(camera_position Position, coordinate_system_data Data)
 {
    v2f32 Rotated = RotateAround(Position,
@@ -56,7 +56,7 @@ CameraToWorldSpace(camera_position Position, coordinate_system_data Data)
    return WorldPosition;
 }
 
-function camera_position
+internal camera_position
 WorldToCameraSpace(world_position Position, coordinate_system_data Data)
 {
    v2f32 Translated = Position - Data.Camera.Position;
@@ -69,7 +69,7 @@ WorldToCameraSpace(world_position Position, coordinate_system_data Data)
    return CameraPosition;
 }
 
-function camera_position
+internal camera_position
 ScreenToCameraSpace(screen_position Position, coordinate_system_data Data)
 {
    v2f32 ClipPosition = V2F32FromVec(Data.Window->mapPixelToCoords(V2S32ToVector2i(Position)));
@@ -82,7 +82,7 @@ ScreenToCameraSpace(screen_position Position, coordinate_system_data Data)
    return CameraPosition;
 }
 
-function world_position
+internal world_position
 ScreenToWorldSpace(screen_position Position, coordinate_system_data Data)
 {
    camera_position CameraPosition = ScreenToCameraSpace(Position, Data);
@@ -91,7 +91,7 @@ ScreenToWorldSpace(screen_position Position, coordinate_system_data Data)
    return WorldPosition;
 }
 
-function f32
+internal f32
 ClipSpaceLengthToWorldSpace(f32 ClipSpaceDistance, coordinate_system_data Data)
 {
    f32 CameraSpaceDistance = ClipSpaceDistance * 0.5f * Data.Projection.FrustumSize;
@@ -100,7 +100,7 @@ ClipSpaceLengthToWorldSpace(f32 ClipSpaceDistance, coordinate_system_data Data)
    return WorldSpaceDistance;
 }
 
-function collision
+internal collision
 CheckCollisionWith(entity *Entities,
                    world_position CheckPosition,
                    f32 CollisionTolerance,
@@ -261,7 +261,7 @@ CheckCollisionWith(entity *Entities,
    return Result;
 }
 
-function editor_mode
+internal editor_mode
 EditorModeNormal(void)
 {
    editor_mode Result = {};
@@ -270,7 +270,7 @@ EditorModeNormal(void)
    return Result;
 }
 
-function f32
+internal f32
 CalculateAnimation(animation_type Animation, f32 T)
 {
    Assert(0.0f <= T && T <= 1.0f);
@@ -297,7 +297,7 @@ CalculateAnimation(animation_type Animation, f32 T)
    return Result;
 }
 
-function char const *
+internal char const *
 AnimationToString(animation_type Animation)
 {
    switch (Animation)
@@ -310,7 +310,7 @@ AnimationToString(animation_type Animation)
    return "invalid";
 }
 
-function editor_state
+internal editor_state
 CreateEditorState(pool *EntityPool,
                   u64 CurveCounter, camera Camera,
                   arena *DeCasteljauVisualizationArena,
@@ -332,7 +332,7 @@ CreateEditorState(pool *EntityPool,
    return Result;
 }
 
-function editor_state
+internal editor_state
 CreateDefaultEditorState(pool *EntityPool,
                          arena *DeCasteljauVisualizationArena,
                          arena *DegreeLoweringArena,
@@ -357,7 +357,7 @@ CreateDefaultEditorState(pool *EntityPool,
    return Result;
 }
 
-function void
+internal void
 DestroyEditorState(editor_state *EditorState)
 {
    ListIter(Entity, EditorState->EntitiesHead, entity)
@@ -370,7 +370,7 @@ DestroyEditorState(editor_state *EditorState)
    EditorState->NumEntities = 0;
 }
 
-function entity *
+internal entity *
 AllocateAndAddEntity(editor_state *State)
 {
    entity *Entity = PoolAllocStructNonZero(State->EntityPool, entity);
@@ -384,7 +384,7 @@ AllocateAndAddEntity(editor_state *State)
    return Entity;
 }
 
-function void
+internal void
 DeallocateAndRemoveEntity(editor_state *State, entity *Entity)
 {
    if (State->SplittingBezierCurve.IsSplitting &&
@@ -429,7 +429,7 @@ DeallocateAndRemoveEntity(editor_state *State, entity *Entity)
    ReleaseChunk(State->EntityPool, Entity);
 }
 
-function void
+internal void
 DeselectCurrentEntity(editor_state *State)
 {
    entity *Entity = State->SelectedEntity;
@@ -440,7 +440,7 @@ DeselectCurrentEntity(editor_state *State)
    State->SelectedEntity = 0;
 }
 
-function void
+internal void
 SelectEntity(editor_state *State, entity *Entity)
 {
    if (State->SelectedEntity)
@@ -454,7 +454,7 @@ SelectEntity(editor_state *State, entity *Entity)
    State->SelectedEntity = Entity;
 }
 
-function notification
+internal notification
 CreateNotification(string Title, color TitleColor, string Text, f32 PosY)
 {
    notification Result = {};
@@ -470,14 +470,14 @@ CreateNotification(string Title, color TitleColor, string Text, f32 PosY)
    return Result;
 }
 
-function void
+internal void
 DestroyNotification(notification *Notification)
 {
    FreeStr(&Notification->Title);
    FreeStr(&Notification->Text);
 }
 
-function void
+internal void
 AddNotificationF(notifications *Notifs, notification_type Type, char const *Fmt, ...)
 {
    va_list Args;
@@ -529,7 +529,7 @@ AddNotificationF(notifications *Notifs, notification_type Type, char const *Fmt,
    }
 }
 
-function void
+internal void
 EditorSetSaveProjectPath(editor *Editor,
                          save_project_format SaveProjectFormat,
                          string SaveProjectFilePath)
@@ -695,7 +695,7 @@ CreateMovingCurvePointMode(entity *CurveEntity,
    return Result;
 }
 
-// TODO(hbr): Merge [RotatingCurve] with [RotatingImage] functions (at least)
+// TODO(hbr): Merge [RotatingCurve] with [RotatingImage] internals (at least)
 internal editor_mode
 CreateRotatingCurveMode(entity *CurveEntity, screen_position RotationCenter)
 {
@@ -1577,7 +1577,7 @@ EnumComboUI(char const *Label,
    return Result;
 }
 
-// NOTE(hbr): This should really be some highly local function, don't expect to reuse.
+// NOTE(hbr): This should really be some highly local internal, don't expect to reuse.
 // It's highly specific.
 internal bool
 ResetContextMenuItemSelected(char const *PopupLabel)
@@ -1597,7 +1597,7 @@ ResetContextMenuItemSelected(char const *PopupLabel)
    return ResetSelected;
 }
 
-// NOTE(hbr): This should really be some highly local function, don't expect to reuse.
+// NOTE(hbr): This should really be some highly local internal, don't expect to reuse.
 // It's highly specific.
 struct drag_speed_and_format
 {
@@ -2551,7 +2551,7 @@ SplitCurveOnControlPoint(entity *CurveEntity, editor_state *EditorState)
               3 * NumRightControlPoints * SizeOf(RightControlPoints[0]));
    
    // TODO(hbr): Optimize to not do so many copies and allocations
-   // TODO(hbr): Maybe mint functions that create duplicate curve but without allocating and with allocating.
+   // TODO(hbr): Maybe mint internals that create duplicate curve but without allocating and with allocating.
    entity *LeftCurveEntity = CurveEntity;
    LeftCurveEntity->Name = NameStrF("%s (left)", CurveEntity->Name.Data);
    CurveSetControlPoints(&LeftCurveEntity->Curve, NumLeftControlPoints, LeftControlPoints,
@@ -2566,7 +2566,7 @@ SplitCurveOnControlPoint(entity *CurveEntity, editor_state *EditorState)
    EndTemp(Temp);
 }
 
-// TODO(hbr): Do a pass oveer this function to simplify the logic maybe (and simplify how the UI looks like in real life)
+// TODO(hbr): Do a pass oveer this internal to simplify the logic maybe (and simplify how the UI looks like in real life)
 // TODO(hbr): Maybe also shorten some labels used to pass to ImGUI
 internal void
 RenderSelectedEntityUI(editor *Editor, coordinate_system_data CoordinateSystemData)
@@ -4001,7 +4001,7 @@ UpdateAndRenderSplittingBezierCurve(editor *Editor,
       // TODO(hbr): Optimize here not to do so many copies, maybe merge with split on control point code
       // TODO(hbr): Isn't this similar to split on curve point
       // TODO(hbr): Maybe remove this duplication of initialzation, maybe not?
-      // TODO(hbr): Refactor that code into common function that splits curve into two curves
+      // TODO(hbr): Refactor that code into common internal that splits curve into two curves
       entity *LeftCurveEntity = CurveEntity;
       LeftCurveEntity->Name = NameStrF("%s (left)", LeftCurveEntity->Name.Data);
       CurveSetControlPoints(&LeftCurveEntity->Curve,
@@ -4383,7 +4383,7 @@ UpdateAnimateCurveAnimation(editor *Editor, f32 DeltaTime, sf::Transform Transfo
                   {
                      if (Entity != Animation->FromCurveEntity)
                      {
-                        // TODO(hbr): Do a pass over this whole function, [Selected] should not be initialized like this
+                        // TODO(hbr): Do a pass over this whole internal, [Selected] should not be initialized like this
                         b32 Selected = (Animation->ToCurveEntity == Entity);
                         if (ImGui::Selectable(Entity->Name.Data, Selected))
                         {
@@ -4841,7 +4841,7 @@ UpdateAndRenderCurveCombining(editor *Editor, sf::Transform Transform)
                      if (Entity != Combining->CombineCurveEntity &&
                          AreCurvesCompatibleForCombining(&Combining->CombineCurveEntity->Curve, Curve))
                      {
-                        // TODO(hbr): Revise this whole function
+                        // TODO(hbr): Revise this whole internal
                         b32 Selected = (Entity == Combining->TargetCurveEntity);
                         if (ImGui::Selectable(Entity->Name.Data, Selected))
                         {
@@ -5140,7 +5140,7 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, coordinate_system_data Co
    EndTemp(Temp);
 }
 
-function void
+internal void
 UpdateAndRender(f32 DeltaTime, user_input UserInput, editor *Editor)
 {
    TimeFunction;

@@ -116,7 +116,7 @@ SavedProjectEntity(entity *Entity)
 }
 
 // TODO(hbr): Take more things by pointer in general
-function error_string
+internal error_string
 SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath)
 {
    temp_arena Temp = TempArena(Arena);
@@ -191,7 +191,7 @@ ExpectSizeInData(u64 Expected, void **Data, u64 *BytesLeft)
 #define ExpectArrayInData(Count, Type, Data, BytesLeft) Cast(Type *)ExpectSizeInData((Count) * SizeOf(Type), Data, BytesLeft)
 
 // TODO(hbr): Error doesn't have to be so specific, maybe just "project file is corrupted or something like that"
-function load_project_result
+internal load_project_result
 LoadProjectFromFile(arena *Arena,
                     string ProjectFilePath,
                     pool *EntityPool,

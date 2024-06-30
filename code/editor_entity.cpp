@@ -2,7 +2,7 @@
 #if 0
 
 //- Curve
-function curve
+internal curve
 CurveMake(name_string CurveName,
           curve_params CurveParams,
           u64 SelectedControlPointIndex,
@@ -19,7 +19,7 @@ CurveMake(name_string CurveName,
    return Result;
 }
 
-function curve
+internal curve
 CurveCopy(curve Curve)
 {
    curve Copy = CurveMake(Curve.Name,
@@ -425,7 +425,7 @@ CalculateNewLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
 #endif
 
 //- Image
-function image
+internal image
 ImageMake(name_string Name, world_position Position,
           v2f32 Scale, rotation_2d Rotation,
           s64 SortingLayer, b32 Hidden,
@@ -444,7 +444,7 @@ ImageMake(name_string Name, world_position Position,
    return Result;
 }
 
-function sf::Texture
+internal sf::Texture
 LoadTextureFromFile(arena *Arena, string FilePath, error_string *OutError)
 {
    sf::Texture Texture;
@@ -474,7 +474,7 @@ LoadTextureFromFile(arena *Arena, string FilePath, error_string *OutError)
    return Texture;
 }
 
-function image
+internal image
 ImageCopy(image Image)
 {
    image Result = ImageMake(Image.Name, Image.Position,
@@ -485,7 +485,7 @@ ImageCopy(image Image)
    return Result;
 }
 
-function entity
+internal entity
 CurveEntity(curve Curve)
 {
    entity Result = {};
@@ -495,7 +495,7 @@ CurveEntity(curve Curve)
    return Result;
 }
 
-function entity
+internal entity
 ImageEntity(image Image)
 {
    entity Result = {};
@@ -505,7 +505,7 @@ ImageEntity(image Image)
    return Result;
 }
 
-function void
+internal void
 EntityDestroy(entity *Entity)
 {
    switch (Entity->Type)

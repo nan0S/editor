@@ -7,10 +7,10 @@ struct name_string
    u64 Count;
 };
 
-function name_string NameStr(char *Data, u64 Count);
-function name_string StrToNameStr(string String);
+internal name_string NameStr(char *Data, u64 Count);
+internal name_string StrToNameStr(string String);
 #define NameStrLit(Literal) NameStr(Cast(char *)Literal, ArrayCount(Literal) - 1)
-function name_string NameStrF(char const *Fmt, ...);
+internal name_string NameStrF(char const *Fmt, ...);
 
 enum interpolation_type
 {
@@ -150,7 +150,7 @@ struct entity
    image Image;
 };
 
-function void
+internal void
 ImageInit(image *Image, string ImagePath, sf::Texture *Texture)
 {
    // NOTE(hbr): This is only because of C++ ugliness
@@ -158,8 +158,8 @@ ImageInit(image *Image, string ImagePath, sf::Texture *Texture)
    Image->FilePath = DuplicateStr(ImagePath);
 }
 
-// TODO(hbr): I'm not sure if this function belongs here, in this file
-function sf::Texture
+// TODO(hbr): I'm not sure if this internal belongs here, in this file
+internal sf::Texture
 LoadTextureFromFile(arena *Arena, string FilePath, error_string *OutError)
 {
    sf::Texture Texture;
@@ -449,9 +449,9 @@ CurveIsLooped(curve_shape CurveShape)
 }
 
 // TODO(hbr): Remove this, why the heck this is necessary?!!!
-function void ChebyshevPoints(f32 *Ti, u64 N);
+internal void ChebyshevPoints(f32 *Ti, u64 N);
 
-function void
+internal void
 CurveEvaluate(curve *Curve, u64 NumOutputCurvePoints, v2f32 *OutputCurvePoints)
 {
    temp_arena Temp = TempArena(0);
@@ -526,7 +526,7 @@ CurveEvaluate(curve *Curve, u64 NumOutputCurvePoints, v2f32 *OutputCurvePoints)
    EndTemp(Temp);
 }
 
-function void
+internal void
 CurveRecompute(curve *Curve)
 {
    TimeFunction;
@@ -588,7 +588,7 @@ CurveRecompute(curve *Curve)
    EndTemp(Temp);
 }
 
-function void
+internal void
 CurveSetControlPoints(curve *Curve, u64 NewNumControlPoints,
                       local_position *NewControlPoints,
                       f32 *NewControlPointWeights,
@@ -609,20 +609,20 @@ CurveSetControlPoints(curve *Curve, u64 NewNumControlPoints,
               3 * NewNumControlPoints * SizeOf(Curve->CubicBezierPoints[0]));
    
    Curve->NumControlPoints = NewNumControlPoints;
-   // TODO(hbr): Make sure this is expected, maybe add to function arguments
+   // TODO(hbr): Make sure this is expected, maybe add to internal arguments
    Curve->SelectedControlPointIndex = U64_MAX;
    
    CurveRecompute(Curve);
 }
 
-function local_position
+internal local_position
 WorldToLocalEntityPosition(entity *Entity, world_position Position)
 {
    local_position Result = RotateAround(Position - Entity->Position, V2F32(0.0f, 0.0f), Rotation2DInverse(Entity->Rotation));
    return Result;
 }
 
-function world_position
+internal world_position
 LocalEntityPositionToWorld(entity *Entity, local_position Position)
 {
    world_position Result = RotateAround(Position, V2F32(0.0f, 0.0f), Entity->Rotation) + Entity->Position;
@@ -631,7 +631,7 @@ LocalEntityPositionToWorld(entity *Entity, local_position Position)
 
 // TODO(hbr): Probably just implement Append in terms of insert instead of making append special case of insert
 typedef u64 added_point_index_u64;
-function added_point_index_u64
+internal added_point_index_u64
 CurveAppendControlPoint(entity *CurveEntity,
                         world_position ControlPoint,
                         f32 ControlPointWeight)
@@ -728,7 +728,7 @@ CurveAppendControlPoint(entity *CurveEntity,
    return NumControlPoints;
 }
 
-function void
+internal void
 CurveInsertControlPoint(entity *CurveEntity,
                         world_position ControlPoint,
                         u64 InsertAfterIndex,
@@ -780,7 +780,7 @@ CurveInsertControlPoint(entity *CurveEntity,
    }
 }
 
-function void
+internal void
 CurveRemoveControlPoint(curve *Curve, u64 ControlPointIndex)
 {
    u64 NumControlPoints = Curve->NumControlPoints;
@@ -822,7 +822,7 @@ TranslateLocalCurvePositionInWorldSpace(entity *Entity, local_position Local, v2
    return Result;
 }
 
-function void
+internal void
 CurveSetControlPoint(curve *Curve, u64 ControlPointIndex, local_position ControlPoint,
                      f32 ControlPointWeight)
 {
@@ -841,7 +841,7 @@ CurveSetControlPoint(curve *Curve, u64 ControlPointIndex, local_position Control
    CurveRecompute(Curve);
 }
 
-function void
+internal void
 CurveTranslatePoint(entity *CurveEntity, u64 PointIndex, b32 IsCubicBezierPoint,
                     b32 MatchCubicBezierTwinDirection, b32 MatchCubicBezierTwinLength,
                     v2f32 TranslationWorld)
@@ -899,15 +899,15 @@ CurveTranslatePoint(entity *CurveEntity, u64 PointIndex, b32 IsCubicBezierPoint,
    }
 }
 
-// TODO(hbr): Rename this function and also maybe others to [EntityRotateAround] because it's not [curve] specific.
-function void
+// TODO(hbr): Rename this internal and also maybe others to [EntityRotateAround] because it's not [curve] specific.
+internal void
 CurveRotateAround(entity *CurveEntity, world_position Center, rotation_2d Rotation)
 {
    CurveEntity->Position = RotateAround(CurveEntity->Position, Center, Rotation);
    CurveEntity->Rotation = CombineRotations2D(CurveEntity->Rotation, Rotation);
 }
 
-function curve_params
+internal curve_params
 CurveParamsMake(curve_shape CurveShape,
                 f32 CurveWidth, color CurveColor,
                 b32 PointsDisabled, f32 PointSize,
@@ -938,7 +938,7 @@ CurveParamsMake(curve_shape CurveShape,
    return Result;
 }
 
-function curve_shape
+internal curve_shape
 CurveShapeMake(interpolation_type InterpolationType,
                polynomial_interpolation_type PolynomialInterpolationType,
                points_arrangement PointsArrangement,
@@ -955,7 +955,7 @@ CurveShapeMake(interpolation_type InterpolationType,
    return Result;
 }
 
-function void
+internal void
 InitCurve(curve *Curve,
           curve_params CurveParams, u64 SelectedControlPointIndex,
           u64 NumControlPoints,
@@ -967,14 +967,14 @@ InitCurve(curve *Curve,
    Curve->SelectedControlPointIndex = SelectedControlPointIndex;
 }
 
-function void
+internal void
 InitImage(image *Image, string ImageFilePath, sf::Texture *Texture)
 {
    Image->FilePath = DuplicateStr(ImageFilePath);
    new (&Image->Texture) sf::Texture(*Texture);
 }
 
-function void
+internal void
 InitCurveFromCurve(curve *Dst, curve *Src)
 {
    InitCurve(Dst,
@@ -983,7 +983,7 @@ InitCurveFromCurve(curve *Dst, curve *Src)
              Src->ControlPoints, Src->ControlPointWeights, Src->CubicBezierPoints);
 }
 
-function void
+internal void
 InitImageFromImage(image *Dst, image *Src)
 {
    MemoryZero(Dst, SizeOf(*Dst));
@@ -991,7 +991,7 @@ InitImageFromImage(image *Dst, image *Src)
    Dst->FilePath = DuplicateStr(Src->FilePath);
 }
 
-function void
+internal void
 InitEntity(entity *Entity,
            world_position Position, v2f32 Scale, rotation_2d Rotation,
            name_string Name,
@@ -1010,7 +1010,7 @@ InitEntity(entity *Entity,
    Entity->Type = Type;
 }
 
-function void
+internal void
 InitEntityFromEntity(entity *Dest, entity *Src)
 {
    InitEntity(Dest,
@@ -1027,7 +1027,7 @@ InitEntityFromEntity(entity *Dest, entity *Src)
    }
 }
 
-function void
+internal void
 InitCurveEntity(entity *Entity,
                 world_position Position, v2f32 Scale, rotation_2d Rotation,
                 name_string Name,
@@ -1037,7 +1037,7 @@ InitCurveEntity(entity *Entity,
    InitCurve(&Entity->Curve, CurveParams, U64_MAX, 0, 0, 0, 0);
 }
 
-function void
+internal void
 InitImageEntity(entity *Entity,
                 world_position Position, v2f32 Scale, rotation_2d Rotation,
                 name_string Name,
@@ -1050,13 +1050,13 @@ InitImageEntity(entity *Entity,
 }
 
 #if 0
-function curve_shape CurveShapeMake(interpolation_type InterpolationType,
+internal curve_shape CurveShapeMake(interpolation_type InterpolationType,
                                     polynomial_interpolation_type PolynomialInterpolationType,
                                     points_arrangement PointsArrangement,
                                     cubic_spline_type CubicSplineType,
                                     bezier_type BezierType);
 
-function curve_params CurveParamsMake(curve_shape CurveShape,
+internal curve_params CurveParamsMake(curve_shape CurveShape,
                                       f32 CurveWidth, color CurveColor,
                                       b32 PointsDisabled, f32 PointSize, color PointColor,
                                       b32 PolylineEnabled, f32 PolylineWidth, color PolylineColor,
@@ -1064,46 +1064,46 @@ function curve_params CurveParamsMake(curve_shape CurveShape,
                                       u64 NumCurvePointsPerSegment, color DeCasteljauVisualizationGradientA,
                                       color DeCasteljauVisualizationGradientB);
 
-function curve CurveMake(name_string CurveName,
+internal curve CurveMake(name_string CurveName,
                          curve_params CurveParams,
                          u64 SelectedControlPointIndex,
                          world_position Position,
                          rotation_2d Rotation);
-function void CurveDestroy(curve *Curve);
-function curve CurveCopy(curve Curve);
+internal void CurveDestroy(curve *Curve);
+internal curve CurveCopy(curve Curve);
 
 typedef u64 added_point_index;
-function added_point_index CurveAppendControlPoint(curve *Curve, world_position ControlPoint,
+internal added_point_index CurveAppendControlPoint(curve *Curve, world_position ControlPoint,
                                                    f32 ControlPointWeight);
 
-function void CurveInsertControlPoint(curve *Curve, world_position ControlPoint, u64 InsertAfterIndex,
+internal void CurveInsertControlPoint(curve *Curve, world_position ControlPoint, u64 InsertAfterIndex,
                                       f32 ControlPointWeight);
-function void CurveRemoveControlPoint(curve *Curve, u64 ControlPointIndex);
-function void CurveSetControlPoints(curve *Curve, u64 NewNumControlPoints, local_position *NewControlPoints,
+internal void CurveRemoveControlPoint(curve *Curve, u64 ControlPointIndex);
+internal void CurveSetControlPoints(curve *Curve, u64 NewNumControlPoints, local_position *NewControlPoints,
                                     f32 *NewControlPointWeights, local_position *NewCubicBezierPoints);
-function void CurveTranslatePoint(curve *Curve, u64 PointIndex, b32 IsCubicBezierPoint,
+internal void CurveTranslatePoint(curve *Curve, u64 PointIndex, b32 IsCubicBezierPoint,
                                   b32 MatchCubicBezierTwinDirection, b32 MatchCubicBezierTwinLength,
                                   v2f32 TranslationWorld);
-function void CurveSetControlPoint(curve *Curve, u64 ControlPointIndex, local_position ControlPoint,
+internal void CurveSetControlPoint(curve *Curve, u64 ControlPointIndex, local_position ControlPoint,
                                    f32 ControlPointWeight);
-function void CurveRotateAround(curve *Curve, world_position Center, rotation_2d Rotation);
-function void CurveRecompute(curve *Curve);
-function void CurveEvaluate(curve *Curve, u64 NumOutputCurvePoints, v2f32 *OutputCurvePoints);
+internal void CurveRotateAround(curve *Curve, world_position Center, rotation_2d Rotation);
+internal void CurveRecompute(curve *Curve);
+internal void CurveEvaluate(curve *Curve, u64 NumOutputCurvePoints, v2f32 *OutputCurvePoints);
 
-function sf::Transform CurveGetAnimate(curve *Curve);
-function b32 CurveIsLooped(curve_shape CurveShape);
+internal sf::Transform CurveGetAnimate(curve *Curve);
+internal b32 CurveIsLooped(curve_shape CurveShape);
 
-function local_position WorldToLocalCurvePosition(curve *Curve, world_position Position);
-function world_position LocalCurvePositionToWorld(curve *Curve, local_position Position);
+internal local_position WorldToLocalCurvePosition(curve *Curve, world_position Position);
+internal world_position LocalCurvePositionToWorld(curve *Curve, local_position Position);
 
-function image ImageMake(name_string Name, world_position Position,
+internal image ImageMake(name_string Name, world_position Position,
                          v2f32 Scale, rotation_2d Rotation,
                          s64 SoritingLayer, b32 Hidden,
                          string FilePath, sf::Texture Texture);
-function image ImageCopy(image Image);
-function void ImageDestroy(image *Image);
+internal image ImageCopy(image Image);
+internal void ImageDestroy(image *Image);
 
-function sf::Texture LoadTextureFromFile(arena *Arena, string FilePath,
+internal sf::Texture LoadTextureFromFile(arena *Arena, string FilePath,
                                          error_string *OutError);
 
 struct image_sort_entry
@@ -1116,7 +1116,7 @@ struct sorting_layer_sorted_images
    u64 NumImages;
    image_sort_entry *SortedImages;
 };
-function sorting_layer_sorted_images SortingLayerSortedImages(arena *Arena,
+internal sorting_layer_sorted_images SortingLayerSortedImages(arena *Arena,
                                                               u64 NumEntities,
                                                               image *EntityList);
 
@@ -1124,9 +1124,9 @@ function sorting_layer_sorted_images SortingLayerSortedImages(arena *Arena,
 #define EntityFromCurve(CurvePtr) EnclosingTypeAddr(entity, Curve, CurvePtr)
 #define EntityFromImage(ImagePtr) EnclosingTypeAddr(entity, Image, ImagePtr)
 
-function entity CurveEntity(curve Curve);
-function entity ImageEntity(image Image);
-function void EntityDestroy(entity *Entity);
+internal entity CurveEntity(curve Curve);
+internal entity ImageEntity(image Image);
+internal void EntityDestroy(entity *Entity);
 
 #endif
 
@@ -1140,7 +1140,7 @@ struct sorted_entity_array
    u64 EntityCount;
    entity_sort_entry *Entries;
 };
-function sorted_entity_array SortEntitiesBySortingLayer(arena *Arena, entity *Entities);
+internal sorted_entity_array SortEntitiesBySortingLayer(arena *Arena, entity *Entities);
 
 internal int
 EntitySortEntryCmp(entity_sort_entry *A, entity_sort_entry *B)
@@ -1161,7 +1161,7 @@ EntitySortEntryCmp(entity_sort_entry *A, entity_sort_entry *B)
    return Result;
 }
 
-function sorted_entity_array
+internal sorted_entity_array
 SortEntitiesBySortingLayer(arena *Arena, entity *Entities)
 {
    sorted_entity_array Result = {};
@@ -1181,15 +1181,15 @@ SortEntitiesBySortingLayer(arena *Arena, entity *Entities)
       }
    }
    
-   // NOTE(hbr): Compare function makes this sort stable, and we need stable property
+   // NOTE(hbr): Compare internal makes this sort stable, and we need stable property
    QuickSort(Result.Entries, Result.EntityCount, entity_sort_entry, EntitySortEntryCmp);
    
    return Result;
 }
 
-// TODO(hbr): Why the fuck this is the name of this function
-// TODO(hbr): Rewrite this function
-function sf::Transform
+// TODO(hbr): Why the fuck this is the name of this internal
+// TODO(hbr): Rewrite this internal
+internal sf::Transform
 CurveGetAnimate(entity *Curve)
 {
    sf::Transform Result =
@@ -1200,7 +1200,7 @@ CurveGetAnimate(entity *Curve)
    return Result;
 }
 
-function name_string
+internal name_string
 NameStr(char *Data, u64 Count)
 {
    name_string Result = {};
@@ -1213,14 +1213,14 @@ NameStr(char *Data, u64 Count)
    return Result;
 }
 
-function name_string
+internal name_string
 StrToNameStr(string String)
 {
    name_string Result = NameStr(String.Data, String.Count);
    return Result;
 }
 
-function name_string
+internal name_string
 NameStrF(char const *Fmt, ...)
 {
    name_string Result = {};
@@ -1233,7 +1233,7 @@ NameStrF(char const *Fmt, ...)
                              Fmt, Args);
       if (Return >= 0)
       {
-         // TODO(hbr): What the fuck is wrong with this function
+         // TODO(hbr): What the fuck is wrong with this internal
          Result.Count = CStrLength(Result.Data);
       }
    }
@@ -1255,7 +1255,7 @@ ImageFromEntity(entity *Entity)
    return &Entity->Image;
 }
 
-function void
+internal void
 EntityDestroy(entity *Entity)
 {
    switch (Entity->Type)

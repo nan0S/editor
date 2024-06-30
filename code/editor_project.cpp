@@ -120,7 +120,6 @@ function error_string
 SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath)
 {
    temp_arena Temp = TempArena(Arena);
-   defer { EndTemp(Temp); };
    
    string_list SaveData = {};
    
@@ -170,6 +169,8 @@ SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath)
    }
    
    error_string Error = SaveToFile(Arena, SaveFilePath, SaveData);
+   EndTemp(Temp);
+   
    return Error;
 }
 
@@ -208,7 +209,6 @@ LoadProjectFromFile(arena *Arena,
    ui_config *UI_Config = &Result.UI_Config;
    
    temp_arena Temp = TempArena(Arena);
-   defer { EndTemp(Temp); };
    
    error_string ReadError = {};
    file_contents Contents = ReadEntireFile(Temp.Arena, ProjectFilePath, &ReadError);
@@ -346,6 +346,8 @@ LoadProjectFromFile(arena *Arena,
    
    Result.Error = Error;
    Result.Warnings = Warnings;
+   
+   EndTemp(Temp);
    
    return Result;
 }

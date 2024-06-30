@@ -458,7 +458,7 @@ struct ui_config
    b32 ViewProfilerWindow;
 #endif
    
-#if EDITOR_DEBUG
+#if BUILD_DEBUG
    b32 ViewDebugWindow;
 #endif
 };

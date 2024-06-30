@@ -1,9 +1,7 @@
 #if OS_WINDOWS
-#include "editor_windows.cpp"
+# include "editor_windows.cpp"
 #elif OS_LINUX
-#include "editor_linux.cpp"
-#else
-#error OS layer not implemented
+# include "editor_linux.cpp"
 #endif
 
 function u64

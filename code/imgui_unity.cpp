@@ -1,5 +1,5 @@
 #include "third_party/imgui/imgui.cpp"
-#if EDITOR_DEBUG
+#if BUILD_DEBUG
 #include "third_party/imgui/imgui_demo.cpp"
 #endif
 #include "third_party/imgui/imgui_draw.cpp"

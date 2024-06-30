@@ -1,7 +1,6 @@
-#ifndef EDITOR_DEBUG_H
-#define EDITOR_DEBUG_H
+#ifndef BUILD_DEBUG_H
+#define BUILD_DEBUG_H
 
-// TODO(hbr): Move from editor_debug.h
 // TODO(hbr): Refactor to return some kind of struct, not keep calculations inside frame_stats struct
 struct frame_stats
 {
@@ -18,9 +17,12 @@ struct frame_stats
    f32 AvgFrameTime;
 };
 
+// TODO(hbr): get rid of this ugly forward declaration
+struct editor;
+
 function frame_stats CreateFrameStats(void);
 function void        FrameStatsUpdate(frame_stats *Stats, f32 FrameTime);
 
 function void DebugUpdateAndRender(editor *Editor);
 
-#endif //EDITOR_DEBUG_H
+#endif //BUILD_DEBUG_H

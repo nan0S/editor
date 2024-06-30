@@ -1,8 +1,8 @@
 #ifndef EDITOR_PROFILER_H
 #define EDITOR_PROFILER_H
 
-#ifndef EDITOR_PROFILER
-#define EDITOR_PROFILER 0
+#if !defined(EDITOR_PROFILER)
+# define EDITOR_PROFILER 0
 #endif
 
 #if EDITOR_PROFILER

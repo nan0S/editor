@@ -1,7 +1,7 @@
 #ifndef EDITOR_DRAW_H
 #define EDITOR_DRAW_H
 
-#if EDITOR_DEBUG
+#if BUILD_DEBUG
 #define DEBUG_DRAW_POINT(Position, Animate, RenderWindow) \
 DrawCircle(Position, 0.01f, ColorMake(255, 10, 143), Animate, RenderWindow)
 #else

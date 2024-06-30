@@ -165,7 +165,6 @@ LoadTextureFromFile(arena *Arena, string FilePath, error_string *OutError)
    sf::Texture Texture;
    
    temp_arena Temp = TempArena(Arena);
-   defer { EndTemp(Temp); };
    
    error_string FileReadError = {};
    file_contents TextureFileContents = ReadEntireFile(Temp.Arena, FilePath, &FileReadError);
@@ -184,6 +183,8 @@ LoadTextureFromFile(arena *Arena, string FilePath, error_string *OutError)
                           FilePath);
       }
    }
+   
+   EndTemp(Temp);
    
    return Texture;
 }
@@ -218,7 +219,6 @@ PolynomialInterpolationNewtonCalculateCurvePoints(local_position *ControlPoints,
    if (NumControlPoints > 0)
    {
       temp_arena Temp = TempArena(0);
-      defer { EndTemp(Temp); };
       
       points_soa SOA = SplitPointsIntoComponents(Temp.Arena,
                                                  ControlPoints,
@@ -244,6 +244,8 @@ PolynomialInterpolationNewtonCalculateCurvePoints(local_position *ControlPoints,
          
          T += Delta;
       }
+      
+      EndTemp(Temp);
    }
 }
 
@@ -257,7 +259,6 @@ PolynomialInterpolationBarycentricCalculateCurvePoints(local_position *ControlPo
    if (NumControlPoints > 0)
    {
       temp_arena Temp = TempArena(0);
-      defer { EndTemp(Temp); };
       
       f32 *Omega = PushArrayNonZero(Temp.Arena, NumControlPoints, f32);
       switch (PointsArrangement)
@@ -290,6 +291,8 @@ PolynomialInterpolationBarycentricCalculateCurvePoints(local_position *ControlPo
          
          T += Delta;
       }
+      
+      EndTemp(Temp);
    }
 }
 
@@ -303,7 +306,6 @@ CubicSplineCalculateCurvePoints(cubic_spline_type CubicSplineType,
    if (NumControlPoints > 0)
    {
       temp_arena Temp = TempArena(0);
-      defer { EndTemp(Temp); };
       
       if (CubicSplineType == CubicSpline_Periodic)
       {
@@ -354,6 +356,8 @@ CubicSplineCalculateCurvePoints(cubic_spline_type CubicSplineType,
          
          T += Delta;
       }
+      
+      EndTemp(Temp);
    }
 }
 
@@ -451,7 +455,6 @@ function void
 CurveEvaluate(curve *Curve, u64 NumOutputCurvePoints, v2f32 *OutputCurvePoints)
 {
    temp_arena Temp = TempArena(0);
-   defer { EndTemp(Temp); };
    
    curve_shape CurveShape = Curve->CurveParams.CurveShape;
    switch (CurveShape.InterpolationType)
@@ -519,6 +522,8 @@ CurveEvaluate(curve *Curve, u64 NumOutputCurvePoints, v2f32 *OutputCurvePoints)
          }
       } break;
    }
+   
+   EndTemp(Temp);
 }
 
 function void
@@ -527,7 +532,6 @@ CurveRecompute(curve *Curve)
    TimeFunction;
    
    temp_arena Temp = TempArena(0);
-   defer { EndTemp(Temp); };
    
    curve_params CurveParams = Curve->CurveParams;
    curve_shape CurveShape = CurveParams.CurveShape;
@@ -580,6 +584,8 @@ CurveRecompute(curve *Curve)
    }
    
    Curve->CurveVersion += 1;
+   
+   EndTemp(Temp);
 }
 
 function void

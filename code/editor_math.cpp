@@ -989,7 +989,6 @@ function v2f32
 BezierCurveEvaluate(f32 T, v2f32 *P, u64 N)
 {
    temp_arena Temp = TempArena(0);
-   defer { EndTemp(Temp); };
    
    v2f32 *E = PushArrayNonZero(Temp.Arena, N, v2f32);
    MemoryCopy(E, P, N * SizeOf(E[0]));
@@ -1003,6 +1002,8 @@ BezierCurveEvaluate(f32 T, v2f32 *P, u64 N)
    }
    
    v2f32 Result = E[0];
+   EndTemp(Temp);
+   
    return Result;
 }
 
@@ -1010,7 +1011,6 @@ function v2f32
 BezierWeightedCurveEvaluate(f32 T, v2f32 *P, f32 *W, u64 N)
 {
    temp_arena Temp = TempArena(0);
-   defer { EndTemp(Temp); };
    
    v2f32 *EP = PushArrayNonZero(Temp.Arena, N, v2f32);
    f32 *EW = PushArrayNonZero(Temp.Arena, N, f32);
@@ -1032,6 +1032,8 @@ BezierWeightedCurveEvaluate(f32 T, v2f32 *P, f32 *W, u64 N)
    }
    
    v2f32 Result = EP[0];
+   EndTemp(Temp);
+   
    return Result;
 }
 
@@ -1314,7 +1316,6 @@ BezierCubicCalculateAllControlPoints(v2f32 *P, u64 N, v2f32 *Output)
    if (N > 0)
    {
       temp_arena Temp = TempArena(0);
-      defer { EndTemp(Temp); };
       
       // NOTE(hbr): Assume points are equidistant
       f32 DeltaT = 1.0f / (N - 1);
@@ -1362,6 +1363,8 @@ BezierCubicCalculateAllControlPoints(v2f32 *P, u64 N, v2f32 *Output)
          
          OutputIndex += 3;
       }
+      
+      EndTemp(Temp);
    }
    
    // TODO(hbr): Refactor
@@ -1386,7 +1389,6 @@ BezierCurveSplit(f32 T, v2f32 *P, f32 *W, u64 N,
                  v2f32 *RightControlPoints, f32 *RightControlPointWeights)
 {
    temp_arena Temp = TempArena(0);
-   defer { EndTemp(Temp); };
    
    f32 *We = PushArrayNonZero(Temp.Arena, N * N, f32);
    v2f32 *Pe = PushArrayNonZero(Temp.Arena, N * N, v2f32);
@@ -1406,6 +1408,8 @@ BezierCurveSplit(f32 T, v2f32 *P, f32 *W, u64 N,
       RightControlPointWeights[I] = We[Index];
       RightControlPoints[I] = Pe[Index];
    }
+   
+   EndTemp(Temp);
 }
 
 function void

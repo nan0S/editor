@@ -1,6 +1,7 @@
 #ifndef EDITOR_H
 #define EDITOR_H
 
+// TODO(hbr): what the fuck is this
 #pragma warning(1 : 4062)
 
 #include "third_party/sfml/include/SFML/Graphics.hpp"
@@ -8,15 +9,12 @@
 
 #define EDITOR_PROFILER 1
 
-#include "editor_ctx_crack.h"
 #include "editor_base.h"
-#include "editor_memory.h"
-#include "editor_thread_ctx.h"
-#include "editor_string.h"
 #include "editor_os.h"
 #include "editor_profiler.h"
-#include "editor_file.h"
 #include "editor_math.h"
+
+#include "editor_file.h"
 #include "editor_adapt.h"
 #include "editor_entity.h"
 #include "editor_draw.h"
@@ -25,11 +23,7 @@
 #include "editor_editor.h"
 #include "editor_project.h"
 
-#ifndef EDITOR_DEBUG
-#define EDITOR_DEBUG 0
-#endif
-
-#ifdef EDITOR_DEBUG
+#if defined(BUILD_DEBUG)
 #define LOG(...) Log(__VA_ARGS__)
 #else
 #define LOG(...)
@@ -172,6 +166,7 @@ DONE:
 - fix action buttons placement, tidy them up
 - animating top speed should not be 1.0f
 - add arrow to indicate which curve is combine TO which
+- merge 
 
 Ideas:
 - some kind of locking system - when I want to edit only one curve without

@@ -110,7 +110,6 @@ CheckCollisionWith(entity *Entities,
    collision Result = {};
    
    temp_arena Temp = TempArena(0);
-   defer { EndTemp(Temp); };
    
    sorted_entity_array SortedEntities = SortEntitiesBySortingLayer(Temp.Arena, Entities);
    // NOTE(hbr): Check collisions in reversed drawing order.
@@ -257,6 +256,8 @@ CheckCollisionWith(entity *Entities,
    }
    
    collision_found_label:
+   EndTemp(Temp);
+   
    return Result;
 }
 
@@ -483,7 +484,6 @@ AddNotificationF(notifications *Notifs, notification_type Type, char const *Fmt,
    DeferBlock(va_start(Args, Fmt), va_end(Args))
    {
       temp_arena Temp = TempArena(0);
-      defer { EndTemp(Temp); };
       
       if (Notifs->NotifCount < ArrayCount(Notifs->Notifs))
       {
@@ -524,6 +524,8 @@ AddNotificationF(notifications *Notifs, notification_type Type, char const *Fmt,
          Notifs->Notifs[Notifs->NotifCount] = CreateNotification(Title, Color, Text, PosY);;
          Notifs->NotifCount += 1;
       }
+      
+      EndTemp(Temp);
    }
 }
 
@@ -544,11 +546,12 @@ EditorSetSaveProjectPath(editor *Editor,
       Editor->ProjectSavePath = DuplicateStr(SaveProjectFilePath);
       
       temp_arena Temp = TempArena(0);
-      defer { EndTemp(Temp); };
       
       string SaveProjectFileName = StringChopFileNameWithoutExtension(Temp.Arena,
                                                                       SaveProjectFilePath);
       Editor->Window->setTitle(SaveProjectFileName.Data);
+      
+      EndTemp(Temp);
    }
    else
    {
@@ -834,9 +837,11 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                            if (!State.CurveCombining.CombineCurveLastControlPoint)
                            {
                               Swap(Result.CurveCombining.CombineCurveEntity,
-                                   Result.CurveCombining.TargetCurveEntity);
+                                   Result.CurveCombining.TargetCurveEntity,
+                                   entity *);
                               Swap(Result.CurveCombining.CombineCurveLastControlPoint,
-                                   Result.CurveCombining.TargetCurveFirstControlPoint);
+                                   Result.CurveCombining.TargetCurveFirstControlPoint,
+                                   b32);
                               Result.CurveCombining.CombineCurveLastControlPoint =
                                  !Result.CurveCombining.CombineCurveLastControlPoint;
                               Result.CurveCombining.TargetCurveFirstControlPoint =
@@ -852,9 +857,11 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                            if (State.CurveCombining.CombineCurveLastControlPoint)
                            {
                               Swap(Result.CurveCombining.CombineCurveEntity,
-                                   Result.CurveCombining.TargetCurveEntity);
+                                   Result.CurveCombining.TargetCurveEntity,
+                                   entity *);
                               Swap(Result.CurveCombining.CombineCurveLastControlPoint,
-                                   Result.CurveCombining.TargetCurveFirstControlPoint);
+                                   Result.CurveCombining.TargetCurveFirstControlPoint,
+                                   b32);
                               Result.CurveCombining.CombineCurveLastControlPoint =
                                  !Result.CurveCombining.CombineCurveLastControlPoint;
                               Result.CurveCombining.TargetCurveFirstControlPoint =
@@ -2260,7 +2267,6 @@ LowerBezierCurveDegree(bezier_curve_degree_lowering *Lowering, entity *CurveEnti
       Assert(Curve->CurveParams.CurveShape.InterpolationType == Interpolation_Bezier);
       
       temp_arena Temp = TempArena(Lowering->Arena);
-      defer { EndTemp(Temp); };
       
       local_position *NewControlPoints = PushArrayNonZero(Temp.Arena,
                                                           NumControlPoints,
@@ -2366,6 +2372,8 @@ LowerBezierCurveDegree(bezier_curve_degree_lowering *Lowering, entity *CurveEnti
                                NewControlPointWeights,
                                NewCubicBezierPoints);
       }
+      
+      EndTemp(Temp);
    }
 }
 
@@ -2374,9 +2382,7 @@ ElevateBezierCurveDegree(curve *Curve, editor_parameters *EditorParams)
 {
    Assert(Curve->CurveParams.CurveShape.InterpolationType ==
           Interpolation_Bezier);
-   
    temp_arena Temp = TempArena(0);
-   defer { EndTemp(Temp); };
    
    u64 NumControlPoints = Curve->NumControlPoints;
    local_position *ElevatedControlPoints = PushArrayNonZero(Temp.Arena,
@@ -2422,6 +2428,8 @@ ElevateBezierCurveDegree(curve *Curve, editor_parameters *EditorParams)
                          ElevatedControlPoints,
                          ElevatedControlPointWeights,
                          ElevatedCubicBezierPoints);
+   
+   EndTemp(Temp);
 }
 
 internal void
@@ -2497,7 +2505,6 @@ SplitCurveOnControlPoint(entity *CurveEntity, editor_state *EditorState)
    Assert(Curve->SelectedControlPointIndex < Curve->NumControlPoints);
    
    temp_arena Temp = TempArena(0);
-   defer { EndTemp(Temp); };
    
    u64 NumLeftControlPoints = Curve->SelectedControlPointIndex + 1;
    u64 NumRightControlPoints = Curve->NumControlPoints - Curve->SelectedControlPointIndex;
@@ -2555,6 +2562,8 @@ SplitCurveOnControlPoint(entity *CurveEntity, editor_state *EditorState)
    RightCurveEntity->Name = NameStrF("%s (right)", CurveEntity->Name.Data);
    CurveSetControlPoints(&RightCurveEntity->Curve, NumRightControlPoints, RightControlPoints,
                          RightControlPointWeights, RightCubicBezierPoints);
+   
+   EndTemp(Temp);
 }
 
 // TODO(hbr): Do a pass oveer this function to simplify the logic maybe (and simplify how the UI looks like in real life)
@@ -3238,7 +3247,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
          }
 #endif
          
-#if EDITOR_DEBUG
+#if BUILD_DEBUG
          if (ImGui::MenuItem("Debug", 0,
                              Cast(bool)Editor->UI_Config.ViewDebugWindow))
          {
@@ -3298,7 +3307,6 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
       if (IsValid(Editor->ProjectSavePath))
       {
          temp_arena Temp = TempArena(0);
-         defer { EndTemp(Temp); };
          
          error_string SaveProjectInFormatError = SaveProjectInFormat(Temp.Arena,
                                                                      Editor->SaveProjectFormat,
@@ -3318,6 +3326,8 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
                              "project successfully saved in %s",
                              Editor->ProjectSavePath.Data);
          }
+         
+         EndTemp(Temp);
       }
       else
       {
@@ -3383,7 +3393,6 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
                if (IsValid(Editor->ProjectSavePath))
                {
                   temp_arena Temp = TempArena(0);
-                  defer { EndTemp(Temp); };
                   
                   string SaveProjectFilePath = Editor->ProjectSavePath;
                   save_project_format SaveProjectFormat = Editor->SaveProjectFormat;
@@ -3412,6 +3421,8 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
                      ActionToDo = Editor->ActionWaitingToBeDone;
                      Editor->ActionWaitingToBeDone = ActionToDo_Nothing;
                   }
+                  
+                  EndTemp(Temp);
                }
                else
                {
@@ -3445,7 +3456,6 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
       if (FileDialog->IsOk())
       {
          temp_arena Temp = TempArena(0);
-         defer { EndTemp(Temp); };
          
          std::string const &SelectedPath = FileDialog->GetFilePathName();
          std::string const &SelectedFilter = FileDialog->GetCurrentFilter();
@@ -3515,6 +3525,8 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
             ActionToDo = Editor->ActionWaitingToBeDone;
             Editor->ActionWaitingToBeDone = ActionToDo_Nothing;
          }
+         
+         EndTemp(Temp);
       }
       else
       {
@@ -3563,7 +3575,6 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
       if (FileDialog->IsOk())
       {
          temp_arena Temp = TempArena(0);
-         defer { EndTemp(Temp); };
          
          std::string const &SelectedPath = FileDialog->GetFilePathName();
          string OpenProjectFilePath = Str(Temp.Arena,
@@ -3607,6 +3618,8 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
                              Notification_Warning,
                              Warning->String.Data);
          }
+         
+         EndTemp(Temp);
       }
       
       FileDialog->Close();
@@ -3621,7 +3634,6 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
       if (FileDialog->IsOk())
       {
          temp_arena Temp = TempArena(0);
-         defer { EndTemp(Temp); };
          
          std::string const &SelectedPath = FileDialog->GetFilePathName();
          string NewImageFilePath = Str(Temp.Arena,
@@ -3664,6 +3676,8 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
                              "successfully loaded image from %s",
                              NewImageFilePath.Data);
          }
+         
+         EndTemp(Temp);
       }
       
       FileDialog->Close();
@@ -3928,7 +3942,6 @@ UpdateAndRenderSplittingBezierCurve(editor *Editor,
    if (PerformSplit)
    {
       temp_arena Temp = TempArena(0);
-      defer { EndTemp(Temp); };
       
       u64 NumControlPoints = Curve->NumControlPoints;
       curve_shape CurveShape = Curve->CurveParams.CurveShape;
@@ -4003,6 +4016,8 @@ UpdateAndRenderSplittingBezierCurve(editor *Editor,
                             RightControlPoints, RightControlPointWeights, RightCubicBezierPoints);
       
       Splitting->IsSplitting = false;
+      
+      EndTemp(Temp);
    }
    
    if (Splitting->IsSplitting)
@@ -4096,7 +4111,6 @@ UpdateAndRenderDeCasteljauVisualization(de_casteljau_visualization *Visualizatio
       if (VisualizationNeedsRecomputation)
       {
          temp_arena Temp = TempArena(Visualization->Arena);
-         defer { EndTemp(Temp); };
          
          u64 NumControlPoints = Curve->NumControlPoints;
          u64 NumIterations = NumControlPoints;
@@ -4165,6 +4179,8 @@ UpdateAndRenderDeCasteljauVisualization(de_casteljau_visualization *Visualizatio
          Visualization->IterationColors = IterationColors;
          Visualization->LineVerticesPerIteration = LineVerticesPerIteration;
          Visualization->AllIntermediatePoints = AllIntermediatePoints;
+         
+         EndTemp(Temp);
       }
    }
    
@@ -4480,7 +4496,6 @@ UpdateAnimateCurveAnimation(editor *Editor, f32 DeltaTime, sf::Transform Transfo
          else
          {
             temp_arena Temp = TempArena(Animation->Arena);
-            defer { EndTemp(Temp); };
             
             entity *FromCurveEntity = Animation->FromCurveEntity;
             entity *ToCurveEntity = Animation->ToCurveEntity;
@@ -4542,6 +4557,8 @@ UpdateAnimateCurveAnimation(editor *Editor, f32 DeltaTime, sf::Transform Transfo
                                         AnimatedCurveWidth, AnimatedCurveColor,
                                         false, Allocation);
             }
+            
+            EndTemp(Temp);
          }
       } break;
    }
@@ -4604,16 +4621,16 @@ CombineCurves(curve_combining *Combining, editor_state *EditorState)
    // NOTE(hbr): Prepare control point-related buffers in proper order.
    if (Combining->CombineCurveLastControlPoint)
    {
-      ArrayReverse(From->ControlPoints, N);
-      ArrayReverse(From->ControlPointWeights, N);
-      ArrayReverse(From->CubicBezierPoints, 3 * N);
+      ArrayReverse(From->ControlPoints, N, local_position);
+      ArrayReverse(From->ControlPointWeights, N, f32);
+      ArrayReverse(From->CubicBezierPoints, 3 * N, local_position);
    }
    
    if (Combining->TargetCurveFirstControlPoint)
    {
-      ArrayReverse(To->ControlPoints, M);
-      ArrayReverse(To->ControlPointWeights, M);
-      ArrayReverse(To->CubicBezierPoints, 3 * M);
+      ArrayReverse(To->ControlPoints, M, local_position);
+      ArrayReverse(To->ControlPointWeights, M, f32);
+      ArrayReverse(To->CubicBezierPoints, 3 * M, local_position);
    }
    
    u64 CombinedNumControlPoints = M;
@@ -4648,7 +4665,6 @@ CombineCurves(curve_combining *Combining, editor_state *EditorState)
    }
    
    temp_arena Temp = TempArena(0);
-   defer { EndTemp(Temp); };
    
    // NOTE(hbr): Allocate buffers and copy control points into them
    v2f32 *CombinedControlPoints = PushArrayNonZero(Temp.Arena, CombinedNumControlPoints, v2f32);
@@ -4768,6 +4784,8 @@ CombineCurves(curve_combining *Combining, editor_state *EditorState)
    // TODO(hbr): Maybe update name of combined curve
    DeallocateAndRemoveEntity(EditorState, FromEntity);
    // TODO(hbr): Maybe select To curve
+   
+   EndTemp(Temp);
 }
 
 internal void
@@ -4927,7 +4945,6 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, coordinate_system_data Co
    TimeFunction;
    
    temp_arena Temp = TempArena(0);
-   defer { EndTemp(Temp); };
    
    editor_state *State = &Editor->State;
    sf::RenderWindow *Window = Editor->Window;
@@ -5119,6 +5136,8 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, coordinate_system_data Co
          
       }
    }
+   
+   EndTemp(Temp);
 }
 
 function void
@@ -5211,7 +5230,7 @@ UpdateAndRender(f32 DeltaTime, user_input UserInput, editor *Editor)
       RenderDiagnosticsWindow(Editor, DeltaTime);
    }
    
-   DebugUpdateAndRender();
+   DebugUpdateAndRender(Editor);
    
    // NOTE(hbr): World Space -> Clip Space
    sf::Transform VP = sf::Transform();
@@ -5268,6 +5287,7 @@ CalculateAspectRatio(u64 Width, u64 Height)
 int main()
 {
    InitThreadCtx(Gigabytes(16));
+   InitProfiler();
    
    sf::VideoMode VideoMode = sf::VideoMode::getDesktopMode();
    sf::ContextSettings ContextSettings = sf::ContextSettings();
@@ -5279,10 +5299,8 @@ int main()
    
    SetNormalizedDeviceCoordinatesView(&Window);
    
-   InitProfiler();
-   
 #if 0
-#if not(EDITOR_DEBUG)
+#if not(BUILD_DEBUG)
    Window.setFramerateLimit(60);
 #endif
 #endif
@@ -5348,7 +5366,7 @@ int main()
 #if EDITOR_PROFILER
             .ViewProfilerWindow = true,
 #endif
-#if EDITOR_DEBUG
+#if BUILD_DEBUG
             .ViewDebugWindow = true,
 #endif
          };

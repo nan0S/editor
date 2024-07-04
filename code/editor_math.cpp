@@ -356,8 +356,8 @@ CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
    u64 N = NumLinePoints;
    if (Loop) N += 2;
    
-   u64 MaximumNumVertices = 0;
-   if (N >= 2) MaximumNumVertices = 2*2 + 4 * N;
+   u64 MaxNumVertices = 0;
+   if (N >= 2) MaxNumVertices = 2*2 + 4 * N;
    
    sf::Vertex *Vertices = 0;
    u64 CapVertices = 0;
@@ -370,11 +370,11 @@ CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
       case LineVerticesAllocation_Heap: {
          Vertices = Allocation.OldVertices.Vertices;
          CapVertices = Allocation.OldVertices.CapVertices;
-         ArrayReserve(Vertices, CapVertices, MaximumNumVertices);
+         ArrayReserve(Vertices, CapVertices, MaxNumVertices);
       } break;
       
       case LineVerticesAllocation_Arena: {
-         Vertices = PushArrayNonZero(Allocation.Arena, MaximumNumVertices, sf::Vertex);
+         Vertices = PushArrayNonZero(Allocation.Arena, MaxNumVertices, sf::Vertex);
       } break;
    }
    
@@ -1525,17 +1525,17 @@ SegmentCollision(v2f32 Position,
 #if 0
    
    
-   f32 BoundaryLeft   = Minimum(LineA.X, LineB.X) - 0.5f * LineWidth;
-   f32 BoundaryRight  = Maximum(LineA.X, LineB.X) + 0.5f * LineWidth;
-   f32 BoundaryBottom = Minimum(LineA.Y, LineB.Y) - 0.5f * LineWidth;
-   f32 BoundaryTop    = Maximum(LineA.Y, LineB.Y) + 0.5f * LineWidth;
+   f32 BoundaryLeft   = Min(LineA.X, LineB.X) - 0.5f * LineWidth;
+   f32 BoundaryRight  = Max(LineA.X, LineB.X) + 0.5f * LineWidth;
+   f32 BoundaryBottom = Min(LineA.Y, LineB.Y) - 0.5f * LineWidth;
+   f32 BoundaryTop    = Max(LineA.Y, LineB.Y) + 0.5f * LineWidth;
    
 #else
    
-   f32 BoundaryLeft   = Minimum(LineA.X, LineB.X);
-   f32 BoundaryRight  = Maximum(LineA.X, LineB.X);
-   f32 BoundaryBottom = Minimum(LineA.Y, LineB.Y);
-   f32 BoundaryTop    = Maximum(LineA.Y, LineB.Y);
+   f32 BoundaryLeft   = Min(LineA.X, LineB.X);
+   f32 BoundaryRight  = Max(LineA.X, LineB.X);
+   f32 BoundaryBottom = Min(LineA.Y, LineB.Y);
+   f32 BoundaryTop    = Max(LineA.Y, LineB.Y);
    
 #endif
    

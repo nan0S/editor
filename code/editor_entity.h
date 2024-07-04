@@ -165,23 +165,19 @@ LoadTextureFromFile(arena *Arena, string FilePath, error_string *OutError)
    sf::Texture Texture;
    
    temp_arena Temp = TempArena(Arena);
-   
-   error_string FileReadError = {};
-   file_contents TextureFileContents = ReadEntireFile(Temp.Arena, FilePath, &FileReadError);
-   if (IsError(FileReadError))
+   string TextureData = OS_ReadEntireFile(Temp.Arena, FilePath);
+   if (TextureData.Data)
    {
-      *OutError = StrF(Arena,
-                       "failed to load texture from file: %s",
-                       FileReadError);
-   }
-   else
-   {
-      if (!Texture.loadFromMemory(TextureFileContents.Contents, TextureFileContents.Size))
+      if (!Texture.loadFromMemory(TextureData.Data, TextureData.Count))
       {
          *OutError = StrF(Arena,
                           "failed to load texture from file %s",
                           FilePath);
       }
+   }
+   else
+   {
+      *OutError = StrF(Arena, "failed to load texture");
    }
    
    EndTemp(Temp);
@@ -1205,7 +1201,7 @@ NameStr(char *Data, u64 Count)
 {
    name_string Result = {};
    
-   u64 FinalCount = Minimum(Count, ArrayCount(Result.Data) - 1);
+   u64 FinalCount = Min(Count, ArrayCount(Result.Data) - 1);
    MemoryCopy(Result.Data, Data, FinalCount);
    Result.Data[FinalCount] = 0;
    Result.Count = FinalCount;
@@ -1234,7 +1230,7 @@ NameStrF(char const *Fmt, ...)
       if (Return >= 0)
       {
          // TODO(hbr): What the fuck is wrong with this internal
-         Result.Count = CStrLength(Result.Data);
+         Result.Count = CStrLen(Result.Data);
       }
    }
    

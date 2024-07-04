@@ -56,7 +56,7 @@ FrameProfilePoint(b32 *ViewProfilerWindow)
                                         "%-50s: %10llucy, %10llucy self, %5llu hits, %10llucy/h, %03.2lf%%",
                                         Anchor->Label, Anchor->TotalTSC, Anchor->TotalSelfTSC, Anchor->HitCount,
                                         Anchor->TotalTSC / Anchor->HitCount, TotalSelfTSCPercent);
-                  int Written = Minimum(Left, Result);
+                  int Written = Min(Left, Result);
                   Left -= Written;
                   Length += Written;
                }
@@ -65,7 +65,7 @@ FrameProfilePoint(b32 *ViewProfilerWindow)
                {
                   f64 TotalTSCPercent = 100.0 * Cast(f64)Anchor->TotalTSC / ElapsedTotalTSC;
                   int Result = snprintf(Buffer + Length, Left, ", %3.2f%% w/children", TotalTSCPercent);
-                  int Written = Minimum(Left, Result);
+                  int Written = Min(Left, Result);
                   Left -= Written;
                   Length += Written;
                }

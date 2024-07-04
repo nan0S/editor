@@ -262,13 +262,10 @@ TempArena(arena *Conflict)
 internal u64
 Fmt(u64 BufSize, char *Buf, char const *Format, ...)
 {
-   u64 Result = 0;
-   
    va_list Args;
-   DeferBlock(va_start(Args, Format), va_end(Args))
-   {
-      Result = FmtV(BufSize, Buf, Format, Args);
-   }
+   va_start(Args, Format);
+   u64 Result = FmtV(BufSize, Buf, Format, Args);
+   va_end(Args);
    
    return Result;
 }
@@ -540,6 +537,7 @@ FmtV(u64 BufSize, char *Buf, char const *Format, va_list Args)
             LongDouble = true;
          }
          
+         out_buf SavedOut = Out;
          switch (At[0])
          {
             case '%': { OutC(&Out, '%'); } break;
@@ -611,8 +609,33 @@ FmtV(u64 BufSize, char *Buf, char const *Format, va_list Args)
                u32 *WrittenSoFar = va_arg(Args, u32 *);
                *WrittenSoFar = BufSize - Out.Count;
             } break;
+            
+            case 'g':
+            case 'G':
+            case 'a':
+            case 'A':
+            case 'e':
+            case 'E': { Assert(!"Not supported specifier"); } break;
+            default: { Assert(!"Invalid specifier"); } break;
          }
-         ++At;
+         
+         u64 Formatted = SavedOut.Count - Out.Count;
+         if (Formatted < Width)
+         {
+            u64 PadCount = Width - Formatted;
+            char PadWith = ((LeftJustify || !PadWithZeros) ? ' ' : '0');
+            char *PadAt = (LeftJustify ? Out.At : SavedOut.At);
+            if (!LeftJustify && SavedOut.At)
+            {
+               MemoryMove(SavedOut.At + PadCount, SavedOut.At, Formatted);
+            }
+            if (PadAt)
+            {
+               MemorySet(PadAt, PadWith, PadCount);
+               Out.At += PadCount;
+            }
+            Out.Count -= PadCount;
+         }
       }
       else if (At[0] == '\0')
       {
@@ -621,28 +644,30 @@ FmtV(u64 BufSize, char *Buf, char const *Format, va_list Args)
       else
       {
          OutC(&Out, At[0]);
-         ++At;
       }
+      ++At;
    }
-   
    u64 Written = BufSize - Out.Count;
+   // NOTE(hbr): End with 0 byte, but don't include in return count
+   OutC(&Out, 0);
+   
    return Written;
 }
 
 #if 0
-u64 Written = Fmt(ArrayCount(Buffer), Buffer,
-                  "%%x: %x%n, %%X: %X%n, %%u: %u, %%d: %d, %%o: %o, %%b: %b, %%p: %p, %%c: %c, %%f: %f, %%lf: %lf, %%f: %f, %%f: %f, %%.3f: %.3f, %%+.3f: %+.3f, %% .3f: % .3f, inf: %f, -inf: %f, nan: %f, INF: %F, NaN: %F, +0: %+f, -0: %+f, 0: %f, "
-                  "%%#+x: %#+x, %%#+X: %#+X, %%#+u: %#+u, %%#+d: %#+d, %%#+d: %#+d, %%#+d: %#+d, %%#+o: %#+o, %%#+b: %#+b, %%#+p: %#+p, "
-                  "U8_MAX: % hhu, U16_MAX: % hu, U32_MAX: % u, U64_MAX: % lu, U64_MAX: % llu, "
-                  "S8_MAX: % hhd, S16_MAX: % hd, S32_MAX: % d, S64_MAX: % ld, S64_MAX: % lld, "
-                  "S8_MIN: % hhd, S16_MIN: % hd, S32_MIN: % d, S64_MIN: % ld, S64_MIN: % lld, "
-                  "cstr: %s, string: %S",
-                  0xabc, &WrittenSoFar1, 0xabc, &WrittenSoFar2, 10, 10, 027, 0b1001, 0xdeadc0de, 'a', 10.1234f, 10.1234, -10.1024f, 0.0f, 0.1324513f, 0.1324513f, 0.1324513f, 1.0f/FFF, -1.0f/FFF, 1.0f + 0.0f/FFF, 1.0f/FFF, 0.0f/FFF, 1.0f / (1.0f / FFF), -1.0 / (1.0f / FFF), 0.0f,
-                  0xabc, 0xabc, 10, 10, -10, 0, 027, 0b1001, 0xdeadc0de,
-                  U8_MAX, U16_MAX, U32_MAX, U64_MAX, U64_MAX,
-                  S8_MAX, S16_MAX, S32_MAX, S64_MAX, S64_MAX,
-                  S8_MIN, S16_MIN, S32_MIN, S64_MIN, S64_MIN,
-                  "test", StrLit("test"));
+Fmt(ArrayCount(Buffer), Buffer,
+    "%%x: %x%n, %%X: %X%n, %%u: %u, %%d: %d, %%o: %o, %%b: %b, %%p: %p, %%c: %c, %%f: %f, %%lf: %lf, %%f: %f, %%f: %f, %%.3f: %.3f, %%+.3f: %+.3f, %% .3f: % .3f, inf: %f, -inf: %f, nan: %f, INF: %F, NaN: %F, +0: %+f, -0: %+f, 0: %f, "
+    "%%#+x: %#+x, %%#+X: %#+X, %%#+u: %#+u, %%#+d: %#+d, %%#+d: %#+d, %%#+d: %#+d, %%#+o: %#+o, %%#+b: %#+b, %%#+p: %#+p, "
+    "U8_MAX: % hhu, U16_MAX: % hu, U32_MAX: % u, U64_MAX: % lu, U64_MAX: % llu, "
+    "S8_MAX: % hhd, S16_MAX: % hd, S32_MAX: % d, S64_MAX: % ld, S64_MAX: % lld, "
+    "S8_MIN: % hhd, S16_MIN: % hd, S32_MIN: % d, S64_MIN: % ld, S64_MIN: % lld, "
+    "cstr: %s, string: %S",
+    0xabc, &WrittenSoFar1, 0xabc, &WrittenSoFar2, 10, 10, 027, 0b1001, 0xdeadc0de, 'a', 10.1234f, 10.1234, -10.1024f, 0.0f, 0.1324513f, 0.1324513f, 0.1324513f, 1.0f/FFF, -1.0f/FFF, 1.0f + 0.0f/FFF, 1.0f/FFF, 0.0f/FFF, 1.0f / (1.0f / FFF), -1.0 / (1.0f / FFF), 0.0f,
+    0xabc, 0xabc, 10, 10, -10, 0, 027, 0b1001, 0xdeadc0de,
+    U8_MAX, U16_MAX, U32_MAX, U64_MAX, U64_MAX,
+    S8_MAX, S16_MAX, S32_MAX, S64_MAX, S64_MAX,
+    S8_MIN, S16_MIN, S32_MIN, S64_MIN, S64_MIN,
+    "test", StrLit("test"));
 #endif
 
 //- strings
@@ -679,7 +704,7 @@ Str(arena *Arena, char const *String, u64 Count)
 internal string
 StrC(arena *Arena, char const *String)
 {
-   string Result = Str(Arena, String, CStrLength(String));
+   string Result = Str(Arena, String, CStrLen(String));
    return Result;
 }
 
@@ -692,47 +717,30 @@ FreeStr(string *String)
    String->Count = 0;
 }
 
-internal u64
-CStrLength(char const *String)
-{
-   char const *At = String;
-   while (*At) ++At;
-   u64 Length = At - String;
-   
-   return Length;
-}
-
 internal string
-StrF(arena *Arena, char const *Fmt, ...)
+StrF(arena *Arena, char const *Format, ...)
 {
-   string Result = {};
-   
    va_list Args;
-   DeferBlock(va_start(Args, Fmt), va_end(Args))
-   {
-      Result = StrFV(Arena, Fmt, Args);
-   }
+   va_start(Args, Format);
+   string Result = StrFV(Arena, Format, Args);
+   va_end(Args);
    
    return Result;
 }
 
 internal string
-StrFV(arena *Arena, char const *Fmt, va_list Args)
+StrFV(arena *Arena, char const *Format, va_list Args)
 {
-   string Result = {};
-   
    va_list ArgsCopy;
-   DeferBlock(va_copy(ArgsCopy, Args), va_end(ArgsCopy))
-   {
-      u64 Count = vsnprintf(0, 0, Fmt, Args);
-      
-      char *Data = Cast(char *)PushSize(Arena, Count + 1);
-      vsnprintf(Data, Count + 1, Fmt, ArgsCopy);
-      Data[Count] = 0;
-      
-      Result.Data = Data;
-      Result.Count = Count; 
-   }
+   va_copy(ArgsCopy, Args);
+   u64 Count = FmtV(0, 0, Format, Args);
+   char *Data = Cast(char *)PushSize(Arena, Count + 1);
+   FmtV(Count + 1, Data, Format, ArgsCopy);
+   va_end(ArgsCopy);
+   
+   string Result = {};
+   Result.Data = Data;
+   Result.Count = Count; 
    
    return Result;
 }
@@ -863,6 +871,7 @@ IsValid(string String)
    return Result;
 }
 
+// TODO(hbr): remove IsError and IsValid
 internal b32 IsError(error_string String) { return IsValid(String); }
 
 internal char
@@ -884,13 +893,46 @@ IsDigit(char C)
    return Result;
 }
 
+internal string
+CStrFromStr(arena *Arena, string S)
+{
+   char *Data = PushArrayNonZero(Arena, S.Count + 1, char);
+   MemoryCopy(Data, S.Data, S.Count);
+   Data[S.Count] = 0;
+   
+   string Result = {};
+   Result.Data = Data;
+   Result.Count = S.Count;
+   
+   return Result;
+}
+
+internal string
+StrFromCStr(char const *CStr)
+{
+   string Result = {};
+   Result.Data = Cast(char *)CStr;
+   Result.Count = CStrLen(CStr);
+   
+   return Result;
+}
+
+internal u64
+CStrLen(char const *CStr)
+{
+   char const *At = CStr;
+   while (*At) ++At;
+   u64 Length = At - CStr;
+   
+   return Length;
+}
+
 internal void
 StringListPush(arena *Arena, string_list *List, string String)
 {
    string_list_node *Node = PushStructNonZero(Arena, string_list_node);
    Node->String = String;
    QueuePush(List->Head, List->Tail, Node);
-   
    ++List->NumNodes;
    List->TotalSize += String.Count;
 }

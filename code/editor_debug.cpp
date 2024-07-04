@@ -13,8 +13,8 @@ FrameStatsUpdate(frame_stats *Stats, f32 FrameTime)
 {
    Stats->Calculation.FrameCount += 1;
    Stats->Calculation.SumFrameTime += FrameTime;
-   Stats->Calculation.MinFrameTime = Minimum(Stats->Calculation.MinFrameTime, FrameTime);
-   Stats->Calculation.MaxFrameTime = Maximum(Stats->Calculation.MaxFrameTime, FrameTime);
+   Stats->Calculation.MinFrameTime = Min(Stats->Calculation.MinFrameTime, FrameTime);
+   Stats->Calculation.MaxFrameTime = Max(Stats->Calculation.MaxFrameTime, FrameTime);
    
    if (Stats->Calculation.SumFrameTime >= 1.0f)
    {
@@ -51,8 +51,8 @@ RenderDebugWindow(editor *Editor)
             ImGui::Text("Number of curve points = %lu", Curve->NumCurvePoints);
          }
          
-         ImGui::Text("Minimum Frame Time = %.3fms", 1000.0f * Editor->FrameStats.MinFrameTime);
-         ImGui::Text("Maximum Frame Time = %.3fms", 1000.0f * Editor->FrameStats.MaxFrameTime);
+         ImGui::Text("Min Frame Time = %.3fms", 1000.0f * Editor->FrameStats.MinFrameTime);
+         ImGui::Text("Max Frame Time = %.3fms", 1000.0f * Editor->FrameStats.MaxFrameTime);
          ImGui::Text("Average Frame Time = %.3fms", 1000.0f * Editor->FrameStats.AvgFrameTime);
       }
    }

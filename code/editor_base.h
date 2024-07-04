@@ -143,11 +143,11 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 # error trap not defined
 #endif
 
-#define Maximum(A, B) ((A) < (B) ? (B) : (A))
-#define Minimum(A, B) ((A) < (B) ? (A) : (B))
+#define Max(A, B) ((A) < (B) ? (B) : (A))
+#define Min(A, B) ((A) < (B) ? (A) : (B))
 #define Abs(X) ((X) < 0 ? -(X) : (X))
-#define ClampTop(X, Max) Minimum(X, Max)
-#define ClampBot(X, Min) Maximum(X, Min)
+#define ClampTop(X, Max) Min(X, Max)
+#define ClampBot(X, Min) Max(X, Min)
 #define Clamp(X, Min, Max) ClampTop(ClampBot(X, Min), Max)
 #define Idx(Row, Column, NColumns) ((Row)*(NColumns) + (Column))
 #define ApproxEq32(X, Y) (Abs(X - Y) <= EPS_F32)
@@ -204,7 +204,7 @@ if ((Node)->Next) (Node)->Next->Prev = (Node)->Prev; \
 do { \
 if ((Reserve) > (Capacity)) \
 { \
-(Capacity) = Maximum(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
+(Capacity) = Max(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
 HeapFree(HeapAllocator(), (Array)); \
 *(Cast(void **)&(Array)) = HeapAllocSizeNonZero(HeapAllocator(), (Capacity) * SizeOf(*(Array))); \
 } \
@@ -214,7 +214,7 @@ Assert((Capacity) >= (Reserve)); \
 do { \
 if ((Reserve) > (Capacity)) \
 { \
-(Capacity) = Maximum(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
+(Capacity) = Max(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
 *(Cast(void **)&(Array)) = HeapReallocSize(HeapAllocator(), (Array), (Capacity) * SizeOf(*(Array))); \
 } \
 Assert((Capacity) >= (Reserve)); \
@@ -224,7 +224,7 @@ do { \
 if ((Reserve) > (Capacity)) \
 { \
 auto OldCapacity = (Capacity); \
-(Capacity) = Maximum(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
+(Capacity) = Max(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
 *(Cast(void **)&(Array)) = HeapReallocSize(HeapAllocator(), (Array), (Capacity) * SizeOf(*(Array))); \
 if ((Capacity) > OldCapacity) { \
 MemoryZero((Array) + OldCapacity, ((Capacity)-OldCapacity) * SizeOf(*(Array))); \
@@ -328,14 +328,14 @@ struct string
 };
 typedef string error_string;
 
+// TODO(hbr): Probably rewrite stirng "module"
 // NOTE(hbr): Allocates on heap
 internal string Str(char const *String, u64 Count);
 internal string Str(arena *Arena, char const *String, u64 Count);
 internal string StrC(arena *Arena, char const *String);
-internal string StrF(arena *Arena, char const *Fmt, ...);
-internal string StrFV(arena *Arena, char const *Fmt, va_list Args);
+internal string StrF(arena *Arena, char const *Format, ...);
+internal string StrFV(arena *Arena, char const *Format, va_list Args);
 internal void FreeStr(string *String);
-internal u64 CStrLength(char const *String);
 internal string DuplicateStr(arena *Arena, string String);
 internal string DuplicateStr(string String);
 internal b32 AreStringsEqual(string A, string B);
@@ -351,6 +351,11 @@ internal b32 IsDigit(char C);
 
 #define StrLit(Lit) Str(Lit, ArrayCount(Lit)-1)
 #define StrLitArena(Arena, Lit) Str(Arena, Lit, ArrayCount(Lit)-1)
+
+// TODO(hbr): functions that do not need rewrite because has been written after rewrite remark
+internal string CStrFromStr(arena *Arena, string S);
+internal string StrFromCStr(char const *CStr);
+internal u64 CStrLen(char const *CStr);
 
 struct string_list_node
 {

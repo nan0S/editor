@@ -34,15 +34,15 @@ union color
 };
 
 internal v2f32 V2F32(f32 X, f32 Y);
-inline internal v2f32 operator+(v2f32 U, v2f32 V) { return V2F32(U.X + V.X, U.Y + V.Y); }
-inline internal v2f32 operator-(v2f32 U, v2f32 V) { return V2F32(U.X - V.X, U.Y - V.Y); }
-inline internal v2f32 operator-(v2f32 U) { return V2F32(-U.X, -U.Y); }
-inline internal v2f32 operator*(f32 Scale, v2f32 U) { return V2F32(Scale * U.X, Scale * U.Y); }
-inline internal v2f32 operator/(v2f32 U, f32 Scale) { return (1.0f/Scale) * U; }
-inline internal v2f32 &operator+=(v2f32 &U, v2f32 V) { U.X += V.X; U.Y += V.Y; return U; }
-inline internal v2f32 &operator-=(v2f32 &U, v2f32 V) { U.X -= V.X; U.Y -= V.Y; return U; }
-inline internal b32 operator==(v2f32 U, v2f32 V) { return (U.X == V.X && U.Y == V.Y); }
-inline internal b32 operator!=(v2f32 U, v2f32 V) { return !(U == V); }
+inline internal v2f32  operator+ (v2f32 U, v2f32 V)   { return V2F32(U.X + V.X, U.Y + V.Y); }
+inline internal v2f32  operator- (v2f32 U, v2f32 V)   { return V2F32(U.X - V.X, U.Y - V.Y); }
+inline internal v2f32  operator- (v2f32 U)            { return V2F32(-U.X, -U.Y); }
+inline internal v2f32  operator* (f32 Scale, v2f32 U) { return V2F32(Scale * U.X, Scale * U.Y); }
+inline internal v2f32  operator/ (v2f32 U, f32 Scale) { return (1.0f/Scale) * U; }
+inline internal v2f32 &operator+=(v2f32 &U, v2f32 V)  { U.X += V.X; U.Y += V.Y; return U; }
+inline internal v2f32 &operator-=(v2f32 &U, v2f32 V)  { U.X -= V.X; U.Y -= V.Y; return U; }
+inline internal b32    operator==(v2f32 U, v2f32 V)   { return (U.X == V.X && U.Y == V.Y); }
+inline internal b32    operator!=(v2f32 U, v2f32 V)   { return !(U == V); }
 
 internal v2s32 V2S32(s32 X, s32 Y);
 internal b32 operator==(v2s32 U, v2s32 V) { return (U.X == V.X && U.Y == V.Y); }
@@ -107,11 +107,11 @@ struct line_vertices_allocation
 internal line_vertices_allocation LineVerticesAllocationNone(sf::Vertex *VerticesBuffer);
 internal line_vertices_allocation LineVerticesAllocationHeap(line_vertices OldVertices);
 internal line_vertices_allocation LineVerticesAllocationArena(arena *Arena);
-internal line_vertices CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
-                                             f32 LineWidth, color LineColor, b32 Loop,
-                                             line_vertices_allocation Allocation);
+internal line_vertices            CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
+                                                        f32 LineWidth, color LineColor, b32 Loop,
+                                                        line_vertices_allocation Allocation);
 
-internal f32 LerpF32(f32 From, f32 To, f32 T);
+internal f32   LerpF32(f32 From, f32 To, f32 T);
 internal v2f32 LerpV2F32(v2f32 From, v2f32 To, f32 T);
 internal color LerpColor(color From, color To, f32 T);
 
@@ -121,13 +121,13 @@ internal rotation_2d Rotation2DZero(void);
 internal rotation_2d Rotation2DFromVector(v2f32 Vector);
 internal rotation_2d Rotation2DFromDegrees(f32 Degrees);
 internal rotation_2d Rotation2DFromRadians(f32 Radians);
-internal f32 Rotation2DToDegrees(rotation_2d Rotation);
-internal f32 Rotation2DToRadians(rotation_2d Rotation);
+internal f32         Rotation2DToDegrees(rotation_2d Rotation);
+internal f32         Rotation2DToRadians(rotation_2d Rotation);
 internal rotation_2d Rotation2DInverse(rotation_2d Rotation);
 internal rotation_2d Rotate90DegreesAntiClockwise(rotation_2d Rotation);
 internal rotation_2d Rotate90DegreesClockwise(rotation_2d Rotation);
 internal rotation_2d Rotation2DFromMovementAroundPoint(v2f32 From, v2f32 To, v2f32 Center);
-internal v2f32 RotateAround(v2f32 Point, v2f32 Center, rotation_2d Rotation);
+internal v2f32       RotateAround(v2f32 Point, v2f32 Center, rotation_2d Rotation);
 internal rotation_2d CombineRotations2D(rotation_2d RotationA, rotation_2d RotationB);
 
 //~ Interpolation
@@ -138,15 +138,15 @@ internal void BarycentricOmega(f32 *Omega, f32 *Ti, u64 N);
 internal void BarycentricOmegaWerner(f32 *Omega, f32 *Ti, u64 N);
 internal void BarycentricOmegaEquidistant(f32 *Omega, f32 *Ti, u64 N);
 internal void BarycentricOmegaChebychev(f32 *Omega, u64 N);
-internal f32 BarycentricEvaluate(f32 T, f32 *Omega, f32 *Ti, f32 *Y, u64 N);
+internal f32  BarycentricEvaluate(f32 T, f32 *Omega, f32 *Ti, f32 *Y, u64 N);
 
 internal void NewtonBeta(f32 *Beta, f32 *Ti, f32 *Y, u64 N);
 internal void NewtonBetaFast(f32 *Beta, f32 *Ti, f32 *Y, u64 N);
-internal f32 NewtonEvaluate(f32 T, f32 *Beta, f32 *Ti, u64 N);
+internal f32  NewtonEvaluate(f32 T, f32 *Beta, f32 *Ti, u64 N);
 
 internal void CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u64 N);
 internal void CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u64 N);
-internal f32 CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u64 N);
+internal f32  CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u64 N);
 
 struct bezier_lower_degree
 {
@@ -161,18 +161,18 @@ struct bezier_lower_degree
    f32 W_II;
 };
 
-internal v2f32 BezierCurveEvaluate(f32 T, v2f32 *P, u64 N);
-internal v2f32 BezierWeightedCurveEvaluate(f32 T, v2f32 *P, f32 *W, u64 N);
-internal v2f32 BezierCurveEvaluateFast(f32 T, v2f32 *P, u64 N);
-internal v2f32 BezierWeightedCurveEvaluateFast(f32 T, v2f32 *P, f32 *W, u64 N);
-internal void BezierCurveElevateDegree(v2f32 *P, u64 N);
-internal void BezierWeightedCurveElevateDegree(v2f32 *P, f32 *W, u64 N);
+internal v2f32               BezierCurveEvaluate(f32 T, v2f32 *P, u64 N);
+internal v2f32               BezierWeightedCurveEvaluate(f32 T, v2f32 *P, f32 *W, u64 N);
+internal v2f32               BezierCurveEvaluateFast(f32 T, v2f32 *P, u64 N);
+internal v2f32               BezierWeightedCurveEvaluateFast(f32 T, v2f32 *P, f32 *W, u64 N);
+internal void                BezierCurveElevateDegree(v2f32 *P, u64 N);
+internal void                BezierWeightedCurveElevateDegree(v2f32 *P, f32 *W, u64 N);
 internal bezier_lower_degree BezierCurveLowerDegree(v2f32 *P, u64 N);
 internal bezier_lower_degree BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N);
-internal void BezierCubicCalculateAllControlPoints(v2f32 *P, u64 N, v2f32 *Output);
-internal void BezierCurveSplit(f32 T, v2f32 *P, f32 *W, u64 N,
-                               v2f32 *LeftControlPoints, f32 *LeftControlPointWeights,
-                               v2f32 *RightControlPoints, f32 *RightControlPointWeights);
+internal void                BezierCubicCalculateAllControlPoints(v2f32 *P, u64 N, v2f32 *Output);
+internal void                BezierCurveSplit(f32 T, v2f32 *P, f32 *W, u64 N,
+                                              v2f32 *LeftControlPoints, f32 *LeftControlPointWeights,
+                                              v2f32 *RightControlPoints, f32 *RightControlPointWeights);
 
 internal void DeCasteljauAlgorithm(f32 T, v2f32 *P, f32 *W, u64 N,
                                    v2f32 *OutputP, f32 *OutputW);
@@ -186,8 +186,8 @@ struct line_intersection
    v2f32 IntersectionPoint;
 };
 
-internal b32 PointCollision(v2f32 Position, v2f32 Point, f32 PointRadius);
-internal b32 SegmentCollision(v2f32 Position, v2f32 LineA, v2f32 LineB, f32 LineWidth);
+internal b32               PointCollision(v2f32 Position, v2f32 Point, f32 PointRadius);
+internal b32               SegmentCollision(v2f32 Position, v2f32 LineA, v2f32 LineB, f32 LineWidth);
 internal line_intersection LineIntersection(v2f32 A, v2f32 B, v2f32 C, v2f32 D);
 
 #endif //EDITOR_MATH_H

@@ -7,24 +7,23 @@ PageSize(void)
 }
 
 internal void *
-VirtualMemoryReserve(u64 Capacity)
+AllocVirtualMemory(u64 Capacity, b32 Commit)
 {
-   u64 GbSnappedCapacity = Capacity;
-   GbSnappedCapacity += Gigabytes(1) - 1;
-   GbSnappedCapacity -= GbSnappedCapacity % Gigabytes(1);
-   void *Result = VirtualAlloc(0, GbSnappedCapacity, MEM_RESERVE, PAGE_NOACCESS);
+   DWORD AllocationType = (MEM_RESERVE | (Commit ? MEM_COMMIT : 0));
+   DWORD Protect = (Commit ? PAGE_READWRITE : PAGE_NOACCESS);
+   void *Result = VirtualAlloc(0, Capacity, AllocationType, Protect);
    
    return Result;
 }
 
 internal void
-VirtualMemoryRelease(void *Memory, u64 Size)
+DeallocVirtualMemory(void *Memory, u64 Size)
 {
    VirtualFree(Memory, 0, MEM_RELEASE);
 }
 
 internal void
-VirtualMemoryCommit(void *Memory, u64 Size)
+CommitVirtualMemory(void *Memory, u64 Size)
 {
    u64 PageSnappedSize = Size;
    PageSnappedSize += PageSize() - 1;
@@ -163,4 +162,24 @@ StdErr(void)
 {
    HANDLE Err = GetStdHandle(STD_ERROR_HANDLE);
    return Err;
+}
+
+internal library_handle
+OS_LoadLibrary(char const *Name)
+{
+   HMODULE Lib = LoadLibraryA(Name);
+   return Lib;
+}
+
+internal void *
+OS_LibraryLoadProc(library_handle Lib, char const *ProcName)
+{
+   void *Proc = GetProcAddress(Lib, ProcName);
+   return Proc;
+}
+
+internal void
+OS_UnloadLibrary(library_handle Lib)
+{
+   FreeLibrary(Lib);
 }

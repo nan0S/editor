@@ -494,11 +494,9 @@ struct transform_curve_animation
 enum curve_combination_type
 {
    CurveCombination_Merge,
-   
    CurveCombination_C0,
    CurveCombination_C1,
    CurveCombination_C2,
-   
    CurveCombination_G1,
    
    CurveCombination_Count

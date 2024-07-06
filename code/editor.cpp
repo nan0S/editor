@@ -303,7 +303,7 @@ CalculateAnimation(animation_type Animation, f32 T)
       } break;
       
       case Animation_Linear: { Result = T; } break;
-      case Animation_Count: { InvalidPath; } break;
+      case Animation_Count: InvalidPath;
    }
    
    return Result;
@@ -316,7 +316,7 @@ AnimationToString(animation_type Animation)
    {
       case Animation_Smooth: return "Smooth";
       case Animation_Linear: return "Linear";
-      case Animation_Count: { InvalidPath; } break;
+      case Animation_Count: InvalidPath;
    }
    
    return "invalid";
@@ -385,7 +385,7 @@ DestroyEditorState(editor_state *EditorState)
 internal entity *
 AllocateAndAddEntity(editor_state *State)
 {
-   entity *Entity = PoolAllocStructNonZero(State->EntityPool, entity);
+   entity *Entity = RequestChunkNonZero(State->EntityPool, entity);
    
    // NOTE(hbr): Ugly C++ thing we have to do because of constructors/destructors.
    new (&Entity->Image.Texture) sf::Texture();
@@ -996,7 +996,7 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                               NotImplemented;
                            } break;
                            
-                           case CurveCollision_CurvePoint: { InvalidPath; } break;
+                           case CurveCollision_CurvePoint: InvalidPath;
                         }
                      } break;
                      
@@ -1012,7 +1012,7 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
             } break;
             
             case Button_Middle: {} break;
-            case Button_Count: { InvalidPath; } break;
+            case Button_Count: InvalidPath;
          }
       } break;
       
@@ -1124,7 +1124,7 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
             } break;
             
             case Button_Middle: { Result.Mode = CreateRotatingCameraMode(); } break;
-            case Button_Count: { InvalidPath; } break;
+            case Button_Count: InvalidPath;
          }
       } break;
       
@@ -1134,7 +1134,7 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
             case Button_Left: { Result.SplittingBezierCurve.DraggingSplitPoint = false; } break;
             case Button_Right:
             case Button_Middle: {} break;
-            case Button_Count: { InvalidPath; } break;
+            case Button_Count: InvalidPath;
          }
       } break;
       
@@ -1286,7 +1286,7 @@ EditorStateMovingModeUpdate(editor_state State, user_action Action,
                   CameraMove(&Result.Camera, -Translation);
                } break;
                
-               case MovingMode_CurvePoint: { InvalidPath; } break;
+               case MovingMode_CurvePoint: InvalidPath;
             }
          }
          
@@ -1298,7 +1298,7 @@ EditorStateMovingModeUpdate(editor_state State, user_action Action,
             case Button_Left:
             case Button_Middle: { Result.Mode = EditorModeNormal(); } break;
             case Button_Right: {} break;
-            case Button_Count: { InvalidPath; } break;
+            case Button_Count: InvalidPath;
          }
       } break;
       
@@ -1415,7 +1415,7 @@ EditorStateRotatingModeUpdate(editor_state State, user_action Action,
             case Button_Right: { Result.Mode = EditorModeNormal(); } break;
             case Button_Left:
             case Button_Middle: {} break;
-            case Button_Count: { InvalidPath; } break;
+            case Button_Count: InvalidPath;
          }
       } break;
       
@@ -1894,11 +1894,7 @@ SaveProjectInFormat(arena *Arena,
          }
       } break;
       
-      case SaveProjectFormat_None: {
-         // NOTE(hbr): Impossible, all cases should be handled.
-         InvalidPath;
-      } break;
-      
+      case SaveProjectFormat_None: InvalidPath;
    }
    
    return Error;
@@ -2681,7 +2677,7 @@ LowerBezierCurveDegree(bezier_curve_degree_lowering *Lowering, entity *CurveEnti
                                                          NumControlPoints);
          } break;
          
-         case Bezier_Cubic: { InvalidPath; } break;
+         case Bezier_Cubic: InvalidPath;
       }
       
       if (LowerDegree.Failure)
@@ -2797,7 +2793,7 @@ ElevateBezierCurveDegree(curve *Curve, editor_parameters *EditorParams)
                                           NumControlPoints);
       } break;
       
-      case Bezier_Cubic: { InvalidPath; } break;
+      case Bezier_Cubic: InvalidPath;
    }
    
    local_position *ElevatedCubicBezierPoints = PushArrayNonZero(Temp.Arena,
@@ -4342,7 +4338,7 @@ UpdateAndRenderSplittingBezierCurve(editor *Editor,
          } break;
          
          case Bezier_Weighted: {} break;
-         case Bezier_Cubic: { InvalidPath; } break;
+         case Bezier_Cubic: InvalidPath;
       }
       
       local_position *LeftControlPoints = PushArrayNonZero(Temp.Arena,
@@ -4425,7 +4421,7 @@ UpdateAndRenderSplittingBezierCurve(editor *Editor,
                                                             Curve->NumControlPoints);
             } break;
             
-            case Bezier_Cubic: { InvalidPath; } break;
+            case Bezier_Cubic: InvalidPath;
          }
          Splitting->SplitPoint = LocalEntityPositionToWorld(CurveEntity, SplitPoint);
       }
@@ -4520,7 +4516,7 @@ UpdateAndRenderDeCasteljauVisualization(de_casteljau_visualization *Visualizatio
             } break;
             
             case Bezier_Weighted: {} break;
-            case Bezier_Cubic: { InvalidPath; } break;
+            case Bezier_Cubic: InvalidPath;
          }
          
          // TODO(hbr): Consider passing 0 as ThrowAwayWeights, but make sure algorithm
@@ -4632,7 +4628,7 @@ UpdateAndRenderDegreeLowering(bezier_curve_degree_lowering *Lowering,
       {
          case Bezier_Normal: {} break;
          case Bezier_Weighted: { IncludeWeights = true; } break;
-         case Bezier_Cubic: { InvalidPath; } break;
+         case Bezier_Cubic: InvalidPath;
       }
       
       DeferBlock(ImGui::Begin("Degree Lowering", &IsDegreeLoweringWindowOpen,
@@ -4966,7 +4962,7 @@ IsCombinationTypeAllowed(curve *CombineCurve, curve_combination_type Combination
                    Shape.BezierType == Bezier_Normal);
       } break;
       
-      case CurveCombination_Count: { InvalidPath; } break;
+      case CurveCombination_Count: InvalidPath;
    }
    
    return Result;
@@ -4983,7 +4979,7 @@ CombinationTypeToString(curve_combination_type Combination)
       case CurveCombination_C2: return "C2";
       case CurveCombination_G1: return "G1";
       
-      case CurveCombination_Count: { InvalidPath; } break;
+      case CurveCombination_Count: InvalidPath;
    }
    
    return "invalid";
@@ -5045,7 +5041,7 @@ CombineCurves(curve_combining *Combining, editor_state *EditorState)
          }
       } break;
       
-      case CurveCombination_Count: { InvalidPath; } break;
+      case CurveCombination_Count: InvalidPath;
    }
    
    temp_arena Temp = TempArena(0);
@@ -5156,7 +5152,7 @@ CombineCurves(curve_combining *Combining, editor_state *EditorState)
          }
       } break;
       
-      case CurveCombination_Count: { InvalidPath; } break;
+      case CurveCombination_Count: InvalidPath;
    }
    
    CurveSetControlPoints(To,
@@ -5675,7 +5671,7 @@ CalculateAspectRatio(u64 Width, u64 Height)
 
 int main()
 {
-   InitThreadCtx(Gigabytes(16));
+   InitThreadCtx();
    InitProfiler();
    
    Trap();
@@ -5701,11 +5697,11 @@ int main()
       bool ImGuiInitSuccess = ImGui::SFML::Init(Window, true);
       if (ImGuiInitSuccess)
       {
-         pool *EntityPool = AllocatePoolForType(Gigabytes(1), entity);
-         arena *DeCasteljauVisualizationArena = AllocateArena(Gigabytes(1));
-         arena *DegreeLoweringArena = AllocateArena(Gigabytes(1));
-         arena *MovingPointArena = AllocateArena(Gigabytes(1));
-         arena *CurveAnimationArena = AllocateArena(Gigabytes(1));
+         pool *EntityPool = AllocPool(entity);
+         arena *DeCasteljauVisualizationArena = AllocArena();
+         arena *DegreeLoweringArena = AllocArena();
+         arena *MovingPointArena = AllocArena();
+         arena *CurveAnimationArena = AllocArena();
          editor_state InitialEditorState = CreateDefaultEditorState(EntityPool,
                                                                     DeCasteljauVisualizationArena,
                                                                     DegreeLoweringArena,

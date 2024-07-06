@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <math.h>
+#include <malloc.h>
 
 typedef uint8_t  u8;
 typedef uint16_t u16;
@@ -14,6 +15,9 @@ typedef int8_t  s8;
 typedef int16_t s16;
 typedef int32_t s32;
 typedef int64_t s64;
+
+typedef uintptr_t umm;
+typedef intptr_t smm;
 
 #define U8_MIN  ((u8)0)
 #define U16_MIN ((u16)0)
@@ -105,11 +109,14 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #if OS_LINUX
 # define thread_local __thread
 #endif
+#if !defined(thread_local)
+# error thread_local not defined
+#endif
 
-#define Bytes(N)      (((u64)(N)) << 0)
-#define Kilobytes(N)  (((u64)(N)) << 10)
-#define Megaobytes(N) (((u64)(N)) << 20)
-#define Gigabytes(N)  (((u64)(N)) << 30)
+#define Bytes(N)      ((Cast(u64)(N)) << 0)
+#define Kilobytes(N)  ((Cast(u64)(N)) << 10)
+#define Megabytes(N) ((Cast(u64)(N)) << 20)
+#define Gigabytes(N)  ((Cast(u64)(N)) << 30)
 
 #define Thousand(N) ((N) * 1000)
 #define Million(N)  ((N) * 1000000)
@@ -146,20 +153,24 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define Max(A, B) ((A) < (B) ? (B) : (A))
 #define Min(A, B) ((A) < (B) ? (A) : (B))
 #define Abs(X) ((X) < 0 ? -(X) : (X))
-#define ClampTop(X, Max) Min(X, Max)
-#define ClampBot(X, Min) Max(X, Min)
-#define Clamp(X, Min, Max) ClampTop(ClampBot(X, Min), Max)
-#define Idx(Row, Column, NColumns) ((Row)*(NColumns) + (Column))
+#define ClampTop(X, Maxi) Min(X, Maxi)
+#define ClampBot(X, Mini) Max(X, Mini)
+#define Clamp(X, Mini, Maxi) ClampTop(ClampBot(X, Mini), Maxi)
+#define Idx(Row, Col, NCols) ((Row)*(NCols) + (Col))
 #define ApproxEq32(X, Y) (Abs(X - Y) <= EPS_F32)
 #define ApproxEq64(X, Y) (Abs(X - Y) <= EPS_F64)
-#define IntCmp(X, Y) (((X) < (Y)) ? -1 : (((X) == (Y)) ? 0 : 1))
+#define CmpInt(X, Y) (((X) < (Y)) ? -1 : (((X) == (Y)) ? 0 : 1))
 #define Swap(A, B, Type) do { Type NameConcat(Temp, __LINE__) = (A); (A) = (B); (B) = NameConcat(Temp, __LINE__); } while (0)
+#define AlignPow2(Align, Pow2) (((Align)+((Pow2)-1)) & (~((Pow2)-1)))
+#define IsPow2(X) (((X) & (X-1)) == 0)
 
 #define MemoryCopy(Dest, Src, NumBytes) memcpy(Dest, Src, NumBytes)
 #define MemoryMove(Dest, Src, NumBytes) memmove(Dest, Src, NumBytes)
 #define MemorySet(Ptr, Byte, NumBytes) memset(Ptr, Byte, NumBytes)
 #define MemoryZero(Ptr, NumBytes) MemorySet(Ptr, 0, NumBytes)
 #define MemoryEqual(Ptr1, Ptr2, NumBytes) (memcmp(Ptr1, Ptr2, NumBytes) == 0)
+#define ZeroStruct(Ptr) MemoryZero(Ptr, SizeOf(*(Ptr)))
+
 #define QuickSort(Array, Count, Type, CmpFunc) qsort((Array), (Count), SizeOf(Type), Cast(int(*)(void const *, void const *))(CmpFunc))
 
 #define ListIter(Var, Head, Type) for (Type *Var = (Head), *__Next = ((Head) ? (Head)->Next : 0); Var; Var = __Next, __Next = (__Next ? __Next->Next : 0))
@@ -198,15 +209,15 @@ if ((Node)->Next) (Node)->Next->Prev = (Node)->Prev; \
 // TODO(hbr): I probably should remove these macros
 #define CAPACITY_GROW_FORMULA(Capacity) (2 * (Capacity) + 8)
 #define array(Type) Type *
-#define ArrayAlloc(Count, Type) Cast(Type *)HeapAllocSizeNonZero(HeapAllocator(), (Count) * SizeOf(Type))
-#define ArrayFree(Array) HeapFree(HeapAllocator(), Array)
+#define ArrayAlloc(Count, Type) Cast(Type *)HeapAllocNonZero((Count) * SizeOf(Type))
+#define ArrayFree(Array) HeapDealloc(Array)
 #define ArrayReserve(Array, Capacity, Reserve) \
 do { \
 if ((Reserve) > (Capacity)) \
 { \
 (Capacity) = Max(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
-HeapFree(HeapAllocator(), (Array)); \
-*(Cast(void **)&(Array)) = HeapAllocSizeNonZero(HeapAllocator(), (Capacity) * SizeOf(*(Array))); \
+HeapDealloc(Array); \
+*(Cast(void **)&(Array)) = HeapAllocNonZero((Capacity) * SizeOf((Array)[0])); \
 } \
 Assert((Capacity) >= (Reserve)); \
 } while (0)
@@ -215,7 +226,7 @@ do { \
 if ((Reserve) > (Capacity)) \
 { \
 (Capacity) = Max(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
-*(Cast(void **)&(Array)) = HeapReallocSize(HeapAllocator(), (Array), (Capacity) * SizeOf(*(Array))); \
+*(Cast(void **)&(Array)) = HeapRealloc((Array), (Capacity) * SizeOf((Array)[0])); \
 } \
 Assert((Capacity) >= (Reserve)); \
 } while (0)
@@ -225,7 +236,7 @@ if ((Reserve) > (Capacity)) \
 { \
 auto OldCapacity = (Capacity); \
 (Capacity) = Max(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
-*(Cast(void **)&(Array)) = HeapReallocSize(HeapAllocator(), (Array), (Capacity) * SizeOf(*(Array))); \
+*(Cast(void **)&(Array)) = HeapRealloc((Array), (Capacity) * SizeOf((Array)[0])); \
 if ((Capacity) > OldCapacity) { \
 MemoryZero((Array) + OldCapacity, ((Capacity)-OldCapacity) * SizeOf(*(Array))); \
 } \
@@ -238,73 +249,60 @@ do { for (u64 _I_ = 0; _I_ < ((Count)>>1); ++_I_) { Swap((Array)[_I_], (Array)[(
 //- memory
 struct arena
 {
+   arena *Next;
+   arena *Cur;
+   
    void *Memory;
-   u64 Capacity;
    u64 Used;
-   u64 Commited;
+   u64 Capacity;
    u64 Align;
-   u64 InitialHeaderSize;
 };
 
 struct temp_arena
 {
    arena *Arena;
+   arena *SavedCur;
    u64 SavedUsed;
 };
 
-#define ARENA_DEFAULT_ALIGN 16
-#define ARENA_DEFAULT_COMMIT_SIZE Kilobytes(4)
-
-#define PushStruct(Arena, Type) (Type *)PushSize(Arena, SizeOf(Type))
-#define PushStructNonZero(Arena, Type) (Type *)PushSizeNonZero(Arena, SizeOf(Type))
-#define PushArray(Arena, Count, Type) (Type *)PushSize(Arena, (Count) * SizeOf(Type))
-#define PushArrayNonZero(Arena, Count, Type) (Type *)PushSizeNonZero(Arena, (Count) * SizeOf(Type))
-#define PopArray(Arena, Count, Type) PopSize(Arena, (Count) * SizeOf(Type))
-
-internal arena *AllocateArena(u64 Capacity);
-internal void FreeArena(arena *Arena);
-internal void ArenaGrowUnaligned(arena *Arena, u64 Grow);
-internal void *PushSize(arena *Arena, u64 Size);
-internal void *PushSizeNonZero(arena *Arena, u64 Size);
-internal void PopSize(arena *Arena, u64 Size);
-internal void ClearArena(arena *Arena);
-
-internal temp_arena BeginTemp(arena *Conflict);
-internal void EndTemp(temp_arena Temp);
-
-struct pool_node
+struct pool_chunk
 {
-   pool_node *Next;
+   pool_chunk *Next;
 };
 struct pool
 {
-   // NOTE(hbr): Maybe change to expanding arena
-   arena BackingArena;
+   arena *BackingArena;
+   pool_chunk *FirstFreeChunk;
    u64 ChunkSize;
-   pool_node *FreeNode;
 };
-internal pool *AllocatePool(u64 Capacity, u64 ChunkSize, u64 Align);
-internal void FreePool(pool *Pool);
-internal void *AllocateChunk(pool *Pool);
-internal void ReleaseChunk(pool *Pool, void *Chunk);
 
-#define AllocatePoolForType(Capacity, Type) AllocatePool(Capacity, SizeOf(Type), AlignOf(Type))
-// TODO(hbr): Checking that SizeOf(Type) and aligof(Type) equal Pool->ChunkSize
-// and Pool->Align correspondingly would be useful.
-#define PoolAllocStruct(Pool, Type) Cast(Type *)AllocateChunk(Pool)
-#define PoolAllocStructNonZero(Pool, Type) Cast(Type *)AllocateChunkNonZero(Pool)
+internal arena *AllocArena(void);
+internal void   DeallocArena(arena *Arena);
+internal void   ClearArena(arena *Arena);
+internal void * PushSize(arena *Arena, u64 Size);
+#define         PushStruct(Arena, Type) (Type *)PushSize(Arena, SizeOf(Type))
+#define         PushArray(Arena, Count, Type) (Type *)PushSize(Arena, (Count) * SizeOf(Type))
+internal void * PushSizeNonZero(arena *Arena, u64 Size);
+#define         PushStructNonZero(Arena, Type) (Type *)PushSizeNonZero(Arena, SizeOf(Type))
+#define         PushArrayNonZero(Arena, Count, Type) (Type *)PushSizeNonZero(Arena, (Count) * SizeOf(Type))
 
-struct heap_allocator {};
+internal temp_arena BeginTemp(arena *Conflict);
+internal void       EndTemp(temp_arena Temp);
 
-internal heap_allocator *HeapAllocator(void);
-internal void *HeapAllocSize(heap_allocator *Heap, u64 Size);
-internal void *HeapAllocSizeNonZero(heap_allocator *Heap, u64 Size);
-internal void *HeapReallocSize(heap_allocator *Heap, void *Memory, u64 NewSize);
-internal void HeapFree(heap_allocator *Heap, void *Pointer);
+#define        AllocPool(Type) AllocPoolImpl(SizeOf(Type), AlignOf(Type))
+internal void  DeallocPool(pool *Pool);
+#define        RequestChunk(Pool, Type) Cast(Type *)RequestChunkImpl(Pool)
+#define        RequestChunkNonZero(Pool, Type) Cast(Type *)RequestChunkNonZeroImpl(Pool)
+internal void  ReleaseChunk(pool *Pool, void *Chunk);
 
-#define HeapAllocStruct(Heap, Type) Cast(Type *)HeapAllocSize(Heap, SizeOf(Type))
-#define HeapAllocStructNonZero(Heap, Type) Cast(Type *)HeapAllocSizeNonZero(Heap, SizeOf(Type))
-#define HeapReallocArray(Heap, Array, NewCount, Type) Cast(Type *)HeapReallocSize(Heap, Cast(void *)Array, NewCount * SizeOf(*Array))
+internal void *HeapAlloc(u64 Size);
+internal void *HeapAllocNonZero(u64 Size);
+internal void *HeapRealloc(void *Memory, u64 NewSize);
+internal void  HeapDealloc(void *Pointer);
+
+#define HeapAllocStruct(Type) Cast(Type *)HeapAlloc(SizeOf(Type))
+#define HeapAllocStructNonZero(Type) Cast(Type *)HeapAllocNonZero(SizeOf(Type))
+#define HeapReallocArray(Array, NewCount, Type) Cast(Type *)HeapRealloc(Cast(void *)(Array), (NewCount) * SizeOf((Array)[0]))
 
 //- thread context
 typedef struct
@@ -313,7 +311,7 @@ typedef struct
    arena *Arenas[2];
 } thread_ctx;
 
-internal void InitThreadCtx(u64 PerArenaCapacity);
+internal void InitThreadCtx(void);
 internal temp_arena TempArena(arena *Conflict);
 
 //- format

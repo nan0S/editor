@@ -43,4 +43,6 @@ IF %CompilationMode%==release (
 
 )
 
+cl /Zi /Od ..\code\test.cpp /link /out:test.exe
+
 popd

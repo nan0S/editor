@@ -1,18 +1,18 @@
 internal void *
-VirtualMemoryReserve(u64 Capacity)
+AllocVirtualMemory(u64 Capacity)
 {
    void *Result = mmap(0, Capacity, PROT_NONE, MAP_ANON|MAP_PRIVATE, -1, 0);
    return Result;
 }
 
 internal void
-VirtualMemoryCommit(void *Memory, u64 Size)
+CommitVirtualMemory(void *Memory, u64 Size)
 {
    mprotect(Memory, Size, PROT_READ|PROT_WRITE);
 }
 
 internal void
-VirtualMemoryRelease(void *Memory, u64 Size)
+DeallocVirtualMemory(void *Memory, u64 Size)
 {
    munmap(Memory, Size);
 }

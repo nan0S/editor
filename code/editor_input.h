@@ -46,7 +46,6 @@ struct key_state
 {
    b32 WasPressed;
    b32 Pressed;
-   
    modifier_flags ModifierFlags;
 };
 

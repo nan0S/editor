@@ -1,222 +1,196 @@
 //- memory
 internal arena *
-AllocateArena(u64 Capacity, u64 InitialHeaderSize, u64 Align)
+AllocArenaSize(u64 Size, u64 Align)
 {
-   arena *Arena = 0;
+   u64 Header = AlignPow2(SizeOf(arena), Align);
+   u64 Capacity = Max(Header + Size, Megabytes(1));
+   void *Memory = AllocVirtualMemory(Capacity, true);
+   Assert(Cast(umm)Memory % Align == 0);
    
-   Assert(InitialHeaderSize <= Capacity);
-   Assert(InitialHeaderSize <= ARENA_DEFAULT_COMMIT_SIZE);
-   
-   void *Memory = VirtualMemoryReserve(Capacity);
-   VirtualMemoryCommit(Memory, ARENA_DEFAULT_COMMIT_SIZE);
-   
-   Arena = (arena *)Memory;
+   arena *Arena = Cast(arena *)Memory;
+   Arena->Cur = Arena;
    Arena->Memory = Memory;
+   Arena->Used = Header;
    Arena->Capacity = Capacity;
-   Arena->Used = InitialHeaderSize;
-   Arena->Commited = ARENA_DEFAULT_COMMIT_SIZE;
    Arena->Align = Align;
-   Arena->InitialHeaderSize = InitialHeaderSize;
    
    return Arena;
 }
 
-inline arena *
-AllocateArena(u64 Capacity)
+internal arena *
+AllocArenaAlign(u64 Align)
 {
-   arena *Arena = AllocateArena(Capacity, SizeOf(arena), ARENA_DEFAULT_ALIGN);
+   arena *Arena = AllocArenaSize(0, Align);
    return Arena;
 }
 
-internal void
-FreeArena(arena *Arena)
+internal arena *
+AllocArena(void)
 {
-   VirtualMemoryRelease(Arena->Memory, Arena->Capacity);
-   Arena->Memory = 0;
-   Arena->Capacity = 0;
-   Arena->Used = 0;
-   Arena->Commited = 0;
-   Arena->Align = 0;
-   Arena->InitialHeaderSize = 0;
-}
-
-internal b32
-ArenaSetUsed(arena *Arena, u64 NewUsed)
-{
-   b32 Result = false;
-   
-   if (NewUsed <= Arena->Capacity)
-   {
-      Result = true;
-      
-      Arena->Used = NewUsed;
-      
-      if (NewUsed > Arena->Commited)
-      {
-         u64 CommitGrow = NewUsed - Arena->Commited;
-         CommitGrow += ARENA_DEFAULT_COMMIT_SIZE-1;
-         CommitGrow -= CommitGrow % ARENA_DEFAULT_COMMIT_SIZE;
-         VirtualMemoryCommit(Cast(u8 *)Arena->Memory + Arena->Commited, CommitGrow);
-         Arena->Commited += CommitGrow;
-      }
-   }
-   
-   return Result;
-}
-
-internal void
-ArenaGrowUnaligned(arena *Arena, u64 Grow)
-{
-   u64 NewUsed = Arena->Used + Grow;
-   ArenaSetUsed(Arena, NewUsed);
+   arena *Arena = AllocArenaAlign(16);
+   return Arena;
 }
 
 internal void *
 PushSizeNonZero(arena *Arena, u64 Size)
 {
    void *Result = 0;
-   
-   u64 FreeAddress = (u64)Arena->Memory + Arena->Used;
-   FreeAddress += ARENA_DEFAULT_ALIGN-1;
-   FreeAddress -= FreeAddress % ARENA_DEFAULT_ALIGN;
-   
-   u64 NewUsed = FreeAddress - (u64)Arena->Memory + Size;
-   if (ArenaSetUsed(Arena, NewUsed))
+   arena *Last = 0;
+   for (arena *Cur = Arena->Cur; Cur; Cur = Cur->Next)
    {
-      Result = (void *)FreeAddress;
+      umm Mem = Cast(umm)Cur->Memory;
+      umm Addr = AlignPow2(Mem + Cur->Used, Cur->Align);
+      u64 NewUsed = (Addr - Mem) + Size;
+      if (NewUsed <= Cur->Capacity)
+      {
+         Cur->Used = NewUsed;
+         Result = Cast(void *)Addr;
+         break;
+      }
+      
+      Last = Cur;
+   }
+   
+   if (!Result)
+   {
+      arena *NewArena = AllocArenaSize(Size, Last->Align);
+      Last->Next = NewArena;
+      Arena->Cur = NewArena;
+      umm Addr = Cast(umm)NewArena->Memory + NewArena->Used;
+      umm AddrAligned = AlignPow2(Addr, NewArena->Align);
+      Result = Cast(void *)AddrAligned;
+      NewArena->Used += Size + (AddrAligned - Addr);
+      Assert(NewArena->Used <= NewArena->Capacity);
    }
    
    return Result;
 }
 
-inline void *
+internal void *
 PushSize(arena *Arena, u64 Size)
 {
    void *Result = PushSizeNonZero(Arena, Size);
    MemoryZero(Result, Size);
-   
    return Result;
 }
 
-inline void
-PopSize(arena *Arena, u64 Size)
+internal void
+DeallocArena(arena *Arena)
 {
-   Assert(Size <= Arena->Used);
-   Arena->Used -= Size;
+   arena *Node = Arena;
+   while (Node)
+   {
+      arena *Next = Node->Next;
+      ZeroStruct(Node);
+      DeallocVirtualMemory(Arena->Memory, Arena->Capacity);
+      Node = Next;
+   }
 }
 
-inline void
+internal void
 ClearArena(arena *Arena)
 {
-   PopSize(Arena, Arena->Used - Arena->InitialHeaderSize);
+   for (arena *Node = Arena; Node; Node = Node->Next)
+   {
+      Node->Used = SizeOf(arena);
+   }
+   Arena->Cur = Arena;
 }
 
 internal temp_arena
 BeginTemp(arena *Arena)
 {
-   temp_arena Result = {};
-   Result.Arena = Arena;
-   Result.SavedUsed = Arena->Used;
+   temp_arena Temp = {};
+   Temp.Arena = Arena;
+   Temp.SavedCur = Arena->Cur;
+   Temp.SavedUsed = Arena->Cur->Used;
    
-   return Result;
+   return Temp;
 }
 
-inline void
+internal void
 EndTemp(temp_arena Temp)
 {
-   Temp.Arena->Used = Temp.SavedUsed;
+   Temp.Arena->Cur = Temp.SavedCur;
+   Temp.SavedCur->Used = Temp.SavedUsed;
 }
 
 internal pool *
-AllocatePool(u64 Capacity, u64 ChunkSize, u64 Align)
+AllocPoolImpl(u64 ChunkSize, u64 Align)
 {
-   Assert(ChunkSize >= SizeOf(pool_node));
-   
-   pool *Pool = (pool *)AllocateArena(Capacity, SizeOf(pool), Align);
+   AssertAlways(SizeOf(pool_chunk) <= ChunkSize);
+   arena *Arena = AllocArenaAlign(Align);
+   pool *Pool = PushStruct(Arena, pool);
+   Pool->BackingArena = Arena;
    Pool->ChunkSize = ChunkSize;
-   Pool->FreeNode = 0;
    
    return Pool;
 }
 
-inline void
-FreePool(pool *Pool)
-{
-   FreeArena(Cast(arena *)Pool);
-}
-
 internal void *
-AllocateChunkNonZero(pool *Pool)
+RequestChunkNonZeroImpl(pool *Pool)
 {
    void *Result = 0;
-   if (Pool->FreeNode)
+   if (Pool->FirstFreeChunk)
    {
-      Result = Pool->FreeNode;
-      StackPop(Pool->FreeNode);
+      Result = Pool->FirstFreeChunk;
+      StackPop(Pool->FirstFreeChunk);
    }
    else
    {
-      Result = PushSizeNonZero(&Pool->BackingArena, Pool->ChunkSize);
+      Result = PushSizeNonZero(Pool->BackingArena, Pool->ChunkSize);
    }
    
    return Result;
 }
 
-inline void *
-AllocateChunk(pool *Pool)
-{
-   void *Result = AllocateChunkNonZero(Pool);
-   MemoryZero(Result, Pool->ChunkSize);
-   
-   return Result;
-}
-
-inline void
-ReleaseChunk(pool *Pool, void *Chunk)
-{
-   StackPush(Pool->FreeNode, Cast(pool_node *)Chunk);
-}
-
-#include <malloc.h>
-
-internal heap_allocator *
-HeapAllocator(void)
-{
-   heap_allocator *Heap = 0;
-   return Heap;
-}
-
-inline void *
-HeapAllocSizeNonZero(heap_allocator *Heap, u64 Size)
-{
-   MarkUnused(Heap);
-   void *Result = malloc(Size);
-   
-   return Result;
-}
-
-inline void *
-HeapAllocSize(heap_allocator *Heap, u64 Size)
-{
-   void *Result = HeapAllocSizeNonZero(Heap, Size);
-   MemoryZero(Result, Size);
-   
-   return Result;
-}
-
 internal void *
-HeapReallocSize(heap_allocator *Heap, void *Memory, u64 NewSize)
+RequestChunkImpl(pool *Pool)
 {
-   MarkUnused(Heap);
-   void *Result = realloc(Memory, NewSize);
-   
+   void *Result = RequestChunkNonZeroImpl(Pool);
+   MemoryZero(Result, Pool->ChunkSize);
    return Result;
 }
 
 internal void
-HeapFree(heap_allocator *Heap, void *Pointer)
+ReleaseChunk(pool *Pool, void *Chunk)
 {
-   MarkUnused(Heap);
+   pool_chunk *PoolChunk = Cast(pool_chunk *)Chunk;
+   PoolChunk->Next = Pool->FirstFreeChunk;
+   Pool->FirstFreeChunk = PoolChunk;
+}
+
+internal void
+DeallocPool(pool *Pool)
+{
+   DeallocArena(Pool->BackingArena);
+}
+
+inline internal void *
+HeapAllocNonZero(u64 Size)
+{
+   void *Result = malloc(Size);
+   return Result;
+}
+
+inline internal void *
+HeapAlloc(u64 Size)
+{
+   void *Result = HeapAllocNonZero(Size);
+   MemoryZero(Result, Size);
+   return Result;
+}
+
+internal void *
+HeapRealloc(void *Memory, u64 NewSize)
+{
+   void *Result = realloc(Memory, NewSize);
+   return Result;
+}
+
+internal void
+HeapDealloc(void *Pointer)
+{
    free(Pointer);
 }
 
@@ -224,7 +198,7 @@ HeapFree(heap_allocator *Heap, void *Pointer)
 global thread_local thread_ctx GlobalCtx;
 
 internal void
-InitThreadCtx(u64 PerArenaCapacity)
+InitThreadCtx(void)
 {
    if (!GlobalCtx.Initialized)
    {
@@ -232,7 +206,7 @@ InitThreadCtx(u64 PerArenaCapacity)
            ArenaIndex < ArrayCount(GlobalCtx.Arenas);
            ++ArenaIndex)
       {
-         GlobalCtx.Arenas[ArenaIndex] = AllocateArena(PerArenaCapacity);
+         GlobalCtx.Arenas[ArenaIndex] = AllocArena();
       }
       
       GlobalCtx.Initialized = true;
@@ -686,7 +660,7 @@ CreateAndCopyStr(char *Dst, char const *Src, u64 Count)
 internal string
 Str(char const *String, u64 Count)
 {
-   char *Data = Cast(char *)HeapAllocSizeNonZero(HeapAllocator(), Count + 1);
+   char *Data = Cast(char *)HeapAllocNonZero(Count + 1);
    string Result = CreateAndCopyStr(Data, String, Count);
    
    return Result;
@@ -712,7 +686,7 @@ StrC(arena *Arena, char const *String)
 internal void
 FreeStr(string *String)
 {
-   HeapFree(HeapAllocator(), String->Data);
+   HeapDealloc(String->Data);
    String->Data = 0;
    String->Count = 0;
 }

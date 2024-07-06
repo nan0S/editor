@@ -1,0 +1,4 @@
+#ifndef EDITOR_MEMORY_H
+#define EDITOR_MEMORY_H
+
+#endif //EDITOR_MEMORY_H

@@ -13,6 +13,8 @@ struct profile_anchor
    u64 TotalSelfTSC;
    u64 HitCount;
    char const *Label;
+   // TODO(hbr): Maybe make it smaller than u64, maybe get rid of it entirely
+   u64 ParentAnchorIndex;
 };
 
 struct profiler
@@ -52,6 +54,7 @@ struct profile_block
       Anchor->TotalSelfTSC += ElapsedTSC;
       Anchor->HitCount += 1;
       Anchor->Label = Label;
+      Anchor->ParentAnchorIndex = ParentAnchorIndex;
       Parent->TotalSelfTSC -= ElapsedTSC;
       
       GlobalAnchorParentIndex = ParentAnchorIndex;
@@ -65,6 +68,9 @@ struct profile_block
 };
 
 internal void InitProfiler(void);
+internal void EndProfiling(void);
+internal void PrintProfiler(void);
+
 internal void FrameProfilePoint(b32 *ViewProfilerWindow);
 
 #define NameConcat2(A, B) A##B
@@ -73,8 +79,10 @@ internal void FrameProfilePoint(b32 *ViewProfilerWindow);
 
 #else
 
-#define InitProfiler(...);
-#define FrameProfilePoint(...);
+#define InitProfiler(...)
+#define EndProfiling(...)
+#define PrintProfiler(...)
+#define FrameProfilePoint(...)
 #define TimeBlock(...)
 
 #endif

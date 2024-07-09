@@ -78,9 +78,8 @@ internal void Normalize(v2f32 *V);
 internal f32 Dot(v2f32 U, v2f32 V);
 internal f32 Cross(v2f32 U, v2f32 V);
 
-typedef u64 num_convex_hull_points;
-internal num_convex_hull_points CalculateConvexHull(u64 NumPoints, v2f32 *Points,
-                                                    v2f32 *OutputConvexHullPoints);
+typedef u64 hull_point_count64;
+internal hull_point_count64 CalcConvexHull(u64 PointCount, v2f32 *Points, v2f32 *OutPoints);
 
 struct line_vertices
 {
@@ -150,6 +149,7 @@ internal f32  CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u64 N);
 
 struct bezier_lower_degree
 {
+   // TODO(hbr): Change failure to success, always do zero initialization to mean nothing
    b32 Failure;
    
    u64 MiddlePointIndex;

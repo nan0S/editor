@@ -5,6 +5,7 @@
 #include <stdarg.h>
 #include <math.h>
 #include <malloc.h>
+#include <string.h>
 
 typedef uint8_t  u8;
 typedef uint16_t u16;
@@ -115,7 +116,7 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 
 #define Bytes(N)      ((Cast(u64)(N)) << 0)
 #define Kilobytes(N)  ((Cast(u64)(N)) << 10)
-#define Megabytes(N) ((Cast(u64)(N)) << 20)
+#define Megabytes(N)  ((Cast(u64)(N)) << 20)
 #define Gigabytes(N)  ((Cast(u64)(N)) << 30)
 
 #define Thousand(N) ((N) * 1000)
@@ -159,7 +160,7 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define Idx(Row, Col, NCols) ((Row)*(NCols) + (Col))
 #define ApproxEq32(X, Y) (Abs(X - Y) <= EPS_F32)
 #define ApproxEq64(X, Y) (Abs(X - Y) <= EPS_F64)
-#define CmpInt(X, Y) (((X) < (Y)) ? -1 : (((X) == (Y)) ? 0 : 1))
+#define IntCmp(X, Y) (((X) < (Y)) ? -1 : (((X) == (Y)) ? 0 : 1))
 #define Swap(A, B, Type) do { Type NameConcat(Temp, __LINE__) = (A); (A) = (B); (B) = NameConcat(Temp, __LINE__); } while (0)
 #define AlignPow2(Align, Pow2) (((Align)+((Pow2)-1)) & (~((Pow2)-1)))
 #define IsPow2(X) (((X) & (X-1)) == 0)
@@ -168,7 +169,8 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define MemoryMove(Dest, Src, NumBytes) memmove(Dest, Src, NumBytes)
 #define MemorySet(Ptr, Byte, NumBytes) memset(Ptr, Byte, NumBytes)
 #define MemoryZero(Ptr, NumBytes) MemorySet(Ptr, 0, NumBytes)
-#define MemoryEqual(Ptr1, Ptr2, NumBytes) (memcmp(Ptr1, Ptr2, NumBytes) == 0)
+#define MemoryCmp(Ptr1, Ptr2, NumBytes) memcmp(Ptr1, Ptr2, NumBytes)
+#define MemoryEqual(Ptr1, Ptr2, NumBytes) (MemoryCmp(Ptr1, Ptr2, NumBytes) == 0)
 #define ZeroStruct(Ptr) MemoryZero(Ptr, SizeOf(*(Ptr)))
 
 #define QuickSort(Array, Count, Type, CmpFunc) qsort((Array), (Count), SizeOf(Type), Cast(int(*)(void const *, void const *))(CmpFunc))
@@ -305,14 +307,26 @@ internal void  HeapDealloc(void *Pointer);
 #define HeapReallocArray(Array, NewCount, Type) Cast(Type *)HeapRealloc(Cast(void *)(Array), (NewCount) * SizeOf((Array)[0]))
 
 //- thread context
-typedef struct
-{
-   b32 Initialized;
-   arena *Arenas[2];
-} thread_ctx;
-
 internal void InitThreadCtx(void);
 internal temp_arena TempArena(arena *Conflict);
+
+//- time
+typedef u64 timestamp64;
+
+// TODO(hbr): Maybe pack this structure
+struct date_time
+{
+   u64 Ms;    // [0,999]
+   u64 Sec;   // [0,59]
+   u64 Mins;  // [0,59]
+   u64 Hour;  // [0,23]
+   u64 Day;   // [0,30]
+   u64 Month; // [0,11]
+   u64 Year;  // [0..)
+};
+
+internal date_time   TimestampToDateTime(timestamp64 Ts);
+internal timestamp64 DateTimeToTimestamp(date_time Dt);
 
 //- format
 internal u64 Fmt(u64 BufSize, char *Buf, char const *Format, ...);
@@ -324,7 +338,22 @@ struct string
    char *Data;
    u64 Count;
 };
+// TODO(hbr): remove [error_string]
 typedef string error_string;
+
+struct string_list_node
+{
+   string_list_node *Next;
+   string String;
+};
+struct string_list
+{
+   string_list_node *Head;
+   string_list_node *Tail;
+   
+   u64 NodeCount;
+   u64 TotalSize;
+};
 
 // TODO(hbr): Probably rewrite stirng "module"
 // NOTE(hbr): Allocates on heap
@@ -351,25 +380,62 @@ internal b32 IsDigit(char C);
 #define StrLitArena(Arena, Lit) Str(Arena, Lit, ArrayCount(Lit)-1)
 
 // TODO(hbr): functions that do not need rewrite because has been written after rewrite remark
-internal string CStrFromStr(arena *Arena, string S);
+internal b32    CharIsLower(char C);
+internal b32    CharIsUpper(char C);
+internal char   CharToLower(char C);
+
 internal string StrFromCStr(char const *CStr);
-internal u64 CStrLen(char const *CStr);
+internal string CStrFromStr(arena *Arena, string S);
+internal u64    CStrLen(char const *CStr);
 
-struct string_list_node
-{
-   string_list_node *Next;
-   string String;
-};
+internal b32    StrMatch(string A, string B, b32 CaseInsensitive);
+internal b32    StrEqual(string A, string B);
+internal int    StrCmp(string A, string B);
+internal b32    StrEndsWith(string S, string End);
+internal string StrSuffix(string S, u64 Count);
+internal string StrChop(string S, u64 Chop);
+internal string StrChopLastSlash(string S);
+internal string StrAfterLastSlash(string S);
+internal string StrChopLastDot(string S);
+internal string StrAfterLastDot(string S);
 
-struct string_list
+internal string PathChopLastPart(string Path);
+internal string PathLastPart(string Path);
+internal string PathConcat(arena *Arena, string A, string B);
+internal string PathListJoin(arena *Arena, string_list *Path);
+
+internal void        StrListPush(arena *Arena, string_list *List, string String);
+internal string_list StrListCopy(arena *Arena, string_list *List);
+internal void        StrListConcatInPlace(string_list *List, string_list *ToPush);
+
+
+// TODO(hbr): Move to cpp file
+internal string
+StrListJoin(arena *Arena, string_list *List, string Sep)
 {
-   string_list_node *Head;
-   string_list_node *Tail;
+   string Result = {};
+   u64 SepTotalLength = 0;
+   if (List->NodeCount > 0)
+   {
+      SepTotalLength = Sep.Count * (List->NodeCount - 1);
+   }
+   Result.Count = List->TotalSize + SepTotalLength;
+   Result.Data = PushArrayNonZero(Arena, Result.Count + 1, char);
    
-   u64 NumNodes;
-   u64 TotalSize;
-};
-
-internal void StringListPush(arena *Arena, string_list *List, string String);
+   char *At = Result.Data;
+   string CurSep = {};
+   ListIter(Node, List->Head, string_list_node)
+   {
+      MemoryCopy(At, CurSep.Data, CurSep.Count);
+      At += CurSep.Count;
+      MemoryCopy(At, Node->String.Data, Node->String.Count);
+      At += Node->String.Count;
+      CurSep = Sep;
+   }
+   Assert(At - Result.Data == Result.Count);
+   *At++ = 0;
+   
+   return Result;
+}
 
 #endif //EDITOR_BASE_H

@@ -36,7 +36,7 @@ commands =
    .build_editor =
    {
       .linux            = "./build.sh",
-      .win              = "build.bat",
+      .win              = "build2.bat",
       .out              = "*compilation*",
       .footer_panel     = true,
       .save_dirty_files = true,
@@ -54,7 +54,7 @@ commands =
    .build_editor_release =
    {
       .linux            = "./build.sh release",
-      .win              = "build.bat release",
+      .win              = "build2.bat release",
       .out              = "*compilation*",
       .footer_panel     = true,
       .save_dirty_files = true,

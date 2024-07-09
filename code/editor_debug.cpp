@@ -47,8 +47,8 @@ RenderDebugWindow(editor *Editor)
          {
             curve *Curve = &Editor->State.SelectedEntity->Curve;
             
-            ImGui::Text("Number of control points = %lu", Curve->NumControlPoints);
-            ImGui::Text("Number of curve points = %lu", Curve->NumCurvePoints);
+            ImGui::Text("Number of control points = %lu", Curve->ControlPointCount);
+            ImGui::Text("Number of curve points = %lu", Curve->CurvePointCount);
          }
          
          ImGui::Text("Min Frame Time = %.3fms", 1000.0f * Editor->FrameStats.MinFrameTime);

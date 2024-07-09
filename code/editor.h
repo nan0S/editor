@@ -52,7 +52,7 @@ TODOs:
 - better profiler, snapshots, shouldn't update so frequently
 - change curve colors when combining or choosing to transform
 - splitting and splitting on point curves should have either the same name or something better than (left), (right)
-- change the way CurveSetControlPoints works to optimize a little - avoid unnecessary memcpys and allocs
+- change the way SetCurveControlPoints works to optimize a little - avoid unnecessary memcpys and allocs
 - take more things by pointer in general
 - maybe don't be so precise when checking curvepoints collisions - jump every 50 points or something like that
 - use u32 instead of u64 in most places
@@ -69,7 +69,7 @@ TODOs:
 - maybe rename EntityDestroy, in general consider using Allocate/Deallocate maybe or Make/Destroy, or something consistent more, just think about it
 - in general do a pass on variable names, make them less descriptive, like [EditorParams], [EditorState], [ChckecCollisionWithFlags], ...
 - when returning named type from internal like [added_point_index], include 64 in the name, and don't use this name at call sites, just variable name will do
-- is [CurveRecompute] really needed after every operation to curve like [Append] or [Insert], can't just set the flag instead
+- is [RecomputeCurve] really needed after every operation to curve like [Append] or [Insert], can't just set the flag instead
 - replace [Assert(false]] with InvalidPath or something like that, and add [InvalidPath] to [base.h]
 - when passing [curve] to a internal but as [entity], maybe write a macro that gets [curve] from that [entity] but asserts that it really is a curve
 - get rid of defer and templates
@@ -143,7 +143,7 @@ DONE:
 - adding points to Cubic Spline with in-between point selection when dragged
 - saving curve should include CubicBezierPoints
 - when moving control point, still show the previous curve, only when button is released actually change the curve
-- fix CurvePointIndex calculation in case of collisions, etc., dividing by NumCurvePointsPerSegment doesnt't work
+- fix CurvePointIndex calculation in case of collisions, etc., dividing by CurvePointCountPerSegment doesnt't work
  in case of CubicSpline Periodic
 - focus on images
 - animating camera focus
@@ -159,6 +159,13 @@ DONE:
 - because we are going away from returning strings when some os function fails, rather returning boolean, refactor
  all those places that convert boolean into string artificially, instead just pass boolean further
 - maybe make things that are only one just global - like input
+- change Fmt to Format
+- change function names to DoSomethingEntity, rather than EntityDoSomething
+- get rid off line_vertices_allocation_type
+- remove [RecomputeCurve] from every function that modifies curve
+- rename [CurveEntity] to just [Entity] - keep things simple
+- write [CurveAppendPoint] in terms of [CurveInsertPoint]
+ - replace strcmp, memcpy, memset, memmove
 
 Ideas:
 - some kind of locking system - when I want to edit only one curve without
@@ -250,7 +257,7 @@ struct render_point_data
    color OutlineColor;
 };
 
-struct editor_parameters
+struct editor_params
 {
    render_point_data RotationIndicator;
    render_point_data BezierSplitPoint;
@@ -393,7 +400,7 @@ struct editor_mode
          entity *Entity;
          
          u64 PointIndex;
-         b32 CubicBezierPointMoving;
+         b32 IsBezierPoint;
          
          sf::Vertex *SavedCurveVertices;
          u64 SavedNumCurveVertices;
@@ -436,11 +443,9 @@ struct de_casteljau_visualization
 
 struct bezier_curve_degree_lowering
 {
-   b32 IsLowering;
+   entity *Entity;
    
-   entity *CurveEntity;
    u64 SavedCurveVersion;
-   
    arena *Arena;
    local_position *SavedControlPoints;
    f32 *SavedControlPointWeights;
@@ -480,7 +485,7 @@ struct transform_curve_animation
    u64 SavedToCurveVersion;
    // NOTE(hbr): Number of points in ToCurve has to match number
    // of points in FromCurve in order to avoid animation artifacts.
-   u64 NumCurvePoints;
+   u64 CurvePointCount;
    v2f32 *ToCurvePoints;
    line_vertices AnimatedCurveVertices;
    
@@ -543,11 +548,11 @@ internal editor_state CreateEditorState(pool *EntityPool, u64 CurveCounter, came
                                         arena *MovingPointArena, arena *CurveAnimationArena,
                                         f32 CurveAnimationSpeed);
 
-internal entity *AllocateAndAddEntity(editor_state *State);
-internal void DeallocateAndRemoveEntity(editor_state *State, entity *Entity);
+internal entity *AllocAndAddEntity(editor_state *State);
+internal void DeallocAndRemoveEntity(editor_state *State, entity *Entity);
 
 internal void SelectEntity(editor_state *EditorState, entity *Entity);
-internal void DestroyEditorState(editor_state *EditorState);
+internal void DeallocEditorState(editor_state *EditorState);
 
 enum save_project_format
 {
@@ -644,7 +649,7 @@ struct editor
    
    notifications Notifications;
    
-   editor_parameters Parameters;
+   editor_params Parameters;
    
    ui_config UI_Config;
 };

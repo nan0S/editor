@@ -125,6 +125,30 @@ OS_DeleteFile(string Path)
    EndTemp(Temp);
 }
 
+internal b32
+OS_MoveFile(string Src, string Dest)
+{
+   temp_arena Temp = TempArena(0);
+   string CSrc  = CStrFromStr(Temp.Arena, Src);
+   string CDest = CStrFromStr(Temp.Arena, Dest);
+   b32 Success = (MoveFileA(CSrc.Data, CDest.Data) != 0);
+   EndTemp(Temp);
+   
+   return Success;
+}
+
+internal b32
+OS_CopyFile(string Src, string Dest)
+{
+   temp_arena Temp = TempArena(0);
+   string CSrc  = CStrFromStr(Temp.Arena, Src);
+   string CDest = CStrFromStr(Temp.Arena, Dest);
+   b32 Success = (CopyFileA(CSrc.Data, CDest.Data, 0) != 0);
+   EndTemp(Temp);
+   
+   return Success;
+}
+
 internal u64
 OS_FileSize(file_handle File)
 {
@@ -137,6 +161,51 @@ OS_FileSize(file_handle File)
    return Result;
 }
 
+internal date_time
+Win32SysTimeToDateTime(SYSTEMTIME SysTime)
+{
+   date_time Date = {};
+   Date.Ms = SysTime.wMilliseconds;
+   Date.Sec = SysTime.wSecond;
+   Date.Mins = SysTime.wMinute;
+   Date.Hour = SysTime.wHour;
+   Date.Day = SysTime.wDay - 1;
+   Date.Month = SysTime.wMonth - 1;
+   Date.Year = SysTime.wYear;
+   
+   return Date;
+}
+
+internal timestamp64
+Win32FileTimeToTimestamp(FILETIME FileTime)
+{
+   SYSTEMTIME SysTime = {};
+   FileTimeToSystemTime(&FileTime, &SysTime);
+   date_time DateTime = Win32SysTimeToDateTime(SysTime);
+   timestamp64 Ts = DateTimeToTimestamp(DateTime);
+   
+   return Ts;
+}
+
+internal file_attrs
+OS_FileAttributes(string Path)
+{
+   file_attrs Result = {};
+   temp_arena Temp = TempArena(0);
+   string CPath = CStrFromStr(Temp.Arena, Path);
+   WIN32_FILE_ATTRIBUTE_DATA Attrs = {};
+   if (GetFileAttributesExA(CPath.Data, GetFileExInfoStandard, &Attrs))
+   {
+      Result.FileSize = (((Cast(u64)Attrs.nFileSizeHigh) << 32) | Attrs.nFileSizeLow);
+      Result.CreateTime = Win32FileTimeToTimestamp(Attrs.ftCreationTime);
+      Result.ModifyTime = Win32FileTimeToTimestamp(Attrs.ftLastWriteTime);
+      Result.Dir = (Attrs.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+   }
+   EndTemp(Temp);
+   
+   return Result;
+}
+
 internal b32
 OS_FileExists(string Path)
 {
@@ -145,6 +214,71 @@ OS_FileExists(string Path)
    DWORD Attributes = GetFileAttributesA(CPath.Data);
    b32 Result = (Attributes != INVALID_FILE_ATTRIBUTES) && !(Attributes & FILE_ATTRIBUTE_DIRECTORY);
    EndTemp(Temp);
+   
+   return Result;
+}
+
+internal string
+OS_FullPathFromPath(arena *Arena, string Path)
+{
+   string Result = {};
+   temp_arena Temp = TempArena(Arena);
+   string CPath = CStrFromStr(Temp.Arena, Path);
+   
+   DWORD BufferLength = MAX_PATH + 1;
+   Result.Data = PushArrayNonZero(Arena, BufferLength, char);
+   Result.Count = GetFullPathNameA(CPath.Data, BufferLength, Result.Data, 0);
+   if (Result.Count < BufferLength)
+   {
+      Result.Data[Result.Count] = 0;
+   }
+   
+   EndTemp(Temp);
+   
+   return Result;
+}
+
+internal b32
+OS_MakeDir(string Path)
+{
+   temp_arena Temp = TempArena(0);
+   string CPath = CStrFromStr(Temp.Arena, Path);
+   b32 Success = (CreateDirectoryA(CPath.Data, 0) != 0);
+   EndTemp(Temp);
+   
+   return Success;
+}
+
+internal b32
+OS_RemoveDir(string Path)
+{
+   temp_arena Temp = TempArena(0);
+   string CPath = CStrFromStr(Temp.Arena, Path);
+   b32 Success = (RemoveDirectoryA(CPath.Data) != 0);
+   EndTemp(Temp);
+   
+   return Success;
+}
+
+internal b32
+OS_ChangeDir(string Path)
+{
+   temp_arena Temp = TempArena(0);
+   string CPath = CStrFromStr(Temp.Arena, Path);
+   b32 Success = (SetCurrentDirectoryA(CPath.Data) != 0);
+   EndTemp(Temp);
+   
+   return Success;
+}
+
+internal string
+OS_CurrentDir(arena *Arena)
+{
+   string Result = {};
+   DWORD RequiredSize = GetCurrentDirectory(0, 0);
+   Result.Data = PushArrayNonZero(Arena, RequiredSize, char);
+   Result.Count = GetCurrentDirectory(RequiredSize, Result.Data);
+   Assert(Result.Count == RequiredSize - 1);
    
    return Result;
 }

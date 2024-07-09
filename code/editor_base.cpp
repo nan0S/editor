@@ -195,6 +195,11 @@ HeapDealloc(void *Pointer)
 }
 
 //- thread context
+struct thread_ctx
+{
+   b32 Initialized;
+   arena *Arenas[2];
+};
 global thread_local thread_ctx GlobalCtx;
 
 internal void
@@ -232,7 +237,51 @@ TempArena(arena *Conflict)
    return Result;
 }
 
+//- time
+internal date_time
+TimestampToDateTime(timestamp64 Ts)
+{
+   date_time Dt = {};
+   Dt.Ms = Ts % 1000;
+   Ts /= 1000;
+   Dt.Sec = Ts % 60;
+   Ts /= 60;
+   Dt.Mins = Ts % 60;
+   Ts /= 60;
+   Dt.Hour = Ts % 24;
+   Ts /= 24;
+   Dt.Day = Ts % 31;
+   Ts /= 31;
+   Dt.Month = Ts % 12;
+   Ts /= 12;
+   Dt.Year = Ts;
+   
+   return Dt;
+}
+
+internal timestamp64
+DateTimeToTimestamp(date_time Dt)
+{
+   timestamp64 Ts = 0;
+   Ts += Dt.Year;
+   Ts *= 12;
+   Ts += Dt.Month;
+   Ts *= 31;
+   Ts += Dt.Day;
+   Ts *= 24;
+   Ts += Dt.Hour;
+   Ts *= 60;
+   Ts += Dt.Mins; 
+   Ts *= 60;
+   Ts += Dt.Sec;
+   Ts *= 1000;
+   Ts += Dt.Ms;
+   
+   return Ts;
+}
+
 //- format
+// TODO(hbr): Replace order of arguments
 internal u64
 Fmt(u64 BufSize, char *Buf, char const *Format, ...)
 {
@@ -867,6 +916,31 @@ IsDigit(char C)
    return Result;
 }
 
+internal b32
+CharIsUpper(char C)
+{
+   b32 Result = ('A' <= C && C <= 'Z');
+   return Result;
+}
+
+internal b32
+CharIsLower(char C)
+{
+   b32 Result = ('a' <= C && C <= 'z');
+   return Result;
+}
+
+internal char
+CharToLower(char C)
+{
+   char Result = C;
+   if (CharIsUpper(Result))
+   {
+      Result += 'a' - 'A';
+   }
+   return Result;
+}
+
 internal string
 CStrFromStr(arena *Arena, string S)
 {
@@ -901,12 +975,261 @@ CStrLen(char const *CStr)
    return Length;
 }
 
+internal string
+StrSuffix(string S, u64 Count)
+{
+   string Result = S;
+   if (Result.Count > Count)
+   {
+      Result.Data = Result.Data + (Result.Count - Count);
+      Result.Count = Count;
+   }
+   
+   return Result;
+}
+
+internal b32
+StrMatch(string A, string B, b32 CaseInsensitive)
+{
+   b32 Result = true;
+   if (A.Count == B.Count)
+   {
+      for (u64 I = 0; I < A.Count; ++I)
+      {
+         char Ac = A.Data[I];
+         char Bc = B.Data[I];
+         if (CaseInsensitive)
+         {
+            Ac = CharToLower(Ac);
+            Bc = CharToLower(Bc);
+         }
+         if (Ac != Bc)
+         {
+            Result = false;
+            break;
+         }
+      }
+   }
+   else
+   {
+      Result = false;
+   }
+   
+   return Result;
+}
+
+internal b32
+StrEqual(string A, string B)
+{
+   b32 Result = StrMatch(A, B, false);
+   return Result;
+}
+
+internal int
+StrCmp(string A, string B)
+{
+   int Order = MemoryCmp(A.Data, B.Data, Min(A.Count, B.Count));
+   int Result = 0;
+   if (Order == 0)
+   {
+      Result = IntCmp(A.Count, B.Count);
+   }
+   else
+   {
+      Result = Order;
+   }
+   
+   return Result;
+}
+
+internal b32
+StrEndsWith(string S, string End)
+{
+   string Suffix = StrSuffix(S, End.Count);
+   b32 Result = StrEqual(Suffix, End);
+   return Result;
+}
+
+internal string
+StrChop(string S, u64 Chop)
+{
+   string Result = S;
+   Result.Count -= ClampTop(Chop, Result.Count);
+   return Result;
+}
+
+internal string
+StrChopLastSlash(string S)
+{
+   char *At = S.Data + (S.Count - 1);
+   while (At >= S.Data && *At != '/' && *At != '\\')
+   {
+      --At;
+   }
+   string Result = S;
+   if (At >= S.Data)
+   {
+      Result.Count = At - S.Data;
+   }
+   
+   return Result;
+}
+
+internal string
+StrAfterLastSlash(string S)
+{
+   char *At = S.Data + (S.Count - 1);
+   while (At >= S.Data && *At != '/' && *At != '\\')
+   {
+      --At;
+   }
+   string Result = S;
+   if (At >= S.Data)
+   {
+      ++At;
+      Result.Data = At;
+      Result.Count = S.Data + S.Count - At;
+   }
+   
+   return Result;
+}
+
+internal string
+StrChopLastDot(string S)
+{
+   char *At = S.Data + (S.Count - 1);
+   while (At >= S.Data && *At != '.')
+   {
+      --At;
+   }
+   string Result = S;
+   if (At >= S.Data)
+   {
+      Result.Count = At - S.Data;
+   }
+   
+   return Result;
+}
+
+internal string
+StrAfterLastDot(string S)
+{
+   char *At = S.Data + (S.Count - 1);
+   while (At >= S.Data && *At != '.')
+   {
+      --At;
+   }
+   string Result = S;
+   if (At >= S.Data)
+   {
+      ++At;
+      Result.Data = At;
+      Result.Count = S.Data + S.Count - At;
+   }
+   
+   return Result;
+}
+
+internal string
+PathChopLastPart(string S)
+{
+   char *At = S.Data + (S.Count - 1);
+   while (At >= S.Data && *At != '/' && *At != '\\')
+   {
+      --At;
+   }
+   string Result = {};
+   Result.Data = S.Data;
+   if (At > S.Data)
+   {
+      Result.Count = At - S.Data;
+   }
+   if (Result.Count == 0)
+   {
+      Result = StrLit(".");
+   }
+   
+   return Result;
+}
+
+internal string
+PathLastPart(string S)
+{
+   char *At = S.Data + (S.Count - 1);
+   while (At >= S.Data && *At != '/' && *At != '\\')
+   {
+      --At;
+   }
+   ++At;
+   
+   string Result = {};
+   Result.Data = At;
+   Result.Count = S.Data + S.Count - At;
+   
+   return Result;
+}
+
+internal string
+PathConcat(arena *Arena, string A, string B)
+{
+   string_list Path = {};
+   StrListPush(Arena, &Path, A);
+   StrListPush(Arena, &Path, B);
+   string Result = PathListJoin(Arena, &Path);
+   
+   return Result;
+}
+
+internal string
+PathListJoin(arena *Arena, string_list *Path)
+{
+   string Sep = {};
+#if OS_WINDOWS
+   Sep = StrLit("\\");
+#elif OS_LINUX
+   Sep = StrLit("/");
+#elif
+# error unsupported OS
+#endif
+   string Result = StrListJoin(Arena, Path, Sep);
+   return Result;
+}
+
 internal void
-StringListPush(arena *Arena, string_list *List, string String)
+StrListPush(arena *Arena, string_list *List, string String)
 {
    string_list_node *Node = PushStructNonZero(Arena, string_list_node);
    Node->String = String;
    QueuePush(List->Head, List->Tail, Node);
-   ++List->NumNodes;
+   ++List->NodeCount;
    List->TotalSize += String.Count;
+}
+
+internal string_list
+StrListCopy(arena *Arena, string_list *List)
+{
+   string_list Copy = {};
+   ListIter(Node, List->Head, string_list_node)
+   {
+      StrListPush(Arena, &Copy, Node->String);
+   }
+   
+   return Copy;
+}
+
+internal void
+StrListConcatInPlace(string_list *List, string_list *ToPush)
+{
+   if (List->Tail)
+   {
+      List->Tail->Next = ToPush->Head;
+      List->Tail = ToPush->Tail;
+      List->NodeCount += ToPush->NodeCount;
+      List->TotalSize += ToPush->TotalSize;
+   }
+   else
+   {
+      *List = *ToPush;
+   }
+   ZeroStruct(ToPush);
 }

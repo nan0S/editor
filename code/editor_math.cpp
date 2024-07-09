@@ -274,33 +274,29 @@ RemoveDupliatesSorted(u64 NumPoints, v2f32 *Points)
    return NumUnique;
 }
 
-internal num_convex_hull_points
-CalculateConvexHull(u64 NumPoints, v2f32 *Points,
-                    v2f32 *OutputConvexHullPoints)
+internal u64
+CalcConvexHull(u64 PointCount, v2f32 *Points, v2f32 *OutPoints)
 {
-   num_convex_hull_points NumConvexHullPoints = 0;
-   
-   if (NumPoints > 0)
+   u64 HullPointCount = 0;
+   if (PointCount > 0)
    {
-      MemoryCopy(OutputConvexHullPoints, Points, NumPoints * SizeOf(OutputConvexHullPoints[0]));
-      AngleSort(NumPoints, OutputConvexHullPoints);
-      u64 NumUniquePoints = RemoveDupliatesSorted(NumPoints, OutputConvexHullPoints);
+      MemoryCopy(OutPoints, Points, PointCount * SizeOf(OutPoints[0]));
+      AngleSort(PointCount, OutPoints);
+      u64 UniquePointCount = RemoveDupliatesSorted(PointCount, OutPoints);
       
-      NumConvexHullPoints = 1;
-      for (u64 PointIndex = 1;
-           PointIndex < NumUniquePoints;
-           ++PointIndex)
+      HullPointCount = 1;
+      for (u64 PointIndex = 1; PointIndex < UniquePointCount; ++PointIndex)
       {
-         v2f32 Point = OutputConvexHullPoints[PointIndex];
-         while (NumConvexHullPoints >= 2)
+         v2f32 Point = OutPoints[PointIndex];
+         while (HullPointCount >= 2)
          {
-            v2f32 O = OutputConvexHullPoints[NumConvexHullPoints - 2];
-            v2f32 U = OutputConvexHullPoints[NumConvexHullPoints - 1] - O;
+            v2f32 O = OutPoints[HullPointCount - 2];
+            v2f32 U = OutPoints[HullPointCount - 1] - O;
             v2f32 V = Point - O;
             
             if (Cross(U, V) <= 0.0f)
             {
-               --NumConvexHullPoints;
+               --HullPointCount;
             }
             else
             {
@@ -308,11 +304,11 @@ CalculateConvexHull(u64 NumPoints, v2f32 *Points,
             }
          }
          
-         OutputConvexHullPoints[NumConvexHullPoints++] = Point;
+         OutPoints[HullPointCount++] = Point;
       }
    }
    
-   return NumConvexHullPoints;
+   return HullPointCount;
 }
 
 internal line_vertices_allocation

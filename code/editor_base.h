@@ -119,9 +119,9 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define Megabytes(N)  ((Cast(u64)(N)) << 20)
 #define Gigabytes(N)  ((Cast(u64)(N)) << 30)
 
-#define Thousand(N) ((N) * 1000)
-#define Million(N)  ((N) * 1000000)
-#define Billion(N)  ((N) * 1000000000ull)
+#define Thousand(N) (Cast(u64)(N) * 1000)
+#define Million(N)  (Cast(u64)(N) * 1000000)
+#define Billion(N)  (Cast(u64)(N) * 1000000000ull)
 
 #define ArrayCount(Arr) (SizeOf(Arr)/SizeOf((Arr)[0]))
 #define AssertAlways(Expr) do { if (!(Expr)) { Trap(); } } while (0)
@@ -134,6 +134,8 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define NotImplemented Assert(!"Not Implemented")
 #define InvalidPath Assert(!"Invalid Path");
 #define DeferBlock(Start, End) for (int _i_ = ((Start), 0); _i_ == 0; ++_i_, (End))
+#define NameConcat_(A, B) A##B
+#define NameConcat(A, B) NameConcat_(A, B)
 
 #if defined(BUILD_DEBUG)
 # define Assert(Expr) AssertAlways(Expr)
@@ -432,7 +434,7 @@ StrListJoin(arena *Arena, string_list *List, string Sep)
       At += Node->String.Count;
       CurSep = Sep;
    }
-   Assert(At - Result.Data == Result.Count);
+   Assert(Cast(u64)(At - Result.Data) == Result.Count);
    *At++ = 0;
    
    return Result;

@@ -259,21 +259,9 @@ CalcCubicBezierCurvePoints(local_position *CubicBezierPoints,
 }
 
 internal void
-RecomputeCurve(curve *Curve)
+EvaluateCurve(curve *Curve, u64 CurvePointCount, v2f32 *CurvePoints)
 {
-   TimeFunction;
-   
-   temp_arena Temp = TempArena(Curve->ComputationArena);
-   
-   ClearArena(Curve->ComputationArena);
-   
-   u64 CurvePointCount = 0;
-   if (Curve->ControlPointCount > 0)
-   {
-      CurvePointCount = (Curve->ControlPointCount - 1) * Curve->CurveParams.CurvePointCountPerSegment + 1;
-   }
-   local_position *CurvePoints = PushArrayNonZero(Curve->ComputationArena, CurvePointCount, local_position);
-   
+   temp_arena Temp = TempArena(0);
    curve_shape *CurveShape = &Curve->CurveParams.CurveShape;
    switch (CurveShape->InterpolationType)
    {
@@ -329,6 +317,26 @@ RecomputeCurve(curve *Curve)
          }
       } break;
    }
+   EndTemp(Temp);
+}
+
+internal void
+RecomputeCurve(curve *Curve)
+{
+   TimeFunction;
+   
+   temp_arena Temp = TempArena(Curve->ComputationArena);
+   
+   ClearArena(Curve->ComputationArena);
+   
+   u64 CurvePointCount = 0;
+   if (Curve->ControlPointCount > 0)
+   {
+      CurvePointCount = (Curve->ControlPointCount - 1) * Curve->CurveParams.CurvePointCountPerSegment + 1;
+   }
+   local_position *CurvePoints = PushArrayNonZero(Curve->ComputationArena, CurvePointCount, local_position);
+   
+   EvaluateCurve(Curve, CurvePointCount, CurvePoints);
    
    Curve->CurveVertices = CalculateLineVertices(Curve->CurvePointCount, Curve->CurvePoints, 
                                                 Curve->CurveParams.CurveWidth, Curve->CurveParams.CurveColor,

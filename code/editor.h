@@ -631,6 +631,7 @@ struct ui_config
 #endif
 };
 
+#define MAX_ENTITY_COUNT 1024
 struct editor
 {
    sf::RenderWindow *Window;

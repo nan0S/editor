@@ -33,19 +33,19 @@ load_paths =
 
 commands =
 {
-   .build_editor =
+   .build_editor_debug =
    {
-      .linux            = "./build.sh",
-      .win              = "build2.bat",
+      .linux            = "./build.sh debug",
+      .win              = "build.bat debug",
       .out              = "*compilation*",
       .footer_panel     = true,
       .save_dirty_files = true,
       .cursor_at_end    = false,
    },
-   .run_editor =
+   .run_editor_debug=
    {
-      .linux            = "pushd build && ./editor && popd",
-      .win              = "pushd build && editor.exe && popd",
+      .linux            = "pushd build && ./editor_debug && popd",
+      .win              = "pushd build && editor_debug.exe && popd",
       .out              = "*execution*",
       .footer_panel     = true,
       .save_dirty_files = true,
@@ -54,7 +54,7 @@ commands =
    .build_editor_release =
    {
       .linux            = "./build.sh release",
-      .win              = "build2.bat release",
+      .win              = "build.bat release",
       .out              = "*compilation*",
       .footer_panel     = true,
       .save_dirty_files = true,
@@ -73,8 +73,8 @@ commands =
 
 fkey_command =
 {
-   .F1 = "build_editor",
+   .F1 = "build_editor_debug",
    .F2 = "build_editor_release",
-   .F3 = "run_editor",
+   .F3 = "run_editor_debug",
    .F4 = "run_editor_release",
 };

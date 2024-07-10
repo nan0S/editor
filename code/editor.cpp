@@ -382,16 +382,58 @@ DeallocEditorState(editor_state *EditorState)
    EditorState->NumEntities = 0;
 }
 
-internal entity *
+// TODO(hbr): Move this to [editor]
+entity Entities[MAX_ENTITY_COUNT];
+arena *EntityArenas[MAX_ENTITY_COUNT];
+b32 IsEntityTaken[MAX_ENTITY_COUNT]; // TODO(hbr): Consider storing IsEntityTaken state more sparsly
+struct allocated_entity
+{
+   entity *Entity;
+   arena *EntityArena;
+};
+internal allocated_entity
+AllocEntity(void)
+{
+   allocated_entity Result = {};
+   for (u64 EntityIndex = 0;
+        EntityIndex < MAX_ENTITY_COUNT;
+        ++EntityIndex)
+   {
+      if (!Editor->IsEntityTaken[EntityIndex])
+      {
+         Editor->IsEntityTaken[EntityIndex] = true;
+         Result.Entity = Editor->Entities + EntityIndex;
+         Result.EntityArena = Editor->EntityArenas[EntityIndex];
+         ++Editor->EntityCount;
+         break;
+      }
+   }
+   
+   return Result;
+}
+
+internal void
+DeallocEntity(editor *Editor, entity *Entity)
+{
+   u64 EntityIndex = Cast(u64)Entity - Editor->Entities;
+   Assert(EntityIndex < MAX_ENTITY_COUNT);
+   Editor->IsEntityTaken[EntityIndex] = false;
+   ZeroStruct(Entity);
+}
+
+internal allocated_entity
 AllocAndAddEntity(editor_state *State)
 {
+   allocated_entity Alloc = AllocEntity();
+   if (Alloc.Entity)
+   {
+      // NOTE(hbr): Ugly C++ thing we have to do because of constructors/destructors.
+      new (&Entity->Image.Texture) sf::Texture();
+      
+      DLLPushBack(State->EntitiesHead, State->EntitiesTail, Entity);
+      ++State->NumEntities;
+   }
    entity *Entity = RequestChunkNonZero(State->EntityPool, entity);
-   
-   // NOTE(hbr): Ugly C++ thing we have to do because of constructors/destructors.
-   new (&Entity->Image.Texture) sf::Texture();
-   
-   DLLPushBack(State->EntitiesHead, State->EntitiesTail, Entity);
-   ++State->NumEntities;
    
    return Entity;
 }
@@ -413,11 +455,9 @@ DeallocAndRemoveEntity(editor_state *State, entity *Entity)
       State->DeCasteljauVisualization.CurveEntity = 0;
    }
    
-   if (State->DegreeLowering.IsLowering &&
-       State->DegreeLowering.CurveEntity == Entity)
+   if (State->DegreeLowering.Entity == Entity)
    {
-      State->DegreeLowering.IsLowering = false;
-      State->DegreeLowering.CurveEntity = 0;
+      State->DegreeLowering.Entity = 0;
    }
    
    if (State->CurveAnimation.FromCurveEntity == Entity ||
@@ -1623,13 +1663,13 @@ SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath)
                                                     Editor.UI_Config,
                                                     Editor.State.CurveAnimation.AnimationSpeed);
    string HeaderData = Str(Temp.Arena, Cast(char const *)&Header, SizeOf(Header));
-   StringListPush(Temp.Arena, &SaveData, HeaderData);
+   StrListPush(Temp.Arena, &SaveData, HeaderData);
    
    ListIter(Entity, Editor.State.EntitiesHead, entity)
    {
       saved_project_entity Saved = SavedProjectEntity(Entity);
       string SavedData = Str(Temp.Arena, Cast(char const *)&Saved, SizeOf(Saved));
-      StringListPush(Temp.Arena, &SaveData, SavedData);
+      StrListPush(Temp.Arena, &SaveData, SavedData);
       
       switch (Entity->Type)
       {
@@ -1641,21 +1681,21 @@ SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath)
             string ControlPoints = Str(Temp.Arena,
                                        Cast(char const *)Curve->ControlPoints,
                                        ControlPointCount * SizeOf(Curve->ControlPoints[0]));
-            StringListPush(Temp.Arena, &SaveData, ControlPoints);
+            StrListPush(Temp.Arena, &SaveData, ControlPoints);
             
             string ControlPointWeights = Str(Temp.Arena,
                                              Cast(char const *)Curve->ControlPointWeights,
                                              ControlPointCount * SizeOf(Curve->ControlPointWeights[0]));
-            StringListPush(Temp.Arena, &SaveData, ControlPointWeights);
+            StrListPush(Temp.Arena, &SaveData, ControlPointWeights);
             
             string CubicBezierPoints = Str(Temp.Arena,
                                            Cast(char const *)Curve->CubicBezierPoints,
                                            3 * ControlPointCount * SizeOf(Curve->CubicBezierPoints[0]));
-            StringListPush(Temp.Arena, &SaveData, CubicBezierPoints);
+            StrListPush(Temp.Arena, &SaveData, CubicBezierPoints);
          } break;
          
          case Entity_Image: {
-            StringListPush(Temp.Arena, &SaveData, Entity->Image.FilePath);
+            StrListPush(Temp.Arena, &SaveData, Entity->Image.FilePath);
          } break;
       }
    }
@@ -1798,7 +1838,7 @@ LoadProjectFromFile(arena *Arena,
                         else
                         {
                            string Warning = StrF(Arena, "image texture load failed: %s", LoadTextureError);
-                           StringListPush(Arena, &Warnings, Warning);
+                           StrListPush(Arena, &Warnings, Warning);
                         }
                      }
                      else
@@ -1839,7 +1879,7 @@ LoadProjectFromFile(arena *Arena,
          if (BytesLeft > 0)
          {
             string Warning = StrC(Arena, "project file has unexpected trailing data");
-            StringListPush(Arena, &Warnings, Warning);
+            StrListPush(Arena, &Warnings, Warning);
          }
       }
    }
@@ -2637,7 +2677,7 @@ internal void
 LowerBezierCurveDegree(bezier_curve_degree_lowering *Lowering, entity *Entity)
 {
    curve *Curve = GetCurve(Entity);
-   u64 PointCount = Curve->PointCount;
+   u64 PointCount = Curve->ControlPointCount;
    if (PointCount > 0)
    {
       Assert(Curve->CurveParams.CurveShape.InterpolationType == Interpolation_Bezier);
@@ -4563,27 +4603,27 @@ UpdateAndRenderDegreeLowering(bezier_curve_degree_lowering *Lowering,
 {
    TimeFunction;
    
-   // TODO(hbr): Try to save [CurveEntity] and/or [Curve] into local variable
-   
-   if (Lowering->IsLowering)
+   if (Lowering->Entity)
    {
-      if (Lowering->SavedCurveVersion != Lowering->CurveEntity->Curve.CurveVersion)
+      if (Lowering->SavedCurveVersion != GetCurve(Lowering->Entity)->CurveVersion)
       { 
-         Lowering->IsLowering = false;
+         Lowering->Entity = 0;
       }
    }
    
-   if (Lowering->IsLowering)
+   if (Lowering->Entity)
    {
+      curve *Curve = GetCurve(Lowering->Entity);
+      
       bool Ok = false;
       bool Revert = false;
       bool IsDegreeLoweringWindowOpen = true;
       bool P_MixChanged = false;
       bool W_MixChanged = false;
       
-      Assert(Lowering->CurveEntity->Curve.CurveParams.CurveShape.InterpolationType == Interpolation_Bezier);
+      Assert(Curve->CurveParams.CurveShape.InterpolationType == Interpolation_Bezier);
       b32 IncludeWeights = false;
-      switch (Lowering->CurveEntity->Curve.CurveParams.CurveShape.BezierType)
+      switch (Curve->CurveParams.CurveShape.BezierType)
       {
          case Bezier_Normal: {} break;
          case Bezier_Weighted: { IncludeWeights = true; } break;
@@ -4610,7 +4650,7 @@ UpdateAndRenderDegreeLowering(bezier_curve_degree_lowering *Lowering,
       Revert = ImGui::Button("Revert");
       
       //-
-      Assert(Lowering->LowerDegree.MiddlePointIndex < Lowering->CurveEntity->Curve.ControlPointCount);
+      Assert(Lowering->LowerDegree.MiddlePointIndex < Curve->ControlPointCount);
       
       if (P_MixChanged || W_MixChanged)
       {
@@ -4619,18 +4659,17 @@ UpdateAndRenderDegreeLowering(bezier_curve_degree_lowering *Lowering,
          f32 NewControlPointWeight =
             Lowering->W_Mix * Lowering->LowerDegree.W_I + (1 - Lowering->W_Mix) * Lowering->LowerDegree.W_II;
          
-         SetCurveControlPoint(Lowering->CurveEntity,
+         SetCurveControlPoint(Lowering->Entity,
                               Lowering->LowerDegree.MiddlePointIndex,
                               NewControlPoint,
                               NewControlPointWeight);
          
-         Lowering->SavedCurveVersion = Lowering->CurveEntity->Curve.CurveVersion;
+         Lowering->SavedCurveVersion = Curve->CurveVersion;
       }
       
       if (Revert)
       {
-         SetCurveControlPoints(Lowering->CurveEntity,
-                               Lowering->CurveEntity->Curve.ControlPointCount + 1,
+         SetCurveControlPoints(Curve, Curve->ControlPointCount + 1,
                                Lowering->SavedControlPoints,
                                Lowering->SavedControlPointWeights,
                                Lowering->SavedCubicBezierPoints);
@@ -4638,13 +4677,13 @@ UpdateAndRenderDegreeLowering(bezier_curve_degree_lowering *Lowering,
       
       if (Ok || Revert || !IsDegreeLoweringWindowOpen)
       {
-         Lowering->IsLowering = false;
+         Lowering->Entity = 0;
       }
    }
    
-   if (Lowering->IsLowering)
+   if (Lowering->Entity)
    {
-      sf::Transform Model = CurveGetAnimate(Lowering->CurveEntity);
+      sf::Transform Model = CurveGetAnimate(Lowering->Entity);
       sf::Transform MVP = Transform * Model;
       
       Window->draw(Lowering->SavedCurveVertices,
@@ -4850,7 +4889,7 @@ UpdateAnimateCurveAnimation(editor *Editor, f32 DeltaTime, sf::Transform Transfo
                
                Animation->CurvePointCount = CurvePointCount;
                Animation->ToCurvePoints = PushArrayNonZero(Animation->Arena, CurvePointCount, v2f32);
-               CurveEvaluate(ToCurve, CurvePointCount, Animation->ToCurvePoints);
+               EvaluateCurve(ToCurve, CurvePointCount, Animation->ToCurvePoints);
                Animation->SavedToCurveVersion = ToCurve->CurveVersion;
                
                ToCurvePointsRecalculated = true;
@@ -5417,7 +5456,7 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, coordinate_system_data Co
                
                
                bezier_curve_degree_lowering *Lowering = &Editor->State.DegreeLowering;
-               if (Lowering->IsLowering && Lowering->CurveEntity == Entity)
+               if (Lowering->Entity == Entity)
                {
                   UpdateAndRenderDegreeLowering(Lowering, VP, Editor->Window);
                }
@@ -5632,8 +5671,6 @@ int main()
 {
    InitThreadCtx();
    InitProfiler();
-   
-   Trap();
    
    sf::VideoMode VideoMode = sf::VideoMode::getDesktopMode();
    sf::ContextSettings ContextSettings = sf::ContextSettings();

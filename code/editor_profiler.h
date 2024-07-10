@@ -73,8 +73,6 @@ internal void PrintProfiler(void);
 
 internal void FrameProfilePoint(b32 *ViewProfilerWindow);
 
-#define NameConcat2(A, B) A##B
-#define NameConcat(A, B) NameConcat2(A, B)
 #define TimeBlock(Label) profile_block NameConcat(ProfileBlock, __LINE__)(__COUNTER__ + 1, Label)
 
 #else

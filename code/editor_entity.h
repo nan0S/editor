@@ -103,7 +103,6 @@ struct curve
    line_vertices CurveVertices;
    line_vertices PolylineVertices;
    line_vertices ConvexHullVertices;
-   
    u64 CurveVersion; // NOTE(hbr): Changes every recomputation
 };
 
@@ -155,8 +154,14 @@ typedef u64 translate_control_point_flags;
 internal curve *
 GetCurve(entity *Entity)
 {
-   Assert(Entity->Type == Entity_Curve);
-   return &Entity->Curve;
+   curve *Result = 0;
+   if (Entity)
+   {
+      Assert(Entity->Type == Entity_Curve);
+      Result = &Entity->Curve;
+   }
+   
+   return Result;
 }
 
 internal image *
@@ -268,11 +273,10 @@ internal int
 EntitySortEntryCmp(entity_sort_entry *A, entity_sort_entry *B)
 {
    int Result = 0;
-   
-   int Cmp1 = CmpInt(A->Entity->SortingLayer, B->Entity->SortingLayer);
+   int Cmp1 = IntCmp(A->Entity->SortingLayer, B->Entity->SortingLayer);
    if (Cmp1 == 0)
    {
-      int Cmp2 = CmpInt(A->OriginalOrder, B->OriginalOrder);
+      int Cmp2 = IntCmp(A->OriginalOrder, B->OriginalOrder);
       Result = Cmp2;
    }
    else

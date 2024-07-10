@@ -457,7 +457,8 @@ FmtFloat(out_buf *Out, f64 F, char const *Inf, char const *Nan, u64 Precision,
       u64 IntegerPart = 0;
       if (Exponent >= 0)
       {
-         IntegerPart = (BaseDigit << Exponent) | (Mantissa >> (64 - Exponent));
+         s64 AdjustMantissa = ClampTop(64 - Exponent, 63);
+         IntegerPart = (BaseDigit << Exponent) | (Mantissa >> AdjustMantissa);
       }
       
       FmtNumber(Out, IntegerPart, 10, "0123456789", "", false, false, false, false);

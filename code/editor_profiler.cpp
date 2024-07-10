@@ -8,7 +8,7 @@ InitProfiler(void)
 }
 
 // TODO(hbr): Move it to some different module, probably ui file
-#if 0
+#if 1
 
 internal void
 FrameProfilePoint(b32 *ViewProfilerWindow)

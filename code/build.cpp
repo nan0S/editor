@@ -74,6 +74,7 @@ CompileProgram(b32 Debug)
    StrListPush(Arena, &MainCmd, CodePath(StrLit("editor.cpp")));
    StrListPush(Arena, &MainCmd, ImguiObj);
    StrListPush(Arena, &MainCmd, StrLit("/link"));
+   StrListPush(Arena, &MainCmd, StrF(Arena, "/out:editor_%s.exe", Mode));
    StrListPush(Arena, &MainCmd, StrF(Arena, "/LIBPATH:%S", CodePath(StrLit("third_party/sfml/lib"))));
    StrListPush(Arena, &MainCmd, StrLit("Opengl32.lib"));
    StrListPush(Arena, &MainCmd, StrLit("sfml-graphics.lib"));
@@ -82,9 +83,9 @@ CompileProgram(b32 Debug)
    LogF("%s build command: %S\n", (Debug ? "debug" : "release"), StrListJoin(Arena, &MainCmd, StrLit(" ")));
    process_handle Build = OS_LaunchProcess(MainCmd);
    
-   OS_CopyFile(CodePath(StrLit("third_party/sfml/bin/sfml-graphics-2.dll")), StrLit("."));
-   OS_CopyFile(CodePath(StrLit("third_party/sfml/bin/sfml-system-2.dll")),   StrLit("."));
-   OS_CopyFile(CodePath(StrLit("third_party/sfml/bin/sfml-window-2.dll")),   StrLit("."));
+   OS_CopyFile(CodePath(StrLit("third_party/sfml/bin/sfml-graphics-2.dll")), StrLit("sfml-graphics-2.dll"));
+   OS_CopyFile(CodePath(StrLit("third_party/sfml/bin/sfml-system-2.dll")),   StrLit("sfml-system-2.dll"));
+   OS_CopyFile(CodePath(StrLit("third_party/sfml/bin/sfml-window-2.dll")),   StrLit("sfml-window-2.dll"));
    
    return Build;
 }
@@ -96,9 +97,10 @@ int main(int ArgCount, char *Argv[])
    InitThreadCtx();
    Arena = TempArena(0).Arena;
    
+   string ExePath = OS_FullPathFromPath(Arena, StrFromCStr(Argv[0]));
    b32 Debug = false;
    b32 Release = false;
-   for (u64 ArgIndex = 0;
+   for (u64 ArgIndex = 1;
         ArgIndex < ArgCount;
         ++ArgIndex)
    {
@@ -116,21 +118,6 @@ int main(int ArgCount, char *Argv[])
    {
       Debug = true;
    }
-   
-   string ExePath = StrFromCStr(Argv[0]);
-   string ExePathNoExt = StrChopLastDot(ExePath);
-   string BasePath = PathChopLastPart(ExePathNoExt);
-   string BaseName = PathLastPart(ExePathNoExt);
-   string CppName = StrF(Arena, "%S.cpp", BaseName);
-   string_list CppPathList = {};
-   StrListPush(Arena, &CppPathList, BasePath);
-   StrListPush(Arena, &CppPathList, StrLit(".."));
-   StrListPush(Arena, &CppPathList, Code);
-   StrListPush(Arena, &CppPathList, CppName);
-   string CppPath = PathListJoin(Arena, &CppPathList);
-   // NOTE(hbr): Extract file attrs before changing directory
-   file_attrs ExeAttrs = OS_FileAttributes(ExePath);
-   file_attrs CppAttrs = OS_FileAttributes(CppPath);
    
    b32 Error = false;
    string CurDir = OS_CurrentDir(Arena);
@@ -153,7 +140,27 @@ int main(int ArgCount, char *Argv[])
       OS_MakeDir(Build);
       if (OS_ChangeDir(Build))
       {
-         if (ExeAttrs.ModifyTime < CppAttrs.ModifyTime)
+         string ExePathNoExt = StrChopLastDot(ExePath);
+         string BaseName = PathLastPart(ExePathNoExt);
+         string CppName = StrF(Arena, "%S.cpp", BaseName);
+         string CppPath = CodePath(CppName);
+         
+         string_list BuildProgramDependecies = {};
+         StrListPush(Arena, &BuildProgramDependecies, CppPath);
+         StrListPush(Arena, &BuildProgramDependecies, CodePath(StrLit("editor_base.h")));
+         StrListPush(Arena, &BuildProgramDependecies, CodePath(StrLit("editor_base.cpp")));
+         StrListPush(Arena, &BuildProgramDependecies, CodePath(StrLit("editor_os.h")));
+         StrListPush(Arena, &BuildProgramDependecies, CodePath(StrLit("editor_os.cpp")));
+         
+         u64 LatestModifyTime = 0;
+         ListIter(DependencyFile, BuildProgramDependecies.Head, string_list_node)
+         {
+            file_attrs Attrs = OS_FileAttributes(DependencyFile->String);
+            LatestModifyTime = Max(LatestModifyTime, Attrs.ModifyTime);
+         }
+         
+         file_attrs ExeAttrs = OS_FileAttributes(ExePath);
+         if (ExeAttrs.ModifyTime < LatestModifyTime)
          {
             LogF("recompiling build program itself");
             

@@ -366,8 +366,7 @@ struct user_action
          screen_position ToPosition;
       } MouseMove;
    };
-   
-   user_input *UserInput;
+   user_input *Input;
 };
 
 internal user_action UserActionButtonClicked(button Button, screen_position ClickPosition, user_input *UserInput);
@@ -631,7 +630,57 @@ struct ui_config
 #endif
 };
 
+// TODO(hbr): Move this to [editor]
 #define MAX_ENTITY_COUNT 1024
+b32 GlobalInitialized;
+entity GlobalEntities[MAX_ENTITY_COUNT];
+arena *GlobalEntityArenas[MAX_ENTITY_COUNT];
+b32 GlobalIsEntityTaken[MAX_ENTITY_COUNT]; // TODO(hbr): Consider storing GlobalIsEntityTaken state more sparsly
+struct allocated_entity
+{
+   entity *Entity;
+   arena *EntityArena;
+};
+internal allocated_entity
+AllocEntity(void)
+{
+   if (!GlobalInitialized)
+   {
+      for (u64 Index = 0;
+           Index < ArrayCount(GlobalEntityArenas);
+           ++Index)
+      {
+         GlobalEntityArenas[Index] = AllocArena();
+      }
+      GlobalInitialized = true;
+   }
+   
+   allocated_entity Result = {};
+   for (u64 EntityIndex = 0;
+        EntityIndex < ArrayCount(GlobalEntities);
+        ++EntityIndex)
+   {
+      if (!GlobalIsEntityTaken[EntityIndex])
+      {
+         GlobalIsEntityTaken[EntityIndex] = true;
+         Result.Entity = GlobalEntities + EntityIndex;
+         Result.EntityArena = GlobalEntityArenas[EntityIndex];
+         break;
+      }
+   }
+   
+   return Result;
+}
+
+internal void
+DeallocEntity(entity *Entity)
+{
+   u64 EntityIndex = Cast(u64)(Entity - GlobalEntities);
+   Assert(EntityIndex < MAX_ENTITY_COUNT);
+   GlobalIsEntityTaken[EntityIndex] = false;
+   ZeroStruct(Entity);
+}
+
 struct editor
 {
    sf::RenderWindow *Window;

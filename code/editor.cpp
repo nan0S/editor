@@ -382,58 +382,24 @@ DeallocEditorState(editor_state *EditorState)
    EditorState->NumEntities = 0;
 }
 
-// TODO(hbr): Move this to [editor]
-entity Entities[MAX_ENTITY_COUNT];
-arena *EntityArenas[MAX_ENTITY_COUNT];
-b32 IsEntityTaken[MAX_ENTITY_COUNT]; // TODO(hbr): Consider storing IsEntityTaken state more sparsly
-struct allocated_entity
-{
-   entity *Entity;
-   arena *EntityArena;
-};
-internal allocated_entity
-AllocEntity(void)
-{
-   allocated_entity Result = {};
-   for (u64 EntityIndex = 0;
-        EntityIndex < MAX_ENTITY_COUNT;
-        ++EntityIndex)
-   {
-      if (!Editor->IsEntityTaken[EntityIndex])
-      {
-         Editor->IsEntityTaken[EntityIndex] = true;
-         Result.Entity = Editor->Entities + EntityIndex;
-         Result.EntityArena = Editor->EntityArenas[EntityIndex];
-         ++Editor->EntityCount;
-         break;
-      }
-   }
-   
-   return Result;
-}
-
-internal void
-DeallocEntity(editor *Editor, entity *Entity)
-{
-   u64 EntityIndex = Cast(u64)Entity - Editor->Entities;
-   Assert(EntityIndex < MAX_ENTITY_COUNT);
-   Editor->IsEntityTaken[EntityIndex] = false;
-   ZeroStruct(Entity);
-}
-
-internal allocated_entity
+internal entity *
 AllocAndAddEntity(editor_state *State)
 {
    allocated_entity Alloc = AllocEntity();
-   if (Alloc.Entity)
+   entity *Entity = Alloc.Entity;
+   if (Entity)
    {
       // NOTE(hbr): Ugly C++ thing we have to do because of constructors/destructors.
       new (&Entity->Image.Texture) sf::Texture();
-      
+      Entity->Curve.ComputationArena = Alloc.EntityArena;
       DLLPushBack(State->EntitiesHead, State->EntitiesTail, Entity);
       ++State->NumEntities;
    }
+   
+   // TODO(hbr): Remove
+#if 0
    entity *Entity = RequestChunkNonZero(State->EntityPool, entity);
+#endif
    
    return Entity;
 }
@@ -627,31 +593,31 @@ ScreenPointsAreClose(screen_position A, screen_position B,
 }
 
 internal b32
-JustReleasedButton(button_state ButtonState)
+JustReleasedButton(button_state *ButtonState)
 {
-   b32 Result = ButtonState.WasPressed && !ButtonState.Pressed;
+   b32 Result = (ButtonState->WasPressed && !ButtonState->Pressed);
    return Result;
 }
 
 internal b32
-ClickedWithButton(button_state ButtonState,
+ClickedWithButton(button_state *ButtonState,
                   coordinate_system_data CoordinateSystemData)
 {
-   b32 Result = ButtonState.WasPressed && !ButtonState.Pressed &&
-      ScreenPointsAreClose(ButtonState.PressPosition,
-                           ButtonState.ReleasePosition,
+   b32 Result = ButtonState->WasPressed && !ButtonState->Pressed &&
+      ScreenPointsAreClose(ButtonState->PressPosition,
+                           ButtonState->ReleasePosition,
                            CoordinateSystemData);
    
    return Result;
 }
 
 internal b32
-DraggedWithButton(button_state ButtonState,
+DraggedWithButton(button_state *ButtonState,
                   v2s32 MousePosition,
                   coordinate_system_data CoordinateSystemData)
 {
-   b32 Result = ButtonState.Pressed &&
-      !ScreenPointsAreClose(ButtonState.PressPosition,
+   b32 Result = ButtonState->Pressed &&
+      !ScreenPointsAreClose(ButtonState->PressPosition,
                             MousePosition,
                             CoordinateSystemData);
    
@@ -801,7 +767,7 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                                                                     CoordinateSystemData);
                
                collision Collision = {};
-               if (Action.UserInput->Keys[Key_LeftShift].Pressed)
+               if (Action.Input->Keys[Key_LeftShift].Pressed)
                {
                   // NOTE(hbr): Force no collision when shift if pressed, so that user can
                   // add control point wherever he wants
@@ -1297,8 +1263,8 @@ EditorStateMovingModeUpdate(editor_state State, user_action Action,
          {
             translate_control_point_flags TranslateFlags = 0;
             if (State.Mode.Moving.IsBezierPoint)       TranslateFlags |= TranslateControlPoint_BezierPoint;
-            if (!Action.UserInput->Keys[Key_LeftCtrl].Pressed)  TranslateFlags |= TranslateControlPoint_MatchBezierTwinDirection;
-            if (!Action.UserInput->Keys[Key_LeftShift].Pressed) TranslateFlags |= TranslateControlPoint_MatchBezierTwinDirection;
+            if (!Action.Input->Keys[Key_LeftCtrl].Pressed)  TranslateFlags |= TranslateControlPoint_MatchBezierTwinDirection;
+            if (!Action.Input->Keys[Key_LeftShift].Pressed) TranslateFlags |= TranslateControlPoint_MatchBezierTwinDirection;
             
             TranslateCurveControlPoint(State.Mode.Moving.Entity,
                                        State.Mode.Moving.PointIndex,
@@ -3549,7 +3515,7 @@ RenderListOfEntitiesWindow(editor *Editor, coordinate_system_data CoordinateSyst
 }
 
 internal void
-UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
+UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
 {
    bool NewProjectSelected = false;
    bool OpenProjectSelected = false;
@@ -3661,27 +3627,27 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
       ImGui::EndMainMenuBar();
    }
    
-   if (NewProjectSelected || PressedWithKey(UserInput.Keys[Key_N], Modifier_Ctrl))
+   if (NewProjectSelected || PressedWithKey(Input->Keys[Key_N], Modifier_Ctrl))
    {
       ImGui::OpenPopup(ConfirmCloseCurrentProjectLabel);
       Editor->ActionWaitingToBeDone = ActionToDo_NewProject;
    }
    
-   if (OpenProjectSelected || PressedWithKey(UserInput.Keys[Key_O], Modifier_Ctrl))
+   if (OpenProjectSelected || PressedWithKey(Input->Keys[Key_O], Modifier_Ctrl))
    {
       ImGui::OpenPopup(ConfirmCloseCurrentProjectLabel);
       Editor->ActionWaitingToBeDone = ActionToDo_OpenProject;
    }
    
    if (QuitEditorSelected ||
-       PressedWithKey(UserInput.Keys[Key_Q], 0) ||
-       PressedWithKey(UserInput.Keys[Key_ESC], 0))
+       PressedWithKey(Input->Keys[Key_Q], 0) ||
+       PressedWithKey(Input->Keys[Key_ESC], 0))
    {
       ImGui::OpenPopup(ConfirmCloseCurrentProjectLabel);
       Editor->ActionWaitingToBeDone = ActionToDo_Quit;
    }
    
-   if (SaveProjectSelected || PressedWithKey(UserInput.Keys[Key_S], Modifier_Ctrl))
+   if (SaveProjectSelected || PressedWithKey(Input->Keys[Key_S], Modifier_Ctrl))
    {
       if (IsValid(Editor->ProjectSavePath))
       {
@@ -3716,7 +3682,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input UserInput)
       }
    }
    
-   if (SaveProjectAsSelected || PressedWithKey(UserInput.Keys[Key_S],
+   if (SaveProjectAsSelected || PressedWithKey(Input->Keys[Key_S],
                                                Modifier_Ctrl | Modifier_Shift))
    {
       FileDialog->OpenModal(SaveAsLabel, SaveAsTitle,
@@ -5519,12 +5485,12 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, coordinate_system_data Co
 }
 
 internal void
-UpdateAndRender(f32 DeltaTime, user_input UserInput, editor *Editor)
+UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
 {
    TimeFunction;
    
    FrameStatsUpdate(&Editor->FrameStats, DeltaTime);
-   CameraUpdate(&Editor->State.Camera, UserInput.MouseWheelDelta, DeltaTime);
+   CameraUpdate(&Editor->State.Camera, Input->MouseWheelDelta, DeltaTime);
    UpdateAndRenderNotifications(&Editor->Notifications, DeltaTime, Editor->Window);
    
    {
@@ -5537,34 +5503,32 @@ UpdateAndRender(f32 DeltaTime, user_input UserInput, editor *Editor)
       };
       
       user_action Action = {};
-      Action.UserInput = &UserInput;
-      
-      // NOTE(hbr): Editor state update
+      Action.Input = Input;
       editor_state NewState = Editor->State;
       for (u64 ButtonIndex = 0;
-           ButtonIndex < ArrayCount(UserInput.Buttons);
+           ButtonIndex < Button_Count;
            ++ButtonIndex)
       {
          button Button = Cast(button)ButtonIndex;
-         button_state ButtonState = UserInput.Buttons[ButtonIndex];
+         button_state *ButtonState = &Input->Buttons[ButtonIndex];
          
          if (ClickedWithButton(ButtonState, CoordinateSystemData))
          {
             Action.Type = UserAction_ButtonClicked;
             Action.Click.Button = Button;
-            Action.Click.ClickPosition = ButtonState.ReleasePosition;
+            Action.Click.ClickPosition = ButtonState->ReleasePosition;
          }
-         else if (DraggedWithButton(ButtonState, UserInput.MousePosition, CoordinateSystemData))
+         else if (DraggedWithButton(ButtonState, Input->MousePosition, CoordinateSystemData))
          {
             Action.Type = UserAction_ButtonDrag;
             Action.Drag.Button = Button;
-            Action.Drag.DragFromPosition = UserInput.MouseLastPosition;
+            Action.Drag.DragFromPosition = Input->MouseLastPosition;
          }
          else if (JustReleasedButton(ButtonState))
          {
             Action.Type = UserAction_ButtonReleased;
             Action.Release.Button = Button;
-            Action.Release.ReleasePosition = ButtonState.ReleasePosition;
+            Action.Release.ReleasePosition = ButtonState->ReleasePosition;
          }
       }
       if (Action.Type != UserAction_None)
@@ -5572,17 +5536,18 @@ UpdateAndRender(f32 DeltaTime, user_input UserInput, editor *Editor)
          Editor->State = EditorStateUpdate(Editor->State, Action, CoordinateSystemData, Editor->Parameters);
       }
       
-      if (UserInput.MouseLastPosition != UserInput.MousePosition)
+      if (Input->MouseLastPosition != Input->MousePosition)
       {
          Action.Type = UserAction_MouseMove;
-         Action.MouseMove.FromPosition = UserInput.MouseLastPosition;
-         Action.MouseMove.ToPosition = UserInput.MousePosition;
+         Action.MouseMove.FromPosition = Input->MouseLastPosition;
+         Action.MouseMove.ToPosition = Input->MousePosition;
          
          Editor->State = EditorStateUpdate(Editor->State, Action, CoordinateSystemData, Editor->Parameters);
       }
    }
    
-   if (PressedWithKey(UserInput.Keys[Key_E], 0))
+   // TODO(hbr): Remove this
+   if (PressedWithKey(Input->Keys[Key_E], 0))
    {
       AddNotificationF(&Editor->Notifications, Notification_Error, "siema");
    }
@@ -5647,7 +5612,7 @@ UpdateAndRender(f32 DeltaTime, user_input UserInput, editor *Editor)
    // NOTE(hbr): Update menu bar here, because world has to already be rendered
    // and UI not, because we might save our project into image file and we
    // don't want to include UI render into our image.
-   UpdateAndRenderMenuBar(Editor, UserInput);
+   UpdateAndRenderMenuBar(Editor, Input);
 }
 
 internal void
@@ -5765,11 +5730,11 @@ int main()
          
          sf::Vector2i MousePosition = sf::Mouse::getPosition(Window);
          
-         user_input UserInput = {};
-         UserInput.MousePosition = V2S32FromVec(MousePosition);
-         UserInput.MouseLastPosition = V2S32FromVec(MousePosition);
-         UserInput.WindowWidth = VideoMode.width;
-         UserInput.WindowHeight = VideoMode.height;
+         user_input Input = {};
+         Input.MousePosition = V2S32FromVec(MousePosition);
+         Input.MouseLastPosition = V2S32FromVec(MousePosition);
+         Input.WindowWidth = VideoMode.width;
+         Input.WindowHeight = VideoMode.height;
          
          while (Window.isOpen())
          {
@@ -5788,12 +5753,12 @@ int main()
             FrameProfilePoint(&Editor.UI_Config.ViewProfilerWindow);
 #endif
             
-            HandleEvents(&Window, &UserInput);
-            Editor.Projection.AspectRatio = CalculateAspectRatio(UserInput.WindowWidth,
-                                                                 UserInput.WindowHeight);
+            HandleEvents(&Window, &Input);
+            Editor.Projection.AspectRatio = CalculateAspectRatio(Input.WindowWidth,
+                                                                 Input.WindowHeight);
             
             Window.clear(ColorToSFMLColor(Editor.Parameters.BackgroundColor));
-            UpdateAndRender(DeltaTime, UserInput, &Editor);
+            UpdateAndRender(DeltaTime, &Input, &Editor);
             
             {
                TimeBlock("ImGui::SFML::Render");

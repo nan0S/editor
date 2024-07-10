@@ -146,8 +146,8 @@ struct entity
 enum
 {
    TranslateControlPoint_BezierPoint               = (1<<0),
-   TranslateControlPoint_MatchBezierTwinDirection  = (1<<0),
-   TranslateControlPoint_MatchBezierTwinLength     = (1<<0),
+   TranslateControlPoint_MatchBezierTwinDirection  = (1<<1),
+   TranslateControlPoint_MatchBezierTwinLength     = (1<<2),
 };
 typedef u64 translate_control_point_flags;
 

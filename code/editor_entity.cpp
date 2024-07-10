@@ -334,9 +334,9 @@ RecomputeCurve(curve *Curve)
    {
       CurvePointCount = (Curve->ControlPointCount - 1) * Curve->CurveParams.CurvePointCountPerSegment + 1;
    }
-   local_position *CurvePoints = PushArrayNonZero(Curve->ComputationArena, CurvePointCount, local_position);
-   
-   EvaluateCurve(Curve, CurvePointCount, CurvePoints);
+   Curve->CurvePointCount = CurvePointCount;
+   Curve->CurvePoints = PushArrayNonZero(Curve->ComputationArena, CurvePointCount, local_position);
+   EvaluateCurve(Curve, Curve->CurvePointCount, Curve->CurvePoints);
    
    Curve->CurveVertices = CalculateLineVertices(Curve->CurvePointCount, Curve->CurvePoints, 
                                                 Curve->CurveParams.CurveWidth, Curve->CurveParams.CurveColor,
@@ -633,7 +633,8 @@ InitCurve(curve *Curve,
           u64 ControlPointCount,
           world_position *ControlPoints, f32 *ControlPointWeights, world_position *CubicBezierPoints)
 {
-   ZeroStruct(Curve);
+   // TODO(hbr): Maybe remove
+   //ZeroStruct(Curve);
    Curve->CurveParams = CurveParams;
    SetCurveControlPoints(Curve, ControlPointCount, ControlPoints, ControlPointWeights, CubicBezierPoints);
    Curve->SelectedControlPointIndex = SelectedControlPointIndex;
@@ -668,7 +669,8 @@ InitEntity(entity *Entity, world_position Position, v2f32 Scale,
            rotation_2d Rotation, name_string Name, s64 SortingLayer,
            u64 RenamingFrame, entity_flags Flags, entity_type Type)
 {
-   ZeroStruct(Entity);
+   // TODO(hbr): What the fuck, this shouldn't work, we reset Next Pointer
+   // ZeroStruct(Entity);
    Entity->Position = Position;
    Entity->Scale = Scale;
    Entity->Rotation = Rotation;
@@ -707,7 +709,8 @@ InitImageEntity(entity *Entity,
                 name_string Name,
                 string ImageFilePath, sf::Texture *Texture)
 {
-   ZeroStruct(Entity);
+   // TODO(hbr): Maybe remove
+   //ZeroStruct(Entity);
    InitEntity(Entity, Position, Scale, Rotation, Name, 0, 0, 0, Entity_Image);
    InitImage(&Entity->Image, ImageFilePath, Texture);
 }

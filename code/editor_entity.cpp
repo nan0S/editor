@@ -321,13 +321,13 @@ EvaluateCurve(curve *Curve, u64 CurvePointCount, v2f32 *CurvePoints)
 }
 
 internal void
-RecomputeCurve(curve *Curve)
+RecomputeCurve(entity *Entity)
 {
    TimeFunction;
    
-   temp_arena Temp = TempArena(Curve->ComputationArena);
-   
-   ClearArena(Curve->ComputationArena);
+   curve *Curve = GetCurve(Entity);
+   temp_arena Temp = TempArena(Entity->Arena);
+   ClearArena(Entity->Arena);
    
    u64 CurvePointCount = 0;
    if (Curve->ControlPointCount > 0)
@@ -335,20 +335,20 @@ RecomputeCurve(curve *Curve)
       CurvePointCount = (Curve->ControlPointCount - 1) * Curve->CurveParams.CurvePointCountPerSegment + 1;
    }
    Curve->CurvePointCount = CurvePointCount;
-   Curve->CurvePoints = PushArrayNonZero(Curve->ComputationArena, CurvePointCount, local_position);
+   Curve->CurvePoints = PushArrayNonZero(Entity->Arena, CurvePointCount, local_position);
    EvaluateCurve(Curve, Curve->CurvePointCount, Curve->CurvePoints);
    
    Curve->CurveVertices = CalculateLineVertices(Curve->CurvePointCount, Curve->CurvePoints, 
                                                 Curve->CurveParams.CurveWidth, Curve->CurveParams.CurveColor,
-                                                IsCurveLooped(Curve), LineVerticesAllocationArena(Curve->ComputationArena));
+                                                IsCurveLooped(Curve), LineVerticesAllocationArena(Entity->Arena));
    Curve->PolylineVertices = CalculateLineVertices(Curve->ControlPointCount, Curve->ControlPoints,
                                                    Curve->CurveParams.PolylineWidth, Curve->CurveParams.PolylineColor,
-                                                   false, LineVerticesAllocationArena(Curve->ComputationArena));
+                                                   false, LineVerticesAllocationArena(Entity->Arena));
    local_position *ConvexHullPoints = PushArrayNonZero(Temp.Arena, Curve->ControlPointCount, local_position);
    u64 NumConvexHullPoints = CalcConvexHull(Curve->ControlPointCount, Curve->ControlPoints, ConvexHullPoints);
    Curve->ConvexHullVertices = CalculateLineVertices(NumConvexHullPoints, ConvexHullPoints,
                                                      Curve->CurveParams.ConvexHullWidth, Curve->CurveParams.ConvexHullColor,
-                                                     true, LineVerticesAllocationArena(Curve->ComputationArena));
+                                                     true, LineVerticesAllocationArena(Entity->Arena));
    
    Curve->CurveVersion += 1;
    
@@ -391,12 +391,13 @@ SelectControlPoint(entity *Entity, u64 PointIndex)
 }
 
 internal void
-SetCurveControlPoints(curve *Curve,
+SetCurveControlPoints(entity *Entity,
                       u64 ControlPointCount,
                       local_position *ControlPoints,
                       f32 *ControlPointWeights,
                       local_position *CubicBezierPoints)
 {
+   curve *Curve = GetCurve(Entity);
    Assert(ControlPointCount <= MAX_CONTROL_POINT_COUNT);
    ControlPointCount = Min(ControlPointCount, MAX_CONTROL_POINT_COUNT);
    
@@ -408,7 +409,7 @@ SetCurveControlPoints(curve *Curve,
    // TODO(hbr): Make sure this is expected, maybe add to internal arguments
    Curve->SelectedControlPointIndex = U64_MAX;
    
-   RecomputeCurve(Curve);
+   RecomputeCurve(Entity);
 }
 
 // TODO(hbr): Probably just implement Append in terms of insert instead of making append special case of insert
@@ -456,7 +457,7 @@ AppendCurveControlPoint(entity *Entity, world_position Point, f32 Weight)
       AppendIndex = PointCount;
       ++Curve->ControlPointCount;
       
-      RecomputeCurve(Curve);
+      RecomputeCurve(Entity);
    }
    
    return AppendIndex;
@@ -508,7 +509,7 @@ CurveInsertControlPoint(entity *Entity, world_position Point, u64 InsertAfterInd
             }
          }
          
-         RecomputeCurve(Curve);
+         RecomputeCurve(Entity);
       }
    }
    
@@ -543,7 +544,7 @@ RemoveCurveControlPoint(entity *Entity, u64 PointIndex)
          SelectControlPoint(Entity, Curve->SelectedControlPointIndex - 1);
       }
       
-      RecomputeCurve(Curve);
+      RecomputeCurve(Entity);
    }
 }
 
@@ -563,7 +564,7 @@ SetCurveControlPoint(entity *Entity, u64 PointIndex, local_position Point, f32 W
       CubicBeziers[0] = Point;
       CubicBeziers[1] += Translation;
       
-      RecomputeCurve(Curve);
+      RecomputeCurve(Entity);
    }
 }
 
@@ -610,7 +611,7 @@ TranslateCurveControlPoint(entity *Entity, u64 PointIndex,
                                   Norm(*TwinPoint - CenterPoint));
          *TwinPoint = CenterPoint + DesiredTwinLength * DesiredTwinDirection;
          
-         RecomputeCurve(Curve);
+         RecomputeCurve(Entity);
       }
    }
    else
@@ -628,20 +629,19 @@ TranslateCurveControlPoint(entity *Entity, u64 PointIndex,
 }
 
 internal void
-InitCurve(curve *Curve,
+InitCurve(entity *Entity,
           curve_params CurveParams, u64 SelectedControlPointIndex,
           u64 ControlPointCount,
           world_position *ControlPoints, f32 *ControlPointWeights, world_position *CubicBezierPoints)
 {
-   // TODO(hbr): Maybe remove
-   //ZeroStruct(Curve);
-   Curve->CurveParams = CurveParams;
-   SetCurveControlPoints(Curve, ControlPointCount, ControlPoints, ControlPointWeights, CubicBezierPoints);
-   Curve->SelectedControlPointIndex = SelectedControlPointIndex;
+   Entity->Type = Entity_Curve;
+   Entity->Curve.CurveParams = CurveParams;
+   SetCurveControlPoints(Entity, ControlPointCount, ControlPoints, ControlPointWeights, CubicBezierPoints);
+   Entity->Curve.SelectedControlPointIndex = SelectedControlPointIndex;
 }
 
 internal void
-InitCurveFromCurve(curve *Dst, curve *Src)
+InitCurveFromCurve(entity *Dst, curve *Src)
 {
    InitCurve(Dst,
              Src->CurveParams, U64_MAX,
@@ -657,27 +657,23 @@ InitImage(image *Image, string ImageFilePath, sf::Texture *Texture)
 }
 
 internal void
-InitImageFromImage(image *Dst, image *Src)
+InitImageFromImage(entity *Dst, image *Src)
 {
-   ZeroStruct(Dst);
-   new (&Dst->Texture) sf::Texture(Src->Texture);
-   Dst->FilePath = DuplicateStr(Src->FilePath);
+   new (&Dst->Image.Texture) sf::Texture(Src->Texture);
+   Dst->Image.FilePath = DuplicateStr(Src->FilePath);
 }
 
 internal void
 InitEntity(entity *Entity, world_position Position, v2f32 Scale,
            rotation_2d Rotation, name_string Name, s64 SortingLayer,
-           u64 RenamingFrame, entity_flags Flags, entity_type Type)
+           u64 RenamingFrame, entity_flags Flags)
 {
-   // TODO(hbr): What the fuck, this shouldn't work, we reset Next Pointer
-   // ZeroStruct(Entity);
    Entity->Position = Position;
    Entity->Scale = Scale;
    Entity->Rotation = Rotation;
    Entity->Name = Name;
    Entity->SortingLayer = SortingLayer;
    Entity->Flags = Flags;
-   Entity->Type = Type;
 }
 
 internal void
@@ -685,11 +681,11 @@ InitEntityFromEntity(entity *Dest, entity *Src)
 {
    InitEntity(Dest, Src->Position, Src->Scale, Src->Rotation,
               Src->Name, Src->SortingLayer, Src->RenamingFrame,
-              Src->Flags, Src->Type);
+              Src->Flags);
    switch (Src->Type)
    {
-      case Entity_Curve: { InitCurveFromCurve(&Dest->Curve, &Src->Curve); } break;
-      case Entity_Image: { InitImageFromImage(&Dest->Image, &Src->Image); } break;
+      case Entity_Curve: { InitCurveFromCurve(Dest, &Src->Curve); } break;
+      case Entity_Image: { InitImageFromImage(Dest, &Src->Image); } break;
    }
 }
 
@@ -699,8 +695,8 @@ InitCurveEntity(entity *Entity,
                 name_string Name,
                 curve_params CurveParams)
 {
-   InitEntity(Entity, Position, Scale, Rotation, Name, 0, 0, 0, Entity_Curve);
-   InitCurve(&Entity->Curve, CurveParams, U64_MAX, 0, 0, 0, 0);
+   InitEntity(Entity, Position, Scale, Rotation, Name, 0, 0, 0);
+   InitCurve(Entity, CurveParams, U64_MAX, 0, 0, 0, 0);
 }
 
 internal void
@@ -709,8 +705,6 @@ InitImageEntity(entity *Entity,
                 name_string Name,
                 string ImageFilePath, sf::Texture *Texture)
 {
-   // TODO(hbr): Maybe remove
-   //ZeroStruct(Entity);
-   InitEntity(Entity, Position, Scale, Rotation, Name, 0, 0, 0, Entity_Image);
+   InitEntity(Entity, Position, Scale, Rotation, Name, 0, 0, 0);
    InitImage(&Entity->Image, ImageFilePath, Texture);
 }

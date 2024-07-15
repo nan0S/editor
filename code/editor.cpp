@@ -29,8 +29,8 @@ CameraUpdate(camera *Camera, f32 MouseWheelDelta, f32 DeltaTime)
    if (Camera->ReachingTarget)
    {
       f32 T = 1.0f - PowF32(2.0f, -Camera->ReachingTargetSpeed * DeltaTime);
-      Camera->Position = LerpV2F32(Camera->Position, Camera->PositionTarget, T);
-      Camera->Zoom = LerpF32(Camera->Zoom, Camera->ZoomTarget, T);
+      Camera->Position = Lerp(Camera->Position, Camera->PositionTarget, T);
+      Camera->Zoom = Lerp(Camera->Zoom, Camera->ZoomTarget, T);
       
       if (ApproxEq32(Camera->Zoom, Camera->ZoomTarget) &&
           ApproxEq32(Camera->Position.X, Camera->PositionTarget.X) &&
@@ -322,229 +322,133 @@ AnimationToString(animation_type Animation)
    return "invalid";
 }
 
-internal editor_state
-CreateEditorState(pool *EntityPool,
-                  u64 CurveCounter, camera Camera,
-                  arena *DeCasteljauVisualizationArena,
-                  arena *DegreeLoweringArena,
-                  arena *MovingPointArena,
-                  arena *CurveAnimationArena,
-                  f32 CurveAnimationSpeed)
-{
-   editor_state Result = {};
-   Result.EntityPool = EntityPool;
-   Result.EverIncreasingCurveCounter = CurveCounter;
-   Result.Camera = Camera;
-   Result.DeCasteljauVisualization.Arena = DeCasteljauVisualizationArena;
-   Result.DegreeLowering.Arena = DegreeLoweringArena;
-   Result.MovingPointArena = MovingPointArena;
-   Result.CurveAnimation.Arena = CurveAnimationArena;
-   Result.CurveAnimation.AnimationSpeed = CurveAnimationSpeed;
-   
-   return Result;
-}
-
-internal editor_state
-CreateDefaultEditorState(pool *EntityPool,
-                         arena *DeCasteljauVisualizationArena,
-                         arena *DegreeLoweringArena,
-                         arena *MovingPointArena,
-                         arena *CurveAnimationArena)
-{
-   camera Camera = {
-      .Position = V2F32(0.0f, 0.0f),
-      .Rotation = Rotation2DZero(),
-      .Zoom = 1.0f,
-      .ZoomSensitivity = 0.05f,
-      .ReachingTargetSpeed = 10.0f,
-   };
-   
-   editor_state Result = CreateEditorState(EntityPool, 0,
-                                           Camera,
-                                           DeCasteljauVisualizationArena,
-                                           DegreeLoweringArena,
-                                           MovingPointArena,
-                                           CurveAnimationArena,
-                                           CURVE_DEFAULT_ANIMATION_SPEED);
-   return Result;
-}
-
 internal void
-DeallocEditorState(editor_state *EditorState)
+DeallocEditor(editor *Editor)
 {
-   ListIter(Entity, EditorState->EntitiesHead, entity)
+   ListIter(Entity, Editor->EntitiesHead, entity)
    {
       EntityDestroy(Entity);
-      ReleaseChunk(EditorState->EntityPool, Entity);
+      DeallocEntity(Editor, Entity);
    }
-   EditorState->EntitiesHead = 0;
-   EditorState->EntitiesTail = 0;
-   EditorState->NumEntities = 0;
+   Editor->EntitiesHead = 0;
+   Editor->EntitiesTail = 0;
+   Editor->EntityCount = 0;
 }
 
 internal entity *
-AllocAndAddEntity(editor_state *State)
+AllocAndAddEntity(editor *Editor)
 {
-   allocated_entity Alloc = AllocEntity();
-   entity *Entity = Alloc.Entity;
+   entity *Entity = AllocEntity(Editor);
    if (Entity)
    {
       // NOTE(hbr): Ugly C++ thing we have to do because of constructors/destructors.
       new (&Entity->Image.Texture) sf::Texture();
-      Entity->Curve.ComputationArena = Alloc.EntityArena;
-      DLLPushBack(State->EntitiesHead, State->EntitiesTail, Entity);
-      ++State->NumEntities;
+      DLLPushBack(Editor->EntitiesHead, Editor->EntitiesTail, Entity);
+      ++Editor->EntityCount;
    }
-   
-   // TODO(hbr): Remove
-#if 0
-   entity *Entity = RequestChunkNonZero(State->EntityPool, entity);
-#endif
    
    return Entity;
 }
 
 internal void
-DeallocAndRemoveEntity(editor_state *State, entity *Entity)
+DeallocAndRemoveEntity(editor *Editor, entity *Entity)
 {
-   if (State->SplittingBezierCurve.IsSplitting &&
-       State->SplittingBezierCurve.SplitCurveEntity == Entity)
+   if (Editor->CurveSplitting.IsSplitting &&
+       Editor->CurveSplitting.SplitCurveEntity == Entity)
    {
-      State->SplittingBezierCurve.IsSplitting = false;
-      State->SplittingBezierCurve.SplitCurveEntity = 0;
+      Editor->CurveSplitting.IsSplitting = false;
+      Editor->CurveSplitting.SplitCurveEntity = 0;
    }
    
-   if (State->DeCasteljauVisualization.IsVisualizing &&
-       State->DeCasteljauVisualization.CurveEntity == Entity)
+   if (Editor->DeCasteljauVisual.IsVisualizing &&
+       Editor->DeCasteljauVisual.CurveEntity == Entity)
    {
-      State->DeCasteljauVisualization.IsVisualizing = false;
-      State->DeCasteljauVisualization.CurveEntity = 0;
+      Editor->DeCasteljauVisual.IsVisualizing = false;
+      Editor->DeCasteljauVisual.CurveEntity = 0;
    }
    
-   if (State->DegreeLowering.Entity == Entity)
+   if (Editor->DegreeLowering.Entity == Entity)
    {
-      State->DegreeLowering.Entity = 0;
+      Editor->DegreeLowering.Entity = 0;
    }
    
-   if (State->CurveAnimation.FromCurveEntity == Entity ||
-       State->CurveAnimation.ToCurveEntity == Entity)
+   if (Editor->CurveAnimation.FromCurveEntity == Entity ||
+       Editor->CurveAnimation.ToCurveEntity == Entity)
    {
-      State->CurveAnimation.Stage = AnimateCurveAnimation_None;
+      Editor->CurveAnimation.Stage = AnimateCurveAnimation_None;
    }
    
-   if (State->CurveCombining.CombineCurveEntity == Entity)
+   if (Editor->CurveCombining.CombineCurveEntity == Entity)
    {
-      State->CurveCombining.IsCombining = false;
+      Editor->CurveCombining.IsCombining = false;
    }
-   if (State->CurveCombining.TargetCurveEntity == Entity)
+   if (Editor->CurveCombining.TargetCurveEntity == Entity)
    {
-      State->CurveCombining.TargetCurveEntity = 0;
+      Editor->CurveCombining.TargetCurveEntity = 0;
    }
    
    EntityDestroy(Entity);
-   DLLRemove(State->EntitiesHead, State->EntitiesTail, Entity);
-   --State->NumEntities;
-   ReleaseChunk(State->EntityPool, Entity);
+   DLLRemove(Editor->EntitiesHead, Editor->EntitiesTail, Entity);
+   --Editor->EntityCount;
+   DeallocEntity(Editor, Entity);
 }
 
 internal void
-DeselectCurrentEntity(editor_state *State)
+DeselectCurrentEntity(editor *Editor)
 {
-   entity *Entity = State->SelectedEntity;
+   entity *Entity = Editor->SelectedEntity;
    if (Entity)
    {
       Entity->Flags &= ~EntityFlag_Selected;
    }
-   State->SelectedEntity = 0;
+   Editor->SelectedEntity = 0;
 }
 
 internal void
-SelectEntity(editor_state *State, entity *Entity)
+SelectEntity(editor *Editor, entity *Entity)
 {
-   if (State->SelectedEntity)
+   if (Editor->SelectedEntity)
    {
-      DeselectCurrentEntity(State);
+      DeselectCurrentEntity(Editor);
    }
    if (Entity)
    {
       Entity->Flags |= EntityFlag_Selected;
    }
-   State->SelectedEntity = Entity;
-}
-
-internal notification
-CreateNotification(string Title, color TitleColor, string Text, f32 PosY)
-{
-   notification Result = {};
-   Result.Title = DuplicateStr(Title);
-   Result.TitleColor = TitleColor;
-   Result.Text = DuplicateStr(Text);
-   Result.PosY = PosY;
-   if (Result.Text.Count > 0)
-   {
-      Result.Text.Data[0] = ToUpper(Result.Text.Data[0]);
-   }
-   
-   return Result;
+   Editor->SelectedEntity = Entity;
 }
 
 internal void
-DestroyNotification(notification *Notification)
-{
-   FreeStr(&Notification->Title);
-   FreeStr(&Notification->Text);
-}
-
-internal void
-AddNotificationF(notifications *Notifs, notification_type Type, char const *Fmt, ...)
+AddNotificationF(editor *Editor, notification_type Type, char const *Format, ...)
 {
    va_list Args;
-   DeferBlock(va_start(Args, Fmt), va_end(Args))
+   va_start(Args, Format);
+   
+   if (Editor->NotificationCount < ArrayCount(Editor->Notifications))
    {
-      temp_arena Temp = TempArena(0);
+      notification *Notification = Editor->Notifications + Editor->NotificationCount++;
+      ZeroStruct(Notification);
       
-      if (Notifs->NotifCount < ArrayCount(Notifs->Notifs))
+      Notification->Type = Type;
+      u64 ContentCount = FmtV(ArrayCount(Notification->ContentBuffer), Notification->ContentBuffer, Format, Args);
+      Notification->Content = MakeStr(Notification->ContentBuffer, ContentCount);
+      
+      sf::Vector2u WindowSize = Editor->Window->getSize();
+      f32 Padding = NotificationWindowPaddingScale * WindowSize.x;
+      f32 DesignatedPosY = WindowSize.y - Padding;
+      for (u64 NotificationIndex = 0;
+           NotificationIndex < Editor->NotificationCount;
+           ++NotificationIndex)
       {
-         char const *TitleStr = 0;
-         color Color = {};
-         switch (Type)
-         {
-            case Notification_Success: {
-               TitleStr = "Success";
-               Color = GreenColor;
-            } break;
-            
-            case Notification_Error: {
-               TitleStr = "Error";
-               Color = RedColor;
-            } break;
-            
-            case Notification_Warning: {
-               TitleStr = "Warning";
-               Color = YellowColor;
-            } break;
-         }
-         
-         string Title = StrLitArena(Temp.Arena, TitleStr);
-         
-         // NOTE(hbr): Calculate desginated position
-         sf::Vector2u WindowSize = Notifs->Window->getSize();
-         f32 Padding = NotificationWindowPaddingScale * WindowSize.x;
-         f32 PosY = WindowSize.y - Padding;
-         for (u64 NotifIndex = 0; NotifIndex < Notifs->NotifCount; ++NotifIndex)
-         {
-            notification *Notif = Notifs->Notifs + NotifIndex;
-            PosY -= Notif->NotifWindowHeight + Padding;
-         }
-         
-         string Text = StrFV(Temp.Arena, Fmt, Args);
-         
-         Notifs->Notifs[Notifs->NotifCount] = CreateNotification(Title, Color, Text, PosY);;
-         Notifs->NotifCount += 1;
+         notification *Other = Editor->Notifications + NotificationIndex;
+         DesignatedPosY -= Other->BoxHeight + Padding;
       }
+      Notification->ScreenPosY = DesignatedPosY;
       
-      EndTemp(Temp);
+      ++Editor->NotificationCount;
    }
+   
+   va_end(Args);
 }
 
 internal void
@@ -743,19 +647,16 @@ CreateRotatingCameraMode(void)
 }
 
 internal name_string
-GenerateNewNameForCurve(editor_state *State)
+GenerateNewNameForCurve(editor *Editor)
 {
    // NOTE(hbr): Simple approach, not bullet-proof but ppb good enough
-   name_string Result = NameStrF("curve(%lu)", State->EverIncreasingCurveCounter++);
+   name_string Result = NameStrF("curve(%lu)", Editor->EntityCounter++);
    return Result;
 }
 
-internal editor_state
-EditorStateNormalModeUpdate(editor_state State, user_action Action,
-                            coordinate_system_data CoordinateSystemData,
-                            editor_params EditorParams)
+internal void
+ExecuteUserActionNormalMode(editor *Editor, user_action Action, coordinate_system_data CoordinateSystemData)
 {
-   editor_state Result = State;
    switch (Action.Type)
    {
       case UserAction_ButtonClicked: {
@@ -763,7 +664,7 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
          switch (Action.Click.Button)
          {
             case Button_Left: {
-               f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(EditorParams.CollisionToleranceClipSpace,
+               f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->Params.CollisionToleranceClipSpace,
                                                                     CoordinateSystemData);
                
                collision Collision = {};
@@ -779,15 +680,15 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                   check_collision_with_flags CheckCollisionWithFlags =
                      CheckCollisionWith_ControlPoints |
                      CheckCollisionWith_CurvePoints;
-                  Collision = CheckCollisionWith(State.EntitiesHead,
+                  Collision = CheckCollisionWith(Editor->EntitiesHead,
                                                  ClickPosition, CollisionTolerance,
-                                                 EditorParams,  CheckCollisionWithFlags);
+                                                 Editor->Params,  CheckCollisionWithFlags);
                }
                
                b32 SkipNormalModeHandling = false;
-               if (State.SplittingBezierCurve.IsSplitting)
+               if (Editor->CurveSplitting.IsSplitting)
                {
-                  entity *SplitEntity = State.SplittingBezierCurve.SplitCurveEntity;
+                  entity *SplitEntity = Editor->CurveSplitting.SplitCurveEntity;
                   curve *Curve = &SplitEntity->Curve;
                   
                   // TODO(hbr): Is this clicked necessary when checking for [Collision.Entity]? Check after implementing CubicBezierPoint
@@ -813,26 +714,25 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                   
                   if (ClickedOnSplitCurve)
                   {
-                     Result.SplittingBezierCurve.T = Clamp(T, 0.0f, 1.0f); // NOTE(hbr): Be safe
-                     SelectEntity(&Result, SplitEntity);
+                     Editor->CurveSplitting.T = Clamp(T, 0.0f, 1.0f); // NOTE(hbr): Be safe
+                     SelectEntity(Editor, SplitEntity);
                      SkipNormalModeHandling = true;
                   }
                }
                
-               if (State.CurveAnimation.Stage == AnimateCurveAnimation_PickingTarget &&
-                   Collision.Entity &&
-                   Collision.Entity != State.CurveAnimation.FromCurveEntity)
+               if (Editor->CurveAnimation.Stage == AnimateCurveAnimation_PickingTarget &&
+                   Collision.Entity && Collision.Entity != Editor->CurveAnimation.FromCurveEntity)
                {
-                  Result.CurveAnimation.ToCurveEntity = Collision.Entity;
+                  Editor->CurveAnimation.ToCurveEntity = Collision.Entity;
                   SkipNormalModeHandling = true;
                }
                
-               if (State.CurveCombining.IsCombining && Collision.Entity)
+               if (Editor->CurveCombining.IsCombining && Collision.Entity)
                {
                   // TODO(hbr): Isn't [Assert] needed here, that it is [Collision_Curve]????
                   curve *CollisionCurve = &Collision.Entity->Curve;
-                  curve *CombineCurve = &State.CurveCombining.CombineCurveEntity->Curve;
-                  curve *TargetCurve = &State.CurveCombining.TargetCurveEntity->Curve;
+                  curve *CombineCurve = &Editor->CurveCombining.CombineCurveEntity->Curve;
+                  curve *TargetCurve = &Editor->CurveCombining.TargetCurveEntity->Curve;
                   
                   // NOTE(hbr): Logic to recognize whether first/last point of
                   // combine/target curve was clicked. If so then change which
@@ -850,42 +750,42 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                      {
                         if (CollisionPointIndex == 0)
                         {
-                           if (!State.CurveCombining.CombineCurveLastControlPoint)
+                           if (!Editor->CurveCombining.CombineCurveLastControlPoint)
                            {
-                              Swap(Result.CurveCombining.CombineCurveEntity,
-                                   Result.CurveCombining.TargetCurveEntity,
+                              Swap(Editor->CurveCombining.CombineCurveEntity,
+                                   Editor->CurveCombining.TargetCurveEntity,
                                    entity *);
-                              Swap(Result.CurveCombining.CombineCurveLastControlPoint,
-                                   Result.CurveCombining.TargetCurveFirstControlPoint,
+                              Swap(Editor->CurveCombining.CombineCurveLastControlPoint,
+                                   Editor->CurveCombining.TargetCurveFirstControlPoint,
                                    b32);
-                              Result.CurveCombining.CombineCurveLastControlPoint =
-                                 !Result.CurveCombining.CombineCurveLastControlPoint;
-                              Result.CurveCombining.TargetCurveFirstControlPoint =
-                                 !Result.CurveCombining.TargetCurveFirstControlPoint;
+                              Editor->CurveCombining.CombineCurveLastControlPoint =
+                                 !Editor->CurveCombining.CombineCurveLastControlPoint;
+                              Editor->CurveCombining.TargetCurveFirstControlPoint =
+                                 !Editor->CurveCombining.TargetCurveFirstControlPoint;
                            }
                            else
                            {
-                              Result.CurveCombining.CombineCurveLastControlPoint = false;
+                              Editor->CurveCombining.CombineCurveLastControlPoint = false;
                            }
                         }
                         else if (CollisionPointIndex == CombineCurve->ControlPointCount - 1)
                         {
-                           if (State.CurveCombining.CombineCurveLastControlPoint)
+                           if (Editor->CurveCombining.CombineCurveLastControlPoint)
                            {
-                              Swap(Result.CurveCombining.CombineCurveEntity,
-                                   Result.CurveCombining.TargetCurveEntity,
+                              Swap(Editor->CurveCombining.CombineCurveEntity,
+                                   Editor->CurveCombining.TargetCurveEntity,
                                    entity *);
-                              Swap(Result.CurveCombining.CombineCurveLastControlPoint,
-                                   Result.CurveCombining.TargetCurveFirstControlPoint,
+                              Swap(Editor->CurveCombining.CombineCurveLastControlPoint,
+                                   Editor->CurveCombining.TargetCurveFirstControlPoint,
                                    b32);
-                              Result.CurveCombining.CombineCurveLastControlPoint =
-                                 !Result.CurveCombining.CombineCurveLastControlPoint;
-                              Result.CurveCombining.TargetCurveFirstControlPoint =
-                                 !Result.CurveCombining.TargetCurveFirstControlPoint;
+                              Editor->CurveCombining.CombineCurveLastControlPoint =
+                                 !Editor->CurveCombining.CombineCurveLastControlPoint;
+                              Editor->CurveCombining.TargetCurveFirstControlPoint =
+                                 !Editor->CurveCombining.TargetCurveFirstControlPoint;
                            }
                            else
                            {
-                              Result.CurveCombining.CombineCurveLastControlPoint = true;
+                              Editor->CurveCombining.CombineCurveLastControlPoint = true;
                            }
                         }
                      }
@@ -893,11 +793,11 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                      {
                         if (CollisionPointIndex == 0)
                         {
-                           Result.CurveCombining.TargetCurveFirstControlPoint = true;
+                           Editor->CurveCombining.TargetCurveFirstControlPoint = true;
                         }
                         else if (CollisionPointIndex == TargetCurve->ControlPointCount - 1)
                         {
-                           Result.CurveCombining.TargetCurveFirstControlPoint = false;
+                           Editor->CurveCombining.TargetCurveFirstControlPoint = false;
                         }
                      }
                   }
@@ -905,7 +805,7 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                   if (CollisionCurve != CombineCurve &&
                       AreCurvesCompatibleForCombining(CombineCurve, CollisionCurve))
                   {
-                     Result.CurveCombining.TargetCurveEntity = Collision.Entity;
+                     Editor->CurveCombining.TargetCurveEntity = Collision.Entity;
                   }
                   
                   SkipNormalModeHandling = true;
@@ -918,7 +818,7 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                      switch (Collision.Type)
                      {
                         case CurveCollision_ControlPoint: {
-                           SelectEntity(&Result, Collision.Entity);
+                           SelectEntity(Editor, Collision.Entity);
                            // TODO(hbr): Select ControlPoint
                         } break;
                         
@@ -938,39 +838,39 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                            
                            u64 InsertPointIndex = CurveInsertControlPoint(Collision.Entity, ClickPosition,
                                                                           InsertAfterPointIndex,
-                                                                          EditorParams.DefaultControlPointWeight);
+                                                                          Editor->Params.DefaultControlPointWeight);
                            SelectControlPoint(Collision.Entity, InsertPointIndex);
-                           SelectEntity(&Result, Collision.Entity);
+                           SelectEntity(Editor, Collision.Entity);
                         } break;
                      }
                   }
                   else
                   {
                      entity *AddCurveEntity = 0;
-                     if (State.SelectedEntity &&
-                         State.SelectedEntity->Type == Entity_Curve)
+                     if (Editor->SelectedEntity &&
+                         Editor->SelectedEntity->Type == Entity_Curve)
                      {
-                        AddCurveEntity = State.SelectedEntity;
+                        AddCurveEntity = Editor->SelectedEntity;
                      }
                      else
                      {
-                        entity *Entity = AllocAndAddEntity(&Result);
+                        entity *Entity = AllocAndAddEntity(Editor);
                         world_position Position = V2F32(0.0f, 0.0f);
                         v2f32 Scale = V2F32(1.0f, 1.0f);
                         rotation_2d Rotation = Rotation2DZero();
-                        name_string Name = GenerateNewNameForCurve(&Result);
+                        name_string Name = GenerateNewNameForCurve(Editor);
                         InitCurveEntity(Entity,
                                         Position, Scale, Rotation,
                                         Name,
-                                        EditorParams.CurveDefaultParams);
+                                        Editor->Params.CurveDefaultParams);
                         
                         AddCurveEntity = Entity;
                      }
                      Assert(AddCurveEntity);
                      
-                     u64 AddedPointIndex = AppendCurveControlPoint(AddCurveEntity, ClickPosition, EditorParams.DefaultControlPointWeight);
+                     u64 AddedPointIndex = AppendCurveControlPoint(AddCurveEntity, ClickPosition, Editor->Params.DefaultControlPointWeight);
                      SelectControlPoint(AddCurveEntity, AddedPointIndex);
-                     SelectEntity(&Result, AddCurveEntity);
+                     SelectEntity(Editor, AddCurveEntity);
                   }
                }
             } break;
@@ -978,11 +878,11 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
             case Button_Right: {
                check_collision_with_flags CheckCollisionWithFlags =
                   CheckCollisionWith_ControlPoints | CheckCollisionWith_Images;
-               f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(EditorParams.CollisionToleranceClipSpace,
+               f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->Params.CollisionToleranceClipSpace,
                                                                     CoordinateSystemData);
-               collision Collision = CheckCollisionWith(State.EntitiesHead,
+               collision Collision = CheckCollisionWith(Editor->EntitiesHead,
                                                         ClickPosition, CollisionTolerance,
-                                                        EditorParams, CheckCollisionWithFlags);
+                                                        Editor->Params, CheckCollisionWithFlags);
                
                if (Collision.Entity)
                {
@@ -993,7 +893,7 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                         {
                            case CurveCollision_ControlPoint: {
                               RemoveCurveControlPoint(Collision.Entity, Collision.PointIndex);
-                              SelectEntity(&Result, Collision.Entity);
+                              SelectEntity(Editor, Collision.Entity);
                            } break;
                            
                            case CurveCollision_CubicBezierPoint: { NotImplemented; } break;
@@ -1002,13 +902,13 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                      } break;
                      
                      case Entity_Image: {
-                        DeallocAndRemoveEntity(&Result, Collision.Entity);
+                        DeallocAndRemoveEntity(Editor, Collision.Entity);
                      } break;
                   }
                }
                else
                {
-                  DeselectCurrentEntity(&Result);
+                  DeselectCurrentEntity(Editor);
                }
             } break;
             
@@ -1027,28 +927,28 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
          {
             case Button_Left: {
                f32 CollisionTolerance =
-                  ClipSpaceLengthToWorldSpace(EditorParams.CollisionToleranceClipSpace,
+                  ClipSpaceLengthToWorldSpace(Editor->Params.CollisionToleranceClipSpace,
                                               CoordinateSystemData);
                
                b32 SkipCheckingNormalModeCollisions = false;
-               if (State.SplittingBezierCurve.IsSplitting)
+               if (Editor->CurveSplitting.IsSplitting)
                {
-                  if (State.SplittingBezierCurve.DraggingSplitPoint)
+                  if (Editor->CurveSplitting.DraggingSplitPoint)
                   {
                      SkipCheckingNormalModeCollisions = true;
                   }
                   else
                   {
-                     entity *CurveEntity = State.SplittingBezierCurve.SplitCurveEntity;
-                     world_position SplitPoint = State.SplittingBezierCurve.SplitPoint;
+                     entity *CurveEntity = Editor->CurveSplitting.SplitCurveEntity;
+                     world_position SplitPoint = Editor->CurveSplitting.SplitPoint;
                      f32 SplitPointRadius =
-                        ClipSpaceLengthToWorldSpace(EditorParams.BezierSplitPoint.RadiusClipSpace,
+                        ClipSpaceLengthToWorldSpace(Editor->Params.BezierSplitPoint.RadiusClipSpace,
                                                     CoordinateSystemData);
                      
                      if (PointCollision(SplitPoint, DragFromWorldPosition, SplitPointRadius + CollisionTolerance))
                      {
-                        Result.SplittingBezierCurve.DraggingSplitPoint = true;
-                        SelectEntity(&Result, CurveEntity);
+                        Editor->CurveSplitting.DraggingSplitPoint = true;
+                        SelectEntity(Editor, CurveEntity);
                         SkipCheckingNormalModeCollisions = true;
                      }
                   }
@@ -1060,10 +960,10 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                      CheckCollisionWith_ControlPoints |
                      CheckCollisionWith_CurvePoints |
                      CheckCollisionWith_Images;
-                  collision Collision = CheckCollisionWith(State.EntitiesHead,
+                  collision Collision = CheckCollisionWith(Editor->EntitiesHead,
                                                            DragFromWorldPosition,
                                                            CollisionTolerance,
-                                                           EditorParams,
+                                                           Editor->Params,
                                                            CheckCollisionWithFlags);
                   
                   if (Collision.Entity)
@@ -1083,48 +983,48 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                                     SelectControlPoint(Collision.Entity, Collision.PointIndex);
                                  }
                                  
-                                 Result.Mode = CreateMovingCurvePointMode(Collision.Entity, Collision.PointIndex,
-                                                                          IsBezierPoint, State.MovingPointArena);
+                                 Editor->Mode = CreateMovingCurvePointMode(Collision.Entity, Collision.PointIndex,
+                                                                           IsBezierPoint, Editor->MovingPointArena);
                               } break;
                               
                               case CurveCollision_CurvePoint: {
-                                 Result.Mode = CreateMovingEntityMode(Collision.Entity);
+                                 Editor->Mode = CreateMovingEntityMode(Collision.Entity);
                               } break;
                            }
                         } break;
                         
                         case Entity_Image: {
-                           Result.Mode = CreateMovingEntityMode(Collision.Entity);
+                           Editor->Mode = CreateMovingEntityMode(Collision.Entity);
                         } break;
                      }
                      
-                     SelectEntity(&Result, Collision.Entity);
+                     SelectEntity(Editor, Collision.Entity);
                   }
                   else
                   {
-                     Result.Mode = CreateMovingCameraMode(); 
+                     Editor->Mode = CreateMovingCameraMode(); 
                   }
                }
             } break;
             
             case Button_Right: {
                // TODO(hbr): Merge [Entity] cases here and maybe also [Camera] case.
-               entity *Entity = State.SelectedEntity;
+               entity *Entity = Editor->SelectedEntity;
                if (Entity)
                {
                   switch (Entity->Type)
                   {
-                     case Entity_Curve: { Result.Mode = CreateRotatingCurveMode(Entity, DragFromScreenPosition); } break;
-                     case Entity_Image: { Result.Mode = CreateRotatingImageMode(Entity); } break;
+                     case Entity_Curve: { Editor->Mode = CreateRotatingCurveMode(Entity, DragFromScreenPosition); } break;
+                     case Entity_Image: { Editor->Mode = CreateRotatingImageMode(Entity); } break;
                   }
                }
                else
                {
-                  Result.Mode = CreateRotatingCameraMode();
+                  Editor->Mode = CreateRotatingCameraMode();
                }
             } break;
             
-            case Button_Middle: { Result.Mode = CreateRotatingCameraMode(); } break;
+            case Button_Middle: { Editor->Mode = CreateRotatingCameraMode(); } break;
             case Button_Count: InvalidPath;
          }
       } break;
@@ -1132,7 +1032,7 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
       case UserAction_ButtonReleased: {
          switch (Action.Drag.Button)
          {
-            case Button_Left: { Result.SplittingBezierCurve.DraggingSplitPoint = false; } break;
+            case Button_Left: { Editor->CurveSplitting.DraggingSplitPoint = false; } break;
             case Button_Right:
             case Button_Middle: {} break;
             case Button_Count: InvalidPath;
@@ -1140,10 +1040,10 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
       } break;
       
       case UserAction_MouseMove: {
-         splitting_bezier_curve *Split = &State.SplittingBezierCurve;
+         curve_splitting_state *Split = &Editor->CurveSplitting;
          
          // NOTE(hbr): Pretty involved logic to move point along the curve and have pleasant experience
-         if (State.SplittingBezierCurve.DraggingSplitPoint)
+         if (Editor->CurveSplitting.DraggingSplitPoint)
          {
             world_position FromPosition = ScreenToWorldSpace(Action.MouseMove.FromPosition, CoordinateSystemData);
             world_position ToPosition = ScreenToWorldSpace(Action.MouseMove.ToPosition, CoordinateSystemData);
@@ -1236,21 +1136,17 @@ EditorStateNormalModeUpdate(editor_state State, user_action Action,
                }
             }
             
-            Result.SplittingBezierCurve.T = T;
+            Editor->CurveSplitting.T = T;
          }
       } break;
       
       case UserAction_None: {} break;
    }
-   
-   return Result;
 }
 
-internal editor_state
-EditorStateMovingModeUpdate(editor_state State, user_action Action,
-                            coordinate_system_data CoordinateSystemData)
+internal void
+ExecuteUserActionMoveMode(editor *Editor, user_action Action, coordinate_system_data CoordinateSystemData)
 {
-   editor_state Result = State;
    switch (Action.Type)
    {
       case UserAction_MouseMove: {
@@ -1258,16 +1154,16 @@ EditorStateMovingModeUpdate(editor_state State, user_action Action,
          world_position To = ScreenToWorldSpace(Action.MouseMove.ToPosition, CoordinateSystemData);
          v2f32 Translation = To - From;
          
-         auto *Moving = &State.Mode.Moving;
+         auto *Moving = &Editor->Mode.Moving;
          if (Moving->Type == MovingMode_CurvePoint)
          {
             translate_control_point_flags TranslateFlags = 0;
-            if (State.Mode.Moving.IsBezierPoint)       TranslateFlags |= TranslateControlPoint_BezierPoint;
+            if (Editor->Mode.Moving.IsBezierPoint)       TranslateFlags |= TranslateControlPoint_BezierPoint;
             if (!Action.Input->Keys[Key_LeftCtrl].Pressed)  TranslateFlags |= TranslateControlPoint_MatchBezierTwinDirection;
             if (!Action.Input->Keys[Key_LeftShift].Pressed) TranslateFlags |= TranslateControlPoint_MatchBezierTwinDirection;
             
-            TranslateCurveControlPoint(State.Mode.Moving.Entity,
-                                       State.Mode.Moving.PointIndex,
+            TranslateCurveControlPoint(Editor->Mode.Moving.Entity,
+                                       Editor->Mode.Moving.PointIndex,
                                        TranslateFlags, Translation);
          }
          else
@@ -1283,7 +1179,7 @@ EditorStateMovingModeUpdate(editor_state State, user_action Action,
                   // NOTE(hbr): This is a little janky, in a sense that we assume the camera is moving when [Entity == 0].
                   // Maybe get rid of this and store [camera] pointer directly in [Moving], but the camera right now is copied
                   // to [Result] by value so have to do it like this.
-                  CameraMove(&Result.Camera, -Translation);
+                  CameraMove(&Editor->Camera, -Translation);
                } break;
                
                case MovingMode_CurvePoint: InvalidPath;
@@ -1296,7 +1192,7 @@ EditorStateMovingModeUpdate(editor_state State, user_action Action,
          switch (Action.Release.Button)
          {
             case Button_Left:
-            case Button_Middle: { Result.Mode = EditorModeNormal(); } break;
+            case Button_Middle: { Editor->Mode = EditorModeNormal(); } break;
             case Button_Right: {} break;
             case Button_Count: InvalidPath;
          }
@@ -1306,8 +1202,6 @@ EditorStateMovingModeUpdate(editor_state State, user_action Action,
       case UserAction_ButtonDrag:
       case UserAction_None: {} break;
    }
-   
-   return Result;
 }
 
 struct stable_rotation
@@ -1342,16 +1236,13 @@ CalculateRotationIfStable(screen_position From,
    return Result;
 }
 
-internal editor_state
-EditorStateRotatingModeUpdate(editor_state State, user_action Action,
-                              coordinate_system_data CoordinateSystemData,
-                              editor_params EditorParams)
+internal void
+ExecuteUserActionRotateMode(editor *Editor, user_action Action, coordinate_system_data CoordinateSystemData)
 {
-   editor_state Result = State;
    switch (Action.Type)
    {
       case UserAction_MouseMove: {
-         entity *Entity = State.Mode.Rotating.Entity;
+         entity *Entity = Editor->Mode.Rotating.Entity;
          
          // TODO(hbr): Merge cases below
          camera_position RotationCenter = {};
@@ -1360,7 +1251,7 @@ EditorStateRotatingModeUpdate(editor_state State, user_action Action,
             switch (Entity->Type)
             {
                case Entity_Curve: {
-                  RotationCenter = ScreenToCameraSpace(State.Mode.Rotating.RotationCenter,
+                  RotationCenter = ScreenToCameraSpace(Editor->Mode.Rotating.RotationCenter,
                                                        CoordinateSystemData);
                } break;
                case Entity_Image: {
@@ -1370,7 +1261,7 @@ EditorStateRotatingModeUpdate(editor_state State, user_action Action,
          }
          else
          {
-            RotationCenter = WorldToCameraSpace(State.Camera.Position, CoordinateSystemData);
+            RotationCenter = WorldToCameraSpace(Editor->Camera.Position, CoordinateSystemData);
          }
          
          stable_rotation StableRotation =
@@ -1378,7 +1269,7 @@ EditorStateRotatingModeUpdate(editor_state State, user_action Action,
                                       Action.MouseMove.ToPosition,
                                       RotationCenter,
                                       CoordinateSystemData,
-                                      EditorParams);
+                                      Editor->Params);
          
          if (StableRotation.IsStable)
          {
@@ -1403,7 +1294,7 @@ EditorStateRotatingModeUpdate(editor_state State, user_action Action,
             else
             {
                rotation_2d InverseRotation = Rotation2DInverse(StableRotation.Rotation);
-               CameraRotate(&Result.Camera, InverseRotation);
+               CameraRotate(&Editor->Camera, InverseRotation);
             }
          }
       } break;
@@ -1412,7 +1303,7 @@ EditorStateRotatingModeUpdate(editor_state State, user_action Action,
          button ReleaseButton = Action.Release.Button;
          switch (ReleaseButton)
          {
-            case Button_Right: { Result.Mode = EditorModeNormal(); } break;
+            case Button_Right: { Editor->Mode = EditorModeNormal(); } break;
             case Button_Left:
             case Button_Middle: {} break;
             case Button_Count: InvalidPath;
@@ -1423,24 +1314,17 @@ EditorStateRotatingModeUpdate(editor_state State, user_action Action,
       case UserAction_ButtonDrag:
       case UserAction_None: {} break;
    }
-   
-   return Result;
 }
 
-internal editor_state
-EditorStateUpdate(editor_state State, user_action Action,
-                  coordinate_system_data CoordinateSystemData,
-                  editor_params EditorParams)
+internal void
+ExecuteUserAction(editor *Editor, user_action Action, coordinate_system_data CoordinateSystemData)
 {
-   editor_state Result = {};
-   switch (State.Mode.Type)
+   switch (Editor->Mode.Type)
    {
-      case EditorMode_Normal:   { Result = EditorStateNormalModeUpdate(State, Action, CoordinateSystemData, EditorParams); } break;
-      case EditorMode_Moving:   { Result = EditorStateMovingModeUpdate(State, Action, CoordinateSystemData); } break;
-      case EditorMode_Rotating: { Result = EditorStateRotatingModeUpdate(State, Action, CoordinateSystemData, EditorParams); } break;
+      case EditorMode_Normal:   { ExecuteUserActionNormalMode(Editor, Action, CoordinateSystemData); } break;
+      case EditorMode_Moving:   { ExecuteUserActionMoveMode(Editor, Action, CoordinateSystemData); } break;
+      case EditorMode_Rotating: { ExecuteUserActionRotateMode(Editor, Action, CoordinateSystemData); } break;
    }
-   
-   return Result;
 }
 
 internal void
@@ -1461,21 +1345,21 @@ RenderPoint(v2f32 Position,
 }
 
 internal void
-RenderRotationIndicator(editor_state *EditorState, editor_params *EditorParams,
+RenderRotationIndicator(editor *Editor, editor_params *EditorParams,
                         coordinate_system_data CoordinateSystemData,
                         sf::Transform Transform, sf::RenderWindow *Window)
 {
-   if (EditorState->Mode.Type == EditorMode_Rotating)
+   if (Editor->Mode.Type == EditorMode_Rotating)
    {
       // TODO(hbr): Merge cases here.
-      entity *Entity = EditorState->Mode.Rotating.Entity;
+      entity *Entity = Editor->Mode.Rotating.Entity;
       world_position RotationIndicatorPosition = {};
       if (Entity)
       {
          switch (Entity->Type)
          {
             case Entity_Curve: {
-               RotationIndicatorPosition = ScreenToWorldSpace(EditorState->Mode.Rotating.RotationCenter,
+               RotationIndicatorPosition = ScreenToWorldSpace(Editor->Mode.Rotating.RotationCenter,
                                                               CoordinateSystemData);
             } break;
             
@@ -1486,7 +1370,7 @@ RenderRotationIndicator(editor_state *EditorState, editor_params *EditorParams,
       }
       else
       {
-         RotationIndicatorPosition = EditorState->Camera.Position;
+         RotationIndicatorPosition = Editor->Camera.Position;
       }
       
       RenderPoint(RotationIndicatorPosition,
@@ -1501,7 +1385,7 @@ struct saved_project_header
 {
    u64 MagicValue;
    
-   u64 NumEntities;
+   u64 EntityCount;
    u64 CurveCounter;
    
    camera Camera;
@@ -1545,14 +1429,14 @@ struct saved_project_entity
 };
 
 internal saved_project_header
-SavedProjectHeader(u64 MagicValue, u64 NumEntities,
+SavedProjectHeader(u64 MagicValue, u64 EntityCount,
                    u64 CurveCounter, camera Camera,
                    editor_params EditorParameters,
                    ui_config UI_Config, f32 CurveAnimationSpeed)
 {
    saved_project_header Result = {};
    Result.MagicValue = MagicValue;
-   Result.NumEntities = NumEntities;
+   Result.EntityCount = EntityCount;
    Result.CurveCounter = CurveCounter;
    Result.Camera = Camera;
    Result.EditorParameters = EditorParameters;
@@ -1613,6 +1497,15 @@ SavedProjectEntity(entity *Entity)
    return Result;
 }
 
+// TODO(hbr): Implement this
+internal error_string
+SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath)
+{
+   error_string Result = {};
+   return Result;
+}
+
+#if 0
 // TODO(hbr): Take more things by pointer in general
 internal error_string
 SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath)
@@ -1622,10 +1515,10 @@ SaveProjectInFile(arena *Arena, editor Editor, string SaveFilePath)
    string_list SaveData = {};
    
    saved_project_header Header = SavedProjectHeader(SAVED_PROJECT_MAGIC_VALUE,
-                                                    Editor.State.NumEntities,
-                                                    Editor.State.EverIncreasingCurveCounter,
-                                                    Editor.State.Camera,
-                                                    Editor.Parameters,
+                                                    Editor->State.EntityCount,
+                                                    Editor->State.EntityCounter,
+                                                    Editor->State.Camera,
+                                                    Editor.Params,
                                                     Editor.UI_Config,
                                                     Editor.State.CurveAnimation.AnimationSpeed);
    string HeaderData = Str(Temp.Arena, Cast(char const *)&Header, SizeOf(Header));
@@ -1698,28 +1591,21 @@ ExpectSizeInData(u64 Expected, void **Data, u64 *BytesLeft)
 // TODO(hbr): Remove this type as well, just save [editor].
 struct load_project_result
 {
-   editor_state EditorState;
-   editor_params EditorParameters;
-   ui_config UI_Config;
-   
    error_string Error;
    string_list Warnings;
 };
 // TODO(hbr): Error doesn't have to be so specific, maybe just "project file is corrupted or something like that"
 internal load_project_result
-LoadProjectFromFile(arena *Arena,
-                    string ProjectFilePath,
-                    pool *EntityPool,
-                    arena *DeCasteljauVisualizationArena,
-                    arena *DegreeLoweringArena, arena *MovingPointArena,
-                    arena *CurveAnimationArena)
+LoadProjectFromFile(editor *Editor,
+                    arena *Arena,
+                    string ProjectFilePath)
 {
    // TODO(hbr): Shorten error messages, maybe even don't return
    load_project_result Result = {};
    error_string Error = {};
    string_list Warnings = {};
    
-   editor_state *EditorState = &Result.EditorState;
+   editor *Editor = &Result.EditorState;
    editor_params *EditorParameters = &Result.EditorParameters;
    ui_config *UI_Config = &Result.UI_Config;
    
@@ -1736,20 +1622,14 @@ LoadProjectFromFile(arena *Arena,
       saved_project_header *Header = ExpectTypeInData(saved_project_header, &Data, &BytesLeft);
       if (Header && Header->MagicValue)
       {
-         *EditorParameters = Header->EditorParameters;
-         *UI_Config = Header->UI_Config;
-         *EditorState = CreateEditorState(EntityPool,
-                                          Header->CurveCounter,
-                                          Header->Camera,
-                                          DeCasteljauVisualizationArena,
-                                          DegreeLoweringArena,
-                                          MovingPointArena,
-                                          CurveAnimationArena,
-                                          Header->CurveAnimationSpeed);
+         Editor->Camera = Header->Camera;
+         Editor->CurveCounter = Header->CurveCounter;
+         Editor->UI_Config = Header->UI_Config;
+         Editor->Params = Header->EditorParameters;
          
-         u64 NumEntities = Header->NumEntities;
+         u64 EntityCount = Header->EntityCount;
          for (u64 EntityIndex = 0;
-              EntityIndex < NumEntities;
+              EntityIndex < EntityCount;
               ++EntityIndex)
          {
             saved_project_entity *SavedEntity = ExpectTypeInData(saved_project_entity, &Data, &BytesLeft);
@@ -1866,6 +1746,7 @@ LoadProjectFromFile(arena *Arena,
    
    return Result;
 }
+#endif
 
 internal error_string
 SaveProjectInFormat(arena *Arena,
@@ -1910,14 +1791,14 @@ CreateNameForCopiedEntity(name_string OriginalName)
 internal void
 DuplicateEntity(entity *Entity, editor *Editor)
 {
-   entity *Copy = AllocAndAddEntity(&Editor->State);
+   entity *Copy = AllocAndAddEntity(Editor);
    InitEntityFromEntity(Copy, Entity);
    Copy->Name = CreateNameForCopiedEntity(Entity->Name);
-   SelectEntity(&Editor->State, Copy);
+   SelectEntity(Editor, Copy);
    
    coordinate_system_data CoordinateSystemData {
       .Window = Editor->Window,
-      .Camera = Editor->State.Camera,
+      .Camera = Editor->Camera,
       .Projection = Editor->Projection
    };
    f32 SlightTranslationX = ClipSpaceLengthToWorldSpace(0.2f, CoordinateSystemData);
@@ -2544,7 +2425,7 @@ RenderChangeCurveParametersUI(char const *PushID,
       
       // NOTE(hbr): De Casteljau section logic (somewhat complex, maybe refactor).
       b32 ShowDeCasteljauGradientPicking = false;
-      b32 ShowDeCasteljauVisualizationParamtersPicking = false;
+      b32 ShowDeCasteljauVisualParamtersPicking = false;
       switch (UIMode.Type)
       {
          case ChangeCurveParamsUIMode_DefaultCurve: {
@@ -2555,7 +2436,7 @@ RenderChangeCurveParametersUI(char const *PushID,
             if (ChangeParams->CurveShape.InterpolationType == Interpolation_Bezier)
             {
                ShowDeCasteljauGradientPicking = true;
-               ShowDeCasteljauVisualizationParamtersPicking = true;
+               ShowDeCasteljauVisualParamtersPicking = true;
             }
          } break;
       }
@@ -2568,11 +2449,11 @@ RenderChangeCurveParametersUI(char const *PushID,
             case Bezier_Weighted: {
                ImGui::NewLine();
                ImGui::SeparatorText("De Casteljau's Visualization");
-               DeferBlock(ImGui::PushID("DeCasteljauVisualization"), ImGui::PopID())
+               DeferBlock(ImGui::PushID("DeCasteljauVisual"), ImGui::PopID())
                {
                   color *GradientA = &ChangeParams->DeCasteljau.GradientA;
                   SomeCurveParameterChanged |= ImGui::ColorEdit4("Gradient A", GradientA);
-                  if (ResetContextMenuItemSelected("DeCasteljauVisualizationGradientAReset"))
+                  if (ResetContextMenuItemSelected("DeCasteljauVisualGradientAReset"))
                   {
                      *GradientA = DefaultParams.DeCasteljau.GradientA;
                      SomeCurveParameterChanged = true;
@@ -2580,7 +2461,7 @@ RenderChangeCurveParametersUI(char const *PushID,
                   
                   color *GradientB = &ChangeParams->DeCasteljau.GradientB;
                   SomeCurveParameterChanged |= ImGui::ColorEdit4("Gradient B", GradientB);
-                  if (ResetContextMenuItemSelected("DeCasteljauVisualizationGradientBReset"))
+                  if (ResetContextMenuItemSelected("DeCasteljauVisualGradientBReset"))
                   {
                      *GradientB = DefaultParams.DeCasteljau.GradientB;
                      SomeCurveParameterChanged = true;
@@ -2598,7 +2479,7 @@ RenderChangeCurveParametersUI(char const *PushID,
 
 // TODO(hbr): Probably use initialize list here and below
 internal void
-BeginCurveCombining(curve_combining *Combining, entity *CombineCurveEntity)
+BeginCurveCombining(curve_combining_state *Combining, entity *CombineCurveEntity)
 {
    Combining->IsCombining = true;
    Combining->CombineCurveEntity = CombineCurveEntity;
@@ -2609,7 +2490,7 @@ BeginCurveCombining(curve_combining *Combining, entity *CombineCurveEntity)
 }
 
 internal void
-BeginSplittingBezierCurve(splitting_bezier_curve *Splitting, entity *CurveEntity)
+BeginCurveSplitting(curve_splitting_state *Splitting, entity *CurveEntity)
 {
    Splitting->IsSplitting = true;
    Splitting->SplitCurveEntity = CurveEntity;
@@ -2619,7 +2500,7 @@ BeginSplittingBezierCurve(splitting_bezier_curve *Splitting, entity *CurveEntity
 }
 
 internal void
-BeginVisualizingDeCasteljauAlgorithm(de_casteljau_visualization *Visualization, entity *CurveEntity)
+BeginVisualizingDeCasteljauAlgorithm(de_casteljau_visual_state *Visualization, entity *CurveEntity)
 {
    Visualization->IsVisualizing = true;
    Visualization->T = 0.0f;
@@ -2629,7 +2510,7 @@ BeginVisualizingDeCasteljauAlgorithm(de_casteljau_visualization *Visualization, 
 }
 
 internal void
-BeginAnimatingCurve(transform_curve_animation *Animation, entity *CurveEntity)
+BeginAnimatingCurve(curve_animation_state *Animation, entity *CurveEntity)
 {
    Animation->Stage = AnimateCurveAnimation_PickingTarget;
    Animation->FromCurveEntity = CurveEntity;
@@ -2640,7 +2521,7 @@ BeginAnimatingCurve(transform_curve_animation *Animation, entity *CurveEntity)
 // wrap control points, weights and cubicbezier poiints in a structure and just assign data here.
 // In other words - refactor this function
 internal void
-LowerBezierCurveDegree(bezier_curve_degree_lowering *Lowering, entity *Entity)
+LowerBezierCurveDegree(curve_degree_lowering_state *Lowering, entity *Entity)
 {
    curve *Curve = GetCurve(Entity);
    u64 PointCount = Curve->ControlPointCount;
@@ -2714,7 +2595,7 @@ LowerBezierCurveDegree(bezier_curve_degree_lowering *Lowering, entity *Entity)
       
       // TODO(hbr): refactor this, it only has to be here because we still modify control points above
       BezierCubicCalculateAllControlPoints(LowerPoints, PointCount - 1, LowerBeziers + 1);
-      SetCurveControlPoints(Curve, PointCount - 1, LowerPoints, LowerWeights, LowerBeziers);
+      SetCurveControlPoints(Entity, PointCount - 1, LowerPoints, LowerWeights, LowerBeziers);
       
       Lowering->SavedCurveVersion = Curve->CurveVersion;
       
@@ -2723,8 +2604,9 @@ LowerBezierCurveDegree(bezier_curve_degree_lowering *Lowering, entity *Entity)
 }
 
 internal void
-ElevateBezierCurveDegree(curve *Curve, editor_params *EditorParams)
+ElevateBezierCurveDegree(entity *Entity, editor_params *EditorParams)
 {
+   curve *Curve = GetCurve(Entity);
    Assert(Curve->CurveParams.CurveShape.InterpolationType ==
           Interpolation_Bezier);
    temp_arena Temp = TempArena(0);
@@ -2768,7 +2650,7 @@ ElevateBezierCurveDegree(curve *Curve, editor_params *EditorParams)
                                         ControlPointCount + 1,
                                         ElevatedCubicBezierPoints + 1);
    
-   SetCurveControlPoints(Curve,
+   SetCurveControlPoints(Entity,
                          ControlPointCount + 1,
                          ElevatedControlPoints,
                          ElevatedControlPointWeights,
@@ -2844,7 +2726,7 @@ FocusCameraOnEntity(camera *Camera, entity *Entity, coordinate_system_data Coord
 }
 
 internal void
-SplitCurveOnControlPoint(entity *CurveEntity, editor_state *EditorState)
+SplitCurveOnControlPoint(entity *CurveEntity, editor *Editor)
 {
    curve *Curve = &CurveEntity->Curve;
    Assert(Curve->SelectedControlPointIndex < Curve->ControlPointCount);
@@ -2899,13 +2781,13 @@ SplitCurveOnControlPoint(entity *CurveEntity, editor_state *EditorState)
    // TODO(hbr): Maybe mint internals that create duplicate curve but without allocating and with allocating.
    entity *LeftCurveEntity = CurveEntity;
    LeftCurveEntity->Name = NameStrF("%s (left)", CurveEntity->Name.Data);
-   SetCurveControlPoints(&LeftCurveEntity->Curve, NumLeftControlPoints, LeftControlPoints,
+   SetCurveControlPoints(LeftCurveEntity, NumLeftControlPoints, LeftControlPoints,
                          LeftControlPointWeights, LeftCubicBezierPoints);
    
-   entity *RightCurveEntity = AllocAndAddEntity(EditorState);
+   entity *RightCurveEntity = AllocAndAddEntity(Editor);
    InitEntityFromEntity(RightCurveEntity, LeftCurveEntity);
    RightCurveEntity->Name = NameStrF("%s (right)", CurveEntity->Name.Data);
-   SetCurveControlPoints(&RightCurveEntity->Curve, NumRightControlPoints, RightControlPoints,
+   SetCurveControlPoints(RightCurveEntity, NumRightControlPoints, RightControlPoints,
                          RightControlPointWeights, RightCubicBezierPoints);
    
    EndTemp(Temp);
@@ -2916,7 +2798,7 @@ SplitCurveOnControlPoint(entity *CurveEntity, editor_state *EditorState)
 internal void
 RenderSelectedEntityUI(editor *Editor, coordinate_system_data CoordinateSystemData)
 {
-   entity *Entity = Editor->State.SelectedEntity;
+   entity *Entity = Editor->SelectedEntity;
    Assert(Entity);
    
    DeferBlock(ImGui::PushID("SelectedEntity"), ImGui::PopID())
@@ -3026,8 +2908,8 @@ RenderSelectedEntityUI(editor *Editor, coordinate_system_data CoordinateSystemDa
             if (Curve)
             {
                change_curve_params_ui_mode UIMode =
-                  ChangeCurveShapeUIModeSelectedCurve(&Editor->Parameters.CurveDefaultParams,
-                                                      &Editor->Parameters.DefaultControlPointWeight,
+                  ChangeCurveShapeUIModeSelectedCurve(&Editor->Params.CurveDefaultParams,
+                                                      &Editor->Params.DefaultControlPointWeight,
                                                       Curve);
                ImGui::NewLine();
                SomeCurveParameterChanged |= RenderChangeCurveParametersUI("SelectedCurveShape", UIMode);
@@ -3107,7 +2989,7 @@ RenderSelectedEntityUI(editor *Editor, coordinate_system_data CoordinateSystemDa
             
             if (Delete)
             {
-               DeallocAndRemoveEntity(&Editor->State, Entity);
+               DeallocAndRemoveEntity(Editor, Entity);
             }
             
             if (Copy)
@@ -3122,52 +3004,52 @@ RenderSelectedEntityUI(editor *Editor, coordinate_system_data CoordinateSystemDa
             
             if (Deselect)
             {
-               DeselectCurrentEntity(&Editor->State);
+               DeselectCurrentEntity(Editor);
             }
             
             if (FocusOn)
             {
-               FocusCameraOnEntity(&Editor->State.Camera, Entity, CoordinateSystemData);
+               FocusCameraOnEntity(&Editor->Camera, Entity, CoordinateSystemData);
             }
             
             if (ElevateBezierCurve)
             {
-               ElevateBezierCurveDegree(Curve, &Editor->Parameters);
+               ElevateBezierCurveDegree(Entity, &Editor->Params);
             }
             
             if (LowerBezierCurve)
             {
-               LowerBezierCurveDegree(&Editor->State.DegreeLowering, Entity);
+               LowerBezierCurveDegree(&Editor->DegreeLowering, Entity);
             }
             
             if (SplitBezierCurve)
             {
-               BeginSplittingBezierCurve(&Editor->State.SplittingBezierCurve, Entity);
+               BeginCurveSplitting(&Editor->CurveSplitting, Entity);
             }
             
             if (VisualizeDeCasteljauAlgorithm)
             {
-               BeginVisualizingDeCasteljauAlgorithm(&Editor->State.DeCasteljauVisualization, Entity);
+               BeginVisualizingDeCasteljauAlgorithm(&Editor->DeCasteljauVisual, Entity);
             }
             
             if (AnimateCurve)
             {
-               BeginAnimatingCurve(&Editor->State.CurveAnimation, Entity);
+               BeginAnimatingCurve(&Editor->CurveAnimation, Entity);
             }
             
             if (CombineCurve)
             {
-               BeginCurveCombining(&Editor->State.CurveCombining, Entity);
+               BeginCurveCombining(&Editor->CurveCombining, Entity);
             }
             
             if (SplitOnControlPoint)
             {
-               SplitCurveOnControlPoint(Entity, &Editor->State);
+               SplitCurveOnControlPoint(Entity, Editor);
             }
             
             if (SomeCurveParameterChanged)
             {
-               RecomputeCurve(Curve);
+               RecomputeCurve(Entity);
             }
          }
       }
@@ -3233,131 +3115,146 @@ RenderUIForRenderPointData(char const *Label,
 }
 
 internal void
-UpdateAndRenderNotifications(notifications *Notifs, f32 DeltaTime, sf::RenderWindow *Window)
+UpdateAndRenderNotifications(editor *Editor, f32 DeltaTime)
 {
+   temp_arena Temp = TempArena(0);
    DeferBlock(ImGui::PushID("Notifications"), ImGui::PopID())
    {
-      sf::Vector2u WindowSize = Window->getSize();
+      sf::Vector2u WindowSize = Editor->Window->getSize();
       f32 Padding = NotificationWindowPaddingScale * WindowSize.x;
-      f32 DesignatedPosY = WindowSize.y - Padding;
+      f32 TargetPosY = WindowSize.y - Padding;
       
       f32 WindowWidth = 0.1f * WindowSize.x;
       ImVec2 WindowMinSize = ImVec2(WindowWidth, 0.0f);
       ImVec2 WindowMaxSize = ImVec2(WindowWidth, FLT_MAX);
       
-      notification *FreeSpace = Notifs->Notifs;
+      notification *FreeNotification = Editor->Notifications;
       u64 RemoveCount = 0;
-      for (u64 NotifIndex = 0; NotifIndex < Notifs->NotifCount; ++NotifIndex)
+      for (u64 NotificationIndex = 0;
+           NotificationIndex < Editor->NotificationCount;
+           ++NotificationIndex)
       {
-         notification *Notif = Notifs->Notifs + NotifIndex;
+         notification *Notification = Editor->Notifications + NotificationIndex;
+         Notification->LifeTime += DeltaTime;
+         
+         enum notification_life_time {
+            NotificationLifeTime_In,
+            NotificationLifeTime_Proper,
+            NotificationLifeTime_Out,
+            NotificationLifeTime_Invisible,
+            
+            NotificationLifeTime_Count,
+         };
+         // TODO(hbr): Try to create this table at compile time
+         local f32 LifeTimes[NotificationLifeTime_Count] = {};
+         LifeTimes[NotificationLifeTime_In] = 0.15f;
+         LifeTimes[NotificationLifeTime_Out] = 0.15f;
+         LifeTimes[NotificationLifeTime_Proper] = 10.0f;
+         LifeTimes[NotificationLifeTime_Invisible] = 0.1f;
+         
+         f32 RelLifeTime = Notification->LifeTime;
+         u64 LifeTimeIndex = 0;
+         for (; LifeTimeIndex < NotificationLifeTime_Count;
+              ++LifeTimeIndex)
+         {
+            if (RelLifeTime <= LifeTimes[LifeTimeIndex])
+            {
+               break;
+            }
+            RelLifeTime -= LifeTimes[LifeTimeIndex];
+         }
          
          b32 ShouldBeRemoved = false;
-         
-         f32 LifeTime = Notif->LifeTime + DeltaTime;
-         Notif->LifeTime = LifeTime;
-         
-         if (LifeTime < NOTIFICATION_TOTAL_LIFE_TIME)
+         f32 Fade = 0.0f;
+         switch (Cast(notification_life_time)LifeTimeIndex)
          {
-            // NOTE(hbr): Interpolate position
-            f32 CurrentPosY = Notif->PosY;
-            local f32 MoveSpeed = 20.0f;
-            f32 NextPosY = LerpF32(CurrentPosY, DesignatedPosY,
-                                   1.0f - PowF32(2.0f, -MoveSpeed * DeltaTime));
-            if (ApproxEq32(DesignatedPosY, NextPosY))
-            {
-               NextPosY = DesignatedPosY;
-            }
-            Notif->PosY = NextPosY;
-            
-            ImVec2 WindowPosition = ImVec2(WindowSize.x - Padding, NextPosY);
-            ImGui::SetNextWindowPos(WindowPosition, ImGuiCond_Always, ImVec2(1.0f, 1.0f));
-            ImGui::SetNextWindowSizeConstraints(WindowMinSize, WindowMaxSize);
-            
-            f32 Fade = 0.0f;
-            if (LifeTime <= NOTIFICATION_FADE_IN_TIME)
-            {
-               Fade = LifeTime / NOTIFICATION_FADE_IN_TIME;
-            }
-            else if (LifeTime <= NOTIFICATION_FADE_IN_TIME + NOTIFICATION_PROPER_LIFE_TIME)
-            {
-               Fade = 1.0f;
-            }
-            else if (LifeTime <= NOTIFICATION_FADE_IN_TIME + NOTIFICATION_PROPER_LIFE_TIME +
-                     NOTIFICATION_FADE_OUT_TIME)
-            {
-               Fade = 1.0f - (LifeTime - NOTIFICATION_FADE_IN_TIME - NOTIFICATION_PROPER_LIFE_TIME) /
-                  NOTIFICATION_FADE_OUT_TIME;
-            }
-            else
-            {
-               Fade = 0.0f;
-            }
-            // NOTE(hbr): Quadratic interpolation instead of linear.
-            Fade = 1.0f - Square(1.0f - Fade);
-            Assert(-EPS_F32 <= Fade && Fade <= 1.0f + EPS_F32);
-            
-            char Label[128];
-            Fmt(ArrayCount(Label), Label, "Notification#%llu", NotifIndex);
-            
-            DeferBlock(ImGui::PushStyleVar(ImGuiStyleVar_Alpha, Fade),
-                       ImGui::PopStyleVar())
-            {
-               DeferBlock(ImGui::Begin(Label, 0,
-                                       ImGuiWindowFlags_AlwaysAutoResize |
-                                       ImGuiWindowFlags_NoDecoration |
-                                       ImGuiWindowFlags_NoNavFocus |
-                                       ImGuiWindowFlags_NoFocusOnAppearing),
-                          ImGui::End())
-               {
-                  ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
-                  
-                  if (ImGui::IsWindowHovered() && (ImGui::IsMouseClicked(0) ||
-                                                   ImGui::IsMouseClicked(1)))
-                  {
-                     ShouldBeRemoved = true;
-                  }
-                  
-                  DeferBlock(ImGui::PushStyleColor(ImGuiCol_Text,
-                                                   ImVec4(Notif->TitleColor.R,
-                                                          Notif->TitleColor.G,
-                                                          Notif->TitleColor.B,
-                                                          Fade)),
-                             ImGui::PopStyleColor(1 /*count*/))
-                  {
-                     ImGui::Text(Notif->Title.Data);
-                  }
-                  
-                  ImGui::Separator();
-                  
-                  DeferBlock(ImGui::PushTextWrapPos(0.0f), ImGui::PopTextWrapPos())
-                  {
-                     ImGui::TextWrapped(Notif->Text.Data);
-                  }
-                  
-                  f32 WindowHeight = ImGui::GetWindowHeight();
-                  Notif->NotifWindowHeight = WindowHeight;
-                  
-                  DesignatedPosY -= WindowHeight + Padding;
-               }
-            }
+            case NotificationLifeTime_In:        { Fade = Map01(RelLifeTime, 0.0f, LifeTimes[NotificationLifeTime_In]); } break;
+            case NotificationLifeTime_Proper:    { Fade = 1.0f; } break;
+            case NotificationLifeTime_Out:       { Fade = 1.0f - Map01(RelLifeTime, 0.0f, LifeTimes[NotificationLifeTime_Out]); } break;
+            case NotificationLifeTime_Invisible: { Fade = 0.0f; } break;
+            case NotificationLifeTime_Count:     { ShouldBeRemoved = true; } break;
          }
-         else
+         // NOTE(hbr): Quadratic interpolation instead of linear.
+         Fade = 1.0f - Square(1.0f - Fade);
+         Assert(-EPS_F32 <= Fade && Fade <= 1.0f + EPS_F32);
+         
+         f32 CurrentPosY = Notification->ScreenPosY;
+         local f32 MoveSpeed = 20.0f;
+         f32 NextPosY = Lerp(CurrentPosY, TargetPosY, 1.0f - PowF32(2.0f, -MoveSpeed * DeltaTime));
+         if (ApproxEq32(TargetPosY, NextPosY))
          {
-            ShouldBeRemoved = true;
+            NextPosY = TargetPosY;
+         }
+         Notification->ScreenPosY = NextPosY;
+         
+         ImVec2 WindowPosition = ImVec2(WindowSize.x - Padding, NextPosY);
+         ImGui::SetNextWindowPos(WindowPosition, ImGuiCond_Always, ImVec2(1.0f, 1.0f));
+         ImGui::SetNextWindowSizeConstraints(WindowMinSize, WindowMaxSize);
+         
+         DeferBlock(ImGui::PushStyleVar(ImGuiStyleVar_Alpha, Fade),
+                    ImGui::PopStyleVar())
+         {
+            string Label = StrF(Temp.Arena, "Notification#%llu", NotificationIndex);
+            DeferBlock(ImGui::Begin(Label.Data, 0,
+                                    ImGuiWindowFlags_AlwaysAutoResize |
+                                    ImGuiWindowFlags_NoDecoration |
+                                    ImGuiWindowFlags_NoNavFocus |
+                                    ImGuiWindowFlags_NoFocusOnAppearing),
+                       ImGui::End())
+            {
+               ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
+               
+               if (ImGui::IsWindowHovered() && (ImGui::IsMouseClicked(0) ||
+                                                ImGui::IsMouseClicked(1)))
+               {
+                  ShouldBeRemoved = true;
+               }
+               
+               char const *Title = 0;
+               color TitleColor = {};
+               switch (Notification->Type)
+               {
+                  case Notification_Success: { Title = "Success"; TitleColor = GreenColor; } break;
+                  case Notification_Error:   { Title = "Error";   TitleColor = RedColor; } break;
+                  case Notification_Warning: { Title = "Warning"; TitleColor = YellowColor; } break;
+               }
+               
+               DeferBlock(ImGui::PushStyleColor(ImGuiCol_Text,
+                                                ImVec4(TitleColor.R, TitleColor.G, TitleColor.B, Fade)),
+                          ImGui::PopStyleColor(1 /*count*/))
+               {
+                  
+                  ImGui::Text(Title);
+               }
+               
+               ImGui::Separator();
+               
+               DeferBlock(ImGui::PushTextWrapPos(0.0f), ImGui::PopTextWrapPos())
+               {
+                  string Content = CStrFromStr(Temp.Arena, Notification->Content);
+                  ImGui::TextWrapped(Content.Data);
+               }
+               
+               f32 WindowHeight = ImGui::GetWindowHeight();
+               Notification->BoxHeight = WindowHeight;
+               
+               TargetPosY -= WindowHeight + Padding;
+            }
          }
          
          if (ShouldBeRemoved)
          {
-            RemoveCount += 1;
-            DestroyNotification(Notif);
+            ++RemoveCount;
          }
          else
          {
-            *FreeSpace++ = *Notif;
+            *FreeNotification++ = *Notification;
          }
       }
-      Notifs->NotifCount -= RemoveCount;
+      Editor->NotificationCount -= RemoveCount;
    }
+   
+   EndTemp(Temp);
 }
 
 internal void
@@ -3398,7 +3295,7 @@ RenderListOfEntitiesEntityRow(entity *Entity, editor *Editor, coordinate_system_
       
       if (ImGui::Selectable(Entity->Name.Data, Selected))
       {
-         SelectEntity(&Editor->State, Entity);
+         SelectEntity(Editor, Entity);
       }
       
       b32 DoubleClickedOrSelectedAndClicked = ((Selected && ImGui::IsMouseClicked(0)) ||
@@ -3433,7 +3330,7 @@ RenderListOfEntitiesEntityRow(entity *Entity, editor *Editor, coordinate_system_
    
    if (Delete)
    {
-      DeallocAndRemoveEntity(&Editor->State, Entity);
+      DeallocAndRemoveEntity(Editor, Entity);
    }
    
    if (Copy)
@@ -3448,12 +3345,12 @@ RenderListOfEntitiesEntityRow(entity *Entity, editor *Editor, coordinate_system_
    
    if (Deselect)
    {
-      DeselectCurrentEntity(&Editor->State);
+      DeselectCurrentEntity(Editor);
    }
    
    if (Focus)
    {
-      FocusCameraOnEntity(&Editor->State.Camera, Entity, CoordinateSystemData);
+      FocusCameraOnEntity(&Editor->Camera, Entity, CoordinateSystemData);
    }
 }
 
@@ -3474,7 +3371,7 @@ RenderListOfEntitiesWindow(editor *Editor, coordinate_system_data CoordinateSyst
          ImGui::PushID("CurveEntities");
          
          u64 CurveIndex = 0;
-         ListIter(Entity, Editor->State.EntitiesHead, entity)
+         ListIter(Entity, Editor->EntitiesHead, entity)
          {
             if (Entity->Type == Entity_Curve)
             {
@@ -3495,7 +3392,7 @@ RenderListOfEntitiesWindow(editor *Editor, coordinate_system_data CoordinateSyst
          ImGui::PushID("ImageEntities");
          
          u64 ImageIndex = 0;
-         ListIter(Entity, Editor->State.EntitiesHead, entity)
+         ListIter(Entity, Editor->EntitiesHead, entity)
          {
             if (Entity->Type == Entity_Image)
             {
@@ -3660,15 +3557,11 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
          
          if (IsError(SaveProjectInFormatError))
          {
-            AddNotificationF(&Editor->Notifications,
-                             Notification_Error,
-                             SaveProjectInFormatError.Data);
+            AddNotificationF(Editor, Notification_Error, SaveProjectInFormatError.Data);
          }
          else
          {
-            AddNotificationF(&Editor->Notifications,
-                             Notification_Success,
-                             "project successfully saved in %s",
+            AddNotificationF(Editor, Notification_Success, "project successfully saved in %s",
                              Editor->ProjectSavePath.Data);
          }
          
@@ -3698,7 +3591,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
    }
    
    {
-      camera *Camera = &Editor->State.Camera;
+      camera *Camera = &Editor->Camera;
       if (ResetCameraPositionSelected)
       {
          CameraMove(Camera, -Camera->Position);
@@ -3749,18 +3642,14 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
                   
                   if (IsError(SaveProjectInFormatError))
                   {
-                     AddNotificationF(&Editor->Notifications,
-                                      Notification_Error,
-                                      "failed to discard current project: %s",
+                     AddNotificationF(Editor, Notification_Error, "failed to discard current project: %s",
                                       SaveProjectInFormatError.Data);
                      
                      Editor->ActionWaitingToBeDone = ActionToDo_Nothing;
                   }
                   else
                   {
-                     AddNotificationF(&Editor->Notifications,
-                                      Notification_Success,
-                                      "project sucessfully saved in %s",
+                     AddNotificationF(Editor, Notification_Success, "project sucessfully saved in %s",
                                       SaveProjectFilePath.Data);
                      
                      ActionToDo = Editor->ActionWaitingToBeDone;
@@ -3852,9 +3741,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
          
          if (IsError(SaveProjectInFormatError))
          {
-            AddNotificationF(&Editor->Notifications,
-                             Notification_Error,
-                             SaveProjectInFormatError.Data);
+            AddNotificationF(Editor, Notification_Error, SaveProjectInFormatError.Data);
             
             Editor->ActionWaitingToBeDone = ActionToDo_Nothing;
          }
@@ -3862,9 +3749,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
          {
             EditorSetSaveProjectPath(Editor, SaveProjectFormat, SaveProjectFilePathWithExtension);
             
-            AddNotificationF(&Editor->Notifications,
-                             Notification_Success,
-                             "project sucessfully saved in %s",
+            AddNotificationF(Editor, Notification_Success, "project sucessfully saved in %s",
                              SaveProjectFilePathWithExtension.Data);
             
             ActionToDo = Editor->ActionWaitingToBeDone;
@@ -3886,17 +3771,21 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
       case ActionToDo_Nothing: {} break;
       
       case ActionToDo_NewProject: {
-         editor_state NewEditorState =
-            CreateDefaultEditorState(Editor->State.EntityPool,
-                                     Editor->State.DeCasteljauVisualization.Arena,
-                                     Editor->State.DegreeLowering.Arena,
-                                     Editor->State.MovingPointArena,
-                                     Editor->State.CurveAnimation.Arena);
          
-         DeallocEditorState(&Editor->State);
-         Editor->State = NewEditorState;
+         // TODO(hbr): Load new project
+#if 0
+         editor_state NewEditor =
+            CreateDefaultEditor(Editor->EntityPool,
+                                Editor->DeCasteljauVisual.Arena,
+                                Editor->DegreeLowering.Arena,
+                                Editor->MovingPointArena,
+                                Editor->CurveAnimation.Arena);
+         
+         DeallocEditor(&Editor);
+         Editor = NewEditor;
          
          EditorSetSaveProjectPath(Editor, SaveProjectFormat_None, {});
+#endif
       } break;
       
       case ActionToDo_OpenProject: {
@@ -3926,13 +3815,16 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
                                           SelectedPath.c_str(),
                                           SelectedPath.size());
          
+         // TODO(hbr): Implement this
+#if 0
+         
          load_project_result LoadResult = LoadProjectFromFile(Temp.Arena,
                                                               OpenProjectFilePath,
-                                                              Editor->State.EntityPool,
-                                                              Editor->State.DeCasteljauVisualization.Arena,
-                                                              Editor->State.DegreeLowering.Arena,
-                                                              Editor->State.MovingPointArena,
-                                                              Editor->State.CurveAnimation.Arena);
+                                                              Editor->EntityPool,
+                                                              Editor->DeCasteljauVisual.Arena,
+                                                              Editor->DegreeLowering.Arena,
+                                                              Editor->MovingPointArena,
+                                                              Editor->CurveAnimation.Arena);
          if (IsError(LoadResult.Error))
          {
             AddNotificationF(&Editor->Notifications,
@@ -3947,9 +3839,9 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
                              "project successfully loaded from %s",
                              OpenProjectFilePath.Data);
             
-            DeallocEditorState(&Editor->State);
-            Editor->State = LoadResult.EditorState;
-            Editor->Parameters = LoadResult.EditorParameters;
+            DeallocEditor(&Editor);
+            Editor = LoadResult.Editor;
+            Editor->Params = LoadResult.EditorParameters;
             Editor->UI_Config = LoadResult.UI_Config;
             
             EditorSetSaveProjectPath(Editor,
@@ -3965,11 +3857,16 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
          }
          
          EndTemp(Temp);
+         
+#endif
       }
+      
       
       FileDialog->Close();
    }
    
+   // TODO(hbr): Implement
+#if 0
    // NOTE(hbr): Open dialog to Load Image
    if (FileDialog->Display(LoadImageLabel,
                            FileDialogWindowFlags,
@@ -4005,7 +3902,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
                                        SelectedFileName.size());
             RemoveExtension(&ImageFileName);
             
-            entity *Entity = AllocAndAddEntity(&Editor->State);
+            entity *Entity = AllocAndAddEntity(&Editor);
             InitImageEntity(Entity,
                             V2F32(0.0f, 0.0f),
                             V2F32(1.0f, 1.0f),
@@ -4014,7 +3911,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
                             NewImageFilePath,
                             &LoadedTexture);
             
-            SelectEntity(&Editor->State, Entity);
+            SelectEntity(&Editor, Entity);
             
             AddNotificationF(&Editor->Notifications,
                              Notification_Success,
@@ -4027,6 +3924,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
       
       FileDialog->Close();
    }
+#endif
 }
 
 internal void
@@ -4042,7 +3940,7 @@ RenderParamtersWindow(editor *Editor)
       if (Editor->UI_Config.ViewParametersWindow)
       {   
          local ImGuiTreeNodeFlags SectionFlags = ImGuiTreeNodeFlags_DefaultOpen;
-         editor_params *Params = &Editor->Parameters;
+         editor_params *Params = &Editor->Params;
          
          {
             b32 *HeaderCollapsed = &Editor->UI_Config.DefaultCurveHeaderCollapsed;
@@ -4225,18 +4123,17 @@ RenderDiagnosticsWindow(editor *Editor, f32 DeltaTime)
 }
 
 internal void
-UpdateAndRenderSplittingBezierCurve(editor *Editor,
-                                    coordinate_system_data CoordinateSystemData,
-                                    sf::Transform Transform)
+UpdateAndRenderCurveSplitting(editor *Editor,
+                              coordinate_system_data CoordinateSystemData,
+                              sf::Transform Transform)
 {
    TimeFunction;
    
    // TODO(hbr): Remove those variables or rename them
-   editor_state *EditorState = &Editor->State;
-   editor_params *EditorParams = &Editor->Parameters;
+   editor_params *EditorParams = &Editor->Params;
    sf::RenderWindow *Window = Editor->Window;
    
-   splitting_bezier_curve *Splitting = &EditorState->SplittingBezierCurve;
+   curve_splitting_state *Splitting = &Editor->CurveSplitting;
    entity *CurveEntity = Splitting->SplitCurveEntity;
    curve *Curve = &CurveEntity->Curve;
    
@@ -4349,15 +4246,13 @@ UpdateAndRenderSplittingBezierCurve(editor *Editor,
       // TODO(hbr): Refactor that code into common internal that splits curve into two curves
       entity *LeftCurveEntity = CurveEntity;
       LeftCurveEntity->Name = NameStrF("%s (left)", LeftCurveEntity->Name.Data);
-      SetCurveControlPoints(&LeftCurveEntity->Curve,
-                            ControlPointCount,
+      SetCurveControlPoints(LeftCurveEntity, ControlPointCount,
                             LeftControlPoints, LeftControlPointWeights, LeftCubicBezierPoints);
       
-      entity *RightCurveEntity = AllocAndAddEntity(EditorState);
+      entity *RightCurveEntity = AllocAndAddEntity(Editor);
       RightCurveEntity->Name = NameStrF("%s (right)", RightCurveEntity->Name.Data);
       InitEntityFromEntity(RightCurveEntity, LeftCurveEntity);
-      SetCurveControlPoints(&RightCurveEntity->Curve,
-                            ControlPointCount,
+      SetCurveControlPoints(RightCurveEntity, ControlPointCount,
                             RightControlPoints, RightControlPointWeights, RightCubicBezierPoints);
       
       Splitting->IsSplitting = false;
@@ -4402,9 +4297,9 @@ UpdateAndRenderSplittingBezierCurve(editor *Editor,
 }
 
 internal void
-UpdateAndRenderDeCasteljauVisualization(de_casteljau_visualization *Visualization,
-                                        sf::Transform Transform,
-                                        sf::RenderWindow *Window)
+UpdateAndRenderDeCasteljauVisual(de_casteljau_visual_state *Visualization,
+                                 sf::Transform Transform,
+                                 sf::RenderWindow *Window)
 {
    entity *CurveEntity = Visualization->CurveEntity;
    curve *Curve = &CurveEntity->Curve;
@@ -4563,7 +4458,7 @@ UpdateAndRenderDeCasteljauVisualization(de_casteljau_visualization *Visualizatio
 }
 
 internal void
-UpdateAndRenderDegreeLowering(bezier_curve_degree_lowering *Lowering,
+UpdateAndRenderDegreeLowering(curve_degree_lowering_state *Lowering,
                               sf::Transform Transform,
                               sf::RenderWindow *Window)
 {
@@ -4579,6 +4474,7 @@ UpdateAndRenderDegreeLowering(bezier_curve_degree_lowering *Lowering,
    
    if (Lowering->Entity)
    {
+      entity *Entity = Lowering->Entity;
       curve *Curve = GetCurve(Lowering->Entity);
       
       bool Ok = false;
@@ -4635,7 +4531,7 @@ UpdateAndRenderDegreeLowering(bezier_curve_degree_lowering *Lowering,
       
       if (Revert)
       {
-         SetCurveControlPoints(Curve, Curve->ControlPointCount + 1,
+         SetCurveControlPoints(Entity, Curve->ControlPointCount + 1,
                                Lowering->SavedControlPoints,
                                Lowering->SavedControlPointWeights,
                                Lowering->SavedCubicBezierPoints);
@@ -4695,8 +4591,7 @@ UpdateAnimateCurveAnimation(editor *Editor, f32 DeltaTime, sf::Transform Transfo
    TimeFunction;
    
    // TODO(hbr): Rename to [State] or don't use at all.
-   editor_state *EditorState = &Editor->State;
-   transform_curve_animation *Animation = &EditorState->CurveAnimation;
+   curve_animation_state *Animation = &Editor->CurveAnimation;
    
    local char const *AnimationWindowTitle = "Curve Animation";
    switch (Animation->Stage)
@@ -4721,7 +4616,7 @@ UpdateAnimateCurveAnimation(editor *Editor, f32 DeltaTime, sf::Transform Transfo
             char const *ComboPreview = (Animation->ToCurveEntity ? Animation->ToCurveEntity->Name.Data : "");
             if (ImGui::BeginCombo("##AnimationTarget", ComboPreview))
             {
-               ListIter(Entity, EditorState->EntitiesHead, entity)
+               ListIter(Entity, Editor->EntitiesHead, entity)
                {
                   if (Entity->Type == Entity_Curve)
                   {
@@ -4879,14 +4774,14 @@ UpdateAnimateCurveAnimation(editor *Editor, f32 DeltaTime, sf::Transform Transfo
                   v2f32 To = LocalEntityPositionToWorld(ToCurveEntity,
                                                         ToCurvePoints[VertexIndex]);
                   
-                  AnimatedCurvePoints[VertexIndex] = LerpV2F32(From, To, Blend);
+                  AnimatedCurvePoints[VertexIndex] = Lerp(From, To, Blend);
                   
                   T += Delta_T;
                }
                
-               f32 AnimatedCurveWidth = LerpF32(FromCurve->CurveParams.CurveWidth,
-                                                ToCurve->CurveParams.CurveWidth,
-                                                Blend);
+               f32 AnimatedCurveWidth = Lerp(FromCurve->CurveParams.CurveWidth,
+                                             ToCurve->CurveParams.CurveWidth,
+                                             Blend);
                color AnimatedCurveColor = LerpColor(FromCurve->CurveParams.CurveColor,
                                                     ToCurve->CurveParams.CurveColor,
                                                     Blend);
@@ -4950,7 +4845,7 @@ CombinationTypeToString(curve_combination_type Combination)
 }
 
 internal void
-CombineCurves(curve_combining *Combining, editor_state *EditorState)
+CombineCurves(curve_combining_state *Combining, editor *Editor)
 {
    entity *FromEntity = Combining->CombineCurveEntity;
    entity *ToEntity = Combining->TargetCurveEntity;
@@ -5119,14 +5014,14 @@ CombineCurves(curve_combining *Combining, editor_state *EditorState)
       case CurveCombination_Count: InvalidPath;
    }
    
-   SetCurveControlPoints(To,
+   SetCurveControlPoints(ToEntity,
                          CombinedControlPointCount,
                          CombinedControlPoints,
                          CombinedControlPointWeights,
                          CombinedCubicBezierPoints);
    
    // TODO(hbr): Maybe update name of combined curve
-   DeallocAndRemoveEntity(EditorState, FromEntity);
+   DeallocAndRemoveEntity(Editor, FromEntity);
    // TODO(hbr): Maybe select To curve
    
    EndTemp(Temp);
@@ -5137,8 +5032,7 @@ UpdateAndRenderCurveCombining(editor *Editor, sf::Transform Transform)
 {
    sf::RenderWindow *Window = Editor->Window;
    // TODO(hbr): Rename to [State] or don't use at all
-   editor_state *EditorState = &Editor->State;
-   curve_combining *Combining = &EditorState->CurveCombining;
+   curve_combining_state *Combining = &Editor->CurveCombining;
    
    if (Combining->IsCombining &&
        Combining->TargetCurveEntity &&
@@ -5176,7 +5070,7 @@ UpdateAndRenderCurveCombining(editor *Editor, sf::Transform Transform)
             char const *ComboPreview = (Combining->TargetCurveEntity ? Combining->TargetCurveEntity->Name.Data : "");
             if (ImGui::BeginCombo("##CombiningTarget", ComboPreview))
             {
-               ListIter(Entity, EditorState->EntitiesHead, entity)
+               ListIter(Entity, Editor->EntitiesHead, entity)
                {
                   if (Entity->Type == Entity_Curve)
                   {
@@ -5230,7 +5124,7 @@ UpdateAndRenderCurveCombining(editor *Editor, sf::Transform Transform)
       
       if (Combine)
       {
-         CombineCurves(Combining, EditorState);
+         CombineCurves(Combining, Editor);
       }
       
       if (Combine || !IsWindowOpen || Cancel)
@@ -5290,9 +5184,8 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, coordinate_system_data Co
    
    temp_arena Temp = TempArena(0);
    
-   editor_state *State = &Editor->State;
    sf::RenderWindow *Window = Editor->Window;
-   sorted_entity_array SortedEntities = SortEntitiesBySortingLayer(Temp.Arena, State->EntitiesHead);
+   sorted_entity_array SortedEntities = SortEntitiesBySortingLayer(Temp.Arena, Editor->EntitiesHead);
    
    UpdateAnimateCurveAnimation(Editor, DeltaTime, VP);
    
@@ -5312,13 +5205,13 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, coordinate_system_data Co
                sf::Transform Model = CurveGetAnimate(Entity);
                sf::Transform MVP = VP * Model;
                
-               if (State->Mode.Type == EditorMode_Moving &&
-                   State->Mode.Moving.Type == MovingMode_CurvePoint &&
-                   State->Mode.Moving.Entity == Entity)
+               if (Editor->Mode.Type == EditorMode_Moving &&
+                   Editor->Mode.Moving.Type == MovingMode_CurvePoint &&
+                   Editor->Mode.Moving.Entity == Entity)
                {
-                  Window->draw(State->Mode.Moving.SavedCurveVertices,
-                               State->Mode.Moving.SavedNumCurveVertices,
-                               State->Mode.Moving.SavedPrimitiveType,
+                  Window->draw(Editor->Mode.Moving.SavedCurveVertices,
+                               Editor->Mode.Moving.SavedNumCurveVertices,
+                               Editor->Mode.Moving.SavedPrimitiveType,
                                MVP);
                }
                
@@ -5354,7 +5247,7 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, coordinate_system_data Co
                       CurveParams.CurveShape.BezierType == Bezier_Cubic)
                   {
                      f32 HelperLineWidth =
-                        ClipSpaceLengthToWorldSpace(Editor->Parameters.CubicBezierHelperLineWidthClipSpace,
+                        ClipSpaceLengthToWorldSpace(Editor->Params.CubicBezierHelperLineWidthClipSpace,
                                                     CoordinateSystemData);
                      
                      RenderCubicBezierPointsWithHelperLines(Curve, SelectedControlPointIndex,
@@ -5384,8 +5277,8 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, coordinate_system_data Co
                   color NormalControlPointOutlineColor = {};
                   if (IsSelected)
                   {
-                     ControlPointOutlineThicknessScale = Editor->Parameters.SelectedCurveControlPointOutlineThicknessScale;
-                     NormalControlPointOutlineColor = Editor->Parameters.SelectedCurveControlPointOutlineColor;
+                     ControlPointOutlineThicknessScale = Editor->Params.SelectedCurveControlPointOutlineThicknessScale;
+                     NormalControlPointOutlineColor = Editor->Params.SelectedCurveControlPointOutlineColor;
                   }
                   
                   u64 ControlPointCount = Curve->ControlPointCount;
@@ -5399,13 +5292,13 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, coordinate_system_data Co
                      f32 ControlPointRadius = NormalControlPointRadius;
                      if (ControlPointIndex == ControlPointCount - 1)
                      {
-                        ControlPointRadius *= Editor->Parameters.LastControlPointSizeMultiplier;
+                        ControlPointRadius *= Editor->Params.LastControlPointSizeMultiplier;
                      }
                      
                      color ControlPointOutlineColor = NormalControlPointOutlineColor;
                      if (ControlPointIndex == SelectedControlPointIndex)
                      {
-                        ControlPointOutlineColor = Editor->Parameters.SelectedControlPointOutlineColor;
+                        ControlPointOutlineColor = Editor->Params.SelectedControlPointOutlineColor;
                      }
                      
                      f32 OutlineThickness = ControlPointOutlineThicknessScale * ControlPointRadius;
@@ -5421,19 +5314,19 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, coordinate_system_data Co
                }
                
                
-               bezier_curve_degree_lowering *Lowering = &Editor->State.DegreeLowering;
+               curve_degree_lowering_state *Lowering = &Editor->DegreeLowering;
                if (Lowering->Entity == Entity)
                {
                   UpdateAndRenderDegreeLowering(Lowering, VP, Editor->Window);
                }
                
-               de_casteljau_visualization *Visualization = &Editor->State.DeCasteljauVisualization;
+               de_casteljau_visual_state *Visualization = &Editor->DeCasteljauVisual;
                if (Visualization->IsVisualizing && Visualization->CurveEntity == Entity)
                {
-                  UpdateAndRenderDeCasteljauVisualization(Visualization, VP, Editor->Window);
+                  UpdateAndRenderDeCasteljauVisual(Visualization, VP, Editor->Window);
                }
                
-               transform_curve_animation *Animation = &Editor->State.CurveAnimation;
+               curve_animation_state *Animation = &Editor->CurveAnimation;
                if (Animation->Stage == AnimateCurveAnimation_Animating && Animation->FromCurveEntity == Entity)
                {
                   Window->draw(Animation->AnimatedCurveVertices.Vertices,
@@ -5442,16 +5335,16 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, coordinate_system_data Co
                                VP);
                }
                
-               curve_combining *Combining = &Editor->State.CurveCombining;
+               curve_combining_state *Combining = &Editor->CurveCombining;
                if (Combining->IsCombining && Combining->CombineCurveEntity == Entity)
                {
                   UpdateAndRenderCurveCombining(Editor, VP);
                }
                
-               splitting_bezier_curve *Splitting = &Editor->State.SplittingBezierCurve;
+               curve_splitting_state *Splitting = &Editor->CurveSplitting;
                if (Splitting->IsSplitting && Splitting->SplitCurveEntity == Entity)
                {
-                  UpdateAndRenderSplittingBezierCurve(Editor, CoordinateSystemData, VP);
+                  UpdateAndRenderCurveSplitting(Editor, CoordinateSystemData, VP);
                }
             } break;
             
@@ -5490,21 +5383,20 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
    TimeFunction;
    
    FrameStatsUpdate(&Editor->FrameStats, DeltaTime);
-   CameraUpdate(&Editor->State.Camera, Input->MouseWheelDelta, DeltaTime);
-   UpdateAndRenderNotifications(&Editor->Notifications, DeltaTime, Editor->Window);
+   CameraUpdate(&Editor->Camera, Input->MouseWheelDelta, DeltaTime);
+   UpdateAndRenderNotifications(Editor, DeltaTime);
    
    {
       TimeBlock("editor state update");
       
       coordinate_system_data CoordinateSystemData {
          .Window = Editor->Window,
-         .Camera = Editor->State.Camera,
+         .Camera = Editor->Camera,
          .Projection = Editor->Projection
       };
       
       user_action Action = {};
       Action.Input = Input;
-      editor_state NewState = Editor->State;
       for (u64 ButtonIndex = 0;
            ButtonIndex < Button_Count;
            ++ButtonIndex)
@@ -5533,7 +5425,7 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
       }
       if (Action.Type != UserAction_None)
       {
-         Editor->State = EditorStateUpdate(Editor->State, Action, CoordinateSystemData, Editor->Parameters);
+         ExecuteUserAction(Editor, Action, CoordinateSystemData);
       }
       
       if (Input->MouseLastPosition != Input->MousePosition)
@@ -5541,24 +5433,23 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
          Action.Type = UserAction_MouseMove;
          Action.MouseMove.FromPosition = Input->MouseLastPosition;
          Action.MouseMove.ToPosition = Input->MousePosition;
-         
-         Editor->State = EditorStateUpdate(Editor->State, Action, CoordinateSystemData, Editor->Parameters);
+         ExecuteUserAction(Editor, Action, CoordinateSystemData);
       }
    }
    
    // TODO(hbr): Remove this
    if (PressedWithKey(Input->Keys[Key_E], 0))
    {
-      AddNotificationF(&Editor->Notifications, Notification_Error, "siema");
+      AddNotificationF(Editor, Notification_Error, "siema");
    }
    
    coordinate_system_data CoordinateSystemData {
       .Window = Editor->Window,
-      .Camera = Editor->State.Camera,
+      .Camera = Editor->Camera,
       .Projection = Editor->Projection
    };
    
-   if (Editor->State.SelectedEntity)
+   if (Editor->SelectedEntity)
    {
       RenderSelectedEntityUI(Editor, CoordinateSystemData);
    }
@@ -5583,7 +5474,7 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
    // NOTE(hbr): World Space -> Clip Space
    sf::Transform VP = sf::Transform();
    {
-      camera Camera = Editor->State.Camera;
+      camera Camera = Editor->Camera;
       projection Projection = Editor->Projection;
       
       f32 CameraRotationInDegrees = Rotation2DToDegrees(Camera.Rotation);
@@ -5606,7 +5497,7 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
    
    UpdateAndRenderEntities(Editor, DeltaTime, CoordinateSystemData, VP);
    
-   RenderRotationIndicator(&Editor->State, &Editor->Parameters,
+   RenderRotationIndicator(Editor, &Editor->Params,
                            CoordinateSystemData, VP, Editor->Window);
    
    // NOTE(hbr): Update menu bar here, because world has to already be rendered
@@ -5636,6 +5527,7 @@ int main()
 {
    InitThreadCtx();
    InitProfiler();
+   arena *PermamentArena = TempArena(0).Arena;
    
    sf::VideoMode VideoMode = sf::VideoMode::getDesktopMode();
    sf::ContextSettings ContextSettings = sf::ContextSettings();
@@ -5658,27 +5550,50 @@ int main()
       bool ImGuiInitSuccess = ImGui::SFML::Init(Window, true);
       if (ImGuiInitSuccess)
       {
-         pool *EntityPool = AllocPool(entity);
-         arena *DeCasteljauVisualizationArena = AllocArena();
-         arena *DegreeLoweringArena = AllocArena();
-         arena *MovingPointArena = AllocArena();
-         arena *CurveAnimationArena = AllocArena();
-         editor_state InitialEditorState = CreateDefaultEditorState(EntityPool,
-                                                                    DeCasteljauVisualizationArena,
-                                                                    DegreeLoweringArena,
-                                                                    MovingPointArena,
-                                                                    CurveAnimationArena);
+         editor *Editor = PushStruct(PermamentArena, editor);
+         Editor->Window = &Window;
+         Editor->FrameStats = CreateFrameStats();
+         Editor->MovingPointArena = AllocArena();
+         Editor->DeCasteljauVisual.Arena = AllocArena();
+         Editor->DegreeLowering.Arena = AllocArena();
+         Editor->MovingPointArena = AllocArena();
+         Editor->CurveAnimation.Arena = AllocArena();
+         Editor->CurveAnimation.AnimationSpeed = CURVE_DEFAULT_ANIMATION_SPEED;
+         for (u64 EntityIndex = 0;
+              EntityIndex < ArrayCount(Editor->EntityBuffer);
+              ++EntityIndex)
+         {
+            Editor->EntityBuffer->Arena = AllocArena();
+         }
          
-         f32 AspectRatio = CalculateAspectRatio(VideoMode.width, VideoMode.height);
-         projection InitialProjection {
-            .AspectRatio = AspectRatio,
-            .FrustumSize = 2.0f,
+         Editor->UI_Config = {
+            .ViewSelectedEntityWindow = true,
+            .ViewListOfEntitiesWindow = true,
+            .ViewParametersWindow = false,
+            .ViewDiagnosticsWindow = false,
+            .DefaultCurveHeaderCollapsed = false,
+            .RotationIndicatorHeaderCollapsed = false,
+            .BezierSplitPointHeaderCollapsed = false,
+            .OtherSettingsHeaderCollapsed = false,
+#if EDITOR_PROFILER
+            .ViewProfilerWindow = true,
+#endif
+#if BUILD_DEBUG
+            .ViewDebugWindow = true,
+#endif
          };
          
-         notifications Notifications = {};
-         Notifications.Window = &Window;
+         Editor->Projection.FrustumSize = 2.0f;
          
-         editor_params InitialEditorParameters {
+         Editor->Camera = {
+            .Position = V2F32(0.0f, 0.0f),
+            .Rotation = Rotation2DZero(),
+            .Zoom = 1.0f,
+            .ZoomSensitivity = 0.05f,
+            .ReachingTargetSpeed = 10.0f,
+         };
+         
+         Editor->Params = {
             .RotationIndicator = {
                .RadiusClipSpace = ROTATION_INDICATOR_DEFAULT_RADIUS_CLIP_SPACE,
                .OutlineThicknessFraction = ROTATION_INDICATOR_DEFAULT_OUTLINE_THICKNESS_FRACTION,
@@ -5702,32 +5617,6 @@ int main()
             .DefaultControlPointWeight = CURVE_DEFAULT_CONTROL_POINT_WEIGHT
          };
          
-         ui_config InitialUI_Config {
-            .ViewSelectedEntityWindow = true,
-            .ViewListOfEntitiesWindow = true,
-            .ViewParametersWindow = false,
-            .ViewDiagnosticsWindow = false,
-            .DefaultCurveHeaderCollapsed = false,
-            .RotationIndicatorHeaderCollapsed = false,
-            .BezierSplitPointHeaderCollapsed = false,
-            .OtherSettingsHeaderCollapsed = false,
-#if EDITOR_PROFILER
-            .ViewProfilerWindow = true,
-#endif
-#if BUILD_DEBUG
-            .ViewDebugWindow = true,
-#endif
-         };
-         
-         editor Editor = {};
-         Editor.Window = &Window;
-         Editor.FrameStats = CreateFrameStats();
-         Editor.State = InitialEditorState;
-         Editor.Projection = InitialProjection;
-         Editor.Notifications = Notifications;
-         Editor.Parameters = InitialEditorParameters;
-         Editor.UI_Config = InitialUI_Config;
-         
          sf::Vector2i MousePosition = sf::Mouse::getPosition(Window);
          
          user_input Input = {};
@@ -5738,28 +5627,22 @@ int main()
          
          while (Window.isOpen())
          {
-            auto SFMLDeltaTime = Editor.DeltaClock.restart();
+            auto SFMLDeltaTime = Editor->DeltaClock.restart();
             f32 DeltaTime = SFMLDeltaTime.asSeconds();
-            
             {
                TimeBlock("ImGui::SFML::Update");
                ImGui::SFML::Update(Window, SFMLDeltaTime);
             }
-            
             // NOTE(hbr): Beginning profiling frame is inside the loop, because we have only
             // space for one frame and rendering has to be done between ImGui::SFML::Update
             // and ImGui::SFML::Render calls
 #if EDITOR_PROFILER
-            FrameProfilePoint(&Editor.UI_Config.ViewProfilerWindow);
+            FrameProfilePoint(&Editor->UI_Config.ViewProfilerWindow);
 #endif
-            
             HandleEvents(&Window, &Input);
-            Editor.Projection.AspectRatio = CalculateAspectRatio(Input.WindowWidth,
-                                                                 Input.WindowHeight);
-            
-            Window.clear(ColorToSFMLColor(Editor.Parameters.BackgroundColor));
-            UpdateAndRender(DeltaTime, &Input, &Editor);
-            
+            Editor->Projection.AspectRatio = CalculateAspectRatio(Input.WindowWidth, Input.WindowHeight);
+            Window.clear(ColorToSFMLColor(Editor->Params.BackgroundColor));
+            UpdateAndRender(DeltaTime, &Input, Editor);
             {
                TimeBlock("ImGui::SFML::Render");
                ImGui::SFML::Render(Window);

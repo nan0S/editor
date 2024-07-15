@@ -38,6 +38,7 @@ inline internal v2f32  operator+ (v2f32 U, v2f32 V)   { return V2F32(U.X + V.X, 
 inline internal v2f32  operator- (v2f32 U, v2f32 V)   { return V2F32(U.X - V.X, U.Y - V.Y); }
 inline internal v2f32  operator- (v2f32 U)            { return V2F32(-U.X, -U.Y); }
 inline internal v2f32  operator* (f32 Scale, v2f32 U) { return V2F32(Scale * U.X, Scale * U.Y); }
+inline internal v2f32  operator* (v2f32 U, f32 Scale) { return V2F32(Scale * U.X, Scale * U.Y); }
 inline internal v2f32  operator/ (v2f32 U, f32 Scale) { return (1.0f/Scale) * U; }
 inline internal v2f32 &operator+=(v2f32 &U, v2f32 V)  { U.X += V.X; U.Y += V.Y; return U; }
 inline internal v2f32 &operator-=(v2f32 &U, v2f32 V)  { U.X -= V.X; U.Y -= V.Y; return U; }
@@ -110,8 +111,6 @@ internal line_vertices            CalculateLineVertices(u64 NumLinePoints, v2f32
                                                         f32 LineWidth, color LineColor, b32 Loop,
                                                         line_vertices_allocation Allocation);
 
-internal f32   LerpF32(f32 From, f32 To, f32 T);
-internal v2f32 LerpV2F32(v2f32 From, v2f32 To, f32 T);
 internal color LerpColor(color From, color To, f32 T);
 
 typedef v2f32 rotation_2d;

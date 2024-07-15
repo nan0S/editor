@@ -525,18 +525,6 @@ CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
    return Result;
 }
 
-internal f32
-LerpF32(f32 From, f32 To, f32 T)
-{
-   return (1-T) * From + T * To;
-}
-
-internal v2f32
-LerpV2F32(v2f32 From, v2f32 To, f32 T)
-{
-   return (1-T) * From + T * To;
-}
-
 internal color
 LerpColor(color From, color To, f32 T)
 {

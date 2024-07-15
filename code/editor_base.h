@@ -166,6 +166,9 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define Swap(A, B, Type) do { Type NameConcat(Temp, __LINE__) = (A); (A) = (B); (B) = NameConcat(Temp, __LINE__); } while (0)
 #define AlignPow2(Align, Pow2) (((Align)+((Pow2)-1)) & (~((Pow2)-1)))
 #define IsPow2(X) (((X) & (X-1)) == 0)
+#define Lerp(A, B, T) (((A)*(1-(T))) + ((B)*(T)))
+#define Map(Value, ValueMin, ValueMax, TargetMin, TargetMax) (((Value)-(ValueMin))/((ValueMax)-(ValueMin)) * ((TargetMax)-(TargetMin)) + (TargetMin))
+#define Map01(Value, ValueMin, ValueMax) Map(Value, ValueMin, ValueMax, 0, 1)
 
 #define MemoryCopy(Dest, Src, NumBytes) memcpy(Dest, Src, NumBytes)
 #define MemoryMove(Dest, Src, NumBytes) memmove(Dest, Src, NumBytes)
@@ -386,6 +389,7 @@ internal b32    CharIsLower(char C);
 internal b32    CharIsUpper(char C);
 internal char   CharToLower(char C);
 
+internal string MakeStr(char *Data, u64 Count);
 internal string StrFromCStr(char const *CStr);
 internal string CStrFromStr(arena *Arena, string S);
 internal u64    CStrLen(char const *CStr);
@@ -407,37 +411,8 @@ internal string PathConcat(arena *Arena, string A, string B);
 internal string PathListJoin(arena *Arena, string_list *Path);
 
 internal void        StrListPush(arena *Arena, string_list *List, string String);
+internal string      StrListJoin(arena *Arena, string_list *List, string Sep);
 internal string_list StrListCopy(arena *Arena, string_list *List);
 internal void        StrListConcatInPlace(string_list *List, string_list *ToPush);
-
-
-// TODO(hbr): Move to cpp file
-internal string
-StrListJoin(arena *Arena, string_list *List, string Sep)
-{
-   string Result = {};
-   u64 SepTotalLength = 0;
-   if (List->NodeCount > 0)
-   {
-      SepTotalLength = Sep.Count * (List->NodeCount - 1);
-   }
-   Result.Count = List->TotalSize + SepTotalLength;
-   Result.Data = PushArrayNonZero(Arena, Result.Count + 1, char);
-   
-   char *At = Result.Data;
-   string CurSep = {};
-   ListIter(Node, List->Head, string_list_node)
-   {
-      MemoryCopy(At, CurSep.Data, CurSep.Count);
-      At += CurSep.Count;
-      MemoryCopy(At, Node->String.Data, Node->String.Count);
-      At += Node->String.Count;
-      CurSep = Sep;
-   }
-   Assert(Cast(u64)(At - Result.Data) == Result.Count);
-   *At++ = 0;
-   
-   return Result;
-}
 
 #endif //EDITOR_BASE_H

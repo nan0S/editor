@@ -40,12 +40,12 @@ RenderDebugWindow(editor *Editor)
       
       if (Editor->UI_Config.ViewDebugWindow)
       {
-         ImGui::Text("Number of entities = %lu", Editor->State.NumEntities);
+         ImGui::Text("Number of entities = %lu", Editor->EntityCount);
          
-         if (Editor->State.SelectedEntity &&
-             Editor->State.SelectedEntity->Type == Entity_Curve)
+         if (Editor->SelectedEntity &&
+             Editor->SelectedEntity->Type == Entity_Curve)
          {
-            curve *Curve = &Editor->State.SelectedEntity->Curve;
+            curve *Curve = &Editor->SelectedEntity->Curve;
             
             ImGui::Text("Number of control points = %lu", Curve->ControlPointCount);
             ImGui::Text("Number of curve points = %lu", Curve->CurvePointCount);

@@ -97,7 +97,6 @@ struct curve
    f32 ControlPointWeights[MAX_CONTROL_POINT_COUNT];
    local_position CubicBezierPoints[3 * MAX_CONTROL_POINT_COUNT];
    
-   arena *ComputationArena;
    u64 CurvePointCount;
    local_position *CurvePoints;
    line_vertices CurveVertices;
@@ -127,8 +126,10 @@ enum
 
 struct entity
 {
+   b32 Active;
    entity *Prev;
    entity *Next;
+   arena *Arena;
    
    world_position Position;
    v2f32 Scale;
@@ -217,8 +218,8 @@ CurveParamsMake(curve_shape CurveShape,
                 f32 PolylineWidth, color PolylineColor,
                 b32 ConvexHullEnabled, f32 ConvexHullWidth,
                 color ConvexHullColor, u64 CurvePointCountPerSegment,
-                color DeCasteljauVisualizationGradientA,
-                color DeCasteljauVisualizationGradientB)
+                color DeCasteljauVisualGradientA,
+                color DeCasteljauVisualGradientB)
 {
    curve_params Result = {};
    Result.CurveShape = CurveShape;
@@ -234,8 +235,8 @@ CurveParamsMake(curve_shape CurveShape,
    Result.ConvexHullWidth = ConvexHullWidth;
    Result.ConvexHullColor = ConvexHullColor;
    Result.CurvePointCountPerSegment = CurvePointCountPerSegment;
-   Result.DeCasteljau.GradientA = DeCasteljauVisualizationGradientA;
-   Result.DeCasteljau.GradientB = DeCasteljauVisualizationGradientB;
+   Result.DeCasteljau.GradientA = DeCasteljauVisualGradientA;
+   Result.DeCasteljau.GradientB = DeCasteljauVisualGradientB;
    
    return Result;
 }
@@ -373,14 +374,7 @@ EntityDestroy(entity *Entity)
    switch (Entity->Type)
    {
       case Entity_Curve: {
-         curve *Curve = &Entity->Curve;
-         ArrayFree(Curve->ControlPoints);
-         ArrayFree(Curve->ControlPointWeights);
-         ArrayFree(Curve->CubicBezierPoints);
-         ArrayFree(Curve->CurvePoints);
-         ArrayFree(Curve->CurveVertices.Vertices);
-         ArrayFree(Curve->PolylineVertices.Vertices);
-         ArrayFree(Curve->ConvexHullVertices.Vertices);
+         // NOTE(hbr): Nothing to do
       } break;
       
       case Entity_Image: {

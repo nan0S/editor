@@ -943,6 +943,16 @@ CharToLower(char C)
 }
 
 internal string
+MakeStr(char *Data, u64 Count)
+{
+   string Result = {};
+   Result.Data = Data;
+   Result.Count = Count;
+   
+   return Result;
+}
+
+internal string
 CStrFromStr(arena *Arena, string S)
 {
    char *Data = PushArrayNonZero(Arena, S.Count + 1, char);
@@ -1233,4 +1243,32 @@ StrListConcatInPlace(string_list *List, string_list *ToPush)
       *List = *ToPush;
    }
    ZeroStruct(ToPush);
+}
+
+internal string
+StrListJoin(arena *Arena, string_list *List, string Sep)
+{
+   string Result = {};
+   u64 SepTotalLength = 0;
+   if (List->NodeCount > 0)
+   {
+      SepTotalLength = Sep.Count * (List->NodeCount - 1);
+   }
+   Result.Count = List->TotalSize + SepTotalLength;
+   Result.Data = PushArrayNonZero(Arena, Result.Count + 1, char);
+   
+   char *At = Result.Data;
+   string CurSep = {};
+   ListIter(Node, List->Head, string_list_node)
+   {
+      MemoryCopy(At, CurSep.Data, CurSep.Count);
+      At += CurSep.Count;
+      MemoryCopy(At, Node->String.Data, Node->String.Count);
+      At += Node->String.Count;
+      CurSep = Sep;
+   }
+   Assert(Cast(u64)(At - Result.Data) == Result.Count);
+   *At++ = 0;
+   
+   return Result;
 }

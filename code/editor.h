@@ -166,6 +166,7 @@ DONE:
 - rename [CurveEntity] to just [Entity] - keep things simple
 - write [CurveAppendPoint] in terms of [CurveInsertPoint]
  - replace strcmp, memcpy, memset, memmove
+- maybe move all the things related to rendering into separate struct - things like Window, Projection, ...
 
 Ideas:
 - some kind of locking system - when I want to edit only one curve without
@@ -302,9 +303,9 @@ struct coordinate_system_data
 };
 
 internal camera_position ScreenToCameraSpace(screen_position Position, coordinate_system_data Data);
-internal world_position  CameraToWorldSpace (camera_position Position, coordinate_system_data Data);
-internal camera_position WorldToCameraSpace (world_position Position,  coordinate_system_data Data);
-internal world_position  ScreenToWorldSpace (screen_position Position, coordinate_system_data Data);
+internal world_position  CameraToWorldSpace(camera_position Position, coordinate_system_data Data);
+internal camera_position WorldToCameraSpace(world_position Position,  coordinate_system_data Data);
+internal world_position  ScreenToWorldSpace(screen_position Position, coordinate_system_data Data);
 
 // NOTE(hbr): Distance in space [-AspectRatio, AspectRatio] x [-1, 1]
 internal f32 ClipSpaceLengthToWorldSpace(f32 ClipSpaceDistance, coordinate_system_data Data);
@@ -413,8 +414,7 @@ struct editor_mode
    };
 };
 
-// TODO(hbr): maybe rename to [state] or something, not only this but [de_casteljau_visualization] as well, because that's what it is
-struct splitting_bezier_curve
+struct curve_splitting_state
 {
    // TODO(hbr): Get rid of [IsSplitting], encode in [SplitCurveEntity]
    b32 IsSplitting;
@@ -425,7 +425,7 @@ struct splitting_bezier_curve
    world_position SplitPoint;
 };
 
-struct de_casteljau_visualization
+struct de_casteljau_visual_state
 {
    b32 IsVisualizing;
    f32 T;
@@ -440,7 +440,7 @@ struct de_casteljau_visualization
    local_position *AllIntermediatePoints;
 };
 
-struct bezier_curve_degree_lowering
+struct curve_degree_lowering_state
 {
    entity *Entity;
    
@@ -473,7 +473,7 @@ enum animation_type
    Animation_Count,
 };
 
-struct transform_curve_animation
+struct curve_animation_state
 {
    animate_curve_animation_stage Stage;
    
@@ -506,7 +506,7 @@ enum curve_combination_type
    CurveCombination_Count
 };
 
-struct curve_combining
+struct curve_combining_state
 {
    b32 IsCombining;
    
@@ -519,39 +519,11 @@ struct curve_combining
    curve_combination_type CombinationType;
 };
 
-struct editor_state
-{
-   pool *EntityPool;
-   entity *EntitiesHead;
-   entity *EntitiesTail;
-   u64 NumEntities;
-   
-   u64 EverIncreasingCurveCounter;
-   
-   entity *SelectedEntity;
-   
-   camera Camera;
-   
-   editor_mode Mode;
-   
-   splitting_bezier_curve SplittingBezierCurve;
-   de_casteljau_visualization DeCasteljauVisualization;
-   bezier_curve_degree_lowering DegreeLowering;
-   transform_curve_animation CurveAnimation;
-   arena *MovingPointArena;
-   curve_combining CurveCombining;
-};
+internal entity *AllocAndAddEntity(editor *Editor);
+internal void DeallocAndRemoveEntity(editor *State, entity *Entity);
 
-internal editor_state CreateEditorState(pool *EntityPool, u64 CurveCounter, camera Camera,
-                                        arena *DeCasteljauVisualizationArena, arena *DegreeLoweringArena,
-                                        arena *MovingPointArena, arena *CurveAnimationArena,
-                                        f32 CurveAnimationSpeed);
-
-internal entity *AllocAndAddEntity(editor_state *State);
-internal void DeallocAndRemoveEntity(editor_state *State, entity *Entity);
-
-internal void SelectEntity(editor_state *EditorState, entity *Entity);
-internal void DeallocEditorState(editor_state *EditorState);
+internal void SelectEntity(editor *Editor, entity *Entity);
+internal void DeallocEditorState(editor *Editor);
 
 enum save_project_format
 {
@@ -568,18 +540,6 @@ enum action_to_do
    ActionToDo_Quit,
 };
 
-// NOTE(hbr): In seconds
-#define NOTIFICATION_FADE_IN_TIME     0.15f
-#define NOTIFICATION_FADE_OUT_TIME    0.15f
-#define NOTIFICATION_PROPER_LIFE_TIME 10.0f
-#define NOTIFICATION_INVISIBLE_TIME   0.1f
-
-#define NOTIFICATION_TOTAL_LIFE_TIME \
-(NOTIFICATION_FADE_OUT_TIME + \
-NOTIFICATION_PROPER_LIFE_TIME + \
-NOTIFICATION_FADE_OUT_TIME + \
-NOTIFICATION_INVISIBLE_TIME)
-
 enum notification_type
 {
    Notification_Success,
@@ -589,22 +549,12 @@ enum notification_type
 
 struct notification
 {
-   string Title;
-   color TitleColor;
-   
-   string Text;
-   
+   notification_type Type;
+   char ContentBuffer[256];
+   string Content;
    f32 LifeTime;
-   
-   f32 PosY;
-   f32 NotifWindowHeight;
-};
-
-struct notifications
-{
-   u64 NotifCount;
-   notification Notifs[100];
-   sf::RenderWindow *Window;
+   f32 ScreenPosY;
+   f32 BoxHeight;
 };
 
 // NOTE(hbr): Not sure if this is the best name
@@ -630,41 +580,55 @@ struct ui_config
 #endif
 };
 
-// TODO(hbr): Move this to [editor]
-#define MAX_ENTITY_COUNT 1024
-b32 GlobalInitialized;
-entity GlobalEntities[MAX_ENTITY_COUNT];
-arena *GlobalEntityArenas[MAX_ENTITY_COUNT];
-b32 GlobalIsEntityTaken[MAX_ENTITY_COUNT]; // TODO(hbr): Consider storing GlobalIsEntityTaken state more sparsly
-struct allocated_entity
+struct editor
 {
-   entity *Entity;
-   arena *EntityArena;
-};
-internal allocated_entity
-AllocEntity(void)
-{
-   if (!GlobalInitialized)
-   {
-      for (u64 Index = 0;
-           Index < ArrayCount(GlobalEntityArenas);
-           ++Index)
-      {
-         GlobalEntityArenas[Index] = AllocArena();
-      }
-      GlobalInitialized = true;
-   }
+   sf::Clock DeltaClock;
+   frame_stats FrameStats;
    
-   allocated_entity Result = {};
+   sf::RenderWindow *Window;
+   camera Camera;
+   projection Projection;
+   
+   entity EntityBuffer[1024];
+   
+   entity *EntitiesHead;
+   entity *EntitiesTail;
+   u64 EntityCount;
+   u64 EntityCounter;
+   entity *SelectedEntity;
+   
+   arena *MovingPointArena;
+   editor_mode Mode;
+   editor_params Params;
+   ui_config UI_Config;
+   
+   curve_splitting_state       CurveSplitting;
+   de_casteljau_visual_state   DeCasteljauVisual;
+   curve_degree_lowering_state DegreeLowering;
+   curve_animation_state       CurveAnimation;
+   curve_combining_state       CurveCombining;
+   
+   save_project_format SaveProjectFormat;
+   string ProjectSavePath;
+   action_to_do ActionWaitingToBeDone;
+   
+   u64 NotificationCount;
+   notification Notifications[32];
+};
+
+internal entity *
+AllocEntity(editor *Editor)
+{
+   entity *Result = 0;
    for (u64 EntityIndex = 0;
-        EntityIndex < ArrayCount(GlobalEntities);
+        EntityIndex < ArrayCount(Editor->EntityBuffer);
         ++EntityIndex)
    {
-      if (!GlobalIsEntityTaken[EntityIndex])
+      entity *Entity = Editor->EntityBuffer + EntityIndex;
+      if (!Entity->Active)
       {
-         GlobalIsEntityTaken[EntityIndex] = true;
-         Result.Entity = GlobalEntities + EntityIndex;
-         Result.EntityArena = GlobalEntityArenas[EntityIndex];
+         Entity->Active = true;
+         Result = Entity;
          break;
       }
    }
@@ -673,35 +637,11 @@ AllocEntity(void)
 }
 
 internal void
-DeallocEntity(entity *Entity)
+DeallocEntity(editor *Editor, entity *Entity)
 {
-   u64 EntityIndex = Cast(u64)(Entity - GlobalEntities);
-   Assert(EntityIndex < MAX_ENTITY_COUNT);
-   GlobalIsEntityTaken[EntityIndex] = false;
+   u64 EntityIndex = Cast(u64)(Entity - Editor->EntityBuffer);
+   Assert(EntityIndex < ArrayCount(Editor->EntityBuffer));
    ZeroStruct(Entity);
 }
-
-struct editor
-{
-   sf::RenderWindow *Window;
-   sf::Clock DeltaClock;
-   
-   frame_stats FrameStats;
-   
-   editor_state State;
-   
-   save_project_format SaveProjectFormat;
-   string ProjectSavePath;
-   
-   action_to_do ActionWaitingToBeDone;
-   
-   projection Projection;
-   
-   notifications Notifications;
-   
-   editor_params Parameters;
-   
-   ui_config UI_Config;
-};
 
 #endif //EDITOR_H

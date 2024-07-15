@@ -424,29 +424,19 @@ AddNotificationF(editor *Editor, notification_type Type, char const *Format, ...
    va_list Args;
    va_start(Args, Format);
    
-   if (Editor->NotificationCount < ArrayCount(Editor->Notifications))
+   if (Editor->NotificationCount == ArrayCount(Editor->Notifications))
    {
-      notification *Notification = Editor->Notifications + Editor->NotificationCount++;
-      ZeroStruct(Notification);
-      
-      Notification->Type = Type;
-      u64 ContentCount = FmtV(ArrayCount(Notification->ContentBuffer), Notification->ContentBuffer, Format, Args);
-      Notification->Content = MakeStr(Notification->ContentBuffer, ContentCount);
-      
-      sf::Vector2u WindowSize = Editor->Window->getSize();
-      f32 Padding = NotificationWindowPaddingScale * WindowSize.x;
-      f32 DesignatedPosY = WindowSize.y - Padding;
-      for (u64 NotificationIndex = 0;
-           NotificationIndex < Editor->NotificationCount;
-           ++NotificationIndex)
-      {
-         notification *Other = Editor->Notifications + NotificationIndex;
-         DesignatedPosY -= Other->BoxHeight + Padding;
-      }
-      Notification->ScreenPosY = DesignatedPosY;
-      
-      ++Editor->NotificationCount;
+      MemoryMove(Editor->Notifications, Editor->Notifications + 1,
+                 SizeOf(notification) * (ArrayCount(Editor->Notifications) - 1));
+      --Editor->NotificationCount;
    }
+   Assert(Editor->NotificationCount < ArrayCount(Editor->Notifications));
+   
+   notification *Notification = Editor->Notifications + Editor->NotificationCount++;
+   ZeroStruct(Notification);
+   Notification->Type = Type;
+   u64 ContentCount = FmtV(ArrayCount(Notification->ContentBuffer), Notification->ContentBuffer, Format, Args);
+   Notification->Content = MakeStr(Notification->ContentBuffer, ContentCount);
    
    va_end(Args);
 }
@@ -3142,7 +3132,6 @@ UpdateAndRenderNotifications(editor *Editor, f32 DeltaTime)
             NotificationLifeTime_Proper,
             NotificationLifeTime_Out,
             NotificationLifeTime_Invisible,
-            
             NotificationLifeTime_Count,
          };
          // TODO(hbr): Try to create this table at compile time

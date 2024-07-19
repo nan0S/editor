@@ -13,6 +13,7 @@
 #include "editor_os.h"
 #include "editor_profiler.h"
 #include "editor_math.h"
+#include "editor_ui.h"
 
 #include "editor_adapt.h"
 #include "editor_entity.h"
@@ -159,7 +160,6 @@ DONE:
 - because we are going away from returning strings when some os function fails, rather returning boolean, refactor
  all those places that convert boolean into string artificially, instead just pass boolean further
 - maybe make things that are only one just global - like input
-- change Fmt to Format
 - change function names to DoSomethingEntity, rather than EntityDoSomething
 - get rid off line_vertices_allocation_type
 - remove [RecomputeCurve] from every function that modifies curve
@@ -167,11 +167,15 @@ DONE:
 - write [CurveAppendPoint] in terms of [CurveInsertPoint]
  - replace strcmp, memcpy, memset, memmove
 - maybe move all the things related to rendering into separate struct - things like Window, Projection, ...
+- specify sizes of enums
 
 Ideas:
 - some kind of locking system - when I want to edit only one curve without
 obstacles, I don't want to unwittingly click on some other curve/image and select it
 - confirm window when removing points
+
+Bugs:
+- clicking on control point doesn't do anything, but should select this curve and control point
 */
 
 #define WINDOW_TITLE "Parametric Curves Editor"
@@ -289,27 +293,6 @@ struct camera
    f32 ZoomTarget;
 };
 
-struct projection
-{
-   f32 AspectRatio;
-   f32 FrustumSize;
-};
-
-struct coordinate_system_data
-{
-   sf::RenderWindow *Window;
-   camera Camera;
-   projection Projection;
-};
-
-internal camera_position ScreenToCameraSpace(screen_position Position, coordinate_system_data Data);
-internal world_position  CameraToWorldSpace(camera_position Position, coordinate_system_data Data);
-internal camera_position WorldToCameraSpace(world_position Position,  coordinate_system_data Data);
-internal world_position  ScreenToWorldSpace(screen_position Position, coordinate_system_data Data);
-
-// NOTE(hbr): Distance in space [-AspectRatio, AspectRatio] x [-1, 1]
-internal f32 ClipSpaceLengthToWorldSpace(f32 ClipSpaceDistance, coordinate_system_data Data);
-
 enum curve_collision_type
 {
    CurveCollision_ControlPoint,
@@ -390,6 +373,7 @@ enum moving_mode_type
    MovingMode_CurvePoint,
 };
 
+// TODO(hbr): Be consistent in naming Rotating mode or Rotate mode - be consistent
 struct editor_mode
 {
    editor_mode_type Type;
@@ -410,6 +394,7 @@ struct editor_mode
       struct {
          entity *Entity;
          screen_position RotationCenter;
+         button Button;
       } Rotating;
    };
 };
@@ -519,12 +504,6 @@ struct curve_combining_state
    curve_combination_type CombinationType;
 };
 
-internal entity *AllocAndAddEntity(editor *Editor);
-internal void DeallocAndRemoveEntity(editor *State, entity *Entity);
-
-internal void SelectEntity(editor *Editor, entity *Entity);
-internal void DeallocEditorState(editor *Editor);
-
 enum save_project_format
 {
    SaveProjectFormat_None,
@@ -564,33 +543,30 @@ struct ui_config
    b32 ViewListOfEntitiesWindow;
    b32 ViewParametersWindow;
    b32 ViewDiagnosticsWindow;
+   b32 ViewProfilerWindow;
+   b32 ViewDebugWindow;
    
    b32 DefaultCurveHeaderCollapsed;
    b32 RotationIndicatorHeaderCollapsed;
    b32 BezierSplitPointHeaderCollapsed;
    b32 OtherSettingsHeaderCollapsed;
-   
-   // TODO(hbr): Are those defines necessary? Tacke or remove TODO
-#if EDITOR_PROFILER
-   b32 ViewProfilerWindow;
-#endif
-   
-#if BUILD_DEBUG
-   b32 ViewDebugWindow;
-#endif
+};
+
+struct render_data
+{
+   sf::RenderWindow *Window;
+   camera Camera;
+   f32 AspectRatio;
+   f32 FrustumSize;
 };
 
 struct editor
 {
    sf::Clock DeltaClock;
    frame_stats FrameStats;
-   
-   sf::RenderWindow *Window;
-   camera Camera;
-   projection Projection;
+   render_data RenderData;
    
    entity EntityBuffer[1024];
-   
    entity *EntitiesHead;
    entity *EntitiesTail;
    u64 EntityCount;
@@ -615,33 +591,5 @@ struct editor
    u64 NotificationCount;
    notification Notifications[32];
 };
-
-internal entity *
-AllocEntity(editor *Editor)
-{
-   entity *Result = 0;
-   for (u64 EntityIndex = 0;
-        EntityIndex < ArrayCount(Editor->EntityBuffer);
-        ++EntityIndex)
-   {
-      entity *Entity = Editor->EntityBuffer + EntityIndex;
-      if (!Entity->Active)
-      {
-         Entity->Active = true;
-         Result = Entity;
-         break;
-      }
-   }
-   
-   return Result;
-}
-
-internal void
-DeallocEntity(editor *Editor, entity *Entity)
-{
-   u64 EntityIndex = Cast(u64)(Entity - Editor->EntityBuffer);
-   Assert(EntityIndex < ArrayCount(Editor->EntityBuffer));
-   ZeroStruct(Entity);
-}
 
 #endif //EDITOR_H

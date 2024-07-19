@@ -89,6 +89,8 @@ CalcBarycentricPolynomialCurvePoints(local_position *ControlPoints,
          case PointsArrangement_Chebychev: {
             BarycentricOmegaChebychev(Omega, ControlPointCount);
          } break;
+         
+         case PointsArrangement_Count: InvalidPath;
       }
       
       points_soa SOA = SplitPointsIntoComponents(Temp.Arena,
@@ -157,6 +159,8 @@ CalcCubicSplineCurvePoints(local_position *ControlPoints,
             CubicSplinePeriodicM(Mx, Ti, SOA.Xs, ControlPointCount);
             CubicSplinePeriodicM(My, Ti, SOA.Ys, ControlPointCount);
          } break;
+         
+         case CubicSpline_Count: InvalidPath;
       }
       
       f32 Begin = Ti[0];
@@ -273,6 +277,7 @@ EvaluateCurve(curve *Curve, u64 CurvePointCount, v2f32 *CurvePoints)
          {
             case PointsArrangement_Equidistant: { EquidistantPoints(Ti, Curve->ControlPointCount); } break;
             case PointsArrangement_Chebychev:   { ChebyshevPoints(Ti, Curve->ControlPointCount);   } break;
+            case PointsArrangement_Count: InvalidPath;
          }
          
          switch (Polynomial->Type)
@@ -288,6 +293,7 @@ EvaluateCurve(curve *Curve, u64 CurvePointCount, v2f32 *CurvePoints)
                                                Ti, CurvePointCount, CurvePoints);
             } break;
             
+            case PolynomialInterpolation_Count: InvalidPath;
          }
       } break;
       
@@ -314,8 +320,12 @@ EvaluateCurve(curve *Curve, u64 CurvePointCount, v2f32 *CurvePoints)
                CalcCubicBezierCurvePoints(Curve->CubicBezierPoints, Curve->ControlPointCount,
                                           CurvePointCount, CurvePoints);
             } break;
+            
+            case Bezier_Count: InvalidPath;
          }
       } break;
+      
+      case Interpolation_Count: InvalidPath;
    }
    EndTemp(Temp);
 }
@@ -665,13 +675,13 @@ InitImageFromImage(entity *Dst, image *Src)
 
 internal void
 InitEntity(entity *Entity, world_position Position, v2f32 Scale,
-           rotation_2d Rotation, name_string Name, s64 SortingLayer,
+           rotation_2d Rotation, string Name, s64 SortingLayer,
            u64 RenamingFrame, entity_flags Flags)
 {
    Entity->Position = Position;
    Entity->Scale = Scale;
    Entity->Rotation = Rotation;
-   Entity->Name = Name;
+   SetEntityName(Entity, Name);
    Entity->SortingLayer = SortingLayer;
    Entity->Flags = Flags;
 }
@@ -692,8 +702,7 @@ InitEntityFromEntity(entity *Dest, entity *Src)
 internal void
 InitCurveEntity(entity *Entity,
                 world_position Position, v2f32 Scale, rotation_2d Rotation,
-                name_string Name,
-                curve_params CurveParams)
+                string Name, curve_params CurveParams)
 {
    InitEntity(Entity, Position, Scale, Rotation, Name, 0, 0, 0);
    InitCurve(Entity, CurveParams, U64_MAX, 0, 0, 0, 0);
@@ -702,8 +711,7 @@ InitCurveEntity(entity *Entity,
 internal void
 InitImageEntity(entity *Entity,
                 world_position Position, v2f32 Scale, rotation_2d Rotation,
-                name_string Name,
-                string ImageFilePath, sf::Texture *Texture)
+                string Name, string ImageFilePath, sf::Texture *Texture)
 {
    InitEntity(Entity, Position, Scale, Rotation, Name, 0, 0, 0);
    InitImage(&Entity->Image, ImageFilePath, Texture);

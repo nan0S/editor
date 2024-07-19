@@ -302,34 +302,30 @@ struct out_buf
 internal void
 OutC(out_buf *Out, char C)
 {
-   if (Out->At)
+   if (Out->At && Out->Count)
    {
-      *Out->At = C;
-      ++Out->At;
+      *Out->At++ = C;
    }
-   --Out->Count;
-}
-
-internal void
-OutStrC(out_buf *Out, char const *S)
-{
-   while (*S)
+   if (!Out->At || Out->Count)
    {
-      OutC(Out, *S);
-      ++S;
+      --Out->Count;
    }
 }
 
 internal void
 OutStr(out_buf *Out, string S)
 {
+   u64 ToCopy = S.Count;
    if (Out->At)
    {
-      MemoryCopy(Out->At, S.Data, S.Count);
-      Out->At += S.Count;
+      ToCopy = Min(ToCopy, Out->Count);
+      MemoryCopy(Out->At, S.Data, ToCopy);
+      Out->At += ToCopy;
    }
-   Out->Count -= S.Count;
+   Out->Count -= ToCopy;
 }
+
+internal void OutStrC(out_buf *Out, char const *S) { OutStr(Out, MakeStr(Cast(char *)S, CStrLen(S))); }
 
 internal void
 FmtNumber(out_buf *Out, u64 N, u64 Base, char const *Digits, char const *BasePrefix,
@@ -647,6 +643,10 @@ FmtV(u64 BufSize, char *Buf, char const *Format, va_list Args)
          if (Formatted < Width)
          {
             u64 PadCount = Width - Formatted;
+            if (Out.At)
+            {
+               PadCount = Min(PadCount, Out.Count);
+            }
             char PadWith = ((LeftJustify || !PadWithZeros) ? ' ' : '0');
             char *PadAt = (LeftJustify ? Out.At : SavedOut.At);
             if (!LeftJustify && SavedOut.At)

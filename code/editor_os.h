@@ -2,7 +2,7 @@
 #define EDITOR_OS_H
 
 #if OS_WINDOWS
-# include "editor_windows.h"
+# include "editor_win32.h"
 #elif OS_LINUX
 # include "editor_linux.h"
 #else

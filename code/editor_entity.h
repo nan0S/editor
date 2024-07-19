@@ -1,35 +1,34 @@
 #ifndef EDITOR_ENTITY_H
 #define EDITOR_ENTITY_H
 
-struct name_string
-{
-   char Data[64];
-   u64 Count;
-};
-
-internal name_string NameStr(char *Data, u64 Count);
-internal name_string StrToNameStr(string String);
-#define NameStrLit(Literal) NameStr(Cast(char *)Literal, ArrayCount(Literal) - 1)
-internal name_string NameStrF(char const *Fmt, ...);
-
-enum interpolation_type
+enum interpolation_type : u8
 {
    Interpolation_Polynomial,
    Interpolation_CubicSpline,
    Interpolation_Bezier,
+   Interpolation_Count
 };
+// TODO(hbr): Try to add designated array intializers
+global char const *InterpolationNames[] = { "Polynomial", "Cubic Spline", "Bezier" };
+StaticAssert(ArrayCount(InterpolationNames) == Interpolation_Count, InterpolationNamesDefined);
 
-enum polynomial_interpolation_type
+enum polynomial_interpolation_type : u8
 {
    PolynomialInterpolation_Barycentric,
    PolynomialInterpolation_Newton,
+   PolynomialInterpolation_Count,
 };
+global char const *PolynomialInterpolationNames[] = { "Barycentric", "Newton" };
+StaticAssert(ArrayCount(PolynomialInterpolationNames) == PolynomialInterpolation_Count, PolynomialInterpolationNamesDefined);
 
-enum points_arrangement
+enum points_arrangement : u8
 {
    PointsArrangement_Equidistant,
    PointsArrangement_Chebychev,
+   PointsArrangement_Count,
 };
+global char const *PointsArrangementNames[] = { "Equidistant", "Chebychev" };
+StaticAssert(ArrayCount(PointsArrangementNames) == PointsArrangement_Count, PointsArrangementNamesDefined);
 
 struct polynomial_interpolation_params
 {
@@ -37,18 +36,24 @@ struct polynomial_interpolation_params
    points_arrangement PointsArrangement;
 };
 
-enum cubic_spline_type
+enum cubic_spline_type : u8
 {
    CubicSpline_Natural,
    CubicSpline_Periodic,
+   CubicSpline_Count,
 };
+global char const *CubicSplineNames[] = { "Natural", "Periodic" };
+StaticAssert(ArrayCount(CubicSplineNames) == CubicSpline_Count, CubicSplineNamesDefined);
 
-enum bezier_type
+enum bezier_type : u8
 {
    Bezier_Normal,
    Bezier_Weighted,
    Bezier_Cubic,
+   Bezier_Count,
 };
+global char const *BezierNames[] = { "Normal", "Weighted", "Cubic" };
+StaticAssert(ArrayCount(BezierNames) == Bezier_Count, BezierNamesDefined);
 
 struct curve_shape
 {
@@ -90,8 +95,8 @@ struct curve_params
 struct curve
 {
    curve_params CurveParams;
-   u64 SelectedControlPointIndex;
    
+   u64 SelectedControlPointIndex;
    u64 ControlPointCount;
    local_position ControlPoints[MAX_CONTROL_POINT_COUNT];
    f32 ControlPointWeights[MAX_CONTROL_POINT_COUNT];
@@ -117,12 +122,12 @@ enum entity_type
    Entity_Image,
 };
 
-typedef u64 entity_flags;
 enum
 {
    EntityFlag_Hidden = (1<<0),
    EntityFlag_Selected = (1<<1),
 };
+typedef u64 entity_flags;
 
 struct entity
 {
@@ -134,7 +139,10 @@ struct entity
    world_position Position;
    v2f32 Scale;
    rotation_2d Rotation;
-   name_string Name;
+   
+   char NameBuffer[64];
+   string Name;
+   
    s64 SortingLayer;
    u64 RenamingFrame;
    entity_flags Flags;
@@ -198,9 +206,6 @@ LoadTextureFromFile(arena *Arena, string FilePath, error_string *OutError)
    
    return Texture;
 }
-
-// TODO(hbr): Remove this, why the heck this is necessary?!!!
-internal void ChebyshevPoints(f32 *Ti, u64 N);
 
 // TODO(hbr): Rename this internal and also maybe others to [EntityRotateAround] because it's not [curve] specific.
 internal void
@@ -327,64 +332,13 @@ CurveGetAnimate(entity *Curve)
    return Result;
 }
 
-internal name_string
-NameStr(char *Data, u64 Count)
-{
-   name_string Result = {};
-   
-   u64 FinalCount = Min(Count, ArrayCount(Result.Data) - 1);
-   MemoryCopy(Result.Data, Data, FinalCount);
-   Result.Data[FinalCount] = 0;
-   Result.Count = FinalCount;
-   
-   return Result;
-}
-
-internal name_string
-StrToNameStr(string String)
-{
-   name_string Result = NameStr(String.Data, String.Count);
-   return Result;
-}
-
-internal name_string
-NameStrF(char const *Fmt, ...)
-{
-   name_string Result = {};
-   
-   va_list Args;
-   DeferBlock(va_start(Args, Fmt), va_end(Args))
-   {
-      int Return = vsnprintf(Result.Data,
-                             ArrayCount(Result.Data) - 1,
-                             Fmt, Args);
-      if (Return >= 0)
-      {
-         // TODO(hbr): What the fuck is wrong with this internal
-         Result.Count = CStrLen(Result.Data);
-      }
-   }
-   
-   return Result;
-}
-
 internal void
-EntityDestroy(entity *Entity)
+SetEntityName(entity *Entity, string Name)
 {
-   switch (Entity->Type)
-   {
-      case Entity_Curve: {
-         // NOTE(hbr): Nothing to do
-      } break;
-      
-      case Entity_Image: {
-         image *Image = &Entity->Image;
-         Image->Texture.~Texture();
-         FreeStr(&Image->FilePath);
-      } break;
-   }
-   
-   ZeroStruct(Entity);
+   u64 ToCopy = Min(Name.Count, ArrayCount(Entity->NameBuffer) - 1);
+   MemoryCopy(Entity->NameBuffer, Name.Data, ToCopy);
+   Entity->NameBuffer[ToCopy] = 0;
+   Entity->Name = MakeStr(Entity->NameBuffer, ToCopy);
 }
 
 #endif //EDITOR_ENTITY_H

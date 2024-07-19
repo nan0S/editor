@@ -1,5 +1,5 @@
 #if OS_WINDOWS
-# include "editor_windows.cpp"
+# include "editor_win32.cpp"
 #elif OS_LINUX
 # include "editor_linux.cpp"
 #endif

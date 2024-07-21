@@ -1,5 +1,5 @@
 internal frame_stats
-CreateFrameStats(void)
+MakeFrameStats(void)
 {
    frame_stats Result = {};
    Result.Calculation.MinFrameTime = INF_F32;
@@ -40,7 +40,7 @@ RenderDebugWindow(editor *Editor)
       
       if (Editor->UI_Config.ViewDebugWindow)
       {
-         ImGui::Text("Number of entities = %lu", Editor->EntityCount);
+         ImGui::Text("Number of entities = %lu", Editor->Entities.EntityCount);
          
          if (Editor->SelectedEntity &&
              Editor->SelectedEntity->Type == Entity_Curve)

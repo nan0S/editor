@@ -248,6 +248,31 @@ UI_DragFloat2F(f32 InOutValues[2], f32 MinValue, f32 MaxValue, char const *Value
    return Result;
 }
 
+internal b32
+UI_SliderFloat(f32 *InOutValue, f32 MinValue, f32 MaxValue, string Label)
+{
+   temp_arena Temp = TempArena(0);
+   string CLabel = CStrFromStr(Temp.Arena, Label);
+   b32 Result = Cast(b32)ImGui::SliderFloat(CLabel.Data, InOutValue, MinValue, MaxValue);
+   EndTemp(Temp);
+   
+   return Result;
+}
+
+internal b32
+UI_SliderFloatF(f32 *InOutValue, f32 MinValue, f32 MaxValue, char const *Format, ...)
+{
+   temp_arena Temp = TempArena(0);
+   va_list Args;
+   va_start(Args, Format);
+   string Label = StrFV(Temp.Arena, Format, Args);
+   b32 Result = UI_SliderFloat(InOutValue, MinValue, MaxValue, Label);
+   va_end(Args);
+   EndTemp(Temp);
+   
+   return Result;
+}
+
 internal void UI_NewRow(void) { ImGui::NewLine(); }
 internal void UI_SameRow(void) { ImGui::SameLine(); }
 

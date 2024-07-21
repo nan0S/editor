@@ -18,7 +18,7 @@ typedef int32_t s32;
 typedef int64_t s64;
 
 typedef uintptr_t umm;
-typedef intptr_t smm;
+typedef intptr_t  smm;
 
 #define U8_MIN  ((u8)0)
 #define U16_MIN ((u16)0)

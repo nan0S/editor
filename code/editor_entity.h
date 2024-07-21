@@ -3,13 +3,13 @@
 
 enum interpolation_type : u8
 {
-   Interpolation_Polynomial,
    Interpolation_CubicSpline,
    Interpolation_Bezier,
+   Interpolation_Polynomial,
    Interpolation_Count
 };
 // TODO(hbr): Try to add designated array intializers
-global char const *InterpolationNames[] = { "Polynomial", "Cubic Spline", "Bezier" };
+read_only global char const *InterpolationNames[] = { "Polynomial", "Cubic Spline", "Bezier" };
 StaticAssert(ArrayCount(InterpolationNames) == Interpolation_Count, InterpolationNamesDefined);
 
 enum polynomial_interpolation_type : u8
@@ -18,16 +18,16 @@ enum polynomial_interpolation_type : u8
    PolynomialInterpolation_Newton,
    PolynomialInterpolation_Count,
 };
-global char const *PolynomialInterpolationNames[] = { "Barycentric", "Newton" };
+read_only global char const *PolynomialInterpolationNames[] = { "Barycentric", "Newton" };
 StaticAssert(ArrayCount(PolynomialInterpolationNames) == PolynomialInterpolation_Count, PolynomialInterpolationNamesDefined);
 
 enum points_arrangement : u8
 {
-   PointsArrangement_Equidistant,
    PointsArrangement_Chebychev,
+   PointsArrangement_Equidistant,
    PointsArrangement_Count,
 };
-global char const *PointsArrangementNames[] = { "Equidistant", "Chebychev" };
+read_only global char const *PointsArrangementNames[] = { "Equidistant", "Chebychev" };
 StaticAssert(ArrayCount(PointsArrangementNames) == PointsArrangement_Count, PointsArrangementNamesDefined);
 
 struct polynomial_interpolation_params
@@ -42,7 +42,7 @@ enum cubic_spline_type : u8
    CubicSpline_Periodic,
    CubicSpline_Count,
 };
-global char const *CubicSplineNames[] = { "Natural", "Periodic" };
+read_only global char const *CubicSplineNames[] = { "Natural", "Periodic" };
 StaticAssert(ArrayCount(CubicSplineNames) == CubicSpline_Count, CubicSplineNamesDefined);
 
 enum bezier_type : u8
@@ -52,20 +52,16 @@ enum bezier_type : u8
    Bezier_Cubic,
    Bezier_Count,
 };
-global char const *BezierNames[] = { "Normal", "Weighted", "Cubic" };
+read_only global char const *BezierNames[] = { "Normal", "Weighted", "Cubic" };
 StaticAssert(ArrayCount(BezierNames) == Bezier_Count, BezierNamesDefined);
 
-struct curve_shape
+struct curve_params
 {
    interpolation_type InterpolationType;
    polynomial_interpolation_params PolynomialInterpolationParams;
    cubic_spline_type CubicSplineType;
    bezier_type BezierType;
-};
-
-struct curve_params
-{
-   curve_shape CurveShape;
+   
    color CurveColor;
    f32 CurveWidth;
    
@@ -124,14 +120,14 @@ enum entity_type
 
 enum
 {
-   EntityFlag_Hidden = (1<<0),
-   EntityFlag_Selected = (1<<1),
+   EntityFlag_Active   = (1<<0),
+   EntityFlag_Hidden   = (1<<1),
+   EntityFlag_Selected = (1<<2),
 };
 typedef u64 entity_flags;
 
 struct entity
 {
-   b32 Active;
    entity *Prev;
    entity *Next;
    arena *Arena;
@@ -150,6 +146,12 @@ struct entity
    entity_type Type;
    curve Curve;
    image Image;
+};
+
+// TODO(hbr): Move this struct into [editor], it's only here because of compilation issues. So something about this type of shit in general
+struct entities {
+   entity Entities[1024];
+   u64 EntityCount;
 };
 
 enum
@@ -216,49 +218,22 @@ CurveRotateAround(entity *CurveEntity, world_position Center, rotation_2d Rotati
 }
 
 internal curve_params
-CurveParamsMake(curve_shape CurveShape,
-                f32 CurveWidth, color CurveColor,
-                b32 PointsDisabled, f32 PointSize,
-                color PointColor, b32 PolylineEnabled,
-                f32 PolylineWidth, color PolylineColor,
-                b32 ConvexHullEnabled, f32 ConvexHullWidth,
-                color ConvexHullColor, u64 CurvePointCountPerSegment,
-                color DeCasteljauVisualGradientA,
-                color DeCasteljauVisualGradientB)
+DefaultCurveParams(void)
 {
    curve_params Result = {};
-   Result.CurveShape = CurveShape;
+   f32 CurveWidth = 0.009f;
+   Result.CurveColor = ColorMake(21, 69, 98);
    Result.CurveWidth = CurveWidth;
-   Result.CurveColor = CurveColor;
-   Result.PointsDisabled = PointsDisabled;
-   Result.PointSize = PointSize;
-   Result.PointColor = PointColor;
-   Result.PolylineEnabled = PolylineEnabled;
-   Result.PolylineWidth = PolylineWidth;
+   Result.PointColor = ColorMake(0, 138, 138, 148);
+   Result.PointSize = 0.014f;
+   color PolylineColor = ColorMake(16, 31, 31, 200);
    Result.PolylineColor = PolylineColor;
-   Result.ConvexHullEnabled = ConvexHullEnabled;
-   Result.ConvexHullWidth = ConvexHullWidth;
-   Result.ConvexHullColor = ConvexHullColor;
-   Result.CurvePointCountPerSegment = CurvePointCountPerSegment;
-   Result.DeCasteljau.GradientA = DeCasteljauVisualGradientA;
-   Result.DeCasteljau.GradientB = DeCasteljauVisualGradientB;
-   
-   return Result;
-}
-
-internal curve_shape
-CurveShapeMake(interpolation_type InterpolationType,
-               polynomial_interpolation_type PolynomialInterpolationType,
-               points_arrangement PointsArrangement,
-               cubic_spline_type CubicSplineType,
-               bezier_type BezierType)
-{
-   curve_shape Result = {};
-   Result.InterpolationType = InterpolationType;
-   Result.PolynomialInterpolationParams.Type = PolynomialInterpolationType;
-   Result.PolynomialInterpolationParams.PointsArrangement = PointsArrangement;
-   Result.CubicSplineType = CubicSplineType;
-   Result.BezierType = BezierType;
+   Result.PolylineWidth = CurveWidth;
+   Result.ConvexHullColor = PolylineColor;
+   Result.ConvexHullWidth = CurveWidth;
+   Result.CurvePointCountPerSegment = 50;
+   Result.DeCasteljau.GradientA = ColorMake(255, 0, 144);
+   Result.DeCasteljau.GradientB = ColorMake(155, 200, 0);
    
    return Result;
 }
@@ -273,7 +248,6 @@ struct sorted_entity_array
    u64 EntityCount;
    entity_sort_entry *Entries;
 };
-internal sorted_entity_array SortEntitiesBySortingLayer(arena *Arena, entity *Entities);
 
 internal int
 EntitySortEntryCmp(entity_sort_entry *A, entity_sort_entry *B)
@@ -294,24 +268,25 @@ EntitySortEntryCmp(entity_sort_entry *A, entity_sort_entry *B)
 }
 
 internal sorted_entity_array
-SortEntitiesBySortingLayer(arena *Arena, entity *Entities)
+SortEntitiesByLayer(arena *Arena, entities *Entities)
 {
    sorted_entity_array Result = {};
-   
-   ListIter(Entity, Entities, entity) { ++Result.EntityCount; }
-   Result.Entries = PushArrayNonZero(Arena, Result.EntityCount, entity_sort_entry);
-   
+   Result.Entries = PushArrayNonZero(Arena, Entities->EntityCount, entity_sort_entry);
+   u64 Index = 0;
+   for (u64 EntityIndex = 0;
+        EntityIndex < ArrayCount(Entities->Entities);
+        ++EntityIndex)
    {
-      entity_sort_entry *Entry = Result.Entries;
-      u64 Index = 0;
-      ListIter(Entity, Entities, entity)
+      entity *Entity = Entities->Entities + EntityIndex;
+      if (Entity->Flags & EntityFlag_Active)
       {
+         entity_sort_entry *Entry = Result.Entries + Index++;
          Entry->Entity = Entity;
-         Entry->OriginalOrder = Index;
-         ++Entry;
-         ++Index;
+         Entry->OriginalOrder = EntityIndex;
       }
    }
+   Result.EntityCount = Index;
+   Assert(Index <= Entities->EntityCount);
    
    // NOTE(hbr): Compare internal makes this sort stable, and we need stable property
    QuickSort(Result.Entries, Result.EntityCount, entity_sort_entry, EntitySortEntryCmp);

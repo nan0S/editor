@@ -169,6 +169,7 @@ DONE:
 - maybe move all the things related to rendering into separate struct - things like Window, Projection, ...
 - specify sizes of enums
 - there is a lot of compressing opportunities in [entity] struct, try to compress
+- think about supporting merging curve of bezier type with cubic bezier subtype
 
 Ideas:
 - some kind of locking system - when I want to edit only one curve without
@@ -180,9 +181,7 @@ Bugs:
 */
 
 #define WINDOW_TITLE "Parametric Curves Editor"
-
 #define SAVED_PROJECT_FILE_EXTENSION ".editor"
-
 // NOTE(hbr): This is a little too complex for such a simple thing.
 #define PROJECT_FILE_EXTENSION_SELECTION "Project File (*" SAVED_PROJECT_FILE_EXTENSION ")"
 #define JPG_FILE_EXTENSION_SELECTION "JPG Image (*.jpg)"
@@ -193,67 +192,9 @@ PROJECT_FILE_EXTENSION_SELECTION "{" SAVED_PROJECT_FILE_EXTENSION "}" \
 "," JPG_FILE_EXTENSION_SELECTION "{.jpg}" \
 "," PNG_FILE_EXTENSION_SELECTION "{.png}"
 
-// NOTE(hbr): Scale in respect to window size
-global f32 NotificationWindowPaddingScale = 0.01f;
 // TODO(hbr): Do something with this variable. Don't want to load project on different monitor
 // and images to be different size.
 global f32 GlobalImageScaleFactor         = 1.0f / 1920.0f;
-
-#define ROTATION_INDICATOR_DEFAULT_RADIUS_CLIP_SPACE          0.06f
-#define ROTATION_INDICATOR_DEFAULT_OUTLINE_THICKNESS_FRACTION 0.1f
-#define ROTATION_INDICATOR_DEFAULT_FILL_COLOR                 ColorMake(30, 56, 87, 80)
-#define ROTATION_INDICATOR_DEFAULT_OUTLINE_COLOR              ColorMake(255, 255, 255, 24)
-
-#define BEZIER_SPLIT_POINT_DEFAULT_RADIUS_CLIP_SPACE          0.025f
-#define BEZIER_SPLIT_POINT_DEFAULT_OUTLINE_THICKNESS_FRACTION 0.1f
-#define BEZIER_SPLIT_POINT_DEFAULT_FILL_COLOR                 ColorMake(0, 255, 0, 100)
-#define BEZIER_SPLIT_POINT_DEFAULT_OUTLINE_COLOR              ColorMake(0, 200, 0, 200)
-
-#define DEFAULT_BACKGROUND_COLOR                                     ColorMake(21, 21, 21)
-#define DEFAULT_COLLLISION_TOLERANCE_CLIP_SPACE                      0.02f
-#define LAST_CONTROL_POINT_DEFAULT_SIZE_MULTIPLIER                   1.5f
-#define SELECTED_CURVE_CONTROL_POINT_DEFAULT_OUTLINE_THICKNESS_SCALE 0.55f
-#define SELECTED_CURVE_CONTROL_POINT_DEFAULT_OUTLINE_COLOR           ColorMake(1, 52, 49, 209)
-#define SELECTED_CONTROL_POINT_DEFAULT_OUTLINE_COLOR                 ColorMake(58, 183, 183, 177)
-#define CUBIC_BEZIER_HELPER_LINE_DEFAULT_WIDTH_CLIP_SPACE            0.003f
-
-#define CURVE_DEFAULT_CURVE_SHAPE_PARAMS                    CurveShapeMake(Interpolation_CubicSpline, \
-PolynomialInterpolation_Barycentric, \
-PointsArrangement_Chebychev, \
-CubicSpline_Natural, \
-Bezier_Normal)
-#define CURVE_DEFAULT_CURVE_WIDTH                           0.009f
-#define CURVE_DEFAULT_CURVE_COLOR                           ColorMake(21, 69, 98)
-#define CURVE_DEFAULT_POINTS_DISABLED                       false
-#define CURVE_DEFAULT_POINT_SIZE                            0.014f
-#define CURVE_DEFAULT_POINT_COLOR                           ColorMake(0, 138, 138, 148)
-#define CURVE_DEFAULT_POLYLINE_ENABLED                      false
-#define CURVE_DEFAULT_POLYLINE_WIDTH                        CURVE_DEFAULT_CURVE_WIDTH
-#define CURVE_DEFAULT_POLYLINE_COLOR                        ColorMake(16, 31, 31, 200)
-#define CURVE_DEFAULT_CONVEX_HULL_ENABLED                   false         
-#define CURVE_DEFAULT_CONVEX_HULL_WIDTH                     CURVE_DEFAULT_CURVE_WIDTH
-#define CURVE_DEFAULT_CONVEX_HULL_COLOR                     CURVE_DEFAULT_POLYLINE_COLOR
-#define CURVE_DEFAULT_NUM_CURVE_POINTS_PER_SEGMENT          50
-#define CURVE_DEFAULT_DE_CASTELJEU_VISUALIZATION_GRADIENT_A ColorMake(255, 0, 144)
-#define CURVE_DEFAULT_DE_CASTELJEU_VISUALIZATION_GRADIENT_B ColorMake(155, 200, 0)
-#define CURVE_DEFAULT_CONTROL_POINT_WEIGHT                  1.0f
-#define CURVE_DEFAULT_CURVE_PARAMS \
-CurveParamsMake(CURVE_DEFAULT_CURVE_SHAPE_PARAMS, \
-CURVE_DEFAULT_CURVE_WIDTH, \
-CURVE_DEFAULT_CURVE_COLOR, \
-CURVE_DEFAULT_POINTS_DISABLED, \
-CURVE_DEFAULT_POINT_SIZE, \
-CURVE_DEFAULT_POINT_COLOR, \
-CURVE_DEFAULT_POLYLINE_ENABLED, \
-CURVE_DEFAULT_POLYLINE_WIDTH, \
-CURVE_DEFAULT_POLYLINE_COLOR, \
-CURVE_DEFAULT_CONVEX_HULL_ENABLED, \
-CURVE_DEFAULT_CONVEX_HULL_WIDTH, \
-CURVE_DEFAULT_CONVEX_HULL_COLOR, \
-CURVE_DEFAULT_NUM_CURVE_POINTS_PER_SEGMENT, \
-CURVE_DEFAULT_DE_CASTELJEU_VISUALIZATION_GRADIENT_A, \
-CURVE_DEFAULT_DE_CASTELJEU_VISUALIZATION_GRADIENT_B)
-#define CURVE_DEFAULT_ANIMATION_SPEED                       1.0f
 
 struct render_point_data
 {
@@ -271,13 +212,12 @@ struct editor_params
    color BackgroundColor;
    f32   CollisionToleranceClipSpace;
    f32   LastControlPointSizeMultiplier;
+   
    f32   SelectedCurveControlPointOutlineThicknessScale;
    color SelectedCurveControlPointOutlineColor;
    color SelectedControlPointOutlineColor;
    f32   CubicBezierHelperLineWidthClipSpace;
-   
    curve_params CurveDefaultParams;
-   f32 DefaultControlPointWeight;
 };
 
 struct camera
@@ -353,11 +293,6 @@ struct user_action
    };
    user_input *Input;
 };
-
-internal user_action UserActionButtonClicked(button Button, screen_position ClickPosition, user_input *UserInput);
-internal user_action UserActionButtonDrag(button Button, screen_position DragFromPosition, user_input *UserInput);
-internal user_action UserActionButtonReleased(button Button, screen_position ReleasePosition, user_input *UserInput);
-internal user_action UserActionMouseMove(v2s32 FromPosition, screen_position ToPosition, user_input *UserInput);
 
 enum editor_mode_type
 {
@@ -451,13 +386,15 @@ enum animate_curve_animation_stage
    AnimateCurveAnimation_Animating,
 };
 
-enum animation_type
+enum animation_type : u8
 {
    Animation_Smooth,
    Animation_Linear,
    
    Animation_Count,
 };
+read_only global char const *AnimationNames[] = { "Smooth", "Linear" };
+StaticAssert(ArrayCount(AnimationNames) == Animation_Count, AllAnimationNamesDefined);
 
 struct curve_animation_state
 {
@@ -481,8 +418,10 @@ struct curve_animation_state
    f32 Blend;
 };
 
-enum curve_combination_type
+enum curve_combination_type : u8
 {
+   CurveCombination_None,
+   
    CurveCombination_Merge,
    CurveCombination_C0,
    CurveCombination_C1,
@@ -491,17 +430,15 @@ enum curve_combination_type
    
    CurveCombination_Count
 };
+read_only global char const *CurveCombinationNames[] = { "None", "Merge", "C0", "C1", "C2", "G1" };
+StaticAssert(ArrayCount(CurveCombinationNames) == CurveCombination_Count, CurveCombinationNamesDefined);
 
 struct curve_combining_state
 {
-   b32 IsCombining;
-   
-   entity *CombineCurveEntity;
-   entity *TargetCurveEntity;
-   
-   b32 CombineCurveLastControlPoint;
-   b32 TargetCurveFirstControlPoint;
-   
+   entity *SourceEntity;
+   entity *WithEntity;
+   b32 SourceCurveLastControlPoint;
+   b32 WithCurveFirstControlPoint;
    curve_combination_type CombinationType;
 };
 
@@ -567,10 +504,7 @@ struct editor
    frame_stats FrameStats;
    render_data RenderData;
    
-   entity EntityBuffer[1024];
-   entity *EntitiesHead;
-   entity *EntitiesTail;
-   u64 EntityCount;
+   entities Entities;
    u64 EntityCounter;
    entity *SelectedEntity;
    

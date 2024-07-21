@@ -20,7 +20,7 @@ struct frame_stats
 // TODO(hbr): get rid of this ugly forward declaration
 struct editor;
 
-internal frame_stats CreateFrameStats(void);
+internal frame_stats MakeFrameStats(void);
 internal void        FrameStatsUpdate(frame_stats *Stats, f32 FrameTime);
 
 internal void DebugUpdateAndRender(editor *Editor);

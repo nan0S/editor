@@ -2,8 +2,8 @@
 internal b32
 IsCurveLooped(curve *Curve)
 {
-   b32 IsLooped = (Curve->CurveParams.CurveShape.InterpolationType == Interpolation_CubicSpline &&
-                   Curve->CurveParams.CurveShape.CubicSplineType   == CubicSpline_Periodic);
+   b32 IsLooped = (Curve->CurveParams.InterpolationType == Interpolation_CubicSpline &&
+                   Curve->CurveParams.CubicSplineType   == CubicSpline_Periodic);
    return IsLooped;
 }
 
@@ -266,11 +266,11 @@ internal void
 EvaluateCurve(curve *Curve, u64 CurvePointCount, v2f32 *CurvePoints)
 {
    temp_arena Temp = TempArena(0);
-   curve_shape *CurveShape = &Curve->CurveParams.CurveShape;
-   switch (CurveShape->InterpolationType)
+   curve_params *CurveParams = &Curve->CurveParams;
+   switch (CurveParams->InterpolationType)
    {
       case Interpolation_Polynomial: {
-         polynomial_interpolation_params *Polynomial = &CurveShape->PolynomialInterpolationParams;
+         polynomial_interpolation_params *Polynomial = &CurveParams->PolynomialInterpolationParams;
          
          f32 *Ti = PushArrayNonZero(Temp.Arena, Curve->ControlPointCount, f32);
          switch (Polynomial->PointsArrangement)
@@ -299,12 +299,12 @@ EvaluateCurve(curve *Curve, u64 CurvePointCount, v2f32 *CurvePoints)
       
       case Interpolation_CubicSpline: {
          CalcCubicSplineCurvePoints(Curve->ControlPoints, Curve->ControlPointCount,
-                                    CurveShape->CubicSplineType,
+                                    CurveParams->CubicSplineType,
                                     CurvePointCount, CurvePoints);
       } break;
       
       case Interpolation_Bezier: {
-         switch (CurveShape->BezierType)
+         switch (CurveParams->BezierType)
          {
             case Bezier_Normal: {
                CalcNormalBezierCurvePoints(Curve->ControlPoints, Curve->ControlPointCount,
@@ -683,7 +683,7 @@ InitEntity(entity *Entity, world_position Position, v2f32 Scale,
    Entity->Rotation = Rotation;
    SetEntityName(Entity, Name);
    Entity->SortingLayer = SortingLayer;
-   Entity->Flags = Flags;
+   Entity->Flags = (Flags | EntityFlag_Active);
 }
 
 internal void

@@ -327,3 +327,182 @@ UI_TextF(char const *Format, ...)
    EndTemp(Temp);
    va_end(Args);
 }
+
+internal not_collapsed_b32
+UI_BeginWindow(b32 *IsOpen, string Label)
+{
+   temp_arena Temp = TempArena(0);
+   string CLabel = CStrFromStr(Temp.Arena, Label);
+   bool IsOpen_ = false;
+   if (IsOpen) IsOpen_ = Cast(bool)(*IsOpen);
+   b32 Result = Cast(b32)ImGui::Begin(CLabel.Data, (IsOpen ? &IsOpen_ : 0), ImGuiWindowFlags_AlwaysAutoResize);
+   if (IsOpen) *IsOpen = Cast(b32)IsOpen_;
+   EndTemp(Temp);
+   
+   return Result;
+}
+
+internal not_collapsed_b32
+UI_BeginWindowF(b32 *IsOpen, char const *Format, ...)
+{
+   temp_arena Temp = TempArena(0);
+   va_list Args;
+   va_start(Args, Format);
+   string Label = StrFV(Temp.Arena, Format, Args);
+   b32 Result = UI_BeginWindow(IsOpen, Label);
+   va_end(Args);
+   EndTemp(Temp);
+   
+   return Result;
+}
+
+internal void UI_EndWindow(void) { ImGui::End(); }
+
+internal not_collapsed_b32
+UI_CollapsingHeader(string Label)
+{
+   temp_arena Temp = TempArena(0);
+   string CLabel = CStrFromStr(Temp.Arena, Label);
+   b32 Result = !(Cast(b32)ImGui::CollapsingHeader(CLabel.Data));
+   EndTemp(Temp);
+   
+   return Result;
+}
+
+internal not_collapsed_b32
+UI_CollapsingHeaderF(char const *Format, ...)
+{
+   temp_arena Temp = TempArena(0);
+   va_list Args;
+   va_start(Args, Format);
+   string Label = StrFV(Temp.Arena, Format, Args);
+   b32 Result = UI_CollapsingHeader(Label);
+   va_end(Args);
+   EndTemp(Temp);
+   
+   return Result;
+}
+
+internal clicked_b32
+UI_SelectableItem(b32 Selected, string Label)
+{
+   temp_arena Temp = TempArena(0);
+   string CLabel = CStrFromStr(Temp.Arena, Label);
+   b32 Result = Cast(b32)ImGui::Selectable(CLabel.Data, Cast(bool)Selected);
+   EndTemp(Temp);
+   
+   return Result;
+}
+
+internal clicked_b32
+UI_SelectableItemF(b32 Selected, char const *Format, ...)
+{
+   temp_arena Temp = TempArena(0);
+   va_list Args;
+   va_start(Args, Format);
+   string Label = StrFV(Temp.Arena, Format, Args);
+   b32 Result = UI_SelectableItem(Selected, Label);
+   va_end(Args);
+   EndTemp(Temp);
+   
+   return Result;
+}
+
+internal void
+UI_OpenPopup(string Label)
+{
+   temp_arena Temp = TempArena(0);
+   string CLabel = CStrFromStr(Temp.Arena, Label);
+   ImGui::OpenPopup(CLabel.Data);
+   EndTemp(Temp);
+}
+
+internal open_b32
+UI_BeginPopup(string Label)
+{
+   temp_arena Temp = TempArena(0);
+   string CLabel = CStrFromStr(Temp.Arena, Label);
+   b32 Result = Cast(b32)ImGui::BeginPopup(CLabel.Data);
+   EndTemp(Temp);
+   
+   return Result;
+}
+
+internal void UI_EndPopup(void) { ImGui::EndPopup(); }
+
+internal b32
+UI_MenuItem(b32 *Selected, char const *Shortcut, string Label)
+{
+   temp_arena Temp = TempArena(0);
+   string CLabel = CStrFromStr(Temp.Arena, Label);
+   bool Selected_ = false;
+   if (Selected) Selected_ = Cast(bool)(*Selected);
+   b32 Result = Cast(b32)ImGui::MenuItem(CLabel.Data, Shortcut, &Selected_);
+   if (Selected) *Selected = Cast(b32)Selected_;
+   EndTemp(Temp);
+   
+   return Result;
+}
+
+internal b32
+UI_MenuItemF(b32 *Selected, char const *Shortcut, char const *Format, ...)
+{
+   temp_arena Temp = TempArena(0);
+   va_list Args;
+   va_start(Args, Format);
+   string Label = StrFV(Temp.Arena, Format, Args);
+   b32 Result = UI_MenuItem(Selected, Shortcut, Label);
+   EndTemp(Temp);
+   
+   return Result;
+}
+
+internal b32
+UI_BeginMainMenuBar(void)
+{
+   b32 Result = Cast(b32)ImGui::BeginMainMenuBar();
+   return Result;
+}
+
+internal void UI_EndMainMenuBar(void)   { ImGui::EndMainMenuBar(); }
+
+internal b32
+UI_BeginMenu(string Label)
+{
+   temp_arena Temp = TempArena(0);
+   string CLabel = CStrFromStr(Temp.Arena, Label);
+   b32 Result = Cast(b32)ImGui::BeginMenu(CLabel.Data);
+   EndTemp(Temp);
+   
+   return Result;
+}
+
+internal b32
+UI_BeginMenuF(char const *Format, ...)
+{
+   temp_arena Temp = TempArena(0);
+   va_list Args;
+   va_start(Args, Format);
+   string Label = StrFV(Temp.Arena, Format, Args);
+   b32 Result = UI_BeginMenu(Label);
+   EndTemp(Temp);
+   
+   return Result;
+}
+
+internal void UI_EndMenu(void) { ImGui::EndMenu(); }
+
+internal b32
+UI_BeginPopupModal(string Label)
+{
+   temp_arena Temp = TempArena(0);
+   string CLabel = CStrFromStr(Temp.Arena, Label);
+   b32 Result = Cast(b32)ImGui::BeginPopupModal(CLabel.Data, 0,
+                                                ImGuiWindowFlags_NoTitleBar |
+                                                ImGuiWindowFlags_AlwaysAutoResize);
+   EndTemp(Temp);
+   
+   return Result;
+}
+
+internal void UI_CloseCurrentPopup(void) { ImGui::CloseCurrentPopup(); }

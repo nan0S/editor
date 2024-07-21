@@ -168,6 +168,7 @@ DONE:
  - replace strcmp, memcpy, memset, memmove
 - maybe move all the things related to rendering into separate struct - things like Window, Projection, ...
 - specify sizes of enums
+- there is a lot of compressing opportunities in [entity] struct, try to compress
 
 Ideas:
 - some kind of locking system - when I want to edit only one curve without

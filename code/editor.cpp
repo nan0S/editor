@@ -1340,22 +1340,25 @@ DuplicateEntity(entity *Entity, editor *Editor)
 
 // NOTE(hbr): This should really be some highly local internal, don't expect to reuse.
 // It's highly specific.
-internal bool
-ResetContextMenuItemSelected(char const *PopupLabel)
+internal b32
+ResetCtxMenu_(string Label)
 {
-   bool ResetSelected = false;
+   b32 Reset = false;
    if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(1))
    {
-      ImGui::OpenPopup(PopupLabel);
+      UI_OpenPopup(Label);
    }
-   if (ImGui::BeginPopup(PopupLabel, ImGuiWindowFlags_NoMove))
+   // NOTE(hbr): Passing Label.Data directly here is ok, because Label is actually
+   // string literal thus is 0-padded.
+   if (ImGui::BeginPopup(Label.Data, ImGuiWindowFlags_NoMove))
    {
-      ImGui::MenuItem("Reset", 0, &ResetSelected);
-      ImGui::EndPopup();
+      Reset = UI_MenuItemF(0, 0, "Reset");
+      UI_EndPopup();
    }
    
-   return ResetSelected;
+   return Reset;
 }
+#define ResetCtxMenu(LabelLit) ResetCtxMenu_(StrLit(LabelLit))
 
 enum change_curve_params_ui_mode
 {
@@ -1396,11 +1399,10 @@ ChangeCurveShapeUIModeSelectedCurve(curve_params *DefaultCurveParams,
    return Result;
 }
 
-internal bool
-RenderChangeCurveParametersUI(char const *PushId,
-                              change_curve_params_ui UIMode)
+internal b32
+RenderChangeCurveParametersUI(char const *PushId, change_curve_params_ui UIMode)
 {
-   bool SomeCurveParameterChanged = false;
+   b32 SomeCurveParamChanged = false;
    
    curve_params DefaultParams = {};
    curve_params *ChangeParams = 0;
@@ -1425,11 +1427,11 @@ RenderChangeCurveParametersUI(char const *PushId,
          curve_shape DefaultCurveShape = DefaultParams.CurveShape;
          curve_shape *CurveShape = &ChangeParams->CurveShape;
          
-         SomeCurveParameterChanged |= Cast(bool)UI_ComboF(&CurveShape->InterpolationType, Interpolation_Count, InterpolationNames, "Interpolation Type");
-         if (ResetContextMenuItemSelected("InterpolationTypeReset"))
+         SomeCurveParamChanged |= UI_ComboF(&CurveShape->InterpolationType, Interpolation_Count, InterpolationNames, "Interpolation Type");
+         if (ResetCtxMenu("InterpolationTypeReset"))
          {
             CurveShape->InterpolationType = DefaultCurveShape.InterpolationType;
-            SomeCurveParameterChanged = true;
+            SomeCurveParamChanged = true;
          }
          
          switch (CurveShape->InterpolationType)
@@ -1437,37 +1439,37 @@ RenderChangeCurveParametersUI(char const *PushId,
             case Interpolation_Polynomial: {
                polynomial_interpolation_params *PolynomialParams = &CurveShape->PolynomialInterpolationParams;
                
-               SomeCurveParameterChanged |= Cast(bool)UI_ComboF(&PolynomialParams->Type, PolynomialInterpolation_Count, PolynomialInterpolationNames, "Polynomial Type");
-               if (ResetContextMenuItemSelected("PolynomialTypeReset"))
+               SomeCurveParamChanged |= UI_ComboF(&PolynomialParams->Type, PolynomialInterpolation_Count, PolynomialInterpolationNames, "Polynomial Type");
+               if (ResetCtxMenu("PolynomialTypeReset"))
                {
                   PolynomialParams->Type = DefaultCurveShape.PolynomialInterpolationParams.Type;
-                  SomeCurveParameterChanged = true;
+                  SomeCurveParamChanged = true;
                }
                
-               SomeCurveParameterChanged |= Cast(bool)UI_ComboF(&PolynomialParams->PointsArrangement, PointsArrangement_Count, PointsArrangementNames, "Points Arrangement");
-               if (ResetContextMenuItemSelected("PointsArrangementReset"))
+               SomeCurveParamChanged |= UI_ComboF(&PolynomialParams->PointsArrangement, PointsArrangement_Count, PointsArrangementNames, "Points Arrangement");
+               if (ResetCtxMenu("PointsArrangementReset"))
                {
                   PolynomialParams->PointsArrangement =
                      DefaultCurveShape.PolynomialInterpolationParams.PointsArrangement;
-                  SomeCurveParameterChanged = true;
+                  SomeCurveParamChanged = true;
                }
             } break;
             
             case Interpolation_CubicSpline: {
-               SomeCurveParameterChanged |= Cast(bool)UI_ComboF(&CurveShape->CubicSplineType, CubicSpline_Count, CubicSplineNames, "Spline Types");
-               if (ResetContextMenuItemSelected("SplineTypeReset"))
+               SomeCurveParamChanged |= UI_ComboF(&CurveShape->CubicSplineType, CubicSpline_Count, CubicSplineNames, "Spline Types");
+               if (ResetCtxMenu("SplineTypeReset"))
                {
                   CurveShape->CubicSplineType = DefaultCurveShape.CubicSplineType;
-                  SomeCurveParameterChanged = true;
+                  SomeCurveParamChanged = true;
                }
             } break;
             
             case Interpolation_Bezier: {
-               SomeCurveParameterChanged |= Cast(bool)UI_ComboF(&CurveShape->BezierType, Bezier_Count, BezierNames, "Bezier Types");
-               if (ResetContextMenuItemSelected("BezierTypeReset"))
+               SomeCurveParamChanged |= UI_ComboF(&CurveShape->BezierType, Bezier_Count, BezierNames, "Bezier Types");
+               if (ResetCtxMenu("BezierTypeReset"))
                {
                   CurveShape->BezierType = DefaultCurveShape.BezierType;
-                  SomeCurveParameterChanged = true;
+                  SomeCurveParamChanged = true;
                }
             } break;
             
@@ -1479,26 +1481,25 @@ RenderChangeCurveParametersUI(char const *PushId,
       UI_SeparatorTextF("Line");
       DeferBlock(UI_PushLabelF("Line"), UI_PopId())
       {
-         SomeCurveParameterChanged |= Cast(bool)UI_ColorPickerF(&ChangeParams->CurveColor, "Color");
-         if (ResetContextMenuItemSelected("CurveColorReset"))
+         SomeCurveParamChanged |= UI_ColorPickerF(&ChangeParams->CurveColor, "Color");
+         if (ResetCtxMenu("CurveColorReset"))
          {
             ChangeParams->CurveColor = DefaultParams.CurveColor;
-            SomeCurveParameterChanged = true;
+            SomeCurveParamChanged = true;
          }
          
-         SomeCurveParameterChanged |= Cast(bool)UI_DragFloatF(&ChangeParams->CurveWidth, 0.0f, FLT_MAX, 0, "Width");
-         if (ResetContextMenuItemSelected("CurveWidthReset"))
+         SomeCurveParamChanged |= UI_DragFloatF(&ChangeParams->CurveWidth, 0.0f, FLT_MAX, 0, "Width");
+         if (ResetCtxMenu("CurveWidthReset"))
          {
             ChangeParams->CurveWidth = DefaultParams.CurveWidth;
-            SomeCurveParameterChanged = true;
+            SomeCurveParamChanged = true;
          }
          
-         SomeCurveParameterChanged |=
-            Cast(bool)UI_SliderIntegerF(&ChangeParams->CurvePointCountPerSegment, 1, 2000, "Detail");
-         if (ResetContextMenuItemSelected("DetailReset"))
+         SomeCurveParamChanged |= UI_SliderIntegerF(&ChangeParams->CurvePointCountPerSegment, 1, 2000, "Detail");
+         if (ResetCtxMenu("DetailReset"))
          {
             ChangeParams->CurvePointCountPerSegment = DefaultParams.CurvePointCountPerSegment;
-            SomeCurveParameterChanged = true;
+            SomeCurveParamChanged = true;
          }
       }
       
@@ -1508,23 +1509,23 @@ RenderChangeCurveParametersUI(char const *PushId,
       DeferBlock(UI_PushLabelF("ControlPoints"), UI_PopId())
       {
          UI_CheckboxF(&ChangeParams->PointsDisabled, "Points Disabled");
-         if (ResetContextMenuItemSelected("PointsDisabledReset"))
+         if (ResetCtxMenu("PointsDisabledReset"))
          {
             ChangeParams->PointsDisabled= DefaultParams.PointsDisabled;
          }
          
-         SomeCurveParameterChanged |= Cast(bool)UI_ColorPickerF(&ChangeParams->PointColor, "Color");
-         if (ResetContextMenuItemSelected("PointColorReset"))
+         SomeCurveParamChanged |= UI_ColorPickerF(&ChangeParams->PointColor, "Color");
+         if (ResetCtxMenu("PointColorReset"))
          {
             ChangeParams->PointColor = DefaultParams.PointColor;
-            SomeCurveParameterChanged = true;
+            SomeCurveParamChanged = true;
          }
          
-         SomeCurveParameterChanged |= Cast(bool)UI_DragFloatF(&ChangeParams->PointSize, 0.0f, FLT_MAX, 0, "Size");
-         if (ResetContextMenuItemSelected("PointSizeReset"))
+         SomeCurveParamChanged |= UI_DragFloatF(&ChangeParams->PointSize, 0.0f, FLT_MAX, 0, "Size");
+         if (ResetCtxMenu("PointSizeReset"))
          {
             ChangeParams->PointSize = DefaultParams.PointSize;
-            SomeCurveParameterChanged = true;
+            SomeCurveParamChanged = true;
          }
          
          {
@@ -1536,7 +1537,7 @@ RenderChangeCurveParametersUI(char const *PushId,
                   UI_DragFloatF(UIMode.DefaultControlPointWeight,
                                 ControlPointMinWeight, ControlPointMaxWeight,
                                 0, "Point Weight");
-                  if (ResetContextMenuItemSelected("DefaultControlPointWeightReset"))
+                  if (ResetCtxMenu("DefaultControlPointWeightReset"))
                   {
                      *UIMode.DefaultControlPointWeight = CURVE_DEFAULT_CONTROL_POINT_WEIGHT;
                   }
@@ -1562,11 +1563,10 @@ RenderChangeCurveParametersUI(char const *PushId,
                         Fmt(ArrayCount(ControlPointWeightLabel), ControlPointWeightLabel,
                             "Selected Point (%llu)", SelectedControlPointIndex);
                         
-                        SomeCurveParameterChanged |=
-                           Cast(bool)UI_DragFloatF(&ControlPointWeights[SelectedControlPointIndex],
-                                                   ControlPointMinWeight, ControlPointMaxWeight,
-                                                   0, ControlPointWeightLabel);
-                        if (ResetContextMenuItemSelected("SelectedPointWeightReset"))
+                        SomeCurveParamChanged |= UI_DragFloatF(&ControlPointWeights[SelectedControlPointIndex],
+                                                               ControlPointMinWeight, ControlPointMaxWeight,
+                                                               0, ControlPointWeightLabel);
+                        if (ResetCtxMenu("SelectedPointWeightReset"))
                         {
                            ControlPointWeights[SelectedControlPointIndex] = DefaultControlPointWeight;
                         }
@@ -1586,11 +1586,10 @@ RenderChangeCurveParametersUI(char const *PushId,
                               Fmt(ArrayCount(ControlPointWeightLabel), ControlPointWeightLabel,
                                   "Point (%llu)", ControlPointIndex);
                               
-                              SomeCurveParameterChanged |=
-                                 Cast(bool)UI_DragFloatF(&ControlPointWeights[ControlPointIndex],
-                                                         ControlPointMinWeight, ControlPointMaxWeight,
-                                                         0, ControlPointWeightLabel);
-                              if (ResetContextMenuItemSelected("PointWeightReset"))
+                              SomeCurveParamChanged |= UI_DragFloatF(&ControlPointWeights[ControlPointIndex],
+                                                                     ControlPointMinWeight, ControlPointMaxWeight,
+                                                                     0, ControlPointWeightLabel);
+                              if (ResetCtxMenu("PointWeightReset"))
                               {
                                  ControlPointWeights[ControlPointIndex] = DefaultControlPointWeight;
                               }
@@ -1607,7 +1606,7 @@ RenderChangeCurveParametersUI(char const *PushId,
              ChangeParams->CurveShape.BezierType == Bezier_Cubic)
          {
             UI_CheckboxF(&ChangeParams->CubicBezierHelpersDisabled, "Helpers Disabled");
-            if (ResetContextMenuItemSelected("HelpersDisabledReset"))
+            if (ResetCtxMenu("HelpersDisabledReset"))
             {
                ChangeParams->CubicBezierHelpersDisabled = DefaultParams.CubicBezierHelpersDisabled;
             }
@@ -1619,23 +1618,23 @@ RenderChangeCurveParametersUI(char const *PushId,
       DeferBlock(UI_PushLabelF("Polyline"), UI_PopId())
       {
          UI_CheckboxF(&ChangeParams->PolylineEnabled, "Enabled");
-         if (ResetContextMenuItemSelected("PolylineEnabled"))
+         if (ResetCtxMenu("PolylineEnabled"))
          {
             ChangeParams->PolylineEnabled = DefaultParams.PolylineEnabled;
          }
          
-         SomeCurveParameterChanged |= Cast(bool)UI_ColorPickerF(&ChangeParams->PolylineColor, "Color");
-         if (ResetContextMenuItemSelected("PolylineColorReset"))
+         SomeCurveParamChanged |= UI_ColorPickerF(&ChangeParams->PolylineColor, "Color");
+         if (ResetCtxMenu("PolylineColorReset"))
          {
             ChangeParams->PolylineColor = DefaultParams.PolylineColor;
-            SomeCurveParameterChanged = true;
+            SomeCurveParamChanged = true;
          }
          
-         SomeCurveParameterChanged |= Cast(bool)UI_DragFloatF(&ChangeParams->PolylineWidth, 0.0f, FLT_MAX, 0, "Width");
-         if (ResetContextMenuItemSelected("PolylineWidthReset"))
+         SomeCurveParamChanged |= UI_DragFloatF(&ChangeParams->PolylineWidth, 0.0f, FLT_MAX, 0, "Width");
+         if (ResetCtxMenu("PolylineWidthReset"))
          {
             ChangeParams->PolylineWidth = DefaultParams.PolylineWidth;
-            SomeCurveParameterChanged = true;
+            SomeCurveParamChanged = true;
          }
       }
       
@@ -1644,23 +1643,23 @@ RenderChangeCurveParametersUI(char const *PushId,
       DeferBlock(UI_PushLabelF("ConvexHull"), UI_PopId())
       {
          UI_CheckboxF(&ChangeParams->ConvexHullEnabled, "Enabled");
-         if (ResetContextMenuItemSelected("ConvexHullEnabledReset"))
+         if (ResetCtxMenu("ConvexHullEnabledReset"))
          {
             ChangeParams->ConvexHullEnabled = DefaultParams.ConvexHullEnabled;
          }
          
-         SomeCurveParameterChanged |= Cast(bool)UI_ColorPickerF(&ChangeParams->ConvexHullColor, "Color");
-         if (ResetContextMenuItemSelected("ConvexHullColorReset"))
+         SomeCurveParamChanged |= UI_ColorPickerF(&ChangeParams->ConvexHullColor, "Color");
+         if (ResetCtxMenu("ConvexHullColorReset"))
          {
             ChangeParams->ConvexHullColor = DefaultParams.ConvexHullColor;
-            SomeCurveParameterChanged = true;
+            SomeCurveParamChanged = true;
          }
          
-         SomeCurveParameterChanged |= Cast(bool)UI_DragFloatF(&ChangeParams->ConvexHullWidth, 0.0f, FLT_MAX, 0, "Width");
-         if (ResetContextMenuItemSelected("ConvexHullWidthReset"))
+         SomeCurveParamChanged |= UI_DragFloatF(&ChangeParams->ConvexHullWidth, 0.0f, FLT_MAX, 0, "Width");
+         if (ResetCtxMenu("ConvexHullWidthReset"))
          {
             ChangeParams->ConvexHullWidth = DefaultParams.ConvexHullWidth;
-            SomeCurveParameterChanged = true;
+            SomeCurveParamChanged = true;
          }
       }
       
@@ -1692,18 +1691,18 @@ RenderChangeCurveParametersUI(char const *PushId,
                UI_SeparatorTextF("De Casteljau's Visualization");
                DeferBlock(UI_PushLabelF("DeCasteljauVisual"), UI_PopId())
                {
-                  SomeCurveParameterChanged |= Cast(bool)UI_ColorPickerF(&ChangeParams->DeCasteljau.GradientA, "Gradient A");
-                  if (ResetContextMenuItemSelected("DeCasteljauVisualGradientAReset"))
+                  SomeCurveParamChanged |= UI_ColorPickerF(&ChangeParams->DeCasteljau.GradientA, "Gradient A");
+                  if (ResetCtxMenu("DeCasteljauVisualGradientAReset"))
                   {
                      ChangeParams->DeCasteljau.GradientA = DefaultParams.DeCasteljau.GradientA;
-                     SomeCurveParameterChanged = true;
+                     SomeCurveParamChanged = true;
                   }
                   
-                  SomeCurveParameterChanged |= Cast(bool)UI_ColorPickerF(&ChangeParams->DeCasteljau.GradientB, "Gradient B");
-                  if (ResetContextMenuItemSelected("DeCasteljauVisualGradientBReset"))
+                  SomeCurveParamChanged |= UI_ColorPickerF(&ChangeParams->DeCasteljau.GradientB, "Gradient B");
+                  if (ResetCtxMenu("DeCasteljauVisualGradientBReset"))
                   {
                      ChangeParams->DeCasteljau.GradientB = DefaultParams.DeCasteljau.GradientB;
-                     SomeCurveParameterChanged = true;
+                     SomeCurveParamChanged = true;
                   }
                }
             } break;
@@ -1714,7 +1713,7 @@ RenderChangeCurveParametersUI(char const *PushId,
       }
    }
    
-   return SomeCurveParameterChanged;
+   return SomeCurveParamChanged;
 }
 
 // TODO(hbr): Probably use initialize list here and below
@@ -2011,16 +2010,11 @@ RenderSelectedEntityUI(editor *Editor)
 {
    entity *Entity = Editor->SelectedEntity;
    Assert(Entity);
-   
    DeferBlock(UI_PushLabelF("SelectedEntity"), UI_PopId())
    {
-      bool ViewWindow = Cast(bool)Editor->UI_Config.ViewSelectedEntityWindow;
-      DeferBlock(ImGui::Begin("Entity Parameters", &ViewWindow, ImGuiWindowFlags_AlwaysAutoResize),
-                 ImGui::End())
+      if (Editor->UI_Config.ViewSelectedEntityWindow)
       {
-         Editor->UI_Config.ViewSelectedEntityWindow = Cast(b32)ViewWindow;
-         
-         if (ViewWindow)
+         if (UI_BeginWindowF(&Editor->UI_Config.ViewSelectedEntityWindow, "Entity Parameters"))
          {
             curve *Curve = 0;
             image *Image = 0;
@@ -2041,14 +2035,14 @@ RenderSelectedEntityUI(editor *Editor)
             if (Curve)
             {
                UI_DragFloat2F(Entity->Position.Es, 0.0f, 0.0f, 0, "Position");
-               if (ResetContextMenuItemSelected("PositionReset"))
+               if (ResetCtxMenu("PositionReset"))
                {
                   Entity->Position = V2F32(0.0f, 0.0f);
                }
             }
             
             UI_AngleSliderF(&Entity->Rotation, "Rotation");
-            if (ResetContextMenuItemSelected("RotationReset"))
+            if (ResetCtxMenu("RotationReset"))
             {
                Entity->Rotation = Rotation2DZero();
             }
@@ -2062,19 +2056,19 @@ RenderSelectedEntityUI(editor *Editor)
                f32 ImageScale = 1.0f;
                
                UI_DragFloatF(&ImageWidth, 0.0f, 0.0f, 0, "Width");
-               if (ResetContextMenuItemSelected("WidthReset"))
+               if (ResetCtxMenu("WidthReset"))
                {
                   ImageWidth = Cast(f32)ImageTextureSize.x;
                }
                
                UI_DragFloatF(&ImageHeight, 0.0f, 0.0f, 0, "Height");
-               if (ResetContextMenuItemSelected("HeightReset"))
+               if (ResetCtxMenu("HeightReset"))
                {
                   ImageHeight = Cast(f32)ImageTextureSize.y;
                }
                
                UI_DragFloatF(&ImageScale, 0.0f, FLT_MAX, "Drag Me!", "Scale");
-               if (ResetContextMenuItemSelected("ScaleReset"))
+               if (ResetCtxMenu("ScaleReset"))
                {
                   ImageWidth = Cast(f32)ImageTextureSize.x;
                   ImageHeight = Cast(f32)ImageTextureSize.y;
@@ -2086,12 +2080,12 @@ RenderSelectedEntityUI(editor *Editor)
             }
             
             UI_SliderIntegerF(&Entity->SortingLayer, -100, 100, "Sorting Layer");
-            if (ResetContextMenuItemSelected("SortingLayerReset"))
+            if (ResetCtxMenu("SortingLayerReset"))
             {
                Entity->SortingLayer = 0;
             }
             
-            bool SomeCurveParameterChanged = false;
+            b32 SomeCurveParamChanged = false;
             if (Curve)
             {
                change_curve_params_ui UIMode =
@@ -2099,7 +2093,7 @@ RenderSelectedEntityUI(editor *Editor)
                                                       &Editor->Params.DefaultControlPointWeight,
                                                       Curve);
                UI_NewRow();
-               SomeCurveParameterChanged |= RenderChangeCurveParametersUI("SelectedCurveShape", UIMode);
+               SomeCurveParamChanged |= RenderChangeCurveParametersUI("SelectedCurveShape", UIMode);
             }
             
             b32 Delete                        = false;
@@ -2137,9 +2131,7 @@ RenderSelectedEntityUI(editor *Editor)
                   // TODO(hbr): Maybe pick better name than "Combine"
                   CombineCurve = UI_ButtonF("Combine");
                   
-                  DeferBlock(ImGui::BeginDisabled(Curve->SelectedControlPointIndex >=
-                                                  Curve->ControlPointCount),
-                             ImGui::EndDisabled())
+                  UI_Disabled(Curve->SelectedControlPointIndex >= Curve->ControlPointCount)
                   {
                      UI_SameRow();
                      SplitOnControlPoint = UI_ButtonF("Split on Control Point");
@@ -2151,25 +2143,19 @@ RenderSelectedEntityUI(editor *Editor)
                    (CurveParams->CurveShape.BezierType == Bezier_Normal ||
                     CurveParams->CurveShape.BezierType == Bezier_Weighted));
                   
-                  DeferBlock(ImGui::BeginDisabled(!IsBezierNormalOrWeighted),
-                             ImGui::EndDisabled())
+                  UI_Disabled(!IsBezierNormalOrWeighted)
                   {
-                     DeferBlock(ImGui::BeginDisabled(Curve->ControlPointCount < 2),
-                                ImGui::EndDisabled())
+                     UI_Disabled(Curve->ControlPointCount < 2)
                      {
                         UI_SameRow();
                         SplitBezierCurve = UI_ButtonF("Split");
                      }
-                     
                      ElevateBezierCurve = UI_ButtonF("Elevate Degree");
-                     
-                     DeferBlock(ImGui::BeginDisabled(Curve->ControlPointCount == 0),
-                                ImGui::EndDisabled())
+                     UI_Disabled(Curve->ControlPointCount == 0)
                      {
                         UI_SameRow();
                         LowerBezierCurve = UI_ButtonF("Lower Degree");
                      }
-                     
                      VisualizeDeCasteljauAlgorithm = UI_ButtonF("Visualize De Casteljau's Algorithm");
                   }
                }
@@ -2235,11 +2221,12 @@ RenderSelectedEntityUI(editor *Editor)
                SplitCurveOnControlPoint(Entity, Editor);
             }
             
-            if (SomeCurveParameterChanged)
+            if (SomeCurveParamChanged)
             {
                RecomputeCurve(Entity);
             }
          }
+         UI_EndWindow();
       }
    }
 }
@@ -2255,25 +2242,25 @@ RenderUIForRenderPointData(char const *Label,
    DeferBlock(UI_PushLabelF(Label), UI_PopId())
    {      
       UI_DragFloatF(&RenderPointData->RadiusClipSpace, 0.0f, FLT_MAX, 0, "Radius");
-      if (ResetContextMenuItemSelected("RadiusReset"))
+      if (ResetCtxMenu("RadiusReset"))
       {
          RenderPointData->RadiusClipSpace = DefaultRadiusClipSpace;
       }
       
       UI_DragFloatF(&RenderPointData->OutlineThicknessFraction, 0.0f, 1.0f, 0, "Outline Thickness");
-      if (ResetContextMenuItemSelected("OutlineThicknessReset"))
+      if (ResetCtxMenu("OutlineThicknessReset"))
       {
          RenderPointData->OutlineThicknessFraction = DefaultOutlineThicknessFraction;
       }
       
       UI_ColorPickerF(&RenderPointData->FillColor, "Fill Color");
-      if (ResetContextMenuItemSelected("FillColorReset"))
+      if (ResetCtxMenu("FillColorReset"))
       {
          RenderPointData->FillColor = DefaultFillColor;
       }
       
       UI_ColorPickerF(&RenderPointData->OutlineColor, "Outline Color");
-      if (ResetContextMenuItemSelected("OutlineColorReset"))
+      if (ResetCtxMenu("OutlineColorReset"))
       {
          RenderPointData->OutlineColor = DefaultOutlineColor;
       }
@@ -2425,13 +2412,6 @@ UpdateAndRenderNotifications(editor *Editor, f32 DeltaTime)
 internal void
 RenderListOfEntitiesEntityRow(entity *Entity, editor *Editor)
 {
-   bool Deselect       = false;
-   bool Delete         = false;
-   bool Copy           = false;
-   bool SwitchVisility = false;
-   bool Rename         = false;
-   bool Focus          = false;
-   
    if (Entity->RenamingFrame)
    {
       // TODO(hbr): Remove this Cast
@@ -2458,7 +2438,7 @@ RenderListOfEntitiesEntityRow(entity *Entity, editor *Editor)
    {
       b32 Selected = (Entity->Flags & EntityFlag_Selected);
       
-      if (ImGui::Selectable(Entity->Name.Data, Selected))
+      if (UI_SelectableItem(Selected, Entity->Name))
       {
          SelectEntity(Editor, Entity);
       }
@@ -2470,106 +2450,95 @@ RenderListOfEntitiesEntityRow(entity *Entity, editor *Editor)
          Entity->RenamingFrame = ImGui::GetFrameCount() + 1;
       }
       
-      local char const *ContextMenuLabel = "EntityContextMenu";
+      string CtxMenu = StrLit("EntityContextMenu");
       if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(1))
       {
-         ImGui::OpenPopup(ContextMenuLabel);
+         UI_OpenPopup(CtxMenu);
       }
-      if (ImGui::BeginPopup(ContextMenuLabel))
+      if (UI_BeginPopup(CtxMenu))
       {
-         ImGui::MenuItem("Rename", 0, &Rename);
-         ImGui::MenuItem("Delete", 0, &Delete);
-         ImGui::MenuItem("Copy", 0, &Copy);
-         ImGui::MenuItem((Entity->Flags & EntityFlag_Hidden) ? "Show" : "Hide", 0, &SwitchVisility);
-         if (Selected) ImGui::MenuItem("Deselect", 0, &Deselect);
-         ImGui::MenuItem("Focus", 0, &Focus);
+         if (UI_MenuItemF(0, 0, "Rename"))
+         {
+            Entity->RenamingFrame = ImGui::GetFrameCount() + 1;
+         }
          
-         ImGui::EndPopup();
+         if (UI_MenuItemF(0, 0, "Delete"))
+         {
+            DeallocEntity(Editor, Entity);
+         }
+         
+         if (UI_MenuItemF(0, 0, "Copy"))
+         {
+            DuplicateEntity(Entity, Editor);
+         }
+         
+         if (UI_MenuItemF(0, 0, (Entity->Flags & EntityFlag_Hidden) ? "Show" : "Hide"))
+         {
+            Entity->Flags ^= EntityFlag_Hidden;
+         }
+         
+         UI_Disabled(!Selected)
+         {
+            if (UI_MenuItemF(0, 0, "Deselect"))
+            {
+               DeselectCurrentEntity(Editor);
+            }
+         }
+         
+         if (UI_MenuItemF(0, 0, "Focus"))
+         {
+            FocusCameraOnEntity(Editor, Entity);
+         }
+         
+         UI_EndPopup();
       }
-   }
-   
-   if (Rename)
-   {
-      Entity->RenamingFrame = ImGui::GetFrameCount() + 1;
-   }
-   
-   if (Delete)
-   {
-      DeallocEntity(Editor, Entity);
-   }
-   
-   if (Copy)
-   {
-      DuplicateEntity(Entity, Editor);
-   }
-   
-   if (SwitchVisility)
-   {
-      Entity->Flags ^= EntityFlag_Hidden;
-   }
-   
-   if (Deselect)
-   {
-      DeselectCurrentEntity(Editor);
-   }
-   
-   if (Focus)
-   {
-      FocusCameraOnEntity(Editor, Entity);
    }
 }
 
 internal void
 RenderListOfEntitiesWindow(editor *Editor)
 {
-   bool ViewWindow = Cast(bool)Editor->UI_Config.ViewListOfEntitiesWindow;
-   
-   ImGui::Begin("Entities", &ViewWindow);
-   Editor->UI_Config.ViewListOfEntitiesWindow = Cast(b32)ViewWindow;
-   
-   if (ViewWindow)
+   ui_config *Config = &Editor->UI_Config;
+   if (Config->ViewListOfEntitiesWindow)
    {
-      local ImGuiTreeNodeFlags CollapsingHeaderFlags = ImGuiTreeNodeFlags_DefaultOpen;
-      
-      if (ImGui::CollapsingHeader("Curves", CollapsingHeaderFlags))
+      if (UI_BeginWindowF(&Config->ViewListOfEntitiesWindow, "Entities"))
       {
-         UI_PushLabelF("CurveEntities");
-         u64 CurveIndex = 0;
-         ListIter(Entity, Editor->EntitiesHead, entity)
+         if (UI_CollapsingHeaderF("Curves"))
          {
-            if (Entity->Type == Entity_Curve)
+            UI_PushLabelF("CurveEntities");
+            u64 CurveIndex = 0;
+            ListIter(Entity, Editor->EntitiesHead, entity)
             {
-               UI_PushId(CurveIndex);
-               RenderListOfEntitiesEntityRow(Entity, Editor);
-               UI_PopId();
-               CurveIndex += 1;
+               if (Entity->Type == Entity_Curve)
+               {
+                  UI_PushId(CurveIndex);
+                  RenderListOfEntitiesEntityRow(Entity, Editor);
+                  UI_PopId();
+                  CurveIndex += 1;
+               }
             }
-         }
-         UI_PopId();
-      }
-      
-      ImGui::Spacing();
-      if (ImGui::CollapsingHeader("Images", CollapsingHeaderFlags))
-      {
-         UI_PushLabelF("ImageEntities");
-         
-         u64 ImageIndex = 0;
-         ListIter(Entity, Editor->EntitiesHead, entity)
-         {
-            if (Entity->Type == Entity_Image)
-            {
-               UI_PushId(ImageIndex);
-               RenderListOfEntitiesEntityRow(Entity, Editor);
-               UI_PopId();
-               ImageIndex += 1;
-            }
+            UI_PopId();
          }
          
-         UI_PopId();
+         if (UI_CollapsingHeaderF("Images"))
+         {
+            UI_PushLabelF("ImageEntities");
+            u64 ImageIndex = 0;
+            ListIter(Entity, Editor->EntitiesHead, entity)
+            {
+               if (Entity->Type == Entity_Image)
+               {
+                  UI_PushId(ImageIndex);
+                  RenderListOfEntitiesEntityRow(Entity, Editor);
+                  UI_PopId();
+                  ImageIndex += 1;
+               }
+            }
+            UI_PopId();
+         }
       }
+      UI_EndWindow();
    }
-   
-   ImGui::End();
 }
 
 // TODO(hbr): Get rid of this, this is a stub
@@ -2586,30 +2555,21 @@ SaveProjectInFormat(arena *Arena,
 internal void
 UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
 {
-   bool NewProjectSelected = false;
-   bool OpenProjectSelected = false;
-   bool QuitEditorSelected = false;
-   bool SaveProjectSelected = false;
-   bool SaveProjectAsSelected = false;
-   bool LoadImage = false;
-   
-   bool ResetCameraPositionSelected = false;
-   bool ResetCameraRotationSelected = false;
-   bool ResetCameraZoomSelected = false;
+   b32 NewProject    = false;
+   b32 OpenProject   = false;
+   b32 Quit          = false;
+   b32 SaveProject   = false;
+   b32 SaveProjectAs = false;
+   b32 LoadImage     = false;
    
    local char const *SaveAsLabel = "SaveAsWindow";
    local char const *SaveAsTitle = "Save As";
-   local char const *ConfirmCloseCurrentProjectLabel = "ConfirmCloseCurrentProject";
    local char const *OpenNewProjectLabel = "OpenNewProject";
    local char const *OpenNewProjectTitle = "Open";
    local char const *LoadImageLabel = "LoadImage";
    local char const *LoadImageTitle = "Load Image";
    
-   local ImGuiWindowFlags ConfirmCloseWindowFlags =
-      ImGuiWindowFlags_NoTitleBar |
-      ImGuiWindowFlags_AlwaysAutoResize;
-   local ImGuiWindowFlags FileDialogWindowFlags =
-      ImGuiWindowFlags_NoCollapse;
+   local ImGuiWindowFlags FileDialogWindowFlags = ImGuiWindowFlags_NoCollapse;
    
    sf::Vector2u WindowSize = Editor->RenderData.Window->getSize();
    ImVec2 HalfWindowSize = ImVec2(0.5f * WindowSize.x, 0.5f * WindowSize.y);
@@ -2618,105 +2578,91 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
    
    auto FileDialog = ImGuiFileDialog::Instance();
    
-   if (ImGui::BeginMainMenuBar())
+   if (UI_BeginMainMenuBar())
    {
-      if (ImGui::BeginMenu("Project"))
+      if (UI_BeginMenuF("Project"))
       {
-         ImGui::MenuItem("New",     "Ctrl+N",       &NewProjectSelected);
-         ImGui::MenuItem("Open",    "Ctrl+O",       &OpenProjectSelected);
-         ImGui::MenuItem("Save",    "Ctrl+S",       &SaveProjectSelected);
-         ImGui::MenuItem("Save As", "Shift+Ctrl+S", &SaveProjectAsSelected);
-         ImGui::MenuItem("Quit",    "Q/Escape",     &QuitEditorSelected);
-         
-         ImGui::EndMenu();
+         NewProject    = UI_MenuItemF(0, 0, "Ctrl+N",       "New");
+         OpenProject   = UI_MenuItemF(0, 0, "Ctrl+O",       "Open");
+         SaveProject   = UI_MenuItemF(0, 0, "Ctrl+S",       "Save");
+         SaveProjectAs = UI_MenuItemF(0, 0, "Shift+Ctrl+S", "Save As");
+         Quit          = UI_MenuItemF(0, 0, "Q/Escape",     "Quit");
+         UI_EndMenu();
       }
       
-      ImGui::MenuItem("Load Image", 0, &LoadImage);
+      LoadImage = UI_MenuItemF(0, 0, "Load Image");
       
-      if (ImGui::BeginMenu("View"))
+      if (UI_BeginMenuF("View"))
       {
-         if (ImGui::MenuItem("List of Entities", 0,
-                             Cast(bool)Editor->UI_Config.ViewListOfEntitiesWindow))
-         {
-            Editor->UI_Config.ViewListOfEntitiesWindow = !Editor->UI_Config.ViewListOfEntitiesWindow;
-         }
+         ui_config *Config = &Editor->UI_Config;
          
-         if (ImGui::MenuItem("Selected Entity", 0,
-                             Cast(bool)Editor->UI_Config.ViewSelectedEntityWindow))
-         {
-            Editor->UI_Config.ViewSelectedEntityWindow = !Editor->UI_Config.ViewSelectedEntityWindow;
-         }
-         
-         if (ImGui::MenuItem("Parameters", 0,
-                             Cast(bool)Editor->UI_Config.ViewParametersWindow))
-         {
-            Editor->UI_Config.ViewParametersWindow = !Editor->UI_Config.ViewParametersWindow;
-         }
-         
+         UI_MenuItemF(&Config->ViewListOfEntitiesWindow, 0, "List of Entities");
+         UI_MenuItemF(&Config->ViewSelectedEntityWindow, 0, "Selected Entity");
+         UI_MenuItemF(&Config->ViewParametersWindow,     0, "Parameters");
+         // TODO(hbr): Probably get rid of this #ifs
 #if EDITOR_PROFILER
-         if (ImGui::MenuItem("Profiler", 0,
-                             Cast(bool)Editor->UI_Config.ViewProfilerWindow))
-         {
-            Editor->UI_Config.ViewProfilerWindow = !Editor->UI_Config.ViewProfilerWindow;
-         }
+         UI_MenuItemF(&Config->ViewProfilerWindow,       0, "Profiler");
 #endif
-         
 #if BUILD_DEBUG
-         if (ImGui::MenuItem("Debug", 0,
-                             Cast(bool)Editor->UI_Config.ViewDebugWindow))
-         {
-            Editor->UI_Config.ViewDebugWindow = !Editor->UI_Config.ViewDebugWindow;
-         }
+         UI_MenuItemF(&Config->ViewDebugWindow,          0, "Debug");
 #endif
          
-         if (ImGui::BeginMenu("Camera"))
+         if (UI_BeginMenuF("Camera"))
          {
-            ImGui::MenuItem("Reset Position", 0, &ResetCameraPositionSelected);
-            ImGui::MenuItem("Reset Rotation", 0, &ResetCameraRotationSelected);
-            ImGui::MenuItem("Reset Zoom", 0, &ResetCameraZoomSelected);
+            camera *Camera = &Editor->RenderData.Camera;
             
-            ImGui::EndMenu();
+            if (UI_MenuItemF(0, 0, "Reset Position"))
+            {
+               CameraMove(Camera, -Camera->Position);
+            }
+            
+            if (UI_MenuItemF(0, 0, "Reset Rotation"))
+            {
+               CameraRotate(Camera, Rotation2DInverse(Camera->Rotation));
+            }
+            
+            if (UI_MenuItemF(0, 0, "Reset Zoom"))
+            {
+               CameraSetZoom(Camera, 1.0f);
+            }
+            
+            UI_EndMenu();
          }
          
-         if (ImGui::MenuItem("Diagnostics", 0,
-                             Cast(bool)Editor->UI_Config.ViewDiagnosticsWindow))
-         {
-            Editor->UI_Config.ViewDiagnosticsWindow = !Editor->UI_Config.ViewDiagnosticsWindow;
-         }
+         UI_MenuItemF(&Config->ViewDiagnosticsWindow, 0, "Diagnostics");
          
-         ImGui::EndMenu();
+         UI_EndMenu();
       }
       
       // TODO(hbr): Complete help menu
-      if (ImGui::BeginMenu("Help"))
+      if (UI_BeginMenuF("Help"))
       {
-         ImGui::EndMenu();
+         UI_EndMenu();
       }
       
-      ImGui::EndMainMenuBar();
+      UI_EndMainMenuBar();
    }
    
-   if (NewProjectSelected || PressedWithKey(Input->Keys[Key_N], Modifier_Ctrl))
+   string ConfirmCloseProject = StrLit("ConfirmCloseCurrentProject");
+   if (NewProject || PressedWithKey(Input->Keys[Key_N], Modifier_Ctrl))
    {
-      ImGui::OpenPopup(ConfirmCloseCurrentProjectLabel);
+      UI_OpenPopup(ConfirmCloseProject);
       Editor->ActionWaitingToBeDone = ActionToDo_NewProject;
    }
-   
-   if (OpenProjectSelected || PressedWithKey(Input->Keys[Key_O], Modifier_Ctrl))
+   if (OpenProject || PressedWithKey(Input->Keys[Key_O], Modifier_Ctrl))
    {
-      ImGui::OpenPopup(ConfirmCloseCurrentProjectLabel);
+      UI_OpenPopup(ConfirmCloseProject);
       Editor->ActionWaitingToBeDone = ActionToDo_OpenProject;
    }
-   
-   if (QuitEditorSelected ||
+   if (Quit ||
        PressedWithKey(Input->Keys[Key_Q], 0) ||
        PressedWithKey(Input->Keys[Key_ESC], 0))
    {
-      ImGui::OpenPopup(ConfirmCloseCurrentProjectLabel);
+      UI_OpenPopup(ConfirmCloseProject);
       Editor->ActionWaitingToBeDone = ActionToDo_Quit;
    }
    
-   if (SaveProjectSelected || PressedWithKey(Input->Keys[Key_S], Modifier_Ctrl))
+   if (SaveProject || PressedWithKey(Input->Keys[Key_S], Modifier_Ctrl))
    {
       if (IsValid(Editor->ProjectSavePath))
       {
@@ -2747,8 +2693,8 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
       }
    }
    
-   if (SaveProjectAsSelected || PressedWithKey(Input->Keys[Key_S],
-                                               Modifier_Ctrl | Modifier_Shift))
+   if (SaveProjectAs || PressedWithKey(Input->Keys[Key_S],
+                                       Modifier_Ctrl | Modifier_Shift))
    {
       FileDialog->OpenModal(SaveAsLabel, SaveAsTitle,
                             SAVE_AS_MODAL_EXTENSION_SELECTION,
@@ -2762,39 +2708,18 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
                             ".");
    }
    
-   {
-      camera *Camera = &Editor->RenderData.Camera;
-      if (ResetCameraPositionSelected)
-      {
-         CameraMove(Camera, -Camera->Position);
-      }
-      if (ResetCameraRotationSelected)
-      {
-         CameraRotate(Camera, Rotation2DInverse(Camera->Rotation));
-      }
-      if (ResetCameraZoomSelected)
-      {
-         CameraSetZoom(Camera, 1.0f);
-      }
-   }
-   
    action_to_do ActionToDo = ActionToDo_Nothing;
-   
    // NOTE(hbr): Open "Are you sure you want to exit?" popup
    {   
       // NOTE(hbr): Center window.
       ImGui::SetNextWindowPos(HalfWindowSize, ImGuiCond_Always, ImVec2(0.5f,0.5f));
-      if (ImGui::BeginPopupModal(ConfirmCloseCurrentProjectLabel,
-                                 0, ConfirmCloseWindowFlags))
+      if (UI_BeginPopupModal(ConfirmCloseProject))
       {
          UI_TextF("You are about to discard current project. Save it?");
          ImGui::Separator();
-         
-         bool Yes = UI_ButtonF("Yes");
-         UI_SameRow();
-         bool No = UI_ButtonF("No");
-         UI_SameRow();
-         bool Cancel = UI_ButtonF("Cancel");
+         b32 Yes    = UI_ButtonF("Yes"); UI_SameRow();
+         b32 No     = UI_ButtonF("No"); UI_SameRow();
+         b32 Cancel = UI_ButtonF("Cancel");
          
          if (Yes || No)
          {
@@ -2847,9 +2772,11 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
          }
          
          if (Yes || No || Cancel)
-            ImGui::CloseCurrentPopup();
+         {
+            UI_CloseCurrentPopup();
+         }
          
-         ImGui::EndPopup();
+         UI_EndPopup();
       }
    }
    
@@ -3100,150 +3027,112 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
 }
 
 internal void
-RenderParamtersWindow(editor *Editor)
+RenderSettingsWindow(editor *Editor)
 {
-   bool ViewParametersWindowAsBool = Editor->UI_Config.ViewParametersWindow;
-   DeferBlock(ImGui::Begin("Parameters", &ViewParametersWindowAsBool,
-                           ImGuiWindowFlags_AlwaysAutoResize),
-              ImGui::End())
+   ui_config *Config = &Editor->UI_Config;
+   editor_params *Params = &Editor->Params;
+   if (Config->ViewParametersWindow)
    {
-      Editor->UI_Config.ViewParametersWindow = Cast(b32)ViewParametersWindowAsBool;
-      
-      if (Editor->UI_Config.ViewParametersWindow)
-      {   
-         local ImGuiTreeNodeFlags SectionFlags = ImGuiTreeNodeFlags_DefaultOpen;
-         editor_params *Params = &Editor->Params;
+      if (UI_BeginWindowF(&Config->ViewParametersWindow, "Editor Settings"))
+      {
+         if (UI_CollapsingHeaderF("Default Curve"))
+         {
+            change_curve_params_ui UIMode =
+               ChangeCurveShapeUIModeDefaultCurve(&Params->CurveDefaultParams,
+                                                  &Params->DefaultControlPointWeight);
+            RenderChangeCurveParametersUI("DefaultCurve", UIMode);
+         }
          
+         if (UI_CollapsingHeaderF("Rotation Indicator"))
          {
-            b32 *HeaderCollapsed = &Editor->UI_Config.DefaultCurveHeaderCollapsed;
-            ImGui::SetNextItemOpen(*HeaderCollapsed);
-            
-            *HeaderCollapsed = Cast(b32)ImGui::CollapsingHeader("Default Curve", SectionFlags);
-            if (!(*HeaderCollapsed))
-            {
-               change_curve_params_ui UIMode =
-                  ChangeCurveShapeUIModeDefaultCurve(&Params->CurveDefaultParams,
-                                                     &Params->DefaultControlPointWeight);
-               
-               RenderChangeCurveParametersUI("DefaultCurve", UIMode);
-            }
+            RenderUIForRenderPointData("RotationIndicator",
+                                       &Params->RotationIndicator,
+                                       ROTATION_INDICATOR_DEFAULT_RADIUS_CLIP_SPACE,
+                                       ROTATION_INDICATOR_DEFAULT_OUTLINE_THICKNESS_FRACTION,
+                                       ROTATION_INDICATOR_DEFAULT_FILL_COLOR,
+                                       ROTATION_INDICATOR_DEFAULT_OUTLINE_COLOR);
          }
-         {   
-            b32 *HeaderCollapsed = &Editor->UI_Config.RotationIndicatorHeaderCollapsed;
-            ImGui::SetNextItemOpen(*HeaderCollapsed);
-            
-            ImGui::Spacing();
-            *HeaderCollapsed = Cast(b32)ImGui::CollapsingHeader("Rotation Indicator", SectionFlags);
-            if (!(*HeaderCollapsed))
-            {
-               RenderUIForRenderPointData("RotationIndicator",
-                                          &Params->RotationIndicator,
-                                          ROTATION_INDICATOR_DEFAULT_RADIUS_CLIP_SPACE,
-                                          ROTATION_INDICATOR_DEFAULT_OUTLINE_THICKNESS_FRACTION,
-                                          ROTATION_INDICATOR_DEFAULT_FILL_COLOR,
-                                          ROTATION_INDICATOR_DEFAULT_OUTLINE_COLOR);
-            }
-         }
+         
+         if (UI_CollapsingHeaderF("Bezier Split Point"))
          {
-            b32 *HeaderCollapsed = &Editor->UI_Config.BezierSplitPointHeaderCollapsed;
-            ImGui::SetNextItemOpen(*HeaderCollapsed);
-            
-            ImGui::Spacing();
-            *HeaderCollapsed = Cast(b32)ImGui::CollapsingHeader("Bezier Split Point", SectionFlags);
-            if (!(*HeaderCollapsed))
-            {
-               RenderUIForRenderPointData("BezierSplitPoint",
-                                          &Params->BezierSplitPoint,
-                                          BEZIER_SPLIT_POINT_DEFAULT_RADIUS_CLIP_SPACE,
-                                          BEZIER_SPLIT_POINT_DEFAULT_OUTLINE_THICKNESS_FRACTION,
-                                          BEZIER_SPLIT_POINT_DEFAULT_FILL_COLOR,
-                                          BEZIER_SPLIT_POINT_DEFAULT_OUTLINE_COLOR);
-            }
+            RenderUIForRenderPointData("BezierSplitPoint",
+                                       &Params->BezierSplitPoint,
+                                       BEZIER_SPLIT_POINT_DEFAULT_RADIUS_CLIP_SPACE,
+                                       BEZIER_SPLIT_POINT_DEFAULT_OUTLINE_THICKNESS_FRACTION,
+                                       BEZIER_SPLIT_POINT_DEFAULT_FILL_COLOR,
+                                       BEZIER_SPLIT_POINT_DEFAULT_OUTLINE_COLOR);
          }
+         
+         if (UI_CollapsingHeaderF("Other Settings"))
          {
-            b32 *HeaderCollapsed = &Editor->UI_Config.OtherSettingsHeaderCollapsed;
-            ImGui::SetNextItemOpen(*HeaderCollapsed);
-            
-            ImGui::Spacing();
-            *HeaderCollapsed = Cast(b32)ImGui::CollapsingHeader("Other Settings", SectionFlags);
-            if (!(*HeaderCollapsed))
+            DeferBlock(UI_PushLabelF("OtherSettings"), UI_PopId())
             {
-               DeferBlock(UI_PushLabelF("OtherSettings"), UI_PopId())
+               UI_ColorPickerF(&Params->BackgroundColor, "Background Color");
+               if (ResetCtxMenu("BackgroundColorReset"))
                {
-                  
-                  UI_ColorPickerF(&Params->BackgroundColor, "Background Color");
-                  if (ResetContextMenuItemSelected("BackgroundColorReset"))
-                  {
-                     Params->BackgroundColor = DEFAULT_BACKGROUND_COLOR;
-                  }
-                  
-                  UI_DragFloatF(&Params->CollisionToleranceClipSpace, 0.0f, 1.0f, 0, "Collision Tolerance");
-                  if (ResetContextMenuItemSelected("CollisionToleranceReset"))
-                  {
-                     Params->CollisionToleranceClipSpace = DEFAULT_COLLLISION_TOLERANCE_CLIP_SPACE;
-                  }
-                  
-                  UI_DragFloatF(&Params->LastControlPointSizeMultiplier, 0.0f, FLT_MAX, 0, "Last Control Point Size");
-                  if (ResetContextMenuItemSelected("LastControlPointSizeReset"))
-                  {
-                     Params->LastControlPointSizeMultiplier = LAST_CONTROL_POINT_DEFAULT_SIZE_MULTIPLIER;
-                  }
-                  
-                  UI_DragFloatF(&Params->SelectedCurveControlPointOutlineThicknessScale,
-                                0.0f, FLT_MAX, 0, "Selected Curve Control Point Outline Thickness");
-                  if (ResetContextMenuItemSelected("SelectedCurveControlPointOutlineThicknessReset"))
-                  {
-                     Params->SelectedCurveControlPointOutlineThicknessScale =
-                        SELECTED_CURVE_CONTROL_POINT_DEFAULT_OUTLINE_THICKNESS_SCALE;
-                  }
-                  
-                  UI_ColorPickerF(&Params->SelectedCurveControlPointOutlineColor, "Selected Curve Control Point Outline Color");
-                  if (ResetContextMenuItemSelected("SelectedCurveControlPointOutlineColorReset"))
-                  {
-                     Params->SelectedCurveControlPointOutlineColor = SELECTED_CURVE_CONTROL_POINT_DEFAULT_OUTLINE_COLOR;
-                  }
-                  
-                  UI_ColorPickerF(&Params->SelectedControlPointOutlineColor, "Selected Control Point Outline Color");
-                  if (ResetContextMenuItemSelected("SelectedControlPointOutlineColorReset"))
-                  {
-                     Params->SelectedControlPointOutlineColor = SELECTED_CONTROL_POINT_DEFAULT_OUTLINE_COLOR;
-                  }
-                  
-                  UI_DragFloatF(&Params->CubicBezierHelperLineWidthClipSpace,
-                                0.0f, FLT_MAX, 0, "Cubic Bezier Helper Line Width");
-                  if (ResetContextMenuItemSelected("CubicBezierHelperLineWidthReset"))
-                  {
-                     Params->CubicBezierHelperLineWidthClipSpace =
-                        CUBIC_BEZIER_HELPER_LINE_DEFAULT_WIDTH_CLIP_SPACE;
-                  }
+                  Params->BackgroundColor = DEFAULT_BACKGROUND_COLOR;
+               }
+               
+               UI_DragFloatF(&Params->CollisionToleranceClipSpace, 0.0f, 1.0f, 0, "Collision Tolerance");
+               if (ResetCtxMenu("CollisionToleranceReset"))
+               {
+                  Params->CollisionToleranceClipSpace = DEFAULT_COLLLISION_TOLERANCE_CLIP_SPACE;
+               }
+               
+               UI_DragFloatF(&Params->LastControlPointSizeMultiplier, 0.0f, FLT_MAX, 0, "Last Control Point Size");
+               if (ResetCtxMenu("LastControlPointSizeReset"))
+               {
+                  Params->LastControlPointSizeMultiplier = LAST_CONTROL_POINT_DEFAULT_SIZE_MULTIPLIER;
+               }
+               
+               UI_DragFloatF(&Params->SelectedCurveControlPointOutlineThicknessScale,
+                             0.0f, FLT_MAX, 0, "Selected Curve Control Point Outline Thickness");
+               if (ResetCtxMenu("SelectedCurveControlPointOutlineThicknessReset"))
+               {
+                  Params->SelectedCurveControlPointOutlineThicknessScale = SELECTED_CURVE_CONTROL_POINT_DEFAULT_OUTLINE_THICKNESS_SCALE;
+               }
+               
+               UI_ColorPickerF(&Params->SelectedCurveControlPointOutlineColor, "Selected Curve Control Point Outline Color");
+               if (ResetCtxMenu("SelectedCurveControlPointOutlineColorReset"))
+               {
+                  Params->SelectedCurveControlPointOutlineColor = SELECTED_CURVE_CONTROL_POINT_DEFAULT_OUTLINE_COLOR;
+               }
+               
+               UI_ColorPickerF(&Params->SelectedControlPointOutlineColor, "Selected Control Point Outline Color");
+               if (ResetCtxMenu("SelectedControlPointOutlineColorReset"))
+               {
+                  Params->SelectedControlPointOutlineColor = SELECTED_CONTROL_POINT_DEFAULT_OUTLINE_COLOR;
+               }
+               
+               UI_DragFloatF(&Params->CubicBezierHelperLineWidthClipSpace, 0.0f, FLT_MAX, 0, "Cubic Bezier Helper Line Width");
+               if (ResetCtxMenu("CubicBezierHelperLineWidthReset"))
+               {
+                  Params->CubicBezierHelperLineWidthClipSpace = CUBIC_BEZIER_HELPER_LINE_DEFAULT_WIDTH_CLIP_SPACE;
                }
             }
          }
       }
+      UI_EndWindow();
    }
 }
 
 internal void
 RenderDiagnosticsWindow(editor *Editor, f32 DeltaTime)
 {
-   bool ViewDiagnosticsWindowAsBool = Cast(bool)Editor->UI_Config.ViewDiagnosticsWindow;
-   DeferBlock(ImGui::Begin("Diagnostics", &ViewDiagnosticsWindowAsBool),
-              ImGui::End())
+   ui_config *Config = &Editor->UI_Config;
+   if (Config->ViewDiagnosticsWindow)
    {
-      Editor->UI_Config.ViewDiagnosticsWindow = Cast(b32)ViewDiagnosticsWindowAsBool;
-      
-      if (Editor->UI_Config.ViewDiagnosticsWindow)
-      {      
-         frame_stats FrameStats = Editor->FrameStats;
-         
+      if (UI_BeginWindowF(&Config->ViewDiagnosticsWindow, "Diagnostics"))
+      {
+         frame_stats *Stats = &Editor->FrameStats;
          UI_TextF("%20s: %.2f ms", "Frame time", 1000.0f * DeltaTime);
-         UI_TextF("%20s: %.0f", "FPS", FrameStats.FPS);
-         UI_TextF("%20s: %.2f ms", "Min frame time", 1000.0f * FrameStats.MinFrameTime);
-         UI_TextF("%20s: %.2f ms", "Max frame time", 1000.0f * FrameStats.MaxFrameTime);
-         UI_TextF("%20s: %.2f ms", "Average frame time", 1000.0f * FrameStats.AvgFrameTime);
+         UI_TextF("%20s: %.0f", "FPS", Stats->FPS);
+         UI_TextF("%20s: %.2f ms", "Min frame time", 1000.0f * Stats->MinFrameTime);
+         UI_TextF("%20s: %.2f ms", "Max frame time", 1000.0f * Stats->MaxFrameTime);
+         UI_TextF("%20s: %.2f ms", "Average frame time", 1000.0f * Stats->AvgFrameTime);
       }
+      UI_EndWindow();
    }
-   
 }
 
 internal void
@@ -4196,13 +4085,11 @@ UpdateAndRenderCurveCombining(editor *Editor, sf::Transform Transform)
                     ++Combination)
                {
                   curve_combination_type CombinationType = Cast(curve_combination_type)Combination;
-                  
                   UI_SameRow();
-                  ImGui::BeginDisabled(!IsCombinationTypeAllowed(&Combining->CombineCurveEntity->Curve, CombinationType));
-                  ImGui::RadioButton(CombinationTypeToString(CombinationType),
-                                     &CombinationTypeAsInt,
-                                     Combination);
-                  ImGui::EndDisabled();
+                  UI_Disabled(!IsCombinationTypeAllowed(&Combining->CombineCurveEntity->Curve, CombinationType))
+                  {
+                     ImGui::RadioButton(CombinationTypeToString(CombinationType), &CombinationTypeAsInt, Combination);
+                  }
                }
                Combining->CombinationType = Cast(curve_combination_type)CombinationTypeAsInt;
             }
@@ -4543,7 +4430,7 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
    
    if (Editor->UI_Config.ViewParametersWindow)
    {
-      RenderParamtersWindow(Editor);
+      RenderSettingsWindow(Editor);
    }
    
    if (Editor->UI_Config.ViewDiagnosticsWindow)

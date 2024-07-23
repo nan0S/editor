@@ -5,18 +5,25 @@ typedef b32 not_collapsed_b32;
 typedef b32 clicked_b32;
 typedef b32 changed_b32;
 typedef b32 open_b32;
+typedef b32 expanded_b32;
 
 internal void UI_PushLabel(string Label);
 internal void UI_PushLabelF(char const *Format, ...);
 internal void UI_PushId(u64 Id);
 internal void UI_PopId(void);
-internal void UI_BeginDisabled(b32 Disabled) { ImGui::BeginDisabled(Cast(bool)Disabled); }
-internal void UI_EndDisabled()   { ImGui::EndDisabled(); }
+internal void UI_BeginDisabled(b32 Disabled);
+internal void UI_EndDisabled(void);
+internal void UI_PushTextColor(color Color);
+internal void UI_PopTextColor(void);
+internal void UI_PushAlphaF32(f32 Alpha);
+internal void UI_PopAlpha(void);
 
 #define UI_Label(Label)        DeferBlock(UI_PushLabel(Label), UI_PopId())
 #define UI_LabelF(Format, ...) DeferBlock(UI_PushLabelF(Label), UI_PopId())
 #define UI_Id(Id)              DeferBlock(UI_PushId(Id), UI_PopId())
 #define UI_Disabled(Disabled)  DeferBlock(UI_BeginDisabled(Disabled), UI_EndDisabled())
+#define UI_ColoredText(Color)  DeferBlock(UI_PushTextColor(Color), UI_PopTextColor())
+#define UI_Alpha(Alpha)        DeferBlock(UI_PushAlphaF32(Alpha), UI_PopAlpha())
 
 internal not_collapsed_b32 UI_BeginWindow(b32 *IsOpen, string Label);
 internal not_collapsed_b32 UI_BeginWindowF(b32 *IsOpen, char const *Format, ...);
@@ -34,27 +41,31 @@ internal open_b32          UI_BeginMenu(string Label);
 internal open_b32          UI_BeginMenuF(char const *Format, ...);
 internal void              UI_EndMenu(void);
 
-internal void UI_NewRow(void);
-internal void UI_SameRow(void);
+internal expanded_b32      UI_BeginCombo(string Preview, string Label);
+internal expanded_b32      UI_BeginComboF(string Preview, char const *Format, ...);
+internal void              UI_EndCombo(void);
 
-#define                    UI_Combo(InOutEnum, EnumCount, EnumNames, Label) UI_Combo_(Cast(u8 *)(InOutEnum), EnumCount, EnumNames, Label)
-#define                    UI_ComboF(InOutEnum, EnumCount, EnumNames, Format, ...) UI_ComboF_(Cast(u8 *)(InOutEnum), EnumCount, EnumNames, Format, __VA_ARGS__)
-internal void              UI_Checkbox(b32 *InOutEnabled, string Label);
-internal void              UI_CheckboxF(b32 *InOutEnabled, char const *Format, ...);
+internal void              UI_NewRow(void);
+internal void              UI_SameRow(void);
+
+#define                    UI_Combo(Enum, EnumCount, EnumNames, Label) UI_Combo_(Cast(u8 *)(Enum), EnumCount, EnumNames, Label)
+#define                    UI_ComboF(Enum, EnumCount, EnumNames, Format, ...) UI_ComboF_(Cast(u8 *)(Enum), EnumCount, EnumNames, Format, __VA_ARGS__)
+internal void              UI_Checkbox(b32 *Enabled, string Label);
+internal void              UI_CheckboxF(b32 *Enabled, char const *Format, ...);
 internal clicked_b32       UI_Button(string Label);
 internal clicked_b32       UI_ButtonF(char const *Format, ...);
-internal changed_b32       UI_DragFloat(f32 *InOutValue, f32 MinValue, f32 MaxValue, char const *ValueFormat, string Label);
-internal changed_b32       UI_DragFloatF(f32 *InOutValue, f32 MinValue, f32 MaxValue, char const *ValueFormat, char const *Format, ...);
-internal changed_b32       UI_DragFloat2(f32 InOutValues[2], f32 MinValue, f32 MaxValue, char const *ValueFormat, string Label);
-internal changed_b32       UI_DragFloat2F(f32 InOutValues[2], f32 MinValue, f32 MaxValue, char const *ValueFormat, char const *Format, ...);
-internal changed_b32       UI_SliderFloat(f32 *InOutValue, f32 MinValue, f32 MaxValue, string Label);
-internal changed_b32       UI_SliderFloatF(f32 *InOutValue, f32 MinValue, f32 MaxValue, char const *Format, ...);
+internal changed_b32       UI_DragFloat(f32 *Value, f32 MinValue, f32 MaxValue, char const *ValueFormat, string Label);
+internal changed_b32       UI_DragFloatF(f32 *Value, f32 MinValue, f32 MaxValue, char const *ValueFormat, char const *Format, ...);
+internal changed_b32       UI_DragFloat2(f32 Values[2], f32 MinValue, f32 MaxValue, char const *ValueFormat, string Label);
+internal changed_b32       UI_DragFloat2F(f32 Values[2], f32 MinValue, f32 MaxValue, char const *ValueFormat, char const *Format, ...);
+internal changed_b32       UI_SliderFloat(f32 *Value, f32 MinValue, f32 MaxValue, string Label);
+internal changed_b32       UI_SliderFloatF(f32 *Value, f32 MinValue, f32 MaxValue, char const *Format, ...);
 #define                    UI_SliderInteger(Value, MinValue, MaxValue, Label) UI_SliderInteger_(Cast(s64 *)(Value), MinValue, MaxValue, Label)
 #define                    UI_SliderIntegerF(Value, MinValue, MaxValue, Format, ...) UI_SliderIntegerF_(Cast(s64 *)(Value), MinValue, MaxValue, Format, __VA_ARGS__)
-internal void              UI_AngleSlider(rotation_2d *InOutRotation, string Label);
-internal void              UI_AngleSliderF(rotation_2d *InOutRotation, char const *Format, ...);
-internal changed_b32       UI_ColorPicker(color *InOutColor, string Label);
-internal changed_b32       UI_ColorPickerF(color *InOutColor, char const *Format, ...);
+internal void              UI_AngleSlider(rotation_2d *Rotation, string Label);
+internal void              UI_AngleSliderF(rotation_2d *Rotation, char const *Format, ...);
+internal changed_b32       UI_ColorPicker(color *Color, string Label);
+internal changed_b32       UI_ColorPickerF(color *Color, char const *Format, ...);
 internal string            UI_InputText(char *Buf, u64 BufSize, string Label);
 internal string            UI_InputTextF(char *Buf, u64 BufSize, char const *Format, ...);
 internal void              UI_Text(string Text);

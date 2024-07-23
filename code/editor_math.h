@@ -12,6 +12,7 @@
 #define CeilF32(X)             ceilf(X)
 #define RoundF32(X)            roundf(X)
 #define SqrtF32(X)             sqrtf(X)
+#define Atan2F32(Y, X)         atan2f(Y, X)
 
 //~ Vectors
 union v2f32

@@ -1,6 +1,8 @@
 #ifndef EDITOR_PROFILER_H
 #define EDITOR_PROFILER_H
 
+// TODO(hbr): Revise this whole module
+
 #if !defined(EDITOR_PROFILER)
 # define EDITOR_PROFILER 0
 #endif
@@ -20,7 +22,6 @@ struct profile_anchor
 struct profiler
 {
    profile_anchor Anchors[1024];
-   
    u64 CPUFrequency;
    u64 StartTSC;
    u64 EndTSC;

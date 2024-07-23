@@ -1,18 +1,19 @@
 internal void *
-AllocVirtualMemory(u64 Capacity)
+OS_AllocVirtualMemory(u64 Capacity, b32 Commit)
 {
-   void *Result = mmap(0, Capacity, PROT_NONE, MAP_ANON|MAP_PRIVATE, -1, 0);
+   int Prot = (Commit ? PROT_READ | PROT_WRITE : PROT_NONE);
+   void *Result = mmap(0, Capacity, Prot, MAP_ANON|MAP_PRIVATE, -1, 0);
    return Result;
 }
 
 internal void
-CommitVirtualMemory(void *Memory, u64 Size)
+OS_CommitVirtualMemory(void *Memory, u64 Size)
 {
    mprotect(Memory, Size, PROT_READ|PROT_WRITE);
 }
 
 internal void
-DeallocVirtualMemory(void *Memory, u64 Size)
+OS_DeallocVirtualMemory(void *Memory, u64 Size)
 {
    munmap(Memory, Size);
 }

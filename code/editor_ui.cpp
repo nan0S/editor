@@ -1,24 +1,24 @@
 internal b32
-UI_Combo_(u8 *InOutEnum, u8 EnumCount, char const *EnumNames[], string Label)
+UI_Combo_(u8 *Enum, u8 EnumCount, char const *EnumNames[], string Label)
 {
    temp_arena Temp = TempArena(0);
    string CLabel = CStrFromStr(Temp.Arena, Label);
-   int InOutEnum_ = *InOutEnum;
-   b32 Result = Cast(b32)ImGui::Combo(CLabel.Data, &InOutEnum_, EnumNames, EnumCount);
-   *InOutEnum = InOutEnum_;
+   int Enum_ = *Enum;
+   b32 Result = Cast(b32)ImGui::Combo(CLabel.Data, &Enum_, EnumNames, EnumCount);
+   *Enum = Enum_;
    EndTemp(Temp);
    
    return Result;
 }
 
 internal b32
-UI_ComboF_(u8 *InOutEnum, u8 EnumCount, char const *EnumNames[], char const *Format, ...)
+UI_ComboF_(u8 *Enum, u8 EnumCount, char const *EnumNames[], char const *Format, ...)
 {
    temp_arena Temp = TempArena(0);
    va_list  Args;
    va_start(Args, Format);
    string Label = StrFV(Temp.Arena, Format, Args);
-   b32 Result = UI_Combo_(InOutEnum, EnumCount, EnumNames, Label);
+   b32 Result = UI_Combo_(Enum, EnumCount, EnumNames, Label);
    va_end(Args);
    EndTemp(Temp);
    
@@ -26,58 +26,58 @@ UI_ComboF_(u8 *InOutEnum, u8 EnumCount, char const *EnumNames[], char const *For
 }
 
 internal void
-UI_Checkbox(b32 *InOutEnabled, string Label)
+UI_Checkbox(b32 *Enabled, string Label)
 {
    temp_arena Temp = TempArena(0);
    
    string CLabel = CStrFromStr(Temp.Arena, Label);
-   bool InOutEnabled_ = *InOutEnabled;
-   ImGui::Checkbox(CLabel.Data, &InOutEnabled_);
-   *InOutEnabled = Cast(b32)InOutEnabled_;
+   bool Enabled_ = *Enabled;
+   ImGui::Checkbox(CLabel.Data, &Enabled_);
+   *Enabled = Cast(b32)Enabled_;
    EndTemp(Temp);
 }
 
 internal void
-UI_CheckboxF(b32 *InOutEnabled, char const *Format, ...)
+UI_CheckboxF(b32 *Enabled, char const *Format, ...)
 {
    temp_arena Temp = TempArena(0);
    va_list Args;
    va_start(Args, Format);
    string Label = StrFV(Temp.Arena, Format, Args);
-   UI_Checkbox(InOutEnabled, Label);
+   UI_Checkbox(Enabled, Label);
    va_end(Args);
    EndTemp(Temp);
 }
 
 internal b32
-UI_ColorPicker(color *InOutColor, string Label)
+UI_ColorPicker(color *Color, string Label)
 {
    temp_arena Temp = TempArena(0);
    string CLabel = CStrFromStr(Temp.Arena, Label);
    f32 ColorF32[4] = {
-      InOutColor->R / 255.0f,
-      InOutColor->G / 255.0f,
-      InOutColor->B / 255.0f,
-      InOutColor->A / 255.0f,
+      Color->R / 255.0f,
+      Color->G / 255.0f,
+      Color->B / 255.0f,
+      Color->A / 255.0f,
    };
    b32 Result = Cast(b32)ImGui::ColorEdit4(CLabel.Data, ColorF32);
-   *InOutColor = ColorMake(Cast(u8)(255 * ColorF32[0]),
-                           Cast(u8)(255 * ColorF32[1]),
-                           Cast(u8)(255 * ColorF32[2]),
-                           Cast(u8)(255 * ColorF32[3]));
+   *Color = ColorMake(Cast(u8)(255 * ColorF32[0]),
+                      Cast(u8)(255 * ColorF32[1]),
+                      Cast(u8)(255 * ColorF32[2]),
+                      Cast(u8)(255 * ColorF32[3]));
    EndTemp(Temp);
    
    return Result;
 }
 
 internal b32
-UI_ColorPickerF(color *InOutColor, char const *Format, ...)
+UI_ColorPickerF(color *Color, char const *Format, ...)
 {
    temp_arena Temp = TempArena(0);
    va_list Args;
    va_start(Args, Format);
    string Label = StrFV(Temp.Arena, Format, Args);
-   b32 Result = UI_ColorPicker(InOutColor, Label);
+   b32 Result = UI_ColorPicker(Color, Label);
    va_end(Args);
    EndTemp(Temp);
    
@@ -110,24 +110,24 @@ UI_ButtonF(char const *Format, ...)
 }
 
 internal void
-UI_AngleSlider(rotation_2d *InOutRotation, string Label)
+UI_AngleSlider(rotation_2d *Rotation, string Label)
 {
    temp_arena Temp = TempArena(0);
    string CLabel = CStrFromStr(Temp.Arena, Label);
-   f32 RotationRad = Rotation2DToRadians(*InOutRotation);
+   f32 RotationRad = Rotation2DToRadians(*Rotation);
    ImGui::SliderAngle(CLabel.Data, &RotationRad);
-   *InOutRotation = Rotation2DFromRadians(RotationRad);
+   *Rotation = Rotation2DFromRadians(RotationRad);
    EndTemp(Temp);
 }
 
 internal void
-UI_AngleSliderF(rotation_2d *InOutRotation, char const *Format, ...)
+UI_AngleSliderF(rotation_2d *Rotation, char const *Format, ...)
 {
    temp_arena Temp = TempArena(0);
    va_list Args;
    va_start(Args, Format);
    string Label = StrFV(Temp.Arena, Format, Args);
-   UI_AngleSlider(InOutRotation, Label);
+   UI_AngleSlider(Rotation, Label);
    va_end(Args);
    EndTemp(Temp);
 }
@@ -181,22 +181,33 @@ UI_PushLabelF(char const *Format, ...)
 
 internal void UI_PushId(u64 Id) { ImGui::PushID(Id); }
 internal void UI_PopId(void) { ImGui::PopID(); }
+internal void UI_BeginDisabled(b32 Disabled) { ImGui::BeginDisabled(Cast(bool)Disabled); }
+internal void UI_EndDisabled(void) { ImGui::EndDisabled(); }
+
+internal void
+UI_PushTextColor(color Color)
+{
+   ImVec4 ImColor = ImVec4(Color.R, Color.G, Color.B, Color.A);
+   ImGui::PushStyleColor(ImGuiCol_Text, ImColor);
+}
+
+internal void UI_PopTextColor(void) { ImGui::PopStyleColor(1); }
 
 #define UI_Label(Label)        DeferBlock(UI_PushLabel(Label), UI_PopId())
 #define UI_LabelF(Format, ...) DeferBlock(UI_PushLabelF(Label), UI_PopId())
 #define UI_Id(Id)              DeferBlock(UI_PushId(Id), UI_PopId())
 
 internal b32
-UI_DragFloat(f32 *InOutValue, f32 MinValue, f32 MaxValue, char const *ValueFormat, string Label)
+UI_DragFloat(f32 *Value, f32 MinValue, f32 MaxValue, char const *ValueFormat, string Label)
 {
    temp_arena Temp = TempArena(0);
    string CLabel = CStrFromStr(Temp.Arena, Label);
-   f32 CurrentVal = Abs(*InOutValue);
+   f32 CurrentVal = Abs(*Value);
    f32 Speed = PowF32(CurrentVal, 0.7f) / 100.0f;
    Speed = ClampBot(0.001f, Speed);
    char const *Format = ValueFormat;
    if (Format == 0) Format = "%.3f";
-   b32 Result = Cast(b32)ImGui::DragFloat(CLabel.Data, InOutValue, Speed, MinValue,
+   b32 Result = Cast(b32)ImGui::DragFloat(CLabel.Data, Value, Speed, MinValue,
                                           MaxValue, Format, ImGuiSliderFlags_NoRoundToFormat);
    EndTemp(Temp);
    
@@ -204,13 +215,13 @@ UI_DragFloat(f32 *InOutValue, f32 MinValue, f32 MaxValue, char const *ValueForma
 }
 
 internal b32
-UI_DragFloatF(f32 *InOutValue, f32 MinValue, f32 MaxValue, char const *ValueFormat, char const *Format, ...)
+UI_DragFloatF(f32 *Value, f32 MinValue, f32 MaxValue, char const *ValueFormat, char const *Format, ...)
 {
    temp_arena Temp = TempArena(0);
    va_list Args;
    va_start(Args, Format);
    string Label = StrFV(Temp.Arena, Format, Args);
-   b32 Result = UI_DragFloat(InOutValue, MinValue, MaxValue, ValueFormat, Label);
+   b32 Result = UI_DragFloat(Value, MinValue, MaxValue, ValueFormat, Label);
    va_end(Args);
    EndTemp(Temp);
    
@@ -218,16 +229,16 @@ UI_DragFloatF(f32 *InOutValue, f32 MinValue, f32 MaxValue, char const *ValueForm
 }
 
 internal b32
-UI_DragFloat2(f32 InOutValues[2], f32 MinValue, f32 MaxValue, char const *ValueFormat, string Label)
+UI_DragFloat2(f32 Values[2], f32 MinValue, f32 MaxValue, char const *ValueFormat, string Label)
 {
    temp_arena Temp = TempArena(0);
    string CLabel = CStrFromStr(Temp.Arena, Label);
-   f32 CurrentVal = (Abs(InOutValues[0]) + Abs(InOutValues[1])) / 2;
+   f32 CurrentVal = (Abs(Values[0]) + Abs(Values[1])) / 2;
    f32 Speed = PowF32(CurrentVal, 0.7f) / 100.0f;
    Speed = ClampBot(0.001f, Speed);
    char const *Format = ValueFormat;
    if (Format == 0) Format = "%.3f";
-   b32 Result = Cast(b32)ImGui::DragFloat2(CLabel.Data, InOutValues, Speed, MinValue,
+   b32 Result = Cast(b32)ImGui::DragFloat2(CLabel.Data, Values, Speed, MinValue,
                                            MaxValue, Format, ImGuiSliderFlags_NoRoundToFormat);
    EndTemp(Temp);
    
@@ -235,13 +246,13 @@ UI_DragFloat2(f32 InOutValues[2], f32 MinValue, f32 MaxValue, char const *ValueF
 }
 
 internal b32
-UI_DragFloat2F(f32 InOutValues[2], f32 MinValue, f32 MaxValue, char const *ValueFormat, char const *Format, ...)
+UI_DragFloat2F(f32 Values[2], f32 MinValue, f32 MaxValue, char const *ValueFormat, char const *Format, ...)
 {
    temp_arena Temp = TempArena(0);
    va_list Args;
    va_start(Args, Format);
    string Label = StrFV(Temp.Arena, Format, Args);
-   b32 Result = UI_DragFloat2(InOutValues, MinValue, MaxValue, ValueFormat, Label);
+   b32 Result = UI_DragFloat2(Values, MinValue, MaxValue, ValueFormat, Label);
    va_end(Args);
    EndTemp(Temp);
    
@@ -249,24 +260,24 @@ UI_DragFloat2F(f32 InOutValues[2], f32 MinValue, f32 MaxValue, char const *Value
 }
 
 internal b32
-UI_SliderFloat(f32 *InOutValue, f32 MinValue, f32 MaxValue, string Label)
+UI_SliderFloat(f32 *Value, f32 MinValue, f32 MaxValue, string Label)
 {
    temp_arena Temp = TempArena(0);
    string CLabel = CStrFromStr(Temp.Arena, Label);
-   b32 Result = Cast(b32)ImGui::SliderFloat(CLabel.Data, InOutValue, MinValue, MaxValue);
+   b32 Result = Cast(b32)ImGui::SliderFloat(CLabel.Data, Value, MinValue, MaxValue);
    EndTemp(Temp);
    
    return Result;
 }
 
 internal b32
-UI_SliderFloatF(f32 *InOutValue, f32 MinValue, f32 MaxValue, char const *Format, ...)
+UI_SliderFloatF(f32 *Value, f32 MinValue, f32 MaxValue, char const *Format, ...)
 {
    temp_arena Temp = TempArena(0);
    va_list Args;
    va_start(Args, Format);
    string Label = StrFV(Temp.Arena, Format, Args);
-   b32 Result = UI_SliderFloat(InOutValue, MinValue, MaxValue, Label);
+   b32 Result = UI_SliderFloat(Value, MinValue, MaxValue, Label);
    va_end(Args);
    EndTemp(Temp);
    
@@ -516,6 +527,34 @@ UI_BeginMenuF(char const *Format, ...)
 }
 
 internal void UI_EndMenu(void) { ImGui::EndMenu(); }
+
+internal b32
+UI_BeginCombo(string Preview, string Label)
+{
+   temp_arena Temp = TempArena(0);
+   string CLabel = CStrFromStr(Temp.Arena, Label);
+   string CPreview = CStrFromStr(Temp.Arena, Preview);
+   b32 Result = Cast(b32)ImGui::BeginCombo(CLabel.Data, CPreview.Data);
+   EndTemp(Temp);
+   
+   return Result;
+}
+
+internal b32
+UI_BeginComboF(string Preview, char const *Format, ...)
+{
+   temp_arena Temp = TempArena(0);
+   va_list Args;
+   va_start(Args, Format);
+   string Label = StrFV(Temp.Arena, Format, Args);
+   b32 Result = UI_BeginCombo(Preview, Label);
+   va_end(Args);
+   EndTemp(Temp);
+   
+   return Result;
+}
+
+internal void UI_EndCombo(void) { ImGui::EndCombo(); }
 
 internal b32
 UI_BeginPopupModal(string Label)

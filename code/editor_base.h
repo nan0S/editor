@@ -153,6 +153,26 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 # error trap not defined
 #endif
 
+#if COMPILER_MSVC
+# define CompilerWriteBarrier _WriteBarrier()
+#endif
+#if COMPILER_GCC || COMPILER_CLANG
+# define CompilerWriteBarrier asm("":::"memory")
+#endif
+#if !defined(CompilerWriteBarrier)
+# error compiler write barrier not defined
+#endif
+
+#if COMPILER_MSVC
+# define THREAD_API WINAPI
+#endif
+#if COMPILER_GCC || COMPILER_CLANG
+# define THREAD_API
+#endif
+#if !defined(THREAD_API)
+# error THREAD_API not defined
+#endif
+
 #define Max(A, B) ((A) < (B) ? (B) : (A))
 #define Min(A, B) ((A) < (B) ? (A) : (B))
 #define Abs(X) ((X) < 0 ? -(X) : (X))

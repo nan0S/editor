@@ -58,10 +58,7 @@ TODOs:
 - maybe don't be so precise when checking curvepoints collisions - jump every 50 points or something like that
 - use u32 instead of u64 in most places
 - don't use constructors, more use designated struct initialization, or nothing?
-- remove defer?
 - make os layer
-- maybe make arenas infinitely growable?
-- use Count rather that Num
 - don't use other type for saving entity, use current type and override pointers - why? simplify by default, don't complicate by default, and more types is more complicated than less types
 - consider not using malloced strings in notifications and in images, just static string will do?
 - rename [EditorState]
@@ -170,6 +167,9 @@ DONE:
 - specify sizes of enums
 - there is a lot of compressing opportunities in [entity] struct, try to compress
 - think about supporting merging curve of bezier type with cubic bezier subtype
+- optimization idea: sometimes we create a temporary buffer of control points and then call CurveSetControlPoints,
+   instead we could create those control points already in place - in the curve we would want to call CurveSetControlPoints,
+the API could look like CurveBeginControlPoints(), CurveEndControlPoints()
 
 Ideas:
 - some kind of locking system - when I want to edit only one curve without

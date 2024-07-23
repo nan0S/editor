@@ -9,7 +9,7 @@ enum interpolation_type : u8
    Interpolation_Count
 };
 // TODO(hbr): Try to add designated array intializers
-read_only global char const *InterpolationNames[] = { "Polynomial", "Cubic Spline", "Bezier" };
+read_only global char const *InterpolationNames[] = { "Cubic Spline", "Bezier", "Polynomial" };
 StaticAssert(ArrayCount(InterpolationNames) == Interpolation_Count, InterpolationNamesDefined);
 
 enum polynomial_interpolation_type : u8
@@ -27,7 +27,7 @@ enum points_arrangement : u8
    PointsArrangement_Equidistant,
    PointsArrangement_Count,
 };
-read_only global char const *PointsArrangementNames[] = { "Equidistant", "Chebychev" };
+read_only global char const *PointsArrangementNames[] = { "Chebychev", "Equidistant" };
 StaticAssert(ArrayCount(PointsArrangementNames) == PointsArrangement_Count, PointsArrangementNamesDefined);
 
 struct polynomial_interpolation_params
@@ -149,7 +149,8 @@ struct entity
 };
 
 // TODO(hbr): Move this struct into [editor], it's only here because of compilation issues. So something about this type of shit in general
-struct entities {
+struct entities
+{
    entity Entities[1024];
    u64 EntityCount;
 };

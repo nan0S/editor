@@ -14,7 +14,7 @@ LogF(char const *Format, ...)
    va_list Args;
    va_start(Args, Format);
    string Out = StrFV(Arena, Format, Args);
-   OutputF("[LOG]: %S\n", Out);
+   OutputF("[%S]\n", Out);
    va_end(Args);
 }
 
@@ -41,6 +41,7 @@ CompileProgram(b32 Debug)
    StrListPush(Arena, &BasicCompileCmd, Debug ? StrLit("/Od") : StrLit("/O2"));
    StrListPush(Arena, &BasicCompileCmd, Debug ? StrLit("/DBUILD_DEBUG=1") : StrLit("/DBUILD_DEBUG=0"));
    StrListPush(Arena, &BasicCompileCmd, StrLit("/Zi"));
+   StrListPush(Arena, &BasicCompileCmd, StrLit("/FS"));
    StrListPush(Arena, &BasicCompileCmd, StrLit("/std:c++20"));
    StrListPush(Arena, &BasicCompileCmd, StrLit("/nologo"));
    StrListPush(Arena, &BasicCompileCmd, StrLit("/WX"));
@@ -58,7 +59,7 @@ CompileProgram(b32 Debug)
    StrListPush(Arena, &BasicCompileCmd, StrF(Arena, "/I%S", CodePath(StrLit("third_party/sfml/include"))));
    StrListPush(Arena, &BasicCompileCmd, StrF(Arena, "/I%S", CodePath(StrLit("third_party/imgui"))));
    
-   string ImguiObj = (Debug ? StrLit("imgui_unity_debug.obj") : StrLit("imgui_unity_release.obj"));
+   string ImguiObj = StrF(Arena, "imgui_unity_%s.obj", Mode);
    if (!OS_FileExists(ImguiObj))
    {
       string_list ImguiCmd = StrListCopy(Arena, &BasicCompileCmd);
@@ -71,8 +72,10 @@ CompileProgram(b32 Debug)
    }
    
    string_list MainCmd = BasicCompileCmd;
+   
    StrListPush(Arena, &MainCmd, CodePath(StrLit("editor.cpp")));
    StrListPush(Arena, &MainCmd, ImguiObj);
+   StrListPush(Arena, &MainCmd, StrF(Arena, "/Fo:editor_%s.obj", Mode));
    StrListPush(Arena, &MainCmd, StrLit("/link"));
    StrListPush(Arena, &MainCmd, StrF(Arena, "/out:editor_%s.exe", Mode));
    StrListPush(Arena, &MainCmd, StrF(Arena, "/LIBPATH:%S", CodePath(StrLit("third_party/sfml/lib"))));
@@ -80,7 +83,7 @@ CompileProgram(b32 Debug)
    StrListPush(Arena, &MainCmd, StrLit("sfml-graphics.lib"));
    StrListPush(Arena, &MainCmd, StrLit("sfml-system.lib"));
    StrListPush(Arena, &MainCmd, StrLit("sfml-window.lib"));
-   LogF("%s build command: %S\n", (Debug ? "debug" : "release"), StrListJoin(Arena, &MainCmd, StrLit(" ")));
+   LogF("%s build command: %S", Mode, StrListJoin(Arena, &MainCmd, StrLit(" ")));
    process_handle Build = OS_LaunchProcess(MainCmd);
    
    OS_CopyFile(CodePath(StrLit("third_party/sfml/bin/sfml-graphics-2.dll")), StrLit("sfml-graphics-2.dll"));
@@ -204,7 +207,7 @@ int main(int ArgCount, char *Argv[])
             u64 EndTSC = ReadCPUTimer();
             u64 DiffTSC = EndTSC - BeginTSC;
             f64 BuildSec = Cast(f64)DiffTSC / CPUFreq;
-            LogF("build took: %.3lfs", BuildSec);
+            LogF("build took %.3lfs", BuildSec);
          }
       }
       else

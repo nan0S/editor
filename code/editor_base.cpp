@@ -1,10 +1,9 @@
-//- memory
 internal arena *
 AllocArenaSize(u64 Size, u64 Align)
 {
    u64 Header = AlignPow2(SizeOf(arena), Align);
    u64 Capacity = Max(Header + Size, Megabytes(1));
-   void *Memory = AllocVirtualMemory(Capacity, true);
+   void *Memory = OS_AllocVirtualMemory(Capacity, true);
    Assert(Cast(umm)Memory % Align == 0);
    
    arena *Arena = Cast(arena *)Memory;
@@ -82,7 +81,7 @@ DeallocArena(arena *Arena)
    {
       arena *Next = Node->Next;
       ZeroStruct(Node);
-      DeallocVirtualMemory(Arena->Memory, Arena->Capacity);
+      OS_DeallocVirtualMemory(Arena->Memory, Arena->Capacity);
       Node = Next;
    }
 }
@@ -194,7 +193,6 @@ HeapDealloc(void *Pointer)
    free(Pointer);
 }
 
-//- thread context
 struct thread_ctx
 {
    b32 Initialized;
@@ -237,7 +235,6 @@ TempArena(arena *Conflict)
    return Result;
 }
 
-//- time
 internal date_time
 TimestampToDateTime(timestamp64 Ts)
 {
@@ -280,7 +277,6 @@ DateTimeToTimestamp(date_time Dt)
    return Ts;
 }
 
-//- format
 // TODO(hbr): Replace order of arguments
 internal u64
 Fmt(u64 BufSize, char *Buf, char const *Format, ...)
@@ -694,7 +690,6 @@ Fmt(ArrayCount(Buffer), Buffer,
     "test", StrLit("test"));
 #endif
 
-//- strings
 internal string
 CreateAndCopyStr(char *Dst, char const *Src, u64 Count)
 {

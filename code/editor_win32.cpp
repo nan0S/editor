@@ -1,13 +1,23 @@
 internal u64
-PageSize(void)
+GetPageSize(void)
 {
    SYSTEM_INFO Info;
    GetSystemInfo(&Info);
    return Info.dwPageSize;
 }
 
+internal u64
+GetProcCount(void)
+{
+   SYSTEM_INFO SysInfo = {};
+   GetSystemInfo(&SysInfo);
+   u64 Result = SysInfo.dwNumberOfProcessors;
+   
+   return Result;
+}
+
 internal void *
-AllocVirtualMemory(u64 Capacity, b32 Commit)
+OS_AllocVirtualMemory(u64 Capacity, b32 Commit)
 {
    DWORD AllocationType = (MEM_RESERVE | (Commit ? MEM_COMMIT : 0));
    DWORD Protect = (Commit ? PAGE_READWRITE : PAGE_NOACCESS);
@@ -17,17 +27,15 @@ AllocVirtualMemory(u64 Capacity, b32 Commit)
 }
 
 internal void
-DeallocVirtualMemory(void *Memory, u64 Size)
+OS_DeallocVirtualMemory(void *Memory, u64 Size)
 {
    VirtualFree(Memory, 0, MEM_RELEASE);
 }
 
 internal void
-CommitVirtualMemory(void *Memory, u64 Size)
+OS_CommitVirtualMemory(void *Memory, u64 Size)
 {
-   u64 PageSnappedSize = Size;
-   PageSnappedSize += PageSize() - 1;
-   PageSnappedSize -= PageSnappedSize % PageSize();
+   u64 PageSnappedSize = AlignPow2(Size, GetPageSize());
    VirtualAlloc(Memory, PageSnappedSize, MEM_COMMIT, PAGE_READWRITE);
 }
 
@@ -61,7 +69,8 @@ OS_OpenFile(string Path, file_access_flags Access)
    DWORD CreationDisposition = OPEN_EXISTING;
    if (Access & FileAccess_Write) CreationDisposition = CREATE_ALWAYS;
    
-   HANDLE Result = CreateFileA(CPath.Data, DesiredAccess, FILE_SHARE_READ, 0, CreationDisposition, FILE_ATTRIBUTE_NORMAL, 0);
+   HANDLE Result = CreateFileA(CPath.Data, DesiredAccess, FILE_SHARE_READ, 0,
+                               CreationDisposition, FILE_ATTRIBUTE_NORMAL, 0);
    
    EndTemp(Temp);
    
@@ -284,18 +293,26 @@ OS_CurrentDir(arena *Arena)
 }
 
 internal file_handle
-StdOut(void)
+StdOutput(void)
 {
    HANDLE Std = GetStdHandle(STD_OUTPUT_HANDLE);
    return Std;
 }
 
-
 internal file_handle
-StdErr(void)
+StdError(void)
 {
    HANDLE Err = GetStdHandle(STD_ERROR_HANDLE);
    return Err;
+}
+
+internal void
+OutputDebug(string String)
+{
+   temp_arena Temp = TempArena(0);
+   string CString = CStrFromStr(Temp.Arena, String);
+   OutputDebugString(CString.Data);
+   EndTemp(Temp);
 }
 
 internal library_handle
@@ -316,4 +333,79 @@ internal void
 OS_UnloadLibrary(library_handle Lib)
 {
    FreeLibrary(Lib);
+}
+
+internal process_handle
+OS_LaunchProcess(string_list CmdList)
+{
+   temp_arena Temp = TempArena(0);
+   
+   process_handle Handle = {};
+   Handle.StartupInfo.cb = SizeOf(Handle.StartupInfo);
+   DWORD CreationFlags = 0;
+   string Cmd = StrListJoin(Temp.Arena, &CmdList, StrLit(" "));
+   CreateProcessA(0, Cmd.Data, 0, 0, 0, CreationFlags, 0, 0,
+                  &Handle.StartupInfo, &Handle.ProcessInfo);
+   EndTemp(Temp);
+   
+   return Handle;
+}
+
+internal b32
+OS_WaitForProcessToFinish(process_handle Process)
+{
+   b32 Success = (WaitForSingleObject(Process.ProcessInfo.hProcess, INFINITE) == WAIT_OBJECT_0);
+   return Success;
+}
+
+internal void
+OS_CleanupAfterProcess(process_handle Handle)
+{
+   CloseHandle(Handle.StartupInfo.hStdInput);
+   CloseHandle(Handle.StartupInfo.hStdOutput);
+   CloseHandle(Handle.StartupInfo.hStdError);
+   CloseHandle(Handle.ProcessInfo.hProcess);
+   CloseHandle(Handle.ProcessInfo.hThread);
+}
+
+internal thread_handle
+OS_LaunchThread(thread_func *Func, void *Data)
+{
+   HANDLE Handle = CreateThread(0, 0, Func, Data, 0, 0);
+   return Handle;
+}
+
+internal void
+OS_WaitThread(thread_handle Thread)
+{
+   WaitForSingleObject(Thread, INFINITE);
+}
+
+internal void
+OS_ReleaseThreadHandle(thread_handle Thread)
+{
+   CloseHandle(Thread);
+}
+
+internal inline void InitMutex(mutex_handle *Mutex) { InitializeCriticalSection(Mutex); }
+internal inline void LockMutex(mutex_handle *Mutex) { EnterCriticalSection(Mutex); }
+internal inline void UnlockMutex(mutex_handle *Mutex) { LeaveCriticalSection(Mutex); }
+internal inline void DestroyMutex(mutex_handle *Mutex) { DeleteCriticalSection(Mutex); }
+
+internal inline void InitSemaphore(semaphore_handle *Sem, u64 InitialCount, u64 MaxCount) { *Sem = CreateSemaphoreA(0, InitialCount, MaxCount, 0); }
+internal inline void PostSemaphore(semaphore_handle *Sem) { ReleaseSemaphore(*Sem, 1, 0); }
+internal inline void WaitSemaphore(semaphore_handle *Sem) { WaitForSingleObject(*Sem, INFINITE); }
+internal inline void DestroySemaphore(semaphore_handle *Sem) { CloseHandle(*Sem); }
+
+internal inline u64 InterlockedIncr(u64 volatile *Value) { return InterlockedIncrement64(Cast(LONG64 volatile *)Value); }
+internal inline u64 InterlockedAdd(u64 volatile *Value, u64 Add) { return InterlockedAdd64(Cast(LONG64 volatile *)Value, Add); }
+internal inline u64 InterlockedCmpExch(u64 volatile *Value, u64 Cmp, u64 Exch) { return InterlockedCompareExchange64(Cast(LONG64 volatile *)Value, Exch, Cmp); }
+
+internal inline void InitBarrier(barrier_handle *Barrier, u64 ThreadCount) { InitializeSynchronizationBarrier(Barrier, ThreadCount, 0); }
+internal inline void DestroyBarrier(barrier_handle *Barrier) { DeleteSynchronizationBarrier(Barrier); }
+internal inline void
+WaitBarrier(barrier_handle *Barrier)
+{
+   // NOTE(hbr): Consider using [SYNCHRONIZATION_BARRIER_FLAGS_NO_DELETE] to improve performance when barrier is never deleted
+   EnterSynchronizationBarrier(Barrier, SYNCHRONIZATION_BARRIER_FLAGS_BLOCK_ONLY);
 }

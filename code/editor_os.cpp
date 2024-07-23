@@ -79,10 +79,10 @@ OS_WriteDataListToFile(string Path, string_list DataList)
 }
 
 internal void OutputFile(file_handle Out, string String) { OS_WriteFile(Out, String.Data, String.Count); }
-internal void Output(string String) { OutputFile(StdOut(), String); }
-internal void OutputFV(char const *Format, va_list Args) { OutputFileFV(StdOut(), Format, Args); }
-internal void OutputError(string String) { OutputFile(StdErr(), String); }
-internal void OutputErrorFV(char const *Format, va_list Args) { OutputFileFV(StdErr(), Format, Args); }
+internal void Output(string String) { OutputFile(StdOutput(), String); }
+internal void OutputFV(char const *Format, va_list Args) { OutputFileFV(StdOutput(), Format, Args); }
+internal void OutputError(string String) { OutputFile(StdError(), String); }
+internal void OutputErrorFV(char const *Format, va_list Args) { OutputFileFV(StdError(), Format, Args); }
 internal void OutputFile(file_handle Out, char const *String) { OutputFile(Out, StrFromCStr(String)); }
 internal void Output(char const *String) { Output(StrFromCStr(String)); }
 internal void OutputError(char const *String) { OutputError(StrFromCStr(String)); }
@@ -110,7 +110,7 @@ OutputF(char const *Format, ...)
 {
    va_list Args;
    va_start(Args, Format);
-   OutputFileFV(StdOut(), Format, Args);
+   OutputFileFV(StdOutput(), Format, Args);
    va_end(Args);
 }
 
@@ -119,6 +119,120 @@ OutputErrorF(char const *Format, ...)
 {
    va_list Args;
    va_start(Args, Format);
-   OutputFileFV(StdErr(), Format, Args);
+   OutputFileFV(StdError(), Format, Args);
    va_end(Args);
+}
+
+internal void
+OutputDebugF(char const *Format, ...)
+{
+   temp_arena Temp = TempArena(0);
+   va_list Args;
+   va_start(Args, Format);
+   OutputDebugFV(Format, Args);
+   va_end(Args);
+   EndTemp(Temp);
+}
+
+internal void
+OutputDebugFV(char const *Format, va_list Args)
+{
+   temp_arena Temp = TempArena(0);
+   string String = StrFV(Temp.Arena, Format, Args);
+   OutputDebug(String);
+   EndTemp(Temp);
+}
+
+internal void
+PutWork(work_queue *Queue, void (*Func)(void *Data), void *Data)
+{
+   ++Queue->EntryCount;
+   Assert(Queue->EntryCount < ArrayCount(Queue->Entries));
+   
+   u64 EntryIndex = Queue->NextEntryToWrite;
+   work_queue_entry *Entry = Queue->Entries + EntryIndex;
+   Entry->Func = Func;
+   Entry->Data = Data;
+#if TEST_WORK_QUEUE
+   Entry->Completed = false;
+#endif
+   
+   CompilerWriteBarrier;
+   
+   Queue->NextEntryToWrite = (EntryIndex + 1) % ArrayCount(Queue->Entries);
+   PostSemaphore(&Queue->Semaphore);
+}
+
+internal b32
+DoWork(work_queue *Queue)
+{
+   b32 ShouldSleep = false;
+   
+   u64 EntryIndex = Queue->NextEntryToRead;
+   if (EntryIndex != Queue->NextEntryToWrite)
+   {
+      u64 Exchange = (EntryIndex + 1) % ArrayCount(Queue->Entries);
+      if (InterlockedCmpExch(&Queue->NextEntryToRead, EntryIndex, Exchange) == EntryIndex)
+      {
+         work_queue_entry *Entry = Queue->Entries + EntryIndex;
+         Entry->Func(Entry->Data);
+#if TEST_WORK_QUEUE
+         Entry->Completed = true;
+#endif
+         InterlockedIncr(&Queue->CompletionCount);
+      }
+   }
+   else
+   {
+      ShouldSleep = true;
+   }
+   
+   return ShouldSleep;
+}
+
+internal OS_THREAD_FUNC(WorkerThreadProc)
+{
+   work_queue *Queue = Cast(work_queue *)Data;
+   InitThreadCtx();
+   for (;;)
+   {
+      if (DoWork(Queue))
+      {
+         WaitSemaphore(&Queue->Semaphore);
+      }
+   }
+}
+
+internal void
+CompleteAllWork(work_queue *Queue)
+{
+   while (Queue->CompletionCount != Queue->EntryCount)
+   {
+      DoWork(Queue);
+   }
+   
+#if TEST_WORK_QUEUE
+   for (u64 WorkIndex = 0;
+        WorkIndex < Queue->EntryCount;
+        ++WorkIndex)
+   {
+      work_queue_entry *Entry = Queue->Entries + WorkIndex;
+      Assert(Entry->Completed);
+   }
+#endif
+   
+   Queue->CompletionCount = 0;
+   Queue->EntryCount = 0;
+}
+
+internal void
+InitWorkQueue(work_queue *Queue, u64 ThreadCount)
+{
+   InitSemaphore(&Queue->Semaphore, 0, ThreadCount);
+   for (u64 ThreadIndex = 0;
+        ThreadIndex < ThreadCount;
+        ++ThreadIndex)
+   {
+      OS_LaunchThread(WorkerThreadProc, Queue);
+   }
 }

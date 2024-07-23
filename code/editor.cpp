@@ -2205,7 +2205,8 @@ internal void
 UpdateAndRenderNotifications(editor *Editor, f32 DeltaTime)
 {
    temp_arena Temp = TempArena(0);
-   DeferBlock(UI_PushLabelF("Notifications"), UI_PopId())
+   
+   UI_Label(StrLit("Notifications"))
    {
       sf::Vector2u WindowSize = Editor->RenderData.Window->getSize();
       f32 Padding = 0.01f * WindowSize.x;
@@ -2305,16 +2306,9 @@ UpdateAndRenderNotifications(editor *Editor, f32 DeltaTime)
                   case Notification_Warning: { Title = "Warning"; TitleColor = YellowColor; } break;
                }
                
-               DeferBlock(ImGui::PushStyleColor(ImGuiCol_Text,
-                                                ImVec4(TitleColor.R, TitleColor.G, TitleColor.B, Fade)),
-                          ImGui::PopStyleColor(1 /*count*/))
-               {
-                  
-                  UI_TextF(Title);
-               }
+               UI_ColoredText(TitleColor) UI_TextF(Title);
                
                ImGui::Separator();
-               
                DeferBlock(ImGui::PushTextWrapPos(0.0f), ImGui::PopTextWrapPos())
                {
                   string Content = CStrFromStr(Temp.Arena, Notification->Content);
@@ -2323,7 +2317,6 @@ UpdateAndRenderNotifications(editor *Editor, f32 DeltaTime)
                
                f32 WindowHeight = ImGui::GetWindowHeight();
                Notification->BoxHeight = WindowHeight;
-               
                TargetPosY -= WindowHeight + Padding;
             }
          }
@@ -2450,15 +2443,13 @@ internal void
 RenderListOfEntitiesWindow(editor *Editor)
 {
    ui_config *Config = &Editor->UI_Config;
-   if (Config->ViewListOfEntitiesWindow)
+   if (UI_BeginWindowF(&Config->ViewListOfEntitiesWindow, "Entities") &&
+       Config->ViewListOfEntitiesWindow)
    {
-      if (UI_BeginWindowF(&Config->ViewListOfEntitiesWindow, "Entities"))
-      {
-         RenderListOfEntitiesForEntityType(Editor, Entity_Curve, StrLit("Curves"));
-         RenderListOfEntitiesForEntityType(Editor, Entity_Image, StrLit("Images"));
-      }
-      UI_EndWindow();
+      RenderListOfEntitiesForEntityType(Editor, Entity_Curve, StrLit("Curves"));
+      RenderListOfEntitiesForEntityType(Editor, Entity_Image, StrLit("Images"));
    }
+   UI_EndWindow();
 }
 
 // TODO(hbr): Get rid of this, this is a stub
@@ -3695,9 +3686,8 @@ internal void
 RenderEntityCombo(entities *Entities, entity **InOutEntity, string Label)
 {
    entity *Entity = *InOutEntity;
-   string ComboPreview = (Entity ? Entity->Name : StrLit(""));
-   // TODO(hbr): Shouldn't really pass ComboPreview.Data directly
-   if (ImGui::BeginCombo(Label.Data, ComboPreview.Data))
+   string Preview = (Entity ? Entity->Name : StrLit(""));
+   if (UI_BeginCombo(Preview, Label))
    {
       for (u64 EntityIndex = 0;
            EntityIndex < Entities->EntityCount;
@@ -3712,7 +3702,7 @@ RenderEntityCombo(entities *Entities, entity **InOutEntity, string Label)
             break;
          }
       }
-      ImGui::EndCombo();
+      UI_EndCombo();
    }
 }
 
@@ -3773,183 +3763,162 @@ UpdateAndRenderCurveCombining(editor *Editor, sf::Transform Transform)
       
       if (Combine)
       {
-         // TODO(hbr): Reenable
-#if 0
-         entity *FromEntity = Combining->CombineCurveEntity;
-         entity *ToEntity = Combining->TargetCurveEntity;
-         curve *From = &FromEntity->Curve;
-         curve *To = &ToEntity->Curve;
+         entity *FromEntity = State->SourceEntity;
+         entity *ToEntity   = State->WithEntity;
+         curve  *From       = GetCurve(FromEntity);
+         curve  *To         = GetCurve(ToEntity);
+         u64     FromCount  = From->ControlPointCount;
+         u64     ToCount    = To->ControlPointCount;
          
-         u64 N = From->ControlPointCount;
-         u64 M = To->ControlPointCount;
-         
-         Assert(AreCurvesCompatibleForCombining(From, To));
-         
-         // NOTE(hbr): Prepare control point-related buffers in proper order.
-         if (Combining->CombineCurveLastControlPoint)
+         if (State->SourceCurveLastControlPoint)
          {
-            ArrayReverse(From->ControlPoints, N, local_position);
-            ArrayReverse(From->ControlPointWeights, N, f32);
-            ArrayReverse(From->CubicBezierPoints, 3 * N, local_position);
+            ArrayReverse(From->ControlPoints, FromCount, local_position);
+            ArrayReverse(From->ControlPointWeights, FromCount, f32);
+            ArrayReverse(From->CubicBezierPoints, 3 * FromCount, local_position);
          }
          
-         if (Combining->TargetCurveFirstControlPoint)
+         if (State->WithCurveFirstControlPoint)
          {
-            ArrayReverse(To->ControlPoints, M, local_position);
-            ArrayReverse(To->ControlPointWeights, M, f32);
-            ArrayReverse(To->CubicBezierPoints, 3 * M, local_position);
+            ArrayReverse(To->ControlPoints, ToCount, local_position);
+            ArrayReverse(To->ControlPointWeights, ToCount, f32);
+            ArrayReverse(To->CubicBezierPoints, 3 * ToCount, local_position);
          }
          
-         u64 CombinedPointCount = M;
+         u64 CombinedPointCount = ToCount;
          u64 StartIndex = 0;
          v2f32 Translation = {};
-         switch (Combining->CombinationType)
+         switch (State->CombinationType)
          {
             case CurveCombination_Merge: {
-               CombinedPointCount += N;
-               StartIndex = 0;
-               Translation = {};
+               CombinedPointCount += FromCount;
             } break;
             
             case CurveCombination_C0:
             case CurveCombination_C1:
             case CurveCombination_C2:
             case CurveCombination_G1: {
-               if (N > 0)
+               if (FromCount > 0)
                {
-                  CombinedPointCount += N - 1;
+                  CombinedPointCount += FromCount - 1;
                   StartIndex = 1;
-                  if (M > 0)
+                  if (ToCount > 0)
                   {
                      Translation =
-                        LocalEntityPositionToWorld(ToEntity, To->ControlPoints[M - 1]) -
+                        LocalEntityPositionToWorld(ToEntity, To->ControlPoints[ToCount - 1]) -
                         LocalEntityPositionToWorld(FromEntity, From->ControlPoints[0]);
                   }
                }
             } break;
             
+            case CurveCombination_None:
             case CurveCombination_Count: InvalidPath;
          }
          
          // NOTE(hbr): Allocate buffers and copy control points into them
-         v2f32 *CombinedPoints = PushArrayNonZero(Temp.Arena, CombinedPointCount, v2f32);
-         f32 *CombinedWeights = PushArrayNonZero(Temp.Arena, CombinedPointCount, f32);
+         v2f32 *CombinedPoints  = PushArrayNonZero(Temp.Arena, CombinedPointCount, v2f32);
+         f32   *CombinedWeights = PushArrayNonZero(Temp.Arena, CombinedPointCount, f32);
          v2f32 *CombinedBeziers = PushArrayNonZero(Temp.Arena, 3 * CombinedPointCount, v2f32);
+         MemoryCopy(CombinedPoints, To->ControlPoints, ToCount * SizeOf(CombinedPoints[0]));
+         MemoryCopy(CombinedWeights, To->ControlPointWeights, ToCount * SizeOf(CombinedWeights[0]));
+         MemoryCopy(CombinedBeziers, To->CubicBezierPoints, 3 * ToCount * SizeOf(CombinedBeziers[0]));
          
-         MemoryCopy(CombinedControlPoints,
-                    To->ControlPoints,
-                    M * SizeOf(CombinedControlPoints[0]));
-         MemoryCopy(CombinedControlPointWeights,
-                    To->ControlPointWeights,
-                    M * SizeOf(CombinedControlPointWeights[0]));
-         MemoryCopy(CombinedCubicBezierPoints,
-                    To->CubicBezierPoints,
-                    3 * M * SizeOf(CombinedCubicBezierPoints[0]));
-         
+         // TODO(hbr): SIMD?
+         for (u64 I = StartIndex; I < FromCount; ++I)
          {
-            for (u64 I = StartIndex; I < N; ++I)
-            {
-               world_position FromControlPoint = LocalEntityPositionToWorld(FromEntity, From->ControlPoints[I]);
-               local_position ToControlPoint = WorldToLocalEntityPosition(ToEntity, FromControlPoint + Translation);
-               CombinedControlPoints[M - StartIndex + I] = ToControlPoint;
-            }
-            
-            for (u64 I = 3 * StartIndex; I < 3 * N; ++I)
-            {
-               world_position FromCubicBezierPoint = LocalEntityPositionToWorld(FromEntity, From->CubicBezierPoints[I]);
-               local_position ToCubicBezierPoint = WorldToLocalEntityPosition(ToEntity, FromCubicBezierPoint + Translation); 
-               CombinedCubicBezierPoints[3 * (M - StartIndex) + I] = ToCubicBezierPoint;
-            }
-            
-            MemoryCopy(CombinedControlPointWeights + M,
-                       From->ControlPointWeights + StartIndex,
-                       (N - StartIndex) * SizeOf(CombinedControlPointWeights[0]));
+            world_position FromPoint = LocalEntityPositionToWorld(FromEntity, From->ControlPoints[I]);
+            local_position ToPoint   = WorldToLocalEntityPosition(ToEntity, FromPoint + Translation);
+            CombinedPoints[ToCount - StartIndex + I] = ToPoint;
          }
+         for (u64 I = 3 * StartIndex; I < 3 * FromCount; ++I)
+         {
+            world_position FromBezier = LocalEntityPositionToWorld(FromEntity, From->CubicBezierPoints[I]);
+            local_position ToBezier   = WorldToLocalEntityPosition(ToEntity, FromBezier + Translation); 
+            CombinedBeziers[3 * (ToCount - StartIndex) + I] = ToBezier;
+         }
+         MemoryCopy(CombinedWeights + ToCount,
+                    From->ControlPointWeights + StartIndex,
+                    (FromCount - StartIndex) * SizeOf(CombinedWeights[0]));
          
          // NOTE(hbr): Combine control points properly on the border
-         switch (Combining->CombinationType)
+         switch (State->CombinationType)
          {
             // NOTE(hbr): Nothing to do
             case CurveCombination_Merge:
             case CurveCombination_C0: {} break;
             
             case CurveCombination_C1: {
-               if (M >= 2 && N >= 2)
+               if (FromCount >= 2 && ToCount >= 2)
                {
-                  v2f32 P = CombinedControlPoints[M - 1];
-                  v2f32 Q = CombinedControlPoints[M - 2];
+                  v2f32 P = CombinedPoints[ToCount - 1];
+                  v2f32 Q = CombinedPoints[ToCount - 2];
                   
                   // NOTE(hbr): First derivative equal
-                  v2f32 FixedControlPoint = Cast(f32)M/N * (P - Q) + P;
-                  v2f32 Fix = FixedControlPoint - CombinedControlPoints[M];
-                  CombinedControlPoints[M] = FixedControlPoint;
+                  v2f32 FixedControlPoint = Cast(f32)ToCount/FromCount * (P - Q) + P;
+                  v2f32 Fix = FixedControlPoint - CombinedPoints[ToCount];
+                  CombinedPoints[ToCount] = FixedControlPoint;
                   
-                  CombinedCubicBezierPoints[3 * M + 0] += Fix;
-                  CombinedCubicBezierPoints[3 * M + 1] += Fix;
-                  CombinedCubicBezierPoints[3 * M + 2] += Fix;
+                  CombinedBeziers[3 * ToCount + 0] += Fix;
+                  CombinedBeziers[3 * ToCount + 1] += Fix;
+                  CombinedBeziers[3 * ToCount + 2] += Fix;
                }
             } break;
             
             case CurveCombination_C2: {
-               if (M >= 3 && N >= 3)
+               if (FromCount >= 3 && ToCount >= 3)
                {
                   // TODO(hbr): Merge C1 with C2, maybe G1.
-                  v2f32 R = CombinedControlPoints[M - 3];
-                  v2f32 Q = CombinedControlPoints[M - 2];
-                  v2f32 P = CombinedControlPoints[M - 1];
+                  v2f32 R = CombinedPoints[ToCount - 3];
+                  v2f32 Q = CombinedPoints[ToCount - 2];
+                  v2f32 P = CombinedPoints[ToCount - 1];
                   
                   // NOTE(hbr): First derivative equal
-                  v2f32 Fixed_T = Cast(f32)M/N * (P - Q) + P;
+                  v2f32 Fixed_T = Cast(f32)ToCount/FromCount * (P - Q) + P;
                   // NOTE(hbr): Second derivative equal
-                  v2f32 Fixed_U = Cast(f32)(N * (N-1))/(M * (M-1)) * (P - 2.0f * Q + R) + 2.0f * Fixed_T - P;
-                  v2f32 Fix_T = Fixed_T - CombinedControlPoints[M];
-                  v2f32 Fix_U = Fixed_U - CombinedControlPoints[M + 1];
-                  CombinedControlPoints[M] = Fixed_T;
-                  CombinedControlPoints[M + 1] = Fixed_U;
+                  v2f32 Fixed_U = Cast(f32)(FromCount * (FromCount-1))/(ToCount * (ToCount-1)) * (P - 2.0f * Q + R) + 2.0f * Fixed_T - P;
+                  v2f32 Fix_T = Fixed_T - CombinedPoints[ToCount];
+                  v2f32 Fix_U = Fixed_U - CombinedPoints[ToCount + 1];
+                  CombinedPoints[ToCount] = Fixed_T;
+                  CombinedPoints[ToCount + 1] = Fixed_U;
                   
-                  CombinedCubicBezierPoints[3 * M + 0] += Fix_T;
-                  CombinedCubicBezierPoints[3 * M + 1] += Fix_T;
-                  CombinedCubicBezierPoints[3 * M + 2] += Fix_T;
+                  CombinedBeziers[3 * ToCount + 0] += Fix_T;
+                  CombinedBeziers[3 * ToCount + 1] += Fix_T;
+                  CombinedBeziers[3 * ToCount + 2] += Fix_T;
                   
-                  CombinedCubicBezierPoints[3 * (M + 1) + 0] += Fix_U;
-                  CombinedCubicBezierPoints[3 * (M + 1) + 1] += Fix_U;
-                  CombinedCubicBezierPoints[3 * (M + 1) + 2] += Fix_U;
+                  CombinedBeziers[3 * (ToCount + 1) + 0] += Fix_U;
+                  CombinedBeziers[3 * (ToCount + 1) + 1] += Fix_U;
+                  CombinedBeziers[3 * (ToCount + 1) + 2] += Fix_U;
                }
             } break;
             
             case CurveCombination_G1: {
-               if (M >= 2 && N >= 2)
+               if (FromCount >= 2 && ToCount >= 2)
                {
                   f32 PreserveLength = Norm(From->ControlPoints[1] - From->ControlPoints[0]);
                   
-                  v2f32 P = CombinedControlPoints[M - 2];
-                  v2f32 Q = CombinedControlPoints[M - 1];
+                  v2f32 P = CombinedPoints[ToCount - 2];
+                  v2f32 Q = CombinedPoints[ToCount - 1];
                   v2f32 Direction = P - Q;
                   Normalize(&Direction);
                   
                   v2f32 FixedControlPoint = Q - PreserveLength * Direction;
-                  v2f32 Fix = FixedControlPoint - CombinedControlPoints[M];
-                  CombinedControlPoints[M] = FixedControlPoint;
+                  v2f32 Fix = FixedControlPoint - CombinedPoints[ToCount];
+                  CombinedPoints[ToCount] = FixedControlPoint;
                   
-                  CombinedCubicBezierPoints[3 * M + 0] += Fix;
-                  CombinedCubicBezierPoints[3 * M + 1] += Fix;
-                  CombinedCubicBezierPoints[3 * M + 2] += Fix;
+                  CombinedBeziers[3 * ToCount + 0] += Fix;
+                  CombinedBeziers[3 * ToCount + 1] += Fix;
+                  CombinedBeziers[3 * ToCount + 2] += Fix;
                }
             } break;
             
+            case CurveCombination_None:
             case CurveCombination_Count: InvalidPath;
          }
          
-         SetCurveControlPoints(ToEntity,
-                               CombinedPointCount,
-                               CombinedControlPoints,
-                               CombinedControlPointWeights,
-                               CombinedCubicBezierPoints);
+         SetCurveControlPoints(ToEntity, CombinedPointCount, CombinedPoints,
+                               CombinedWeights, CombinedBeziers);
          
-         // TODO(hbr): Maybe update name of combined curve
          DeallocEntity(Editor, FromEntity);
-         // TODO(hbr): Maybe select To curve
-#endif
+         SelectEntity(Editor, ToEntity);
       }
       
       if (Combine || !IsWindowOpen || Cancel)
@@ -4327,7 +4296,8 @@ int main()
 {
    InitThreadCtx();
    InitProfiler();
-   arena *PermamentArena = TempArena(0).Arena;
+   
+   arena *PermamentArena = AllocArena();
    
    sf::VideoMode VideoMode = sf::VideoMode::getDesktopMode();
    sf::ContextSettings ContextSettings = sf::ContextSettings();
@@ -4336,10 +4306,10 @@ int main()
    
    SetNormalizedDeviceCoordinatesView(&Window);
    
-#if 0
-#if not(BUILD_DEBUG)
+#if 1
+   //#if not(BUILD_DEBUG)
    Window.setFramerateLimit(60);
-#endif
+   //#endif
 #endif
    
    if (Window.isOpen())

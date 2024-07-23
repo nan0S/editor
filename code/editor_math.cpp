@@ -129,7 +129,7 @@ Rotation2DToDegrees(rotation_2d Rotation)
 internal f32
 Rotation2DToRadians(rotation_2d Rotation)
 {
-   f32 Radians = atan2f(Rotation.Y, Rotation.X);
+   f32 Radians = Atan2F32(Rotation.Y, Rotation.X);
    return Radians;
 }
 

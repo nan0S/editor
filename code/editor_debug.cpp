@@ -65,5 +65,7 @@ DebugUpdateAndRender(editor *Editor)
    {
       RenderDebugWindow(Editor);
    }
+#if BUILD_DEBUG
    ImGui::ShowDemoWindow();
+#endif
 }

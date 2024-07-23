@@ -10,17 +10,21 @@
 #endif
 
 //- virtual memory
-internal void *AllocVirtualMemory(u64 Capacity, b32 Commit);
-internal void  CommitVirtualMemory(void *Memory, u64 Size);
-internal void  DeallocVirtualMemory(void *Memory, u64 Size);
+internal void *OS_AllocVirtualMemory(u64 Capacity, b32 Commit);
+internal void  OS_CommitVirtualMemory(void *Memory, u64 Size);
+internal void  OS_DeallocVirtualMemory(void *Memory, u64 Size);
 
-//- timing
+//- misc
 internal u64 ReadOSTimerFreq(void);
 internal u64 ReadOSTimer(void);
 internal u64 ReadCPUTimer(void);
 internal u64 EstimateCPUFrequency(u64 GuessSampleTimeMs);
+internal u64 GetProcCount(void);
+internal u64 GetPageSize(void);
 
 //- time
+internal date_time   TimestampToDateTime(timestamp64 Ts);
+internal timestamp64 DateTimeToTimestamp(date_time Dt);
 
 //- files
 enum
@@ -61,9 +65,8 @@ internal success_b32 OS_WriteDataToFile(string Path, string Data);
 internal success_b32 OS_WriteDataListToFile(string Path, string_list DataList);
 
 //- output, streams
-// TODO(hbr): rename
-internal file_handle StdOut(void);
-internal file_handle StdErr(void);
+internal file_handle StdOutput(void);
+internal file_handle StdError(void);
 
 internal void OutputFile(file_handle Out, string String);
 internal void OutputFile(file_handle Out, char const *String);
@@ -77,51 +80,71 @@ internal void OutputError(string String);
 internal void OutputError(char const *String);
 internal void OutputErrorF(char const *Format, ...);
 internal void OutputErrorFV(char const *Format, va_list Args);
+internal void OutputDebug(string String);
+internal void OutputDebugF(char const *Format, ...);
+internal void OutputDebugFV(char const *Format, va_list Args);
 
 //- libraries
 internal library_handle OS_LoadLibrary(char const *Name);
-internal void *OS_LibraryLoadProc(library_handle Lib, char const *ProcName);
-internal void OS_UnloadLibrary(library_handle Lib);
+internal void *         OS_LibraryLoadProc(library_handle Lib, char const *ProcName);
+internal void           OS_UnloadLibrary(library_handle Lib);
 
-//- process
-struct process_handle
+//- process, threads
+internal process_handle OS_LaunchProcess(string_list CmdList);
+internal b32            OS_WaitForProcessToFinish(process_handle Process);
+internal void           OS_CleanupAfterProcess(process_handle Handle);
+
+typedef OS_THREAD_FUNC(thread_func);
+internal thread_handle OS_LaunchThread(thread_func *Func, void *Data);
+internal void          OS_WaitThread(thread_handle Thread);
+internal void          OS_ReleaseThreadHandle(thread_handle Thread);
+
+//- synchronization
+internal void InitMutex(mutex_handle *Mutex);
+internal void LockMutex(mutex_handle *Mutex);
+internal void UnlockMutex(mutex_handle *Mutex);
+internal void DestroyMutex(mutex_handle *Mutex);
+
+internal void InitSemaphore(semaphore_handle *Sem, u64 InitialCount, u64 MaxCount);
+internal void PostSemaphore(semaphore_handle *Sem);
+internal void WaitSemaphore(semaphore_handle *Sem);
+internal void DestroySemaphore(semaphore_handle *Sem);
+
+internal void InitBarrier(barrier_handle *Barrier, u64 ThreadCount);
+internal void DestroyBarrier(barrier_handle *Barrier);
+internal void WaitBarrier(barrier_handle *Barrier);
+
+internal u64 InterlockedIncr(u64 volatile *Value);
+internal u64 InterlockedAdd(u64 volatile *Value, u64 Add);
+internal u64 InterlockedCmpExch(u64 volatile *Value, u64 Cmp, u64 Exch);
+
+#define TEST_WORK_QUEUE 1
+
+#if !defined(TEST_WORK_QUEUE)
+# define TEST_WORK_QUEUE 0
+#endif
+
+struct work_queue_entry
 {
-   STARTUPINFOA StartupInfo;
-   PROCESS_INFORMATION ProcessInfo;
+   void (*Func)(void *Data);
+   void *Data;
+#if TEST_WORK_QUEUE
+   b32 Completed;
+#endif
 };
 
-// TODO(hbr): Move to cpp file
-internal process_handle
-OS_LaunchProcess(string_list CmdList)
+struct work_queue
 {
-   temp_arena Temp = TempArena(0);
-   
-   process_handle Handle = {};
-   Handle.StartupInfo.cb = SizeOf(Handle.StartupInfo);
-   DWORD CreationFlags = 0;
-   string Cmd = StrListJoin(Temp.Arena, &CmdList, StrLit(" "));
-   CreateProcessA(0, Cmd.Data, 0, 0, 0, CreationFlags, 0, 0,
-                  &Handle.StartupInfo, &Handle.ProcessInfo);
-   EndTemp(Temp);
-   
-   return Handle;
-}
+   work_queue_entry Entries[1024];
+   u64 volatile NextEntryToWrite;
+   u64 volatile NextEntryToRead;
+   u64 volatile CompletionCount;
+   u64 EntryCount;
+   semaphore_handle Semaphore;
+};
 
-internal b32
-OS_WaitForProcessToFinish(process_handle Process)
-{
-   b32 Success = (WaitForSingleObject(Process.ProcessInfo.hProcess, INFINITE) == WAIT_OBJECT_0);
-   return Success;
-}
-
-internal void
-OS_CleanupAfterProcess(process_handle Handle)
-{
-   CloseHandle(Handle.StartupInfo.hStdInput);
-   CloseHandle(Handle.StartupInfo.hStdOutput);
-   CloseHandle(Handle.StartupInfo.hStdError);
-   CloseHandle(Handle.ProcessInfo.hProcess);
-   CloseHandle(Handle.ProcessInfo.hThread);
-}
+internal void InitWorkQueue(work_queue *Queue, u64 ThreadCount);
+internal void PutWork(work_queue *Queue, void (*Func)(void *Data), void *Data);
+internal void CompleteAllWork(work_queue *Queue);
 
 #endif //EDITOR_OS_H

@@ -4,20 +4,20 @@
 #include <windows.h>
 #include <intrin.h>
 
-typedef HANDLE file_handle;
-typedef HMODULE library_handle;
+typedef HANDLE file;
+typedef HMODULE library;
 
-struct process_handle
+struct process
 {
    STARTUPINFOA StartupInfo;
    PROCESS_INFORMATION ProcessInfo;
 };
 
-typedef CRITICAL_SECTION mutex_handle;
-typedef HANDLE semaphore_handle;
-typedef SYNCHRONIZATION_BARRIER barrier_handle;
+typedef CRITICAL_SECTION mutex;
+typedef HANDLE semaphore;
+typedef SYNCHRONIZATION_BARRIER barrier;
 
-typedef HANDLE thread_handle;
+typedef HANDLE thread;
 typedef DWORD WINAPI thread_func(LPVOID lpParameter);
 
 #define OS_THREAD_FUNC(Name) DWORD WINAPI Name(LPVOID Data)

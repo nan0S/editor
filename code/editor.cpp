@@ -4292,7 +4292,8 @@ CalculateAspectRatio(u64 Width, u64 Height)
    return AspectRatio;
 }
 
-int main()
+int
+main()
 {
    InitThreadCtx();
    InitProfiler();

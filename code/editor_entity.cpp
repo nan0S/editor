@@ -423,7 +423,6 @@ SetCurveControlPoints(entity *Entity,
 }
 
 // TODO(hbr): Probably just implement Append in terms of insert instead of making append special case of insert
-typedef u64 added_point_index_u64;
 internal u64
 AppendCurveControlPoint(entity *Entity, world_position Point, f32 Weight)
 {

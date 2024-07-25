@@ -35,7 +35,7 @@ EstimateCPUFrequency(u64 GuessSampleTimeMs)
 internal string
 OS_ReadEntireFile(arena *Arena, string Path)
 {
-   file_handle File = OS_OpenFile(Path, FileAccess_Read);
+   file File = OS_OpenFile(Path, FileAccess_Read);
    u64 Size = OS_FileSize(File);
    char *Data = PushArrayNonZero(Arena, Size, char);
    u64 Read = OS_ReadFile(File, Data, Size);
@@ -48,7 +48,7 @@ OS_ReadEntireFile(arena *Arena, string Path)
 internal b32
 OS_WriteDataToFile(string Path, string Data)
 {
-   file_handle File = OS_OpenFile(Path, FileAccess_Write);
+   file File = OS_OpenFile(Path, FileAccess_Write);
    u64 Written = OS_WriteFile(File, Data.Data, Data.Count);
    b32 Success = (Written == Data.Count);
    OS_CloseFile(File);
@@ -59,7 +59,7 @@ OS_WriteDataToFile(string Path, string Data)
 internal b32
 OS_WriteDataListToFile(string Path, string_list DataList)
 {
-   file_handle File = OS_OpenFile(Path, FileAccess_Write);
+   file File = OS_OpenFile(Path, FileAccess_Write);
    b32 Success = true;
    u64 Offset = 0;
    ListIter(Node, DataList.Head, string_list_node)
@@ -78,17 +78,17 @@ OS_WriteDataListToFile(string Path, string_list DataList)
    return Success;
 }
 
-internal void OutputFile(file_handle Out, string String) { OS_WriteFile(Out, String.Data, String.Count); }
+internal void OutputFile(file Out, string String) { OS_WriteFile(Out, String.Data, String.Count); }
 internal void Output(string String) { OutputFile(StdOutput(), String); }
 internal void OutputFV(char const *Format, va_list Args) { OutputFileFV(StdOutput(), Format, Args); }
 internal void OutputError(string String) { OutputFile(StdError(), String); }
 internal void OutputErrorFV(char const *Format, va_list Args) { OutputFileFV(StdError(), Format, Args); }
-internal void OutputFile(file_handle Out, char const *String) { OutputFile(Out, StrFromCStr(String)); }
+internal void OutputFile(file Out, char const *String) { OutputFile(Out, StrFromCStr(String)); }
 internal void Output(char const *String) { Output(StrFromCStr(String)); }
 internal void OutputError(char const *String) { OutputError(StrFromCStr(String)); }
 
 internal void
-OutputFileF(file_handle Out, char const *Format, ...)
+OutputFileF(file Out, char const *Format, ...)
 {
    va_list Args;
    va_start(Args, Format);
@@ -97,7 +97,7 @@ OutputFileF(file_handle Out, char const *Format, ...)
 }
 
 internal void
-OutputFileFV(file_handle Out, char const *Format, va_list Args)
+OutputFileFV(file Out, char const *Format, va_list Args)
 {
    temp_arena Temp = TempArena(0);
    string String = StrFV(Temp.Arena, Format, Args);

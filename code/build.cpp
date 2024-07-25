@@ -31,7 +31,7 @@ CodePath(string File)
    return FullPath;
 }
 
-internal process_handle
+internal process
 CompileProgram(b32 Debug)
 {
    char const *Mode = (Debug ? "debug" : "release");
@@ -67,12 +67,11 @@ CompileProgram(b32 Debug)
       StrListPush(Arena, &ImguiCmd, CodePath(StrLit("imgui_unity.cpp")));
       StrListPush(Arena, &ImguiCmd, StrF(Arena, "/Fo:%S", ImguiObj));
       LogF("%s imgui build command: %S", Mode, StrListJoin(Arena, &ImguiCmd, StrLit(" ")));
-      process_handle Imgui = OS_LaunchProcess(ImguiCmd);
+      process Imgui = OS_LaunchProcess(ImguiCmd);
       OS_WaitForProcessToFinish(Imgui);
    }
    
    string_list MainCmd = BasicCompileCmd;
-   
    StrListPush(Arena, &MainCmd, CodePath(StrLit("editor.cpp")));
    StrListPush(Arena, &MainCmd, ImguiObj);
    StrListPush(Arena, &MainCmd, StrF(Arena, "/Fo:editor_%s.obj", Mode));
@@ -84,7 +83,7 @@ CompileProgram(b32 Debug)
    StrListPush(Arena, &MainCmd, StrLit("sfml-system.lib"));
    StrListPush(Arena, &MainCmd, StrLit("sfml-window.lib"));
    LogF("%s build command: %S", Mode, StrListJoin(Arena, &MainCmd, StrLit(" ")));
-   process_handle Build = OS_LaunchProcess(MainCmd);
+   process Build = OS_LaunchProcess(MainCmd);
    
    OS_CopyFile(CodePath(StrLit("third_party/sfml/bin/sfml-graphics-2.dll")), StrLit("sfml-graphics-2.dll"));
    OS_CopyFile(CodePath(StrLit("third_party/sfml/bin/sfml-system-2.dll")),   StrLit("sfml-system-2.dll"));
@@ -176,17 +175,17 @@ int main(int ArgCount, char *Argv[])
             StrListPush(Arena, &CompileCmd, CppPath);
             StrListPush(Arena, &CompileCmd, StrLit("/link"));
             StrListPush(Arena, &CompileCmd, StrF(Arena, "/out:%S", TmpName));
-            process_handle Compile = OS_LaunchProcess(CompileCmd);
+            process Compile = OS_LaunchProcess(CompileCmd);
             OS_WaitForProcessToFinish(Compile);
             
             string_list BuildCmd = {};
             StrListPush(Arena, &BuildCmd, TmpName);
-            process_handle Build = OS_LaunchProcess(BuildCmd);
+            process Build = OS_LaunchProcess(BuildCmd);
             OS_WaitForProcessToFinish(Build);
          }
          else
          {
-            process_handle Processes[2] = {};
+            process Processes[2] = {};
             u64 ProcessCount = 0;
             if (Debug)
             {

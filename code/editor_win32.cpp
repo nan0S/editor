@@ -55,7 +55,7 @@ ReadOSTimer(void)
    return Counter.QuadPart;
 }
 
-internal file_handle
+internal file
 OS_OpenFile(string Path, file_access_flags Access)
 {
    temp_arena Temp = TempArena(0);
@@ -78,7 +78,7 @@ OS_OpenFile(string Path, file_access_flags Access)
 }
 
 internal void
-OS_CloseFile(file_handle File)
+OS_CloseFile(file File)
 {
    CloseHandle(File);
 }
@@ -90,7 +90,7 @@ typedef BOOL file_op_func(HANDLE       hFile,
                           LPOVERLAPPED lpOverlapped);
 
 internal u64
-OS_FileOperation(file_op_func *Op, file_handle File, char *Buf, u64 Target, u64 Offset)
+OS_FileOperation(file_op_func *Op, file File, char *Buf, u64 Target, u64 Offset)
 {
    u64 Processed = 0;
    
@@ -122,8 +122,8 @@ OS_FileOperation(file_op_func *Op, file_handle File, char *Buf, u64 Target, u64 
    return Processed;
 }
 
-internal u64 OS_ReadFile(file_handle File, char *Buf, u64 Read, u64 Offset) { return OS_FileOperation(Cast(file_op_func *)ReadFile, File, Buf, Read, Offset); }
-internal u64 OS_WriteFile(file_handle File, char *Buf, u64 Write, u64 Offset) { return OS_FileOperation(WriteFile, File, Buf, Write, Offset); }
+internal u64 OS_ReadFile(file File, char *Buf, u64 Read, u64 Offset) { return OS_FileOperation(Cast(file_op_func *)ReadFile, File, Buf, Read, Offset); }
+internal u64 OS_WriteFile(file File, char *Buf, u64 Write, u64 Offset) { return OS_FileOperation(WriteFile, File, Buf, Write, Offset); }
 
 internal void
 OS_DeleteFile(string Path)
@@ -159,7 +159,7 @@ OS_CopyFile(string Src, string Dest)
 }
 
 internal u64
-OS_FileSize(file_handle File)
+OS_FileSize(file File)
 {
    u64 Result = 0;
    LARGE_INTEGER FileSize = {};
@@ -292,14 +292,14 @@ OS_CurrentDir(arena *Arena)
    return Result;
 }
 
-internal file_handle
+internal file
 StdOutput(void)
 {
    HANDLE Std = GetStdHandle(STD_OUTPUT_HANDLE);
    return Std;
 }
 
-internal file_handle
+internal file
 StdError(void)
 {
    HANDLE Err = GetStdHandle(STD_ERROR_HANDLE);
@@ -315,7 +315,7 @@ OutputDebug(string String)
    EndTemp(Temp);
 }
 
-internal library_handle
+internal library
 OS_LoadLibrary(char const *Name)
 {
    HMODULE Lib = LoadLibraryA(Name);
@@ -323,24 +323,24 @@ OS_LoadLibrary(char const *Name)
 }
 
 internal void *
-OS_LibraryLoadProc(library_handle Lib, char const *ProcName)
+OS_LibraryLoadProc(library Lib, char const *ProcName)
 {
    void *Proc = GetProcAddress(Lib, ProcName);
    return Proc;
 }
 
 internal void
-OS_UnloadLibrary(library_handle Lib)
+OS_UnloadLibrary(library Lib)
 {
    FreeLibrary(Lib);
 }
 
-internal process_handle
+internal process
 OS_LaunchProcess(string_list CmdList)
 {
    temp_arena Temp = TempArena(0);
    
-   process_handle Handle = {};
+   process Handle = {};
    Handle.StartupInfo.cb = SizeOf(Handle.StartupInfo);
    DWORD CreationFlags = 0;
    string Cmd = StrListJoin(Temp.Arena, &CmdList, StrLit(" "));
@@ -352,14 +352,14 @@ OS_LaunchProcess(string_list CmdList)
 }
 
 internal b32
-OS_WaitForProcessToFinish(process_handle Process)
+OS_WaitForProcessToFinish(process Process)
 {
    b32 Success = (WaitForSingleObject(Process.ProcessInfo.hProcess, INFINITE) == WAIT_OBJECT_0);
    return Success;
 }
 
 internal void
-OS_CleanupAfterProcess(process_handle Handle)
+OS_CleanupAfterProcess(process Handle)
 {
    CloseHandle(Handle.StartupInfo.hStdInput);
    CloseHandle(Handle.StartupInfo.hStdOutput);
@@ -368,7 +368,7 @@ OS_CleanupAfterProcess(process_handle Handle)
    CloseHandle(Handle.ProcessInfo.hThread);
 }
 
-internal thread_handle
+internal thread
 OS_LaunchThread(thread_func *Func, void *Data)
 {
    HANDLE Handle = CreateThread(0, 0, Func, Data, 0, 0);
@@ -376,35 +376,35 @@ OS_LaunchThread(thread_func *Func, void *Data)
 }
 
 internal void
-OS_WaitThread(thread_handle Thread)
+OS_WaitThread(thread Thread)
 {
    WaitForSingleObject(Thread, INFINITE);
 }
 
 internal void
-OS_ReleaseThreadHandle(thread_handle Thread)
+OS_ReleaseThread(thread Thread)
 {
    CloseHandle(Thread);
 }
 
-internal inline void InitMutex(mutex_handle *Mutex) { InitializeCriticalSection(Mutex); }
-internal inline void LockMutex(mutex_handle *Mutex) { EnterCriticalSection(Mutex); }
-internal inline void UnlockMutex(mutex_handle *Mutex) { LeaveCriticalSection(Mutex); }
-internal inline void DestroyMutex(mutex_handle *Mutex) { DeleteCriticalSection(Mutex); }
+internal inline void InitMutex(mutex *Mutex) { InitializeCriticalSection(Mutex); }
+internal inline void LockMutex(mutex *Mutex) { EnterCriticalSection(Mutex); }
+internal inline void UnlockMutex(mutex *Mutex) { LeaveCriticalSection(Mutex); }
+internal inline void DestroyMutex(mutex *Mutex) { DeleteCriticalSection(Mutex); }
 
-internal inline void InitSemaphore(semaphore_handle *Sem, u64 InitialCount, u64 MaxCount) { *Sem = CreateSemaphoreA(0, InitialCount, MaxCount, 0); }
-internal inline void PostSemaphore(semaphore_handle *Sem) { ReleaseSemaphore(*Sem, 1, 0); }
-internal inline void WaitSemaphore(semaphore_handle *Sem) { WaitForSingleObject(*Sem, INFINITE); }
-internal inline void DestroySemaphore(semaphore_handle *Sem) { CloseHandle(*Sem); }
+internal inline void InitSemaphore(semaphore *Sem, u64 InitialCount, u64 MaxCount) { *Sem = CreateSemaphoreA(0, InitialCount, MaxCount, 0); }
+internal inline void PostSemaphore(semaphore *Sem) { ReleaseSemaphore(*Sem, 1, 0); }
+internal inline void WaitSemaphore(semaphore *Sem) { WaitForSingleObject(*Sem, INFINITE); }
+internal inline void DestroySemaphore(semaphore *Sem) { CloseHandle(*Sem); }
 
 internal inline u64 InterlockedIncr(u64 volatile *Value) { return InterlockedIncrement64(Cast(LONG64 volatile *)Value); }
 internal inline u64 InterlockedAdd(u64 volatile *Value, u64 Add) { return InterlockedAdd64(Cast(LONG64 volatile *)Value, Add); }
 internal inline u64 InterlockedCmpExch(u64 volatile *Value, u64 Cmp, u64 Exch) { return InterlockedCompareExchange64(Cast(LONG64 volatile *)Value, Exch, Cmp); }
 
-internal inline void InitBarrier(barrier_handle *Barrier, u64 ThreadCount) { InitializeSynchronizationBarrier(Barrier, ThreadCount, 0); }
-internal inline void DestroyBarrier(barrier_handle *Barrier) { DeleteSynchronizationBarrier(Barrier); }
+internal inline void InitBarrier(barrier *Barrier, u64 ThreadCount) { InitializeSynchronizationBarrier(Barrier, ThreadCount, 0); }
+internal inline void DestroyBarrier(barrier *Barrier) { DeleteSynchronizationBarrier(Barrier); }
 internal inline void
-WaitBarrier(barrier_handle *Barrier)
+WaitBarrier(barrier *Barrier)
 {
    // NOTE(hbr): Consider using [SYNCHRONIZATION_BARRIER_FLAGS_NO_DELETE] to improve performance when barrier is never deleted
    EnterSynchronizationBarrier(Barrier, SYNCHRONIZATION_BARRIER_FLAGS_BLOCK_ONLY);

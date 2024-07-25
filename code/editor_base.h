@@ -7,52 +7,6 @@
 #include <malloc.h>
 #include <string.h>
 
-typedef uint8_t  u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-
-typedef int8_t  s8;
-typedef int16_t s16;
-typedef int32_t s32;
-typedef int64_t s64;
-
-typedef uintptr_t umm;
-typedef intptr_t  smm;
-
-#define U8_MIN  ((u8)0)
-#define U16_MIN ((u16)0)
-#define U32_MIN ((u32)0)
-#define U64_MIN ((u64)0)
-
-#define U8_MAX  ((u8)-1)
-#define U16_MAX ((u16)-1)
-#define U32_MAX ((u32)-1)
-#define U64_MAX ((u64)-1)
-
-#define S8_MIN  ((s8)0x80)
-#define S16_MIN ((s16)0x8000)
-#define S32_MIN ((s32)0x80000000)
-#define S64_MIN ((s64)0x8000000000000000ll)
-
-#define S8_MAX  ((s8)0x7f)
-#define S16_MAX ((s16)0x7fff)
-#define S32_MAX ((s32)0x7fffffff)
-#define S64_MAX ((s64)0x7fffffffffffffffll)
-
-typedef uint32_t b32;
-#define true ((b32)1)
-#define false ((b32)0)
-
-typedef float f32;
-typedef double f64;
-union { u32 I; f32 F; } F32Inf = { 0x7f800000 };
-union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
-#define INF_F32 F32Inf.F
-#define INF_F64 F64Inf.F
-#define EPS_F32 0.0001f
-#define EPS_F64 0.000000001
-
 //- context crack
 #if defined(_WIN32)
 # define OS_WINDOWS 1
@@ -90,6 +44,53 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #if !defined(BUILD_DEBUG)
 # define BUILD_DEBUG 0
 #endif
+
+//- basic
+typedef uint8_t  u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+
+typedef int8_t  s8;
+typedef int16_t s16;
+typedef int32_t s32;
+typedef int64_t s64;
+
+typedef uintptr_t umm;
+typedef intptr_t  smm;
+
+#define U8_MIN  ((u8)0)
+#define U16_MIN ((u16)0)
+#define U32_MIN ((u32)0)
+#define U64_MIN ((u64)0)
+
+#define U8_MAX  ((u8)-1)
+#define U16_MAX ((u16)-1)
+#define U32_MAX ((u32)-1)
+#define U64_MAX ((u64)-1)
+
+#define S8_MIN  ((s8)0x80)
+#define S16_MIN ((s16)0x8000)
+#define S32_MIN ((s32)0x80000000)
+#define S64_MIN ((s64)0x8000000000000000ll)
+
+#define S8_MAX  ((s8)0x7f)
+#define S16_MAX ((s16)0x7fff)
+#define S32_MAX ((s32)0x7fffffff)
+#define S64_MAX ((s64)0x7fffffffffffffffll)
+
+typedef uint32_t b32;
+#define true  (Cast(b32)1)
+#define false (Cast(b32)0)
+
+typedef float f32;
+typedef double f64;
+union { u32 I; f32 F; } F32Inf = { 0x7f800000 };
+union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
+#define INF_F32 F32Inf.F
+#define INF_F64 F64Inf.F
+#define EPS_F32 0.0001f
+#define EPS_F64 0.000000001
 
 #define internal static
 #define local    static
@@ -189,6 +190,7 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define Lerp(A, B, T) (((A)*(1-(T))) + ((B)*(T)))
 #define Map(Value, ValueMin, ValueMax, TargetMin, TargetMax) (((Value)-(ValueMin))/((ValueMax)-(ValueMin)) * ((TargetMax)-(TargetMin)) + (TargetMin))
 #define Map01(Value, ValueMin, ValueMax) Map(Value, ValueMin, ValueMax, 0, 1)
+#define QuickSort(Array, Count, Type, CmpFunc) qsort((Array), (Count), SizeOf(Type), Cast(int(*)(void const *, void const *))(CmpFunc))
 
 #define MemoryCopy(Dest, Src, NumBytes) memcpy(Dest, Src, NumBytes)
 #define MemoryMove(Dest, Src, NumBytes) memmove(Dest, Src, NumBytes)
@@ -198,17 +200,12 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define MemoryEqual(Ptr1, Ptr2, NumBytes) (MemoryCmp(Ptr1, Ptr2, NumBytes) == 0)
 #define ZeroStruct(Ptr) MemoryZero(Ptr, SizeOf(*(Ptr)))
 
-#define QuickSort(Array, Count, Type, CmpFunc) qsort((Array), (Count), SizeOf(Type), Cast(int(*)(void const *, void const *))(CmpFunc))
-
 #define ListIter(Var, Head, Type) for (Type *Var = (Head), *__Next = ((Head) ? (Head)->Next : 0); Var; Var = __Next, __Next = (__Next ? __Next->Next : 0))
 #define ListIterRev(Var, Tail, Type) for (Type *Var = (Tail), *__Prev = ((Tail) ? (Tail)->Prev : 0); Var; Var = __Prev, __Prev = (__Prev ? __Prev->Prev : 0))
-
 #define StackPush(Head, Node) (Node)->Next = (Head); (Head) = (Node)
 #define StackPop(Head) (Head) = ((Head) ? (Head)->Next : 0)
-
 #define QueuePush(Head, Tail, Node) if (Tail) (Tail)->Next = (Node); else (Head) = (Node); (Node)->Next = 0; (Tail) = (Node)
 #define QueuePop(Head, Tail) (Head) = ((Head) ? (Head)->Next : 0); (Tail) = ((Head) ? (Tail) : 0)
-
 #define DLLPushFront(Head, Tail, Node)  (Node)->Next = (Head);  (Node)->Prev = 0; if ((Head)) (Head)->Prev = (Node); else (Tail) = (Node); (Head) = (Node)
 #define DLLPushBack(Head, Tail, Node) (Node)->Next = 0;  (Node)->Prev = (Tail); if ((Tail)) (Tail)->Next = (Node); else (Head) = (Node); (Tail) = (Node)
 #define DLLInsert(Head, Tail, After, Node) \
@@ -331,8 +328,7 @@ internal void  HeapDealloc(void *Pointer);
 #define HeapAllocStructNonZero(Type) Cast(Type *)HeapAllocNonZero(SizeOf(Type))
 #define HeapReallocArray(Array, NewCount, Type) Cast(Type *)HeapRealloc(Cast(void *)(Array), (NewCount) * SizeOf((Array)[0]))
 
-//- thread context
-internal void InitThreadCtx(void);
+internal void       InitThreadCtx(void);
 internal temp_arena TempArena(arena *Conflict);
 
 //- time
@@ -353,11 +349,10 @@ struct date_time
 internal date_time   TimestampToDateTime(timestamp64 Ts);
 internal timestamp64 DateTimeToTimestamp(date_time Dt);
 
-//- format
+//- strings
 internal u64 Fmt(u64 BufSize, char *Buf, char const *Format, ...);
 internal u64 FmtV(u64 BufSize, char *Buf, char const *Format, va_list Args);
 
-//- strings
 struct string
 {
    char *Data;
@@ -375,7 +370,6 @@ struct string_list
 {
    string_list_node *Head;
    string_list_node *Tail;
-   
    u64 NodeCount;
    u64 TotalSize;
 };
@@ -405,30 +399,34 @@ internal b32 IsDigit(char C);
 #define StrLitArena(Arena, Lit) Str(Arena, Lit, ArrayCount(Lit)-1)
 
 // TODO(hbr): functions that do not need rewrite because has been written after rewrite remark
-internal b32    CharIsLower(char C);
-internal b32    CharIsUpper(char C);
-internal char   CharToLower(char C);
+internal b32         CharIsLower(char C);
+internal b32         CharIsUpper(char C);
+internal char        CharToLower(char C);
+internal char        CharToUpper(char C);
 
-internal string MakeStr(char *Data, u64 Count);
-internal string StrFromCStr(char const *CStr);
-internal string CStrFromStr(arena *Arena, string S);
-internal u64    CStrLen(char const *CStr);
+internal string      MakeStr(char *Data, u64 Count);
+internal string      StrFromCStr(char const *CStr);
+internal string      CStrFromStr(arena *Arena, string S);
+internal u64         CStrLen(char const *CStr);
 
-internal b32    StrMatch(string A, string B, b32 CaseInsensitive);
-internal b32    StrEqual(string A, string B);
-internal int    StrCmp(string A, string B);
-internal b32    StrEndsWith(string S, string End);
-internal string StrSuffix(string S, u64 Count);
-internal string StrChop(string S, u64 Chop);
-internal string StrChopLastSlash(string S);
-internal string StrAfterLastSlash(string S);
-internal string StrChopLastDot(string S);
-internal string StrAfterLastDot(string S);
+internal b32         StrMatch(string A, string B, b32 CaseInsensitive);
+internal b32         StrEqual(string A, string B);
+internal int         StrCmp(string A, string B);
+internal b32         StrStartsWith(string S, string Start);
+internal b32         StrEndsWith(string S, string End);
+internal string      StrPrefix(string S, u64 Count);
+internal string      StrSuffix(string S, u64 Count);
+internal string      StrChop(string S, u64 Chop);
+internal string      StrChopLastSlash(string S);
+internal string      StrAfterLastSlash(string S);
+internal string      StrChopLastDot(string S);
+internal string      StrAfterLastDot(string S);
+internal string_list StrSplit(arena *Arena, string Split, string On);
 
-internal string PathChopLastPart(string Path);
-internal string PathLastPart(string Path);
-internal string PathConcat(arena *Arena, string A, string B);
-internal string PathListJoin(arena *Arena, string_list *Path);
+internal string      PathChopLastPart(string Path);
+internal string      PathLastPart(string Path);
+internal string      PathConcat(arena *Arena, string A, string B);
+internal string      PathListJoin(arena *Arena, string_list *Path);
 
 internal void        StrListPush(arena *Arena, string_list *List, string String);
 internal string      StrListJoin(arena *Arena, string_list *List, string Sep);

@@ -937,6 +937,17 @@ CharToLower(char C)
    return Result;
 }
 
+internal char
+CharToUpper(char C)
+{
+   char Result = C;
+   if (CharIsLower(Result))
+   {
+      Result += 'A' - 'a';
+   }
+   return Result;
+}
+
 internal string
 MakeStr(char *Data, u64 Count)
 {
@@ -1131,6 +1142,62 @@ StrAfterLastDot(string S)
       ++At;
       Result.Data = At;
       Result.Count = S.Data + S.Count - At;
+   }
+   
+   return Result;
+}
+
+
+internal string
+StrPrefix(string String, u64 Count)
+{
+   string Result = {};
+   Result.Data = String.Data;
+   Result.Count = Min(String.Count, Count);
+   
+   return Result;
+}
+
+internal b32
+StrStartsWith(string String, string Start)
+{
+   string Prefix = StrPrefix(String, Start.Count);
+   b32 Result = StrMatch(Prefix, Start, false);
+   
+   return Result;
+}
+
+internal string_list
+StrSplit(arena *Arena, string Split, string On)
+{
+   string_list Result = {};
+   
+   char *At = Split.Data;
+   u64 Left = Split.Count;
+   char *Last = Split.Data;
+   b32 Splitting = true;
+   while (Splitting)
+   {
+      Splitting = (Left != 0);
+      
+      string Cur = MakeStr(At, Left);
+      if (StrStartsWith(Cur, On))
+      {
+         if (At > Last)
+         {
+            string Add = MakeStr(Last, At - Last);
+            StrListPush(Arena, &Result, Add);
+         }
+         
+         At += On.Count;
+         Left -= On.Count;
+         Last = At;
+      }
+      else
+      {
+         ++At;
+         --Left;
+      }
    }
    
    return Result;

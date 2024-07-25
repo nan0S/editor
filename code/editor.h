@@ -243,7 +243,6 @@ enum curve_collision_type
 
 struct collision
 {
-   // NOTE(hbr): Fat-struct to reduce complexity
    entity *Entity;
    curve_collision_type Type;
    u64 PointIndex;

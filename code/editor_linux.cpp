@@ -36,3 +36,45 @@ ReadOSTimer(void)
    
    return Result;
 }
+
+internal b32
+OS_IterDir(arena *Arena, string Path, dir_iter *Iter, dir_entry *OutEntry)
+{
+   b32 Found = false;
+   
+   if (!Iter->NotFirstTime)
+   {
+      temp_arena Temp = TempArena(Arena);
+      string CPath = CStrFromStr(Temp.Arena, Path);
+      Iter->Dir = opendir(CPath.Data);
+      EndTemp(Temp);
+   }
+   
+   if (Iter->Dir)
+   {
+      b32 Looking = true;
+      while (Looking)
+      {
+         struct dirent *Entry = readdir(Iter->Dir);
+         if (Entry)
+         {
+            OutEntry->FileName = CStrCopy(Arena, Entry->d_name);
+            // TODO(hbr): Use d_reclen to extaract other information about the file
+            OutEntry->Attrs.Dir = (Entry->d_type == DT_DIR);
+            Found = true;
+            Looking = false;
+         }
+         else
+         {
+            Looking = false;
+         }
+      }
+   }
+   
+   if (!Found)
+   {
+      closedir(Iter->Dir);
+   }
+   
+   return Found;
+}

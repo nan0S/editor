@@ -9,16 +9,18 @@
 # error OS layer not implemented
 #endif
 
+internal void InitOS(void);
+
 //- virtual memory
 internal void *OS_AllocVirtualMemory(u64 Capacity, b32 Commit);
 internal void  OS_CommitVirtualMemory(void *Memory, u64 Size);
 internal void  OS_DeallocVirtualMemory(void *Memory, u64 Size);
 
 //- misc
-internal u64 ReadOSTimerFreq(void);
 internal u64 ReadOSTimer(void);
 internal u64 ReadCPUTimer(void);
-internal u64 EstimateCPUFrequency(u64 GuessSampleTimeMs);
+internal u64 GetOSTimerFreq(void);
+internal u64 GetCPUTimerFreq(void);
 internal u64 GetProcCount(void);
 internal u64 GetPageSize(void);
 
@@ -38,12 +40,20 @@ struct file_attrs
    b32 Dir;
 };
 
+struct dir_entry
+{
+   string FileName;
+   file_attrs Attrs;
+};
+
 internal file        OS_OpenFile(string Path, file_access_flags Access);
 internal void        OS_CloseFile(file File);
 internal u64         OS_ReadFile(file File, char *Buf, u64 Read, u64 Offset = 0);
 internal u64         OS_WriteFile(file File, char *Buf, u64 Write, u64 Offset = 0);
 internal u64         OS_FileSize(file File);
 internal file_attrs  OS_FileAttributes(string Path);
+
+internal b32         OS_IterDir(arena *Arena, string Path, dir_iter *Iter, dir_entry *OutEntry);
 
 internal void        OS_DeleteFile(string Path);
 internal b32         OS_MoveFile(string Src, string Dest);

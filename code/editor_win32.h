@@ -22,4 +22,10 @@ typedef DWORD WINAPI thread_func(LPVOID lpParameter);
 
 #define OS_THREAD_FUNC(Name) DWORD WINAPI Name(LPVOID Data)
 
+struct dir_iter
+{
+   b32 NotFirstTime;
+   HANDLE Handle;
+};
+
 #endif //EDITOR_WINDOWS_H

@@ -157,7 +157,7 @@ int main(int ArgCount, char *Argv[])
          u64 LatestModifyTime = 0;
          ListIter(DependencyFile, BuildProgramDependecies.Head, string_list_node)
          {
-            file_attrs Attrs = OS_FileAttributes(DependencyFile->String);
+            file_attrs Attrs = OS_FileAttributes(DependencyFile->Str);
             LatestModifyTime = Max(LatestModifyTime, Attrs.ModifyTime);
          }
          
@@ -202,7 +202,7 @@ int main(int ArgCount, char *Argv[])
                OS_WaitForProcessToFinish(Processes[ProcessIndex]);
             }
             
-            u64 CPUFreq = EstimateCPUFrequency(3);
+            u64 CPUFreq = EstimateCPUFreq(3);
             u64 EndTSC = ReadCPUTimer();
             u64 DiffTSC = EndTSC - BeginTSC;
             f64 BuildSec = Cast(f64)DiffTSC / CPUFreq;

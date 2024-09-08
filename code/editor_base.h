@@ -304,11 +304,11 @@ internal arena *AllocArena(void);
 internal void   DeallocArena(arena *Arena);
 internal void   ClearArena(arena *Arena);
 internal void * PushSize(arena *Arena, u64 Size);
-#define         PushStruct(Arena, Type) (Type *)PushSize(Arena, SizeOf(Type))
-#define         PushArray(Arena, Count, Type) (Type *)PushSize(Arena, (Count) * SizeOf(Type))
 internal void * PushSizeNonZero(arena *Arena, u64 Size);
-#define         PushStructNonZero(Arena, Type) (Type *)PushSizeNonZero(Arena, SizeOf(Type))
-#define         PushArrayNonZero(Arena, Count, Type) (Type *)PushSizeNonZero(Arena, (Count) * SizeOf(Type))
+#define         PushStruct(Arena, Type) Cast(Type *)PushSize(Arena, SizeOf(Type))
+#define         PushStructNonZero(Arena, Type) Cast(Type *)PushSizeNonZero(Arena, SizeOf(Type))
+#define         PushArray(Arena, Count, Type) Cast(Type *)PushSize(Arena, (Count) * SizeOf(Type))
+#define         PushArrayNonZero(Arena, Count, Type) Cast(Type *)PushSizeNonZero(Arena, (Count) * SizeOf(Type))
 
 internal temp_arena BeginTemp(arena *Conflict);
 internal void       EndTemp(temp_arena Temp);
@@ -319,52 +319,35 @@ internal void  DeallocPool(pool *Pool);
 #define        RequestChunkNonZero(Pool, Type) Cast(Type *)RequestChunkNonZeroImpl(Pool)
 internal void  ReleaseChunk(pool *Pool, void *Chunk);
 
-internal void *HeapAlloc(u64 Size);
-internal void *HeapAllocNonZero(u64 Size);
-internal void *HeapRealloc(void *Memory, u64 NewSize);
-internal void  HeapDealloc(void *Pointer);
-
-#define HeapAllocStruct(Type) Cast(Type *)HeapAlloc(SizeOf(Type))
-#define HeapAllocStructNonZero(Type) Cast(Type *)HeapAllocNonZero(SizeOf(Type))
-#define HeapReallocArray(Array, NewCount, Type) Cast(Type *)HeapRealloc(Cast(void *)(Array), (NewCount) * SizeOf((Array)[0]))
-
 internal void       InitThreadCtx(void);
 internal temp_arena TempArena(arena *Conflict);
 
 //- time
 typedef u64 timestamp64;
-
-// TODO(hbr): Maybe pack this structure
 struct date_time
 {
-   u64 Ms;    // [0,999]
-   u64 Sec;   // [0,59]
-   u64 Mins;  // [0,59]
-   u64 Hour;  // [0,23]
-   u64 Day;   // [0,30]
-   u64 Month; // [0,11]
-   u64 Year;  // [0..)
+   u32 Year;  // [0..)
+   u16 Ms;    // [0,999]
+   u8  Sec;   // [0,59]
+   u8  Mins;  // [0,59]
+   u8  Hour;  // [0,23]
+   u8  Day;   // [0,30]
+   u8  Month; // [0,11]
 };
-
 internal date_time   TimestampToDateTime(timestamp64 Ts);
 internal timestamp64 DateTimeToTimestamp(date_time Dt);
 
 //- strings
-internal u64 Fmt(u64 BufSize, char *Buf, char const *Format, ...);
-internal u64 FmtV(u64 BufSize, char *Buf, char const *Format, va_list Args);
-
 struct string
 {
    char *Data;
    u64 Count;
 };
-// TODO(hbr): remove [error_string]
-typedef string error_string;
 
 struct string_list_node
 {
    string_list_node *Next;
-   string String;
+   string Str;
 };
 struct string_list
 {
@@ -374,53 +357,37 @@ struct string_list
    u64 TotalSize;
 };
 
-// TODO(hbr): Probably rewrite stirng "module"
-// NOTE(hbr): Allocates on heap
-internal string Str(char const *String, u64 Count);
-internal string Str(arena *Arena, char const *String, u64 Count);
-internal string StrC(arena *Arena, char const *String);
-internal string StrF(arena *Arena, char const *Format, ...);
-internal string StrFV(arena *Arena, char const *Format, va_list Args);
-internal void FreeStr(string *String);
-internal string DuplicateStr(arena *Arena, string String);
-internal string DuplicateStr(string String);
-internal b32 AreStringsEqual(string A, string B);
-internal void RemoveExtension(string *Path);
-internal b32 HasSuffix(string String, string Suffix);
-internal string StringChopFileNameWithoutExtension(arena *Arena, string String);
-internal string Substr(arena *Arena, string String, u64 FromInclusive, u64 ToExclusive);
-internal b32 IsValid(string String);
-internal b32 IsError(error_string String);
+internal u64 Fmt(char *Buf, u64 BufSize, char const *Format, ...);
+internal u64 FmtV(char *Buf, u64 BufSize, char const *Format, va_list Args);
 
-internal char ToUpper(char C);
-internal b32 IsDigit(char C);
-
-#define StrLit(Lit) Str(Lit, ArrayCount(Lit)-1)
-#define StrLitArena(Arena, Lit) Str(Arena, Lit, ArrayCount(Lit)-1)
-
-// TODO(hbr): functions that do not need rewrite because has been written after rewrite remark
 internal b32         CharIsLower(char C);
 internal b32         CharIsUpper(char C);
 internal char        CharToLower(char C);
 internal char        CharToUpper(char C);
+internal b32         CharIsDigit(char C);
 
 internal string      MakeStr(char *Data, u64 Count);
-internal string      StrFromCStr(char const *CStr);
-internal string      CStrFromStr(arena *Arena, string S);
-internal u64         CStrLen(char const *CStr);
+#define              StrLit(Lit) MakeStr(Cast(char *)Lit, ArrayCount(Lit) - 1)
+internal string      StrCopy(arena *Arena, string Str);
+internal string      CStrCopy(arena *Arena, char const *Str);
+internal string      StrF(arena *Arena, char const *Format, ...);
+internal string      StrFV(arena *Arena, char const *Format, va_list Args);
+internal string      StrFromCStr(char const *Str);
+internal string      CStrFromStr(arena *Arena, string Str);
+internal u64         CStrLen(char const *Str);
 
 internal b32         StrMatch(string A, string B, b32 CaseInsensitive);
 internal b32         StrEqual(string A, string B);
 internal int         StrCmp(string A, string B);
-internal b32         StrStartsWith(string S, string Start);
-internal b32         StrEndsWith(string S, string End);
-internal string      StrPrefix(string S, u64 Count);
-internal string      StrSuffix(string S, u64 Count);
-internal string      StrChop(string S, u64 Chop);
-internal string      StrChopLastSlash(string S);
-internal string      StrAfterLastSlash(string S);
-internal string      StrChopLastDot(string S);
-internal string      StrAfterLastDot(string S);
+internal b32         StrStartsWith(string Str, string Start);
+internal b32         StrEndsWith(string Str, string End);
+internal string      StrPrefix(string Str, u64 Count);
+internal string      StrSuffix(string Str, u64 Count);
+internal string      StrChop(string Str, u64 Chop);
+internal string      StrChopLastSlash(string Str);
+internal string      StrAfterLastSlash(string Str);
+internal string      StrChopLastDot(string Str);
+internal string      StrAfterLastDot(string Str);
 internal string_list StrSplit(arena *Arena, string Split, string On);
 
 internal string      PathChopLastPart(string Path);
@@ -428,7 +395,7 @@ internal string      PathLastPart(string Path);
 internal string      PathConcat(arena *Arena, string A, string B);
 internal string      PathListJoin(arena *Arena, string_list *Path);
 
-internal void        StrListPush(arena *Arena, string_list *List, string String);
+internal void        StrListPush(arena *Arena, string_list *List, string Str);
 internal string      StrListJoin(arena *Arena, string_list *List, string Sep);
 internal string_list StrListCopy(arena *Arena, string_list *List);
 internal void        StrListConcatInPlace(string_list *List, string_list *ToPush);

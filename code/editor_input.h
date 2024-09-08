@@ -14,7 +14,6 @@ struct button_state
 {
    b32 WasPressed;
    b32 Pressed;
-   
    v2s32 PressPosition;
    v2s32 ReleasePosition;
 };
@@ -62,6 +61,21 @@ struct user_input
    u64 WindowWidth;
    u64 WindowHeight;
 };
+
+// TODO(hbr): Rethink how mouse inputs should be handled. In particular when I press the mouse down
+// I want the control point to be selected right away. Also ScreenPointsAreClose is probably nonsense.
+// I don't want that - user can actually manage to click and release the button in place no problem
+// so checking whether those two places are "close" is unnecessary.
+internal b32
+KeyPressed(user_input *Input, key Key, modifier_flags Flags)
+{
+   key_state *State = Input->Keys + Key;
+   b32 JustPressed = (State->Pressed && !State->WasPressed);
+   b32 WithModifiers = (State->ModifierFlags == Flags);
+   b32 Result = (JustPressed && WithModifiers);
+   
+   return Result;
+}
 
 internal user_input UserInputMake(v2s32 MousePosition, u64 WindowWidth, u64 WindowHeight);
 internal void HandleEvents(sf::RenderWindow *Window, user_input *UserInput);

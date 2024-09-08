@@ -441,13 +441,6 @@ struct curve_combining_state
    curve_combination_type CombinationType;
 };
 
-enum save_project_format
-{
-   SaveProjectFormat_None,
-   SaveProjectFormat_ProjectFile,
-   SaveProjectFormat_ImageFile,
-};
-
 enum action_to_do
 {
    ActionToDo_Nothing,
@@ -518,8 +511,9 @@ struct editor
    curve_animation_state       CurveAnimation;
    curve_combining_state       CurveCombining;
    
-   save_project_format SaveProjectFormat;
-   string ProjectSavePath;
+   b32 Empty;
+   arena *ProjectPathArena;
+   string ProjectPath;
    action_to_do ActionWaitingToBeDone;
    
    u64 NotificationCount;

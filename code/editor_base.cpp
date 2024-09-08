@@ -277,15 +277,13 @@ DateTimeToTimestamp(date_time Dt)
    return Ts;
 }
 
-// TODO(hbr): Replace order of arguments
 internal u64
-Fmt(u64 BufSize, char *Buf, char const *Format, ...)
+Fmt(char *Buf, u64 BufSize, char const *Format, ...)
 {
    va_list Args;
    va_start(Args, Format);
-   u64 Result = FmtV(BufSize, Buf, Format, Args);
+   u64 Result = FmtV(Buf, BufSize, Format, Args);
    va_end(Args);
-   
    return Result;
 }
 
@@ -309,13 +307,13 @@ OutC(out_buf *Out, char C)
 }
 
 internal void
-OutStr(out_buf *Out, string S)
+OutStr(out_buf *Out, string Str)
 {
-   u64 ToCopy = S.Count;
+   u64 ToCopy = Str.Count;
    if (Out->At)
    {
       ToCopy = Min(ToCopy, Out->Count);
-      MemoryCopy(Out->At, S.Data, ToCopy);
+      MemoryCopy(Out->At, Str.Data, ToCopy);
       Out->At += ToCopy;
    }
    Out->Count -= ToCopy;
@@ -377,7 +375,7 @@ ParseU64(char const **AtOut)
    u64 N = 0;
    
    char const *At = *AtOut;
-   while (IsDigit(*At))
+   while (CharIsDigit(*At))
    {
       u64 Digit = *At - '0';
       N = N*10 + Digit;
@@ -472,7 +470,7 @@ FmtFloat(out_buf *Out, f64 F, char const *Inf, char const *Nan, u64 Precision,
 }
 
 internal u64
-FmtV(u64 BufSize, char *Buf, char const *Format, va_list Args)
+FmtV(char *Buf, u64 BufSize, char const *Format, va_list Args)
 {
    out_buf Out = {};
    Out.At = Buf;
@@ -515,7 +513,7 @@ FmtV(u64 BufSize, char *Buf, char const *Format, va_list Args)
             Width = Cast(u64)va_arg(Args, u32);
             ++At;
          }
-         else if (IsDigit(*At))
+         else if (CharIsDigit(*At))
          {
             Width = ParseU64(&At);
          }
@@ -609,12 +607,12 @@ FmtV(u64 BufSize, char *Buf, char const *Format, va_list Args)
             } break;
             
             case 's': {
-               char *S = va_arg(Args, char *);
-               OutStrC(&Out, S);
+               char *Str = va_arg(Args, char *);
+               OutStrC(&Out, Str);
             } break;
             case 'S': {
-               string S = va_arg(Args, string);
-               OutStr(&Out, S);
+               string Str = va_arg(Args, string);
+               OutStr(&Out, Str);
             } break;
             case 'c': {
                char C = va_arg(Args, char);
@@ -690,223 +688,8 @@ Fmt(ArrayCount(Buffer), Buffer,
     "test", StrLit("test"));
 #endif
 
-internal string
-CreateAndCopyStr(char *Dst, char const *Src, u64 Count)
-{
-   string Result = {};
-   Result.Data = Dst;
-   Result.Count = Count;
-   MemoryCopy(Dst, Src, Count);
-   Dst[Count] = 0;
-   
-   return Result;
-}
-
-internal string
-Str(char const *String, u64 Count)
-{
-   char *Data = Cast(char *)HeapAllocNonZero(Count + 1);
-   string Result = CreateAndCopyStr(Data, String, Count);
-   
-   return Result;
-}
-
-internal string
-Str(arena *Arena, char const *String, u64 Count)
-{
-   char *Data = Cast(char *)PushSize(Arena, Count + 1);
-   string Result = CreateAndCopyStr(Data, String, Count);
-   
-   return Result;
-}
-
-internal string
-StrC(arena *Arena, char const *String)
-{
-   string Result = Str(Arena, String, CStrLen(String));
-   return Result;
-}
-
-// TODO(hbr): Make it accept pointer instead
-internal void
-FreeStr(string *String)
-{
-   HeapDealloc(String->Data);
-   String->Data = 0;
-   String->Count = 0;
-}
-
-internal string
-StrF(arena *Arena, char const *Format, ...)
-{
-   va_list Args;
-   va_start(Args, Format);
-   string Result = StrFV(Arena, Format, Args);
-   va_end(Args);
-   
-   return Result;
-}
-
-internal string
-StrFV(arena *Arena, char const *Format, va_list Args)
-{
-   va_list ArgsCopy;
-   va_copy(ArgsCopy, Args);
-   u64 Count = FmtV(0, 0, Format, Args);
-   char *Data = Cast(char *)PushSize(Arena, Count + 1);
-   FmtV(Count + 1, Data, Format, ArgsCopy);
-   va_end(ArgsCopy);
-   
-   string Result = {};
-   Result.Data = Data;
-   Result.Count = Count; 
-   
-   return Result;
-}
-
-internal string
-DuplicateStr(arena *Arena, string String)
-{
-   string Result = Str(Arena, String.Data, String.Count);
-   return Result;
-}
-
-internal string
-DuplicateStr(string String)
-{
-   string Result = Str(String.Data, String.Count);
-   return Result;
-}
-
 internal b32
-AreStringsEqual(string A, string B)
-{
-   b32 Result = false;
-   if (A.Count == B.Count)
-   {
-      Result = MemoryEqual(A.Data, B.Data, A.Count);
-   }
-   
-   return Result;
-}
-
-// TODO(hbr): Make this internal return string instead
-internal void
-RemoveExtension(string *Path)
-{
-   u64 Index = Path->Count;
-   while (Index && Path->Data[Index-1] != '.')
-   {
-      --Index;
-   }
-   if (Index)
-   {
-      Path->Count = Index - 1;
-   }
-}
-
-internal b32
-HasSuffix(string String, string Suffix)
-{
-   b32 Result = false;
-   if (String.Count >= Suffix.Count)
-   {
-      u64 Offset = String.Count - Suffix.Count;
-      Result = MemoryEqual(String.Data + Offset, Suffix.Data, Suffix.Count);
-   }
-   
-   return Result;
-}
-
-internal string
-StringChopFileNameWithoutExtension(arena *Arena, string String)
-{
-   s64 LastSlashPosition = -1;
-   for (s64 Index = String.Count;
-        Index >= 0;
-        --Index)
-   {
-      if (String.Data[Index] == '/' ||
-          String.Data[Index] == '\\')
-      {
-         LastSlashPosition = Index;
-         break;
-      }
-   }
-   
-   s64 LastDotPosition = -1;
-   for (s64 Index = String.Count - 1;
-        Index >= 0;
-        --Index)
-   {
-      if (String.Data[Index] == '.')
-      {
-         LastDotPosition = Index;
-         break;
-      }
-   }
-   
-   u64 FromInclusive = LastSlashPosition+1;
-   u64 ToExclusive = 0;
-   if (LastDotPosition == -1 ||
-       LastDotPosition <= LastSlashPosition)
-   {
-      ToExclusive = String.Count;
-   }
-   else
-   {
-      ToExclusive = LastDotPosition;
-   }
-   
-   string Result = Substr(Arena, String,
-                          FromInclusive,
-                          ToExclusive);
-   
-   return Result;
-}
-
-internal string
-Substr(arena *Arena, string String, u64 FromInclusive, u64 ToExclusive)
-{
-   if (FromInclusive > String.Count) FromInclusive = String.Count;
-   if (ToExclusive > String.Count) ToExclusive = String.Count;
-   if (FromInclusive > ToExclusive)
-   {
-      u64 Swap = FromInclusive;
-      FromInclusive = ToExclusive;
-      ToExclusive = Swap;
-   }
-   
-   u64 Count = ToExclusive - FromInclusive;
-   string Substring = Str(Arena, String.Data + FromInclusive, Count);
-   
-   return Substring;
-}
-
-internal b32
-IsValid(string String)
-{
-   b32 Result = (String.Data != 0);
-   return Result;
-}
-
-// TODO(hbr): remove IsError and IsValid
-internal b32 IsError(error_string String) { return IsValid(String); }
-
-internal char
-ToUpper(char C)
-{
-   char Result = C;
-   if ('a' <= C && C <= 'z')
-   {
-      Result = C-'a' + 'A';
-   }
-   
-   return Result;
-}
-
-internal b32
-IsDigit(char C)
+CharIsDigit(char C)
 {
    b32 Result = ('0' <= C && C <= '9');
    return Result;
@@ -954,20 +737,64 @@ MakeStr(char *Data, u64 Count)
    string Result = {};
    Result.Data = Data;
    Result.Count = Count;
-   
    return Result;
 }
 
 internal string
-CStrFromStr(arena *Arena, string S)
+StrCopy(arena *Arena, string Str)
 {
-   char *Data = PushArrayNonZero(Arena, S.Count + 1, char);
-   MemoryCopy(Data, S.Data, S.Count);
-   Data[S.Count] = 0;
+   string Result = {};
+   Result.Data = PushArrayNonZero(Arena, Str.Count, char);
+   MemoryCopy(Result.Data, Str.Data, Str.Count);
+   Result.Count = Str.Count;
+   return Result;
+}
+
+internal string
+CStrCopy(arena *Arena, char const *Str)
+{
+   string Result = {};
+   Result.Count = CStrLen(Str);
+   Result.Data = PushArrayNonZero(Arena, Result.Count, char);
+   MemoryCopy(Result.Data, Str, Result.Count);
+   return Result;
+}
+
+internal string
+StrF(arena *Arena, char const *Format, ...)
+{
+   va_list Args;
+   va_start(Args, Format);
+   string Result = StrFV(Arena, Format, Args);
+   va_end(Args);
+   return Result;
+}
+
+internal string
+StrFV(arena *Arena, char const *Format, va_list Args)
+{
+   string Result = {};
+   va_list ArgsCopy;
+   va_copy(ArgsCopy, Args);
+   Result.Count = FmtV(0, 0, Format, Args);
+   Result.Data = PushArrayNonZero(Arena, Result.Count + 1, char);
+   u64 ActualCount = FmtV(Result.Data, Result.Count + 1, Format, Args);
+   Assert(ActualCount == Result.Count);
+   Result.Data[Result.Count] = 0;
+   va_end(ArgsCopy);
+   return Result;
+}
+
+internal string
+CStrFromStr(arena *Arena, string Str)
+{
+   char *Data = PushArrayNonZero(Arena, Str.Count + 1, char);
+   MemoryCopy(Data, Str.Data, Str.Count);
+   Data[Str.Count] = 0;
    
    string Result = {};
    Result.Data = Data;
-   Result.Count = S.Count;
+   Result.Count = Str.Count;
    
    return Result;
 }
@@ -993,9 +820,9 @@ CStrLen(char const *CStr)
 }
 
 internal string
-StrSuffix(string S, u64 Count)
+StrSuffix(string Str, u64 Count)
 {
-   string Result = S;
+   string Result = Str;
    if (Result.Count > Count)
    {
       Result.Data = Result.Data + (Result.Count - Count);
@@ -1060,88 +887,88 @@ StrCmp(string A, string B)
 }
 
 internal b32
-StrEndsWith(string S, string End)
+StrEndsWith(string Str, string End)
 {
-   string Suffix = StrSuffix(S, End.Count);
+   string Suffix = StrSuffix(Str, End.Count);
    b32 Result = StrEqual(Suffix, End);
    return Result;
 }
 
 internal string
-StrChop(string S, u64 Chop)
+StrChop(string Str, u64 Chop)
 {
-   string Result = S;
+   string Result = Str;
    Result.Count -= ClampTop(Chop, Result.Count);
    return Result;
 }
 
 internal string
-StrChopLastSlash(string S)
+StrChopLastSlash(string Str)
 {
-   char *At = S.Data + (S.Count - 1);
-   while (At >= S.Data && *At != '/' && *At != '\\')
+   char *At = Str.Data + (Str.Count - 1);
+   while (At >= Str.Data && *At != '/' && *At != '\\')
    {
       --At;
    }
-   string Result = S;
-   if (At >= S.Data)
+   string Result = Str;
+   if (At >= Str.Data)
    {
-      Result.Count = At - S.Data;
+      Result.Count = At - Str.Data;
    }
    
    return Result;
 }
 
 internal string
-StrAfterLastSlash(string S)
+StrAfterLastSlash(string Str)
 {
-   char *At = S.Data + (S.Count - 1);
-   while (At >= S.Data && *At != '/' && *At != '\\')
+   char *At = Str.Data + (Str.Count - 1);
+   while (At >= Str.Data && *At != '/' && *At != '\\')
    {
       --At;
    }
-   string Result = S;
-   if (At >= S.Data)
+   string Result = Str;
+   if (At >= Str.Data)
    {
       ++At;
       Result.Data = At;
-      Result.Count = S.Data + S.Count - At;
+      Result.Count = Str.Data + Str.Count - At;
    }
    
    return Result;
 }
 
 internal string
-StrChopLastDot(string S)
+StrChopLastDot(string Str)
 {
-   char *At = S.Data + (S.Count - 1);
-   while (At >= S.Data && *At != '.')
+   char *At = Str.Data + (Str.Count - 1);
+   while (At >= Str.Data && *At != '.')
    {
       --At;
    }
-   string Result = S;
-   if (At >= S.Data)
+   string Result = Str;
+   if (At >= Str.Data)
    {
-      Result.Count = At - S.Data;
+      Result.Count = At - Str.Data;
    }
    
    return Result;
 }
 
 internal string
-StrAfterLastDot(string S)
+StrAfterLastDot(string Str)
 {
-   char *At = S.Data + (S.Count - 1);
-   while (At >= S.Data && *At != '.')
+   char *At = Str.Data + (Str.Count - 1);
+   while (At >= Str.Data && *At != '.')
    {
       --At;
    }
-   string Result = S;
-   if (At >= S.Data)
+   string Result = Str;
+   if (At >= Str.Data)
    {
       ++At;
       Result.Data = At;
-      Result.Count = S.Data + S.Count - At;
+      Result.Count = Str.Data + Str.Count - At;
    }
    
    return Result;
@@ -1149,19 +976,19 @@ StrAfterLastDot(string S)
 
 
 internal string
-StrPrefix(string String, u64 Count)
+StrPrefix(string Str, u64 Count)
 {
    string Result = {};
-   Result.Data = String.Data;
-   Result.Count = Min(String.Count, Count);
+   Result.Data = Str.Data;
+   Result.Count = Min(Str.Count, Count);
    
    return Result;
 }
 
 internal b32
-StrStartsWith(string String, string Start)
+StrStartsWith(string Str, string Start)
 {
-   string Prefix = StrPrefix(String, Start.Count);
+   string Prefix = StrPrefix(Str, Start.Count);
    b32 Result = StrMatch(Prefix, Start, false);
    
    return Result;
@@ -1204,18 +1031,18 @@ StrSplit(arena *Arena, string Split, string On)
 }
 
 internal string
-PathChopLastPart(string S)
+PathChopLastPart(string Str)
 {
-   char *At = S.Data + (S.Count - 1);
-   while (At >= S.Data && *At != '/' && *At != '\\')
+   char *At = Str.Data + (Str.Count - 1);
+   while (At >= Str.Data && *At != '/' && *At != '\\')
    {
       --At;
    }
    string Result = {};
-   Result.Data = S.Data;
-   if (At > S.Data)
+   Result.Data = Str.Data;
+   if (At > Str.Data)
    {
-      Result.Count = At - S.Data;
+      Result.Count = At - Str.Data;
    }
    if (Result.Count == 0)
    {
@@ -1226,10 +1053,10 @@ PathChopLastPart(string S)
 }
 
 internal string
-PathLastPart(string S)
+PathLastPart(string Str)
 {
-   char *At = S.Data + (S.Count - 1);
-   while (At >= S.Data && *At != '/' && *At != '\\')
+   char *At = Str.Data + (Str.Count - 1);
+   while (At >= Str.Data && *At != '/' && *At != '\\')
    {
       --At;
    }
@@ -1237,7 +1064,7 @@ PathLastPart(string S)
    
    string Result = {};
    Result.Data = At;
-   Result.Count = S.Data + S.Count - At;
+   Result.Count = Str.Data + Str.Count - At;
    
    return Result;
 }
@@ -1269,13 +1096,13 @@ PathListJoin(arena *Arena, string_list *Path)
 }
 
 internal void
-StrListPush(arena *Arena, string_list *List, string String)
+StrListPush(arena *Arena, string_list *List, string Str)
 {
    string_list_node *Node = PushStructNonZero(Arena, string_list_node);
-   Node->String = String;
+   Node->Str = Str;
    QueuePush(List->Head, List->Tail, Node);
    ++List->NodeCount;
-   List->TotalSize += String.Count;
+   List->TotalSize += Str.Count;
 }
 
 internal string_list
@@ -1284,7 +1111,7 @@ StrListCopy(arena *Arena, string_list *List)
    string_list Copy = {};
    ListIter(Node, List->Head, string_list_node)
    {
-      StrListPush(Arena, &Copy, Node->String);
+      StrListPush(Arena, &Copy, Node->Str);
    }
    
    return Copy;
@@ -1325,8 +1152,8 @@ StrListJoin(arena *Arena, string_list *List, string Sep)
    {
       MemoryCopy(At, CurSep.Data, CurSep.Count);
       At += CurSep.Count;
-      MemoryCopy(At, Node->String.Data, Node->String.Count);
-      At += Node->String.Count;
+      MemoryCopy(At, Node->Str.Data, Node->Str.Count);
+      At += Node->Str.Count;
       CurSep = Sep;
    }
    Assert(Cast(u64)(At - Result.Data) == Result.Count);

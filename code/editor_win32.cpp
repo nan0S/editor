@@ -1,20 +1,38 @@
-internal u64
-GetPageSize(void)
+struct os_layer
 {
-   SYSTEM_INFO Info;
-   GetSystemInfo(&Info);
-   return Info.dwPageSize;
+   b32 Initialized;
+   u64 CPUTimerFreq;
+   u64 OSTimerFreq;
+   u64 PageSize;
+   u64 ProcCount;
+};
+global os_layer OS_Layer;
+
+internal void
+InitOS(void)
+{
+   if (!OS_Layer.Initialized)
+   {
+      OS_Layer.Initialized = true;
+      
+      SYSTEM_INFO Info = {};
+      GetSystemInfo(&Info);
+      OS_Layer.ProcCount = Info.dwNumberOfProcessors;
+      OS_Layer.PageSize = Info.dwPageSize;
+      
+      LARGE_INTEGER Freq;
+      QueryPerformanceFrequency(&Freq);
+      OS_Layer.OSTimerFreq = Freq.QuadPart;
+      
+#if EDITOR_PROFILER
+      OS_Layer.CPUTimerFreq = EstimateCPUFreq(3);
+#endif
+   }
 }
 
-internal u64
-GetProcCount(void)
-{
-   SYSTEM_INFO SysInfo = {};
-   GetSystemInfo(&SysInfo);
-   u64 Result = SysInfo.dwNumberOfProcessors;
-   
-   return Result;
-}
+internal inline u64 GetPageSize(void) { return OS_Layer.PageSize; }
+internal inline u64 GetProcCount(void) { return OS_Layer.ProcCount; }
+internal inline u64 GetOSTimerFreq(void) { return OS_Layer.OSTimerFreq; }
 
 internal void *
 OS_AllocVirtualMemory(u64 Capacity, b32 Commit)
@@ -37,14 +55,6 @@ OS_CommitVirtualMemory(void *Memory, u64 Size)
 {
    u64 PageSnappedSize = AlignPow2(Size, GetPageSize());
    VirtualAlloc(Memory, PageSnappedSize, MEM_COMMIT, PAGE_READWRITE);
-}
-
-internal u64
-ReadOSTimerFrequency(void)
-{
-	LARGE_INTEGER Freq;
-	QueryPerformanceFrequency(&Freq);
-	return Freq.QuadPart;
 }
 
 internal u64
@@ -213,6 +223,65 @@ OS_FileAttributes(string Path)
    EndTemp(Temp);
    
    return Result;
+}
+
+internal b32
+OS_IterDir(arena *Arena, string Path, dir_iter *Iter, dir_entry *OutEntry)
+{
+   b32 Found = false;
+   
+   b32 Looking = true;
+   while (Looking)
+   {
+      WIN32_FIND_DATAA Win32FindData = {};
+      b32 HasNext = false;
+      if (Iter->NotFirstTime)
+      {
+         HasNext = Cast(b32)FindNextFileA(Iter->Handle, &Win32FindData);
+      }
+      else
+      {
+         temp_arena Temp = TempArena(Arena);
+         
+         string PathWithWild = StrF(Temp.Arena, "%S\\*", Path);
+         Iter->Handle = FindFirstFileA(PathWithWild.Data, &Win32FindData);
+         HasNext = (Iter->Handle != INVALID_HANDLE_VALUE);
+         Iter->NotFirstTime = true;
+         
+         EndTemp(Temp);
+      }
+      
+      if (HasNext)
+      {
+         string EntryName = StrFromCStr(Win32FindData.cFileName);
+         if (StrEqual(EntryName, StrLit(".")) || StrEqual(EntryName, StrLit("..")))
+         {
+            // NOTE(hbr): Skip
+         }
+         else
+         {
+            OutEntry->FileName = CStrCopy(Arena, Win32FindData.cFileName);
+            OutEntry->Attrs.FileSize = (((Cast(u64)Win32FindData.nFileSizeHigh) << 32) | Win32FindData.nFileSizeLow);
+            OutEntry->Attrs.CreateTime = Win32FileTimeToTimestamp(Win32FindData.ftCreationTime);
+            OutEntry->Attrs.ModifyTime = Win32FileTimeToTimestamp(Win32FindData.ftLastWriteTime);
+            OutEntry->Attrs.Dir = (Win32FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+            
+            Found = true;
+            Looking = false;
+         }
+      }
+      else
+      {
+         Looking = false;
+      }
+   }
+   
+   if (!Found)
+   {
+      CloseHandle(Iter->Handle);
+   }
+   
+   return Found;
 }
 
 internal b32

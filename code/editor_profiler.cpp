@@ -104,8 +104,7 @@ PrintProfileAnchor(profile_anchor *Anchor, u64 TotalElapsedTSC,
       // TODO(hbr): This code is copied form above. Refactor it
       {
          f64 TotalSelfTSCPercent = 100.0 * Cast(f64)Anchor->TotalSelfTSC / TotalElapsedTSC;
-         int Result = Fmt(Left,
-                          Buffer + Length,
+         int Result = Fmt(Buffer + Length, Left,
                           "%-50s: %10llucy, %10llucy self, %5llu hits, %10llucy/h, %03.2lf%%",
                           Anchor->Label, Anchor->TotalTSC, Anchor->TotalSelfTSC, Anchor->HitCount,
                           Anchor->TotalTSC / Anchor->HitCount, TotalSelfTSCPercent);
@@ -117,7 +116,7 @@ PrintProfileAnchor(profile_anchor *Anchor, u64 TotalElapsedTSC,
       if (Anchor->TotalTSC != Anchor->TotalSelfTSC)
       {
          f64 TotalTSCPercent = 100.0 * Cast(f64)Anchor->TotalTSC / TotalElapsedTSC;
-         int Result = Fmt(Left, Buffer + Length,  ", %3.2f%% w/children", TotalTSCPercent);
+         int Result = Fmt(Buffer + Length, Left, ", %3.2f%% w/children", TotalTSCPercent);
          int Written = Min(Left, Result);
          Left -= Written;
          Length += Written;

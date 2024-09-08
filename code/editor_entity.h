@@ -108,7 +108,7 @@ struct curve
 
 struct image
 {
-   string FilePath;
+   string ImagePath;
    sf::Texture Texture;
 };
 
@@ -128,8 +128,6 @@ typedef u64 entity_flags;
 
 struct entity
 {
-   entity *Prev;
-   entity *Next;
    arena *Arena;
    
    world_position Position;
@@ -181,33 +179,6 @@ GetImage(entity *Entity)
 {
    Assert(Entity->Type == Entity_Image);
    return &Entity->Image;
-}
-
-// TODO(hbr): I'm not sure if this internal belongs here, in this file
-internal sf::Texture
-LoadTextureFromFile(arena *Arena, string FilePath, error_string *OutError)
-{
-   sf::Texture Texture;
-   
-   temp_arena Temp = TempArena(Arena);
-   string TextureData = OS_ReadEntireFile(Temp.Arena, FilePath);
-   if (TextureData.Data)
-   {
-      if (!Texture.loadFromMemory(TextureData.Data, TextureData.Count))
-      {
-         *OutError = StrF(Arena,
-                          "failed to load texture from file %s",
-                          FilePath);
-      }
-   }
-   else
-   {
-      *OutError = StrF(Arena, "failed to load texture");
-   }
-   
-   EndTemp(Temp);
-   
-   return Texture;
 }
 
 // TODO(hbr): Rename this internal and also maybe others to [EntityRotateAround] because it's not [curve] specific.
@@ -315,6 +286,42 @@ SetEntityName(entity *Entity, string Name)
    MemoryCopy(Entity->NameBuffer, Name.Data, ToCopy);
    Entity->NameBuffer[ToCopy] = 0;
    Entity->Name = MakeStr(Entity->NameBuffer, ToCopy);
+}
+
+internal void
+InitEntity(entity *Entity,
+           world_position Position,
+           v2f32 Scale,
+           rotation_2d Rotation,
+           string Name,
+           s64 SortingLayer)
+{
+   Entity->Position = Position;
+   Entity->Scale = Scale;
+   Entity->Rotation = Rotation;
+   SetEntityName(Entity, Name);
+   Entity->SortingLayer = SortingLayer;
+}
+
+internal void SetCurveControlPoints(entity *Entity, u64 ControlPointCount, local_position *ControlPoints,
+                                    f32 *ControlPointWeights, local_position *CubicBezierPoints);
+
+internal void
+InitCurve(entity *Entity, curve_params Params)
+{
+   Entity->Type = Entity_Curve;
+   Entity->Curve.CurveParams = Params;
+   Entity->Curve.SelectedControlPointIndex = U64_MAX;
+   SetCurveControlPoints(Entity, 0, 0, 0, 0);
+}
+
+internal void
+InitImage(entity *Entity, string ImagePath, sf::Texture *Texture)
+{
+   Entity->Type = Entity_Image;
+   ClearArena(Entity->Arena);
+   Entity->Image.ImagePath = StrCopy(Entity->Arena, ImagePath);
+   new (&Entity->Image.Texture) sf::Texture(*Texture);
 }
 
 #endif //EDITOR_ENTITY_H

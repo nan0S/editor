@@ -451,42 +451,29 @@ AddNotificationF(editor *Editor, notification_type Type, char const *Format, ...
    notification *Notification = Editor->Notifications + Editor->NotificationCount++;
    ZeroStruct(Notification);
    Notification->Type = Type;
-   u64 ContentCount = FmtV(ArrayCount(Notification->ContentBuffer), Notification->ContentBuffer, Format, Args);
+   u64 ContentCount = FmtV(Notification->ContentBuffer, ArrayCount(Notification->ContentBuffer), Format, Args);
    Notification->Content = MakeStr(Notification->ContentBuffer, ContentCount);
    
    va_end(Args);
 }
 
 internal void
-EditorSetSaveProjectPath(editor *Editor,
-                         save_project_format SaveProjectFormat,
-                         string SaveProjectFilePath)
+EditorSetProjectPath(editor *Editor, b32 Empty, string ProjectPath)
 {
-   // TODO(hbr): Don't need to do that
-   if (IsValid(Editor->ProjectSavePath))
-   {
-      FreeStr(&Editor->ProjectSavePath);
-   }
+   Editor->Empty = Empty;
+   ClearArena(Editor->ProjectPathArena);
+   Editor->ProjectPath = StrCopy(Editor->ProjectPathArena, ProjectPath);
    
-   if (IsValid(SaveProjectFilePath))
+   temp_arena Temp = TempArena(0);
+   string WindowTitle = StrLit("Untitled");
+   if (!Empty)
    {
-      Editor->SaveProjectFormat = SaveProjectFormat;
-      Editor->ProjectSavePath = DuplicateStr(SaveProjectFilePath);
-      
-      temp_arena Temp = TempArena(0);
-      
-      string SaveProjectFileName = StringChopFileNameWithoutExtension(Temp.Arena,
-                                                                      SaveProjectFilePath);
-      Editor->RenderData.Window->setTitle(SaveProjectFileName.Data);
-      
-      EndTemp(Temp);
+      string FileName = StrChopLastSlash(ProjectPath);
+      string WithoutExt = StrChopLastDot(FileName);
+      WindowTitle = CStrFromStr(Temp.Arena, WithoutExt);
    }
-   else
-   {
-      Editor->SaveProjectFormat = SaveProjectFormat_None;
-      Editor->ProjectSavePath = {};
-      Editor->RenderData.Window->setTitle(WINDOW_TITLE);
-   }
+   Editor->RenderData.Window->setTitle(WindowTitle.Data);
+   EndTemp(Temp);
 }
 
 internal b32
@@ -502,6 +489,7 @@ ScreenPointsAreClose(screen_position A, screen_position B,
    return Result;
 }
 
+// TODO(hbr): Move those input functions into editor_input
 internal b32
 JustReleasedButton(button_state *ButtonState)
 {
@@ -530,16 +518,6 @@ DraggedWithButton(button_state *ButtonState,
       !ScreenPointsAreClose(ButtonState->PressPosition,
                             MousePosition,
                             CoordinateSystemData);
-   
-   return Result;
-}
-
-internal b32
-PressedWithKey(key_state Key, modifier_flags Flags)
-{
-   b32 JustPressed = (Key.Pressed && !Key.WasPressed);
-   b32 WithModifiers = (Key.ModifierFlags == Flags);
-   b32 Result = (JustPressed && WithModifiers);
    
    return Result;
 }
@@ -762,10 +740,10 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                      {
                         case CurveCollision_ControlPoint: {
                            SelectEntity(Editor, Collision.Entity);
-                           // TODO(hbr): Select ControlPoint
                         } break;
                         
                         case CurveCollision_CubicBezierPoint: {
+                           // TODO(hbr): Select ControlPoint
                            NotImplemented;
                         } break;
                         
@@ -787,30 +765,24 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                   }
                   else
                   {
-                     entity *AddCurveEntity = 0;
+                     entity *AddCurve = 0;
                      if (Editor->SelectedEntity &&
                          Editor->SelectedEntity->Type == Entity_Curve)
                      {
-                        AddCurveEntity = Editor->SelectedEntity;
+                        AddCurve = Editor->SelectedEntity;
                      }
                      else
                      {
-                        entity *Entity = AllocEntity(Editor);
-                        world_position Position = V2F32(0.0f, 0.0f);
-                        v2f32 Scale = V2F32(1.0f, 1.0f);
-                        rotation_2d Rotation = Rotation2DZero();
+                        AddCurve = AllocEntity(Editor);
                         string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EntityCounter++);
-                        InitCurveEntity(Entity,
-                                        Position, Scale, Rotation,
-                                        Name, Editor->Params.CurveDefaultParams);
-                        
-                        AddCurveEntity = Entity;
+                        InitEntity(AddCurve, V2F32(0.0f, 0.0f), V2F32(1.0f, 1.0f), Rotation2DZero(), Name, 0);
+                        InitCurve(AddCurve, Editor->Params.CurveDefaultParams);
                      }
-                     Assert(AddCurveEntity);
+                     Assert(AddCurve);
                      
-                     u64 AddedPointIndex = AppendCurveControlPoint(AddCurveEntity, ClickPosition, 1.0f);
-                     SelectControlPoint(AddCurveEntity, AddedPointIndex);
-                     SelectEntity(Editor, AddCurveEntity);
+                     u64 AddedPointIndex = AppendCurveControlPoint(AddCurve, ClickPosition, 1.0f);
+                     SelectControlPoint(AddCurve, AddedPointIndex);
+                     SelectEntity(Editor, AddCurve);
                   }
                }
             } break;
@@ -1300,18 +1272,41 @@ RenderRotationIndicator(editor *Editor, sf::Transform Transform)
    }
 }
 
+// TODO(hbr): Maybe move into editor_entity.h
+internal void
+InitEntityFromEntity(entity *Dest, entity *Src, string NewName)
+{
+   InitEntity(Dest, Src->Position, Src->Scale, Src->Rotation, NewName, Src->SortingLayer);
+   switch (Src->Type)
+   {
+      case Entity_Curve: {
+         curve *Curve = GetCurve(Src);
+         InitCurve(Dest, Curve->CurveParams);
+         SetCurveControlPoints(Dest, Curve->ControlPointCount, Curve->ControlPoints, Curve->ControlPointWeights, Curve->CubicBezierPoints);
+         SelectControlPoint(Dest, Curve->SelectedControlPointIndex);
+      } break;
+      
+      case Entity_Image: {
+         image *Image = GetImage(Src);
+         InitImage(Dest, Image->ImagePath, &Image->Texture);
+      } break;
+   }
+}
+
 internal void
 DuplicateEntity(entity *Entity, editor *Editor)
 {
    temp_arena Temp = TempArena(0);
+   
    entity *Copy = AllocEntity(Editor);
-   InitEntityFromEntity(Copy, Entity);
    string CopyName = StrF(Temp.Arena, "%S(copy)", Entity->Name);
-   SetEntityName(Copy, CopyName);
+   InitEntityFromEntity(Copy, Entity, CopyName);
+   
    SelectEntity(Editor, Copy);
    f32 SlightTranslationX = ClipSpaceLengthToWorldSpace(0.2f, &Editor->RenderData);
    v2f32 SlightTranslation = V2F32(SlightTranslationX, 0.0f);
    Copy->Position += SlightTranslation;
+   
    EndTemp(Temp);
 }
 
@@ -1517,7 +1512,7 @@ RenderChangeCurveParametersUI(char const *PushId, change_curve_params_ui UIMode)
                      {
                         // TODO(hbr): Replace to StrF
                         char ControlPointWeightLabel[128];
-                        Fmt(ArrayCount(ControlPointWeightLabel), ControlPointWeightLabel,
+                        Fmt(ControlPointWeightLabel, ArrayCount(ControlPointWeightLabel),
                             "Selected Point (%llu)", SelectedControlPointIndex);
                         
                         SomeCurveParamChanged |= UI_DragFloatF(&ControlPointWeights[SelectedControlPointIndex],
@@ -1540,7 +1535,7 @@ RenderChangeCurveParametersUI(char const *PushId, change_curve_params_ui UIMode)
                            DeferBlock(UI_PushId(ControlPointIndex), UI_PopId())
                            {                              
                               char ControlPointWeightLabel[128];
-                              Fmt(ArrayCount(ControlPointWeightLabel), ControlPointWeightLabel,
+                              Fmt(ControlPointWeightLabel, ArrayCount(ControlPointWeightLabel),
                                   "Point (%llu)", ControlPointIndex);
                               
                               SomeCurveParamChanged |= UI_DragFloatF(&ControlPointWeights[ControlPointIndex],
@@ -1932,13 +1927,11 @@ SplitCurveOnControlPoint(entity *Entity, editor *Editor)
    
    entity *LeftEntity = Entity;
    entity *RightEntity = AllocEntity(Editor);
-   InitEntityFromEntity(RightEntity, LeftEntity);
-   
    string LeftName  = StrF(Temp.Arena, "%S(left)", Entity->Name);
    string RightName = StrF(Temp.Arena, "%S(right)", Entity->Name);
-   SetEntityName(LeftEntity, LeftName);
-   SetEntityName(RightEntity, RightName);
    
+   InitEntityFromEntity(RightEntity, LeftEntity, RightName);
+   SetEntityName(LeftEntity, LeftName);
    SetCurveControlPoints(LeftEntity, LeftPointCount, LeftPoints, LeftWeights, LeftBeziers);
    SetCurveControlPoints(RightEntity, RightPointCount, RightPoints, RightWeights, RightBeziers);
    
@@ -2052,7 +2045,6 @@ RenderSelectedEntityUI(editor *Editor)
             UI_NewRow();
             UI_SeparatorTextF("Actions");
             {
-               
                Delete = UI_ButtonF("Delete");
                UI_SameRow();
                Copy = UI_ButtonF("Copy");
@@ -2452,14 +2444,23 @@ RenderListOfEntitiesWindow(editor *Editor)
    UI_EndWindow();
 }
 
-// TODO(hbr): Get rid of this, this is a stub
-internal string
-SaveProjectInFormat(arena *Arena, 
-                    save_project_format Format,
-                    string Path,
-                    editor *Editor)
+struct load_texture_result
 {
-   string Result = {};
+   b32 Success;
+   sf::Texture Texture;
+};
+// TODO(hbr): I'm not sure if this internal belongs here, in this file
+internal load_texture_result
+LoadTextureFromFile(string FilePath)
+{
+   load_texture_result Result = {};
+   temp_arena Temp = TempArena(0);
+   string Texture = OS_ReadEntireFile(Temp.Arena, FilePath);
+   if (Result.Texture.loadFromMemory(Texture.Data, Texture.Count))
+   {
+      Result.Success = true;
+   }
+   EndTemp(Temp);
    return Result;
 }
 
@@ -2500,81 +2501,64 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
          Quit          = UI_MenuItemF(0, 0, "Q/Escape",     "Quit");
          UI_EndMenu();
       }
-      
       LoadImage = UI_MenuItemF(0, 0, "Load Image");
-      
       if (UI_BeginMenuF("View"))
       {
          ui_config *Config = &Editor->UI_Config;
-         
          UI_MenuItemF(&Config->ViewListOfEntitiesWindow, 0, "List of Entities");
          UI_MenuItemF(&Config->ViewSelectedEntityWindow, 0, "Selected Entity");
          UI_MenuItemF(&Config->ViewParametersWindow,     0, "Parameters");
-         // TODO(hbr): Probably get rid of this #ifs
-#if EDITOR_PROFILER
          UI_MenuItemF(&Config->ViewProfilerWindow,       0, "Profiler");
-#endif
-#if BUILD_DEBUG
          UI_MenuItemF(&Config->ViewDebugWindow,          0, "Debug");
-#endif
-         
          if (UI_BeginMenuF("Camera"))
          {
             camera *Camera = &Editor->RenderData.Camera;
-            
             if (UI_MenuItemF(0, 0, "Reset Position"))
             {
                CameraMove(Camera, -Camera->Position);
             }
-            
             if (UI_MenuItemF(0, 0, "Reset Rotation"))
             {
                CameraRotate(Camera, Rotation2DInverse(Camera->Rotation));
             }
-            
             if (UI_MenuItemF(0, 0, "Reset Zoom"))
             {
                CameraSetZoom(Camera, 1.0f);
             }
-            
             UI_EndMenu();
          }
-         
          UI_MenuItemF(&Config->ViewDiagnosticsWindow, 0, "Diagnostics");
-         
          UI_EndMenu();
       }
-      
       // TODO(hbr): Complete help menu
       if (UI_BeginMenuF("Help"))
       {
          UI_EndMenu();
       }
-      
       UI_EndMainMenuBar();
    }
    
    string ConfirmCloseProject = StrLit("ConfirmCloseCurrentProject");
-   if (NewProject || PressedWithKey(Input->Keys[Key_N], Modifier_Ctrl))
+   if (NewProject || KeyPressed(Input, Key_N, Modifier_Ctrl))
    {
       UI_OpenPopup(ConfirmCloseProject);
       Editor->ActionWaitingToBeDone = ActionToDo_NewProject;
    }
-   if (OpenProject || PressedWithKey(Input->Keys[Key_O], Modifier_Ctrl))
+   if (OpenProject || KeyPressed(Input, Key_O, Modifier_Ctrl))
    {
       UI_OpenPopup(ConfirmCloseProject);
       Editor->ActionWaitingToBeDone = ActionToDo_OpenProject;
    }
-   if (Quit ||
-       PressedWithKey(Input->Keys[Key_Q], 0) ||
-       PressedWithKey(Input->Keys[Key_ESC], 0))
+   if (Quit || KeyPressed(Input, Key_Q, 0) || KeyPressed(Input, Key_ESC, 0))
    {
       UI_OpenPopup(ConfirmCloseProject);
       Editor->ActionWaitingToBeDone = ActionToDo_Quit;
    }
    
-   if (SaveProject || PressedWithKey(Input->Keys[Key_S], Modifier_Ctrl))
+   if (SaveProject || KeyPressed(Input, Key_S, Modifier_Ctrl))
    {
+      // TODO(hbr): Implement
+#if 0
       if (IsValid(Editor->ProjectSavePath))
       {
          temp_arena Temp = TempArena(0);
@@ -2602,10 +2586,10 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
                                SAVE_AS_MODAL_EXTENSION_SELECTION,
                                ".");
       }
+#endif
    }
    
-   if (SaveProjectAs || PressedWithKey(Input->Keys[Key_S],
-                                       Modifier_Ctrl | Modifier_Shift))
+   if (SaveProjectAs || KeyPressed(Input, Key_S, Modifier_Ctrl|Modifier_Shift))
    {
       FileDialog->OpenModal(SaveAsLabel, SaveAsTitle,
                             SAVE_AS_MODAL_EXTENSION_SELECTION,
@@ -2636,6 +2620,8 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
          {
             if (Yes)
             {
+               // TODO(hbr): Implement
+#if 0
                if (IsValid(Editor->ProjectSavePath))
                {
                   temp_arena Temp = TempArena(0);
@@ -2673,6 +2659,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
                                         ".");
                   // NOTE(hbr): Action is still waiting to be done as soon as save path is chosen.
                }
+#endif
             }
             else if (No)
             {
@@ -2691,6 +2678,8 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
       }
    }
    
+   // TODO(hbr): Implement
+#if 0   
    // NOTE(hbr): Open dialog to Save Project As 
    if (FileDialog->Display(SaveAsLabel,
                            FileDialogWindowFlags,
@@ -2775,6 +2764,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
       
       FileDialog->Close();
    }
+#endif
    
    switch (ActionToDo)
    {
@@ -2819,14 +2809,13 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
       if (FileDialog->IsOk())
       {
          temp_arena Temp = TempArena(0);
-         
+         // TODO(hbr): Implement this
+#if 0
          std::string const &SelectedPath = FileDialog->GetFilePathName();
          string OpenProjectFilePath = Str(Temp.Arena,
                                           SelectedPath.c_str(),
                                           SelectedPath.size());
          
-         // TODO(hbr): Implement this
-#if 0
          
          load_project_result LoadResult = LoadProjectFromFile(Temp.Arena,
                                                               OpenProjectFilePath,
@@ -3136,12 +3125,11 @@ UpdateAndRenderCurveSplitting(editor *Editor, sf::Transform Transform)
       // TODO(hbr): Refactor that code into common internal that splits curve into two curves
       entity *LeftEntity = Entity;
       entity *RightEntity = AllocEntity(Editor);
-      InitEntityFromEntity(RightEntity, LeftEntity);
-      
       string LeftName = StrF(Temp.Arena, "%S(left)", Entity->Name);
       string RightName = StrF(Temp.Arena, "%S(right)", Entity->Name);
+      
+      InitEntityFromEntity(RightEntity, LeftEntity, RightName);
       SetEntityName(LeftEntity, LeftName);
-      SetEntityName(RightEntity, RightName);
       
       SetCurveControlPoints(LeftEntity, ControlPointCount, LeftPoints, LeftWeights, LeftBeziers);
       SetCurveControlPoints(RightEntity, ControlPointCount, RightPoints, RightWeights, RightBeziers);
@@ -4189,6 +4177,7 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
          {
             Action.Type = UserAction_ButtonClicked;
             Action.Click.Button = Button;
+            // TODO(hbr): I know, I know. But should it be ReleasePosition???
             Action.Click.ClickPosition = ButtonState->ReleasePosition;
          }
          else if (DraggedWithButton(ButtonState, Input->MousePosition, &Editor->RenderData))
@@ -4219,7 +4208,7 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
    }
    
    // TODO(hbr): Remove this
-   if (PressedWithKey(Input->Keys[Key_E], 0))
+   if (KeyPressed(Input, Key_E, 0))
    {
       AddNotificationF(Editor, Notification_Error, "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
    }
@@ -4296,6 +4285,7 @@ int
 main()
 {
    InitThreadCtx();
+   InitOS();
    InitProfiler();
    
    arena *PermamentArena = AllocArena();

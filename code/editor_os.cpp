@@ -1,19 +1,7 @@
-#if OS_WINDOWS
-# include "editor_win32.cpp"
-#elif OS_LINUX
-# include "editor_linux.cpp"
-#endif
-
 internal u64
-ReadCPUTimer(void)
+EstimateCPUFreq(u64 GuessSampleTimeMs)
 {
-   return __rdtsc();
-}
-
-internal u64
-EstimateCPUFrequency(u64 GuessSampleTimeMs)
-{
-   u64 OSFreq = ReadOSTimerFrequency();
+   u64 OSFreq = GetOSTimerFreq();
    u64 OSWaitCount = OSFreq * GuessSampleTimeMs / 1000;
    u64 OSElapsed = 0;
    
@@ -32,6 +20,18 @@ EstimateCPUFrequency(u64 GuessSampleTimeMs)
    return CPUFreq;
 }
 
+#if OS_WINDOWS
+# include "editor_win32.cpp"
+#elif OS_LINUX
+# include "editor_linux.cpp"
+#endif
+
+internal u64
+ReadCPUTimer(void)
+{
+   return __rdtsc();
+}
+
 internal string
 OS_ReadEntireFile(arena *Arena, string Path)
 {
@@ -39,9 +39,8 @@ OS_ReadEntireFile(arena *Arena, string Path)
    u64 Size = OS_FileSize(File);
    char *Data = PushArrayNonZero(Arena, Size, char);
    u64 Read = OS_ReadFile(File, Data, Size);
-   string Result = Str(Data, Read);
+   string Result = MakeStr(Data, Read);
    OS_CloseFile(File);
-   
    return Result;
 }
 
@@ -64,7 +63,7 @@ OS_WriteDataListToFile(string Path, string_list DataList)
    u64 Offset = 0;
    ListIter(Node, DataList.Head, string_list_node)
    {
-      string Data = Node->String;
+      string Data = Node->Str;
       u64 Written = OS_WriteFile(File, Data.Data, Data.Count, Offset);
       Offset += Written;
       if (Written != Data.Count)

@@ -92,7 +92,7 @@ internal void OutputDebugFV(char const *Format, va_list Args);
 
 //- libraries
 internal library OS_LoadLibrary(char const *Name);
-internal void *  OS_LibraryLoadProc(library Lib, char const *ProcName);
+internal void *  OS_LoadLibraryProc(library Lib, char const *ProcName);
 internal void    OS_UnloadLibrary(library Lib);
 
 //- process, threads

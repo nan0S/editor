@@ -72,7 +72,6 @@ TODOs:
 - when passing [curve] to a internal but as [entity], maybe write a macro that gets [curve] from that [entity] but asserts that it really is a curve
 - get rid of defer and templates
 - get rid of [MemoryZero] in all initialization internals?
-- replace printf
 - replace imgui
 - replace sfml
 - rename internals to more natural language, don't follow those stupid conventions
@@ -87,8 +86,11 @@ TODOs:
 - rename "Copy" button into "Duplicate"
 - pressing Tab hides all the ui
 - do a pass over internals that are called just 1 time and maybe inline them
+- remove Bezier_Normal - just replace with Weighted
+- Focus on curve is weird for larger curves - investigate that
 
 DONE:
+- replace printf
 - fix convex hull line width problem
 - fix that clicking on image will move the image
 - image rotation
@@ -237,8 +239,9 @@ struct camera
 enum curve_collision_type
 {
    CurveCollision_ControlPoint,
-   CurveCollision_CurvePoint,
+   CurveCollision_CurveLine,
    CurveCollision_CubicBezierPoint,
+   CurveCollision_SplitPoint,
 };
 
 struct collision
@@ -251,9 +254,11 @@ struct collision
 typedef u64 check_collision_with_flags;
 enum
 {
-   CheckCollisionWith_ControlPoints     = (1<<0),
-   CheckCollisionWith_CurvePoints       = (1<<1),
+   // TODO(hbr): Change ControlPoints to just Points and, CurvePoints to Line
+   CheckCollisionWith_Points            = (1<<0),
+   CheckCollisionWith_CurveLines        = (1<<1),
    CheckCollisionWith_Images            = (1<<2),
+   CheckCollisionWith_SplitPoints       = (1<<3),
 };
 
 enum user_action_type
@@ -306,6 +311,7 @@ enum moving_mode_type
    MovingMode_Entity,
    MovingMode_Camera,
    MovingMode_CurvePoint,
+   MovingMode_SplitPoint,
 };
 
 // TODO(hbr): Be consistent in naming Rotating mode or Rotate mode - be consistent
@@ -332,32 +338,6 @@ struct editor_mode
          button Button;
       } Rotating;
    };
-};
-
-struct curve_splitting_state
-{
-   // TODO(hbr): Get rid of [IsSplitting], encode in [SplitCurveEntity]
-   b32 IsSplitting;
-   entity *SplitCurveEntity;
-   f32 T;
-   b32 DraggingSplitPoint;
-   u64 SavedCurveVersion;
-   world_position SplitPoint;
-};
-
-struct de_casteljau_visual_state
-{
-   b32 IsVisualizing;
-   f32 T;
-   
-   entity *CurveEntity;
-   u64 SavedCurveVersion;
-   
-   arena *Arena;
-   u64 NumIterations;
-   color *IterationColors;
-   line_vertices *LineVerticesPerIteration;
-   local_position *AllIntermediatePoints;
 };
 
 struct curve_degree_lowering_state
@@ -505,8 +485,6 @@ struct editor
    editor_params Params;
    ui_config UI_Config;
    
-   curve_splitting_state       CurveSplitting;
-   de_casteljau_visual_state   DeCasteljauVisual;
    curve_degree_lowering_state DegreeLowering;
    curve_animation_state       CurveAnimation;
    curve_combining_state       CurveCombining;
@@ -518,6 +496,8 @@ struct editor
    
    u64 NotificationCount;
    notification Notifications[32];
+   
+   b32 HideUI;
 };
 
 #endif //EDITOR_H

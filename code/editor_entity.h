@@ -83,8 +83,27 @@ struct curve_params
       color GradientA;
       color GradientB;
    } DeCasteljau;
-   
-   b32 CubicBezierHelpersDisabled;
+};
+
+struct de_casteljau_visual_state
+{
+   // TODO(hbr): Rename to active
+   b32 Enabled;
+   f32 T;
+   arena *Arena;
+   u64 IterationCount;
+   color *IterationColors;
+   line_vertices *LineVerticesPerIteration;
+   local_position *AllIntermediatePoints;
+   b32 NeedsRecomputationThisFrame;
+};
+
+struct curve_splitting_state
+{
+   b32 Active;
+   f32 T;
+   b32 NeedsRecomputationThisFrame;
+   local_position SplitPoint;
 };
 
 #define MAX_CONTROL_POINT_COUNT 1024
@@ -93,6 +112,7 @@ struct curve
    curve_params CurveParams;
    
    u64 SelectedControlPointIndex;
+   
    u64 ControlPointCount;
    local_position ControlPoints[MAX_CONTROL_POINT_COUNT];
    f32 ControlPointWeights[MAX_CONTROL_POINT_COUNT];
@@ -103,7 +123,12 @@ struct curve
    line_vertices CurveVertices;
    line_vertices PolylineVertices;
    line_vertices ConvexHullVertices;
+   
    u64 CurveVersion; // NOTE(hbr): Changes every recomputation
+   b32 NeedsRecomputationThisFrame;
+   
+   de_casteljau_visual_state DeCasteljau;
+   curve_splitting_state Splitting;
 };
 
 struct image
@@ -194,18 +219,18 @@ DefaultCurveParams(void)
 {
    curve_params Result = {};
    f32 CurveWidth = 0.009f;
-   Result.CurveColor = ColorMake(21, 69, 98);
+   Result.CurveColor = MakeColor(21, 69, 98);
    Result.CurveWidth = CurveWidth;
-   Result.PointColor = ColorMake(0, 138, 138, 148);
+   Result.PointColor = MakeColor(0, 138, 138, 148);
    Result.PointSize = 0.014f;
-   color PolylineColor = ColorMake(16, 31, 31, 200);
+   color PolylineColor = MakeColor(16, 31, 31, 200);
    Result.PolylineColor = PolylineColor;
    Result.PolylineWidth = CurveWidth;
    Result.ConvexHullColor = PolylineColor;
    Result.ConvexHullWidth = CurveWidth;
    Result.CurvePointCountPerSegment = 50;
-   Result.DeCasteljau.GradientA = ColorMake(255, 0, 144);
-   Result.DeCasteljau.GradientB = ColorMake(155, 200, 0);
+   Result.DeCasteljau.GradientA = MakeColor(255, 0, 144);
+   Result.DeCasteljau.GradientB = MakeColor(155, 200, 0);
    
    return Result;
 }

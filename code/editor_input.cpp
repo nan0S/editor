@@ -3,7 +3,7 @@ KeyFromSFMLKeyCode(sf::Keyboard::Key KeyCode)
 {
    switch (KeyCode)
    {
-      case sf::Keyboard::Escape:   { return Key_ESC;       } break;
+      case sf::Keyboard::Escape:   { return Key_Esc;       } break;
       case sf::Keyboard::Q:        { return Key_Q;         } break;
       case sf::Keyboard::S:        { return Key_S;         } break;
       case sf::Keyboard::O:        { return Key_O;         } break;
@@ -11,7 +11,8 @@ KeyFromSFMLKeyCode(sf::Keyboard::Key KeyCode)
       case sf::Keyboard::W:        { return Key_W;         } break;
       case sf::Keyboard::E:        { return Key_E;         } break;
       case sf::Keyboard::LShift:   { return Key_LeftShift; } break;
-      case sf::Keyboard::LControl: { return Key_LeftCtrl; } break;
+      case sf::Keyboard::LControl: { return Key_LeftCtrl;  } break;
+      case sf::Keyboard::Tab:      { return Key_Tab;       } break;
       
       default: {} break;
    }

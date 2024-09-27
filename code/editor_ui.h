@@ -10,6 +10,7 @@ typedef b32 expanded_b32;
 internal void UI_PushLabel(string Label);
 internal void UI_PushLabelF(char const *Format, ...);
 internal void UI_PushId(u64 Id);
+internal void UI_PopLabel(void);
 internal void UI_PopId(void);
 internal void UI_BeginDisabled(b32 Disabled);
 internal void UI_EndDisabled(void);
@@ -18,8 +19,8 @@ internal void UI_PopTextColor(void);
 internal void UI_PushAlphaF32(f32 Alpha);
 internal void UI_PopAlpha(void);
 
-#define UI_Label(Label)        DeferBlock(UI_PushLabel(Label), UI_PopId())
-#define UI_LabelF(Format, ...) DeferBlock(UI_PushLabelF(Label), UI_PopId())
+#define UI_Label(Label)        DeferBlock(UI_PushLabel(Label), UI_PopLabel())
+#define UI_LabelF(...)         DeferBlock(UI_PushLabelF(__VA_ARGS__), UI_PopLabel())
 #define UI_Id(Id)              DeferBlock(UI_PushId(Id), UI_PopId())
 #define UI_Disabled(Disabled)  DeferBlock(UI_BeginDisabled(Disabled), UI_EndDisabled())
 #define UI_ColoredText(Color)  DeferBlock(UI_PushTextColor(Color), UI_PopTextColor())
@@ -50,8 +51,8 @@ internal void              UI_SameRow(void);
 
 #define                    UI_Combo(Enum, EnumCount, EnumNames, Label) UI_Combo_(Cast(u8 *)(Enum), EnumCount, EnumNames, Label)
 #define                    UI_ComboF(Enum, EnumCount, EnumNames, Format, ...) UI_ComboF_(Cast(u8 *)(Enum), EnumCount, EnumNames, Format, __VA_ARGS__)
-internal void              UI_Checkbox(b32 *Enabled, string Label);
-internal void              UI_CheckboxF(b32 *Enabled, char const *Format, ...);
+internal changed_b32       UI_Checkbox(b32 *Enabled, string Label);
+internal changed_b32       UI_CheckboxF(b32 *Enabled, char const *Format, ...);
 internal clicked_b32       UI_Button(string Label);
 internal clicked_b32       UI_ButtonF(char const *Format, ...);
 internal changed_b32       UI_DragFloat(f32 *Value, f32 MinValue, f32 MaxValue, char const *ValueFormat, string Label);

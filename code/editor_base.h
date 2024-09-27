@@ -191,6 +191,7 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define Map(Value, ValueMin, ValueMax, TargetMin, TargetMax) (((Value)-(ValueMin))/((ValueMax)-(ValueMin)) * ((TargetMax)-(TargetMin)) + (TargetMin))
 #define Map01(Value, ValueMin, ValueMax) Map(Value, ValueMin, ValueMax, 0, 1)
 #define QuickSort(Array, Count, Type, CmpFunc) qsort((Array), (Count), SizeOf(Type), Cast(int(*)(void const *, void const *))(CmpFunc))
+#define SafeDiv(Num, Den) ((Den) == 0 ? 0 : (Num) / (Den))
 
 #define MemoryCopy(Dest, Src, NumBytes) memcpy(Dest, Src, NumBytes)
 #define MemoryMove(Dest, Src, NumBytes) memmove(Dest, Src, NumBytes)

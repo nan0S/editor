@@ -3,7 +3,7 @@
 
 #if BUILD_DEBUG
 #define DEBUG_DRAW_POINT(Position, Animate, RenderWindow) \
-DrawCircle(Position, 0.01f, ColorMake(255, 10, 143), Animate, RenderWindow)
+DrawCircle(Position, 0.01f, MakeColor(255, 10, 143), Animate, RenderWindow)
 #else
 #define DEBUG_DRAW_POINT(Position, Animate, RenderWindow)
 #endif
@@ -12,7 +12,7 @@ internal void DrawCircle(v2f32 Position, f32 Radius,
                          color Color, sf::Transform Transform,
                          sf::RenderWindow *RenderWindow,
                          f32 OutlineThickness = 0.0f,
-                         color OutlineColor = ColorMake(0, 0, 0));
+                         color OutlineColor = MakeColor(0, 0, 0));
 internal void DrawSquare(v2f32 Position, f32 Side,
                          color Color, sf::Transform Transform,
                          sf::RenderWindow *RenderWindow);

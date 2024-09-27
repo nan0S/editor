@@ -28,7 +28,8 @@ enum key
    Key_Q,
    Key_LeftShift,
    Key_LeftCtrl,
-   Key_ESC,
+   Key_Esc,
+   Key_Tab,
    
    Key_Count,
 };

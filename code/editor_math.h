@@ -50,19 +50,19 @@ internal v2s32 V2S32(s32 X, s32 Y);
 internal b32 operator==(v2s32 U, v2s32 V) { return (U.X == V.X && U.Y == V.Y); }
 internal b32 operator!=(v2s32 U, v2s32 V) { return !(U == V); }
 
-internal color ColorMake(u8 R, u8 G, u8 B, u8 A = 255);
+internal color MakeColor(u8 R, u8 G, u8 B, u8 A = 255);
 
-read_only global color BlackColor       = ColorMake(0, 0, 0);
-read_only global color WhiteColor       = ColorMake(255, 255, 255);
-read_only global color GreenColor       = ColorMake(0, 255, 0);
-read_only global color RedColor         = ColorMake(255, 0, 0);
-read_only global color BlueColor        = ColorMake(0, 0, 255);
-read_only global color YellowColor      = ColorMake(255, 255, 0);
-read_only global color TransparentColor = ColorMake(0, 0, 0, 0);
+read_only global color BlackColor       = MakeColor(0, 0, 0);
+read_only global color WhiteColor       = MakeColor(255, 255, 255);
+read_only global color GreenColor       = MakeColor(0, 255, 0);
+read_only global color RedColor         = MakeColor(255, 0, 0);
+read_only global color BlueColor        = MakeColor(0, 0, 255);
+read_only global color YellowColor      = MakeColor(255, 255, 0);
+read_only global color TransparentColor = MakeColor(0, 0, 0, 0);
 
 #define V2F32FromVec(V) V2F32((f32)(V).x, (f32)(V).y)
 #define V2S32FromVec(V) V2S32((s32)(V).x, (s32)(V).y)
-#define ColorFromVec(V) ColorMake((u8)(V).r, (u8)(V).g, (u8)(V).b, (u8)(V).a)
+#define ColorFromVec(V) MakeColor((u8)(V).r, (u8)(V).g, (u8)(V).b, (u8)(V).a)
 
 typedef v2s32 screen_position;
 typedef v2f32 camera_position;

@@ -211,7 +211,6 @@ InitThreadCtx(void)
       {
          GlobalCtx.Arenas[ArenaIndex] = AllocArena();
       }
-      
       GlobalCtx.Initialized = true;
    }
 }

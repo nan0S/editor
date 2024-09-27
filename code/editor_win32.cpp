@@ -392,7 +392,7 @@ OS_LoadLibrary(char const *Name)
 }
 
 internal void *
-OS_LibraryLoadProc(library Lib, char const *ProcName)
+OS_LoadLibraryProc(library Lib, char const *ProcName)
 {
    void *Proc = GetProcAddress(Lib, ProcName);
    return Proc;

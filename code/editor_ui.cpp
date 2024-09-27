@@ -25,28 +25,31 @@ UI_ComboF_(u8 *Enum, u8 EnumCount, char const *EnumNames[], char const *Format, 
    return Result;
 }
 
-internal void
+internal b32
 UI_Checkbox(b32 *Enabled, string Label)
 {
    temp_arena Temp = TempArena(0);
-   
    string CLabel = CStrFromStr(Temp.Arena, Label);
    bool Enabled_ = *Enabled;
-   ImGui::Checkbox(CLabel.Data, &Enabled_);
+   b32 Result = Cast(b32)ImGui::Checkbox(CLabel.Data, &Enabled_);
    *Enabled = Cast(b32)Enabled_;
    EndTemp(Temp);
+   
+   return Result;
 }
 
-internal void
+internal b32
 UI_CheckboxF(b32 *Enabled, char const *Format, ...)
 {
    temp_arena Temp = TempArena(0);
    va_list Args;
    va_start(Args, Format);
    string Label = StrFV(Temp.Arena, Format, Args);
-   UI_Checkbox(Enabled, Label);
+   b32 Result = UI_Checkbox(Enabled, Label);
    va_end(Args);
    EndTemp(Temp);
+   
+   return Result;
 }
 
 internal b32
@@ -61,7 +64,7 @@ UI_ColorPicker(color *Color, string Label)
       Color->A / 255.0f,
    };
    b32 Result = Cast(b32)ImGui::ColorEdit4(CLabel.Data, ColorF32);
-   *Color = ColorMake(Cast(u8)(255 * ColorF32[0]),
+   *Color = MakeColor(Cast(u8)(255 * ColorF32[0]),
                       Cast(u8)(255 * ColorF32[1]),
                       Cast(u8)(255 * ColorF32[2]),
                       Cast(u8)(255 * ColorF32[3]));
@@ -181,6 +184,7 @@ UI_PushLabelF(char const *Format, ...)
 
 internal void UI_PushId(u64 Id) { ImGui::PushID(Id); }
 internal void UI_PopId(void) { ImGui::PopID(); }
+internal void UI_PopLabel(void) { UI_PopId(); }
 internal void UI_BeginDisabled(b32 Disabled) { ImGui::BeginDisabled(Cast(bool)Disabled); }
 internal void UI_EndDisabled(void) { ImGui::EndDisabled(); }
 
@@ -192,10 +196,6 @@ UI_PushTextColor(color Color)
 }
 
 internal void UI_PopTextColor(void) { ImGui::PopStyleColor(1); }
-
-#define UI_Label(Label)        DeferBlock(UI_PushLabel(Label), UI_PopId())
-#define UI_LabelF(Format, ...) DeferBlock(UI_PushLabelF(Label), UI_PopId())
-#define UI_Id(Id)              DeferBlock(UI_PushId(Id), UI_PopId())
 
 internal b32
 UI_DragFloat(f32 *Value, f32 MinValue, f32 MaxValue, char const *ValueFormat, string Label)

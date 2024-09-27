@@ -331,7 +331,7 @@ EvaluateCurve(curve *Curve, u64 CurvePointCount, v2f32 *CurvePoints)
 }
 
 internal void
-RecomputeCurve(entity *Entity)
+ActuallyRecomputeCurve(entity *Entity)
 {
    TimeFunction;
    
@@ -363,6 +363,22 @@ RecomputeCurve(entity *Entity)
    Curve->CurveVersion += 1;
    
    EndTemp(Temp);
+}
+
+// TODO(hbr): Rename this function into MarkCurveChanged or sth like that
+internal void
+RecomputeCurve(entity *Entity)
+{
+   Entity->Curve.NeedsRecomputationThisFrame = true;
+}
+
+internal void
+BeginVisualizingDeCasteljauAlgorithm(entity *Curve)
+{
+   de_casteljau_visual_state *State = &Curve->Curve.DeCasteljau;
+   ClearArena(State->Arena);
+   State->Enabled = true;
+   State->T = 0.0f;
 }
 
 internal local_position

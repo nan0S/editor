@@ -15,39 +15,39 @@ global editor_params GlobalDefaultEditorParams = {
    .RotationIndicator = {
       .RadiusClipSpace = 0.06f,
       .OutlineThicknessFraction = 0.1f,
-      .FillColor = ColorMake(30, 56, 87, 80),
-      .OutlineColor = ColorMake(255, 255, 255, 24),
+      .FillColor = MakeColor(30, 56, 87, 80),
+      .OutlineColor = MakeColor(255, 255, 255, 24),
    },
    .BezierSplitPoint = {
       .RadiusClipSpace = 0.025f,
       .OutlineThicknessFraction = 0.1f,
-      .FillColor = ColorMake(0, 255, 0, 100),
-      .OutlineColor = ColorMake(0, 200, 0, 200),
+      .FillColor = MakeColor(0, 255, 0, 100),
+      .OutlineColor = MakeColor(0, 200, 0, 200),
    },
-   .BackgroundColor = ColorMake(21, 21, 21),
+   .BackgroundColor = MakeColor(21, 21, 21),
    .CollisionToleranceClipSpace = 0.02f,
    .LastControlPointSizeMultiplier = 1.5f,
    .SelectedCurveControlPointOutlineThicknessScale = 0.55f,
-   .SelectedCurveControlPointOutlineColor = ColorMake(1, 52, 49, 209),
-   .SelectedControlPointOutlineColor = ColorMake(58, 183, 183, 177),
+   .SelectedCurveControlPointOutlineColor = MakeColor(1, 52, 49, 209),
+   .SelectedControlPointOutlineColor = MakeColor(58, 183, 183, 177),
    .CubicBezierHelperLineWidthClipSpace = 0.003f,
    .CurveDefaultParams = DefaultCurveParams(),
 };
 
 internal void
-CameraSetZoom(camera *Camera, f32 Zoom)
+SetCameraZoom(camera *Camera, f32 Zoom)
 {
    Camera->Zoom = Zoom;
    Camera->ReachingTarget = false;
 }
 
 internal void
-CameraUpdate(camera *Camera, f32 MouseWheelDelta, f32 DeltaTime)
+UpdateCamera(camera *Camera, f32 MouseWheelDelta, f32 DeltaTime)
 {
    if (MouseWheelDelta != 0.0f)
    {
       f32 ZoomDelta  = Camera->Zoom * Camera->ZoomSensitivity * MouseWheelDelta;
-      CameraSetZoom(Camera, Camera->Zoom + ZoomDelta);
+      SetCameraZoom(Camera, Camera->Zoom + ZoomDelta);
    }
    
    if (Camera->ReachingTarget)
@@ -66,14 +66,14 @@ CameraUpdate(camera *Camera, f32 MouseWheelDelta, f32 DeltaTime)
 }
 
 internal void
-CameraMove(camera *Camera, v2f32 Translation)
+MoveCamera(camera *Camera, v2f32 Translation)
 {
    Camera->Position += Translation;
    Camera->ReachingTarget = false;
 }
 
 internal void
-CameraRotate(camera *Camera, rotation_2d Rotation)
+RotateCamera(camera *Camera, rotation_2d Rotation)
 {
    Camera->Rotation = CombineRotations2D(Camera->Rotation, Rotation);
    Camera->ReachingTarget = false;
@@ -160,7 +160,7 @@ CheckCollisionWith(entities *Entities,
             case Entity_Curve: {
                curve *Curve = &Entity->Curve;
                
-               if (CheckCollisionWithFlags & CheckCollisionWith_ControlPoints &&
+               if ((CheckCollisionWithFlags & CheckCollisionWith_Points) &&
                    !Curve->CurveParams.PointsDisabled)
                {
                   local_position *ControlPoints = Curve->ControlPoints;
@@ -171,6 +171,21 @@ CheckCollisionWith(entities *Entities,
                   if (Entity->Flags & EntityFlag_Selected)
                   {
                      OutlineThicknessScale = EditorParams.SelectedCurveControlPointOutlineThicknessScale;
+                  }
+                  
+                  curve_splitting_state *Splitting = &Curve->Splitting;
+                  if ((CheckCollisionWithFlags & CheckCollisionWith_SplitPoints) && Splitting->Active)
+                  {
+                     if (PointCollision(CheckPositionLocal, Splitting->SplitPoint,
+                                        Curve->CurveParams.CurveWidth))
+                     {
+                        Result = {
+                           .Entity = Entity,
+                           .Type = CurveCollision_SplitPoint,
+                           .PointIndex = 0,
+                        };
+                        goto collision_found_label;
+                     }
                   }
                   
                   for (u64 ControlPointIndex = 0;
@@ -197,8 +212,7 @@ CheckCollisionWith(entities *Entities,
                      }
                   }
                   
-                  if (!Curve->CurveParams.CubicBezierHelpersDisabled &&
-                      Curve->SelectedControlPointIndex != U64_MAX &&
+                  if (Curve->SelectedControlPointIndex != U64_MAX &&
                       Curve->CurveParams.InterpolationType == Interpolation_Bezier &&
                       Curve->CurveParams.BezierType == Bezier_Cubic)
                   {
@@ -232,7 +246,7 @@ CheckCollisionWith(entities *Entities,
                   }
                }
                
-               if (CheckCollisionWithFlags & CheckCollisionWith_CurvePoints)
+               if (CheckCollisionWithFlags & CheckCollisionWith_CurveLines)
                {
                   local_position *CurvePoints = Curve->CurvePoints;
                   u64 CurvePointCount = Curve->CurvePointCount;
@@ -249,8 +263,8 @@ CheckCollisionWith(entities *Entities,
                      {
                         Result = {
                            .Entity = Entity,
-                           .Type = CurveCollision_CurvePoint,
-                           .PointIndex = CurvePointIndex
+                           .Type = CurveCollision_CurveLine,
+                           .PointIndex = CurvePointIndex,
                         };
                         goto collision_found_label;
                      }
@@ -346,6 +360,9 @@ AllocEntity(editor *Editor)
       {
          Entity = Current;
          Entity->Flags |= EntityFlag_Active;
+         ClearArena(Entity->Arena);
+         Entity->Curve.DeCasteljau.Enabled = false;
+         Entity->Curve.Splitting.Active = false;
          ++Entities->EntityCount;
          break;
       }
@@ -370,18 +387,6 @@ EndCurveCombining(curve_combining_state *State)
 internal void
 DeallocEntity(editor *Editor, entity *Entity)
 {
-   if (Editor->CurveSplitting.IsSplitting &&
-       Editor->CurveSplitting.SplitCurveEntity == Entity)
-   {
-      Editor->CurveSplitting.IsSplitting = false;
-      Editor->CurveSplitting.SplitCurveEntity = 0;
-   }
-   if (Editor->DeCasteljauVisual.IsVisualizing &&
-       Editor->DeCasteljauVisual.CurveEntity == Entity)
-   {
-      Editor->DeCasteljauVisual.IsVisualizing = false;
-      Editor->DeCasteljauVisual.CurveEntity = 0;
-   }
    if (Editor->DegreeLowering.Entity == Entity)
    {
       Editor->DegreeLowering.Entity = 0;
@@ -405,7 +410,6 @@ DeallocEntity(editor *Editor, entity *Entity)
    }
    
    Entity->Flags &= ~EntityFlag_Active;
-   ClearArena(Entity->Arena);
    --Editor->Entities.EntityCount;
 }
 
@@ -591,6 +595,24 @@ MakeRotatingMode(entity *Entity, screen_position Center, button Button)
    return Result;
 }
 
+internal editor_mode
+MakeMovingSplitPointMode(entity *Entity)
+{
+   editor_mode Result = {};
+   Result.Type = EditorMode_Moving;
+   Result.Moving.Type = MovingMode_SplitPoint;
+   Result.Moving.Entity = Entity;
+   
+   return Result;
+}
+
+internal void
+SetSplitT(curve_splitting_state *Splitting, f32 T)
+{
+   Splitting->T = T;
+   Splitting->NeedsRecomputationThisFrame = true;
+}
+
 internal void
 ExecuteUserActionNormalMode(editor *Editor, user_action Action)
 {
@@ -602,139 +624,130 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
          switch (Action.Click.Button)
          {
             case Button_Left: {
-               f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->Params.CollisionToleranceClipSpace,
-                                                                    &Editor->RenderData);
-               
                collision Collision = {};
                if (Action.Input->Keys[Key_LeftShift].Pressed)
                {
                   // NOTE(hbr): Force no collision when shift if pressed, so that user can
                   // add control point wherever he wants
-                  // TODO(hbr): Not really needed, just part of refactor to be equivalent, remove in the future
-                  Collision.Entity = 0;
                }
                else
                {
                   check_collision_with_flags CheckCollisionWithFlags =
-                     CheckCollisionWith_ControlPoints |
-                     CheckCollisionWith_CurvePoints;
+                     CheckCollisionWith_Points |
+                     CheckCollisionWith_CurveLines;
+                  f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->Params.CollisionToleranceClipSpace,
+                                                                       &Editor->RenderData);
                   Collision = CheckCollisionWith(&Editor->Entities, ClickPosition, CollisionTolerance,
-                                                 Editor->Params,  CheckCollisionWithFlags);
+                                                 Editor->Params, CheckCollisionWithFlags);
                }
                
-               b32 SkipNormalModeHandling = false;
-               if (Editor->CurveSplitting.IsSplitting)
+               if (Collision.Entity)
                {
-                  entity *SplitEntity = Editor->CurveSplitting.SplitCurveEntity;
-                  curve *Curve = &SplitEntity->Curve;
+                  curve *Curve = GetCurve(Collision.Entity);
+                  curve_splitting_state *Splitting = &Curve->Splitting;
+                  b32 SkipNormalModeHandling = false;
                   
-                  // TODO(hbr): Is this clicked necessary when checking for [Collision.Entity]? Check after implementing CubicBezierPoint
-                  b32 ClickedOnSplitCurve = false;
-                  f32 T = 0.0f;
-                  if (Collision.Entity)
+                  if (Splitting->Active)
                   {
-                     Assert(Collision.Entity->Type == Entity_Curve);
                      switch (Collision.Type)
                      {
                         case CurveCollision_ControlPoint:
-                        case CurveCollision_CurvePoint: {
-                           u64 NumPoints = ((Collision.Type == CurveCollision_ControlPoint) ? Curve->ControlPointCount : Curve->CurvePointCount);
-                           T = Cast(f32)Collision.PointIndex / (NumPoints - 1);
-                           ClickedOnSplitCurve = true;
+                        case CurveCollision_CurveLine: {
+                           u64 PointCount = ((Collision.Type == CurveCollision_ControlPoint) ?
+                                             Curve->ControlPointCount :
+                                             Curve->CurvePointCount);
+                           f32 T = SafeDiv(Cast(f32)Collision.PointIndex, (PointCount - 1));
+                           T = Clamp(T, 0.0f, 1.0f); // NOTE(hbr): Be safe
+                           SetSplitT(Splitting, T);
+                           SelectEntity(Editor, Collision.Entity);
                         } break;
                         
                         case CurveCollision_CubicBezierPoint: {
                            NotImplemented;
                         } break;
+                        
+                        case CurveCollision_SplitPoint: InvalidPath;
                      }
-                  }
-                  
-                  if (ClickedOnSplitCurve)
-                  {
-                     Editor->CurveSplitting.T = Clamp(T, 0.0f, 1.0f); // NOTE(hbr): Be safe
-                     SelectEntity(Editor, SplitEntity);
+                     
                      SkipNormalModeHandling = true;
                   }
-               }
-               
-               if (Editor->CurveAnimation.Stage == AnimateCurveAnimation_PickingTarget &&
-                   Collision.Entity && Collision.Entity != Editor->CurveAnimation.FromCurveEntity)
-               {
-                  Editor->CurveAnimation.ToCurveEntity = Collision.Entity;
-                  SkipNormalModeHandling = true;
-               }
-               
-               curve_combining_state *Combining = &Editor->CurveCombining;
-               if (Collision.Entity && Combining->SourceEntity)
-               {
-                  if (Collision.Entity != Combining->SourceEntity)
+                  
+                  if (Editor->CurveAnimation.Stage == AnimateCurveAnimation_PickingTarget &&
+                      Collision.Entity != Editor->CurveAnimation.FromCurveEntity)
                   {
-                     Combining->WithEntity = Collision.Entity;
+                     Editor->CurveAnimation.ToCurveEntity = Collision.Entity;
+                     SkipNormalModeHandling = true;
                   }
                   
-                  // NOTE(hbr): Logic to recognize whether first/last point of
-                  // combine/target curve was clicked. If so then change which
-                  // point should be combined with which one (first with last,
-                  // first with first, ...). On top of that if user clicked
-                  // on already selected point but in different direction
-                  // (target->combine rather than combine->target) then swap
-                  // target and combine curves to combine in the other direction.
-                  
-                  // TODO(hbr): Probably simplify this logic
-                  if (Collision.Type == CurveCollision_ControlPoint)
+                  curve_combining_state *Combining = &Editor->CurveCombining;
+                  if (Combining->SourceEntity)
                   {
-                     if (Collision.Entity == Combining->SourceEntity)
+                     if (Collision.Entity != Combining->SourceEntity)
                      {
-                        curve *SourceCurve = GetCurve(Combining->SourceEntity);
-                        if (Collision.PointIndex == 0)
+                        Combining->WithEntity = Collision.Entity;
+                     }
+                     
+                     // NOTE(hbr): Logic to recognize whether first/last point of
+                     // combine/target curve was clicked. If so then change which
+                     // point should be combined with which one (first with last,
+                     // first with first, ...). On top of that if user clicked
+                     // on already selected point but in different direction
+                     // (target->combine rather than combine->target) then swap
+                     // target and combine curves to combine in the other direction.
+                     
+                     // TODO(hbr): Probably simplify this logic
+                     if (Collision.Type == CurveCollision_ControlPoint)
+                     {
+                        if (Collision.Entity == Combining->SourceEntity)
                         {
-                           if (!Combining->SourceCurveLastControlPoint)
+                           curve *SourceCurve = GetCurve(Combining->SourceEntity);
+                           if (Collision.PointIndex == 0)
                            {
-                              Swap(Combining->SourceEntity, Combining->WithEntity, entity *);
-                              Swap(Combining->SourceCurveLastControlPoint, Combining->WithCurveFirstControlPoint, b32);
-                              Combining->SourceCurveLastControlPoint = !Combining->SourceCurveLastControlPoint;
-                              Combining->WithCurveFirstControlPoint = !Combining->WithCurveFirstControlPoint;
+                              if (!Combining->SourceCurveLastControlPoint)
+                              {
+                                 Swap(Combining->SourceEntity, Combining->WithEntity, entity *);
+                                 Swap(Combining->SourceCurveLastControlPoint, Combining->WithCurveFirstControlPoint, b32);
+                                 Combining->SourceCurveLastControlPoint = !Combining->SourceCurveLastControlPoint;
+                                 Combining->WithCurveFirstControlPoint = !Combining->WithCurveFirstControlPoint;
+                              }
+                              else
+                              {
+                                 Combining->SourceCurveLastControlPoint = false;
+                              }
                            }
-                           else
+                           else if (Collision.PointIndex == SourceCurve->ControlPointCount - 1)
                            {
-                              Combining->SourceCurveLastControlPoint = false;
+                              if (Combining->SourceCurveLastControlPoint)
+                              {
+                                 Swap(Combining->SourceEntity, Combining->WithEntity, entity *);
+                                 Swap(Combining->SourceCurveLastControlPoint, Combining->WithCurveFirstControlPoint, b32);
+                                 Combining->SourceCurveLastControlPoint = !Combining->SourceCurveLastControlPoint;
+                                 Combining->WithCurveFirstControlPoint = !Combining->WithCurveFirstControlPoint;
+                              }
+                              else
+                              {
+                                 Combining->SourceCurveLastControlPoint = true;
+                              }
                            }
                         }
-                        else if (Collision.PointIndex == SourceCurve->ControlPointCount - 1)
+                        else if (Collision.Entity == Combining->WithEntity)
                         {
-                           if (Combining->SourceCurveLastControlPoint)
+                           curve *WithCurve = GetCurve(Combining->WithEntity);
+                           if (Collision.PointIndex == 0)
                            {
-                              Swap(Combining->SourceEntity, Combining->WithEntity, entity *);
-                              Swap(Combining->SourceCurveLastControlPoint, Combining->WithCurveFirstControlPoint, b32);
-                              Combining->SourceCurveLastControlPoint = !Combining->SourceCurveLastControlPoint;
-                              Combining->WithCurveFirstControlPoint = !Combining->WithCurveFirstControlPoint;
+                              Combining->WithCurveFirstControlPoint = true;
                            }
-                           else
+                           else if (Collision.PointIndex == WithCurve->ControlPointCount - 1)
                            {
-                              Combining->SourceCurveLastControlPoint = true;
+                              Combining->WithCurveFirstControlPoint = false;
                            }
                         }
                      }
-                     else if (Collision.Entity == Combining->WithEntity)
-                     {
-                        curve *WithCurve = GetCurve(Combining->WithEntity);
-                        if (Collision.PointIndex == 0)
-                        {
-                           Combining->WithCurveFirstControlPoint = true;
-                        }
-                        else if (Collision.PointIndex == WithCurve->ControlPointCount - 1)
-                        {
-                           Combining->WithCurveFirstControlPoint = false;
-                        }
-                     }
+                     
+                     SkipNormalModeHandling = true;
                   }
                   
-                  SkipNormalModeHandling = true;
-               }
-               
-               if (!SkipNormalModeHandling)
-               {
-                  if (Collision.Entity)
+                  if (!SkipNormalModeHandling)
                   {
                      switch (Collision.Type)
                      {
@@ -747,9 +760,7 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                            NotImplemented;
                         } break;
                         
-                        case CurveCollision_CurvePoint: {
-                           curve *Curve = GetCurve(Collision.Entity);
-                           
+                        case CurveCollision_CurveLine: {
                            f32 Segment = Cast(f32)Collision.PointIndex/ (Curve->CurvePointCount - 1);
                            u64 InsertAfterPointIndex =
                               Cast(u64)(Segment * (IsCurveLooped(Curve) ?
@@ -761,35 +772,37 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                            SelectControlPoint(Collision.Entity, InsertPointIndex);
                            SelectEntity(Editor, Collision.Entity);
                         } break;
+                        
+                        case CurveCollision_SplitPoint: InvalidPath;
                      }
+                  }
+               }
+               else
+               {
+                  entity *AddCurve = 0;
+                  if (Editor->SelectedEntity &&
+                      Editor->SelectedEntity->Type == Entity_Curve)
+                  {
+                     AddCurve = Editor->SelectedEntity;
                   }
                   else
                   {
-                     entity *AddCurve = 0;
-                     if (Editor->SelectedEntity &&
-                         Editor->SelectedEntity->Type == Entity_Curve)
-                     {
-                        AddCurve = Editor->SelectedEntity;
-                     }
-                     else
-                     {
-                        AddCurve = AllocEntity(Editor);
-                        string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EntityCounter++);
-                        InitEntity(AddCurve, V2F32(0.0f, 0.0f), V2F32(1.0f, 1.0f), Rotation2DZero(), Name, 0);
-                        InitCurve(AddCurve, Editor->Params.CurveDefaultParams);
-                     }
-                     Assert(AddCurve);
-                     
-                     u64 AddedPointIndex = AppendCurveControlPoint(AddCurve, ClickPosition, 1.0f);
-                     SelectControlPoint(AddCurve, AddedPointIndex);
-                     SelectEntity(Editor, AddCurve);
+                     AddCurve = AllocEntity(Editor);
+                     string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EntityCounter++);
+                     InitEntity(AddCurve, V2F32(0.0f, 0.0f), V2F32(1.0f, 1.0f), Rotation2DZero(), Name, 0);
+                     InitCurve(AddCurve, Editor->Params.CurveDefaultParams);
                   }
+                  Assert(AddCurve);
+                  
+                  u64 AddedPointIndex = AppendCurveControlPoint(AddCurve, ClickPosition, 1.0f);
+                  SelectControlPoint(AddCurve, AddedPointIndex);
+                  SelectEntity(Editor, AddCurve);
                }
             } break;
             
             case Button_Right: {
                check_collision_with_flags CheckCollisionWithFlags =
-                  CheckCollisionWith_ControlPoints | CheckCollisionWith_Images;
+                  CheckCollisionWith_Points | CheckCollisionWith_Images;
                f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->Params.CollisionToleranceClipSpace,
                                                                     &Editor->RenderData);
                collision Collision = CheckCollisionWith(&Editor->Entities, ClickPosition, CollisionTolerance,
@@ -808,7 +821,9 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                            } break;
                            
                            case CurveCollision_CubicBezierPoint: { NotImplemented; } break;
-                           case CurveCollision_CurvePoint: InvalidPath;
+                           
+                           case CurveCollision_CurveLine:
+                           case CurveCollision_SplitPoint: InvalidPath;
                         }
                      } break;
                      
@@ -837,84 +852,62 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
          switch (DragButton)
          {
             case Button_Left: {
+               check_collision_with_flags CheckCollisionWithFlags =
+                  CheckCollisionWith_Points |
+                  CheckCollisionWith_SplitPoints |
+                  CheckCollisionWith_CurveLines |
+                  CheckCollisionWith_Images;
                f32 CollisionTolerance =
                   ClipSpaceLengthToWorldSpace(Editor->Params.CollisionToleranceClipSpace,
                                               &Editor->RenderData);
+               collision Collision = CheckCollisionWith(&Editor->Entities,
+                                                        DragFromWorldPosition,
+                                                        CollisionTolerance,
+                                                        Editor->Params,
+                                                        CheckCollisionWithFlags);
                
-               b32 SkipCheckingNormalModeCollisions = false;
-               if (Editor->CurveSplitting.IsSplitting)
+               if (Collision.Entity)
                {
-                  if (Editor->CurveSplitting.DraggingSplitPoint)
+                  // TODO(hbr): Try to simplify this logic - we effectively just translate CurveCollision_* to MovingMode_*
+                  switch (Collision.Entity->Type)
                   {
-                     SkipCheckingNormalModeCollisions = true;
-                  }
-                  else
-                  {
-                     entity *CurveEntity = Editor->CurveSplitting.SplitCurveEntity;
-                     world_position SplitPoint = Editor->CurveSplitting.SplitPoint;
-                     f32 SplitPointRadius =
-                        ClipSpaceLengthToWorldSpace(Editor->Params.BezierSplitPoint.RadiusClipSpace,
-                                                    &Editor->RenderData);
-                     
-                     if (PointCollision(SplitPoint, DragFromWorldPosition, SplitPointRadius + CollisionTolerance))
-                     {
-                        Editor->CurveSplitting.DraggingSplitPoint = true;
-                        SelectEntity(Editor, CurveEntity);
-                        SkipCheckingNormalModeCollisions = true;
-                     }
-                  }
-               }
-               
-               if (!SkipCheckingNormalModeCollisions)
-               {
-                  check_collision_with_flags CheckCollisionWithFlags =
-                     CheckCollisionWith_ControlPoints |
-                     CheckCollisionWith_CurvePoints |
-                     CheckCollisionWith_Images;
-                  collision Collision = CheckCollisionWith(&Editor->Entities,
-                                                           DragFromWorldPosition,
-                                                           CollisionTolerance,
-                                                           Editor->Params,
-                                                           CheckCollisionWithFlags);
-                  
-                  if (Collision.Entity)
-                  {
-                     switch (Collision.Entity->Type)
-                     {
-                        case Entity_Curve: {
-                           switch (Collision.Type)
-                           {
-                              case CurveCollision_ControlPoint:
-                              case CurveCollision_CubicBezierPoint: {
-                                 curve *Curve = GetCurve(Collision.Entity);
-                                 
-                                 b32 IsBezierPoint = (Collision.Type == CurveCollision_CubicBezierPoint);
-                                 if (!IsBezierPoint)
-                                 {
-                                    SelectControlPoint(Collision.Entity, Collision.PointIndex);
-                                 }
-                                 
-                                 Editor->Mode = MakeMovingCurvePointMode(Collision.Entity, Collision.PointIndex,
-                                                                         IsBezierPoint, Editor->MovingPointArena);
-                              } break;
+                     case Entity_Curve: {
+                        switch (Collision.Type)
+                        {
+                           case CurveCollision_ControlPoint:
+                           case CurveCollision_CubicBezierPoint: {
+                              curve *Curve = GetCurve(Collision.Entity);
                               
-                              case CurveCollision_CurvePoint: {
-                                 Editor->Mode = MakeMovingEntityMode(Collision.Entity);
-                              } break;
-                           }
-                        } break;
-                        
-                        case Entity_Image: {
-                           Editor->Mode = MakeMovingEntityMode(Collision.Entity);
-                        } break;
-                     }
+                              b32 IsBezierPoint = (Collision.Type == CurveCollision_CubicBezierPoint);
+                              if (!IsBezierPoint)
+                              {
+                                 SelectControlPoint(Collision.Entity, Collision.PointIndex);
+                              }
+                              
+                              Editor->Mode = MakeMovingCurvePointMode(Collision.Entity, Collision.PointIndex,
+                                                                      IsBezierPoint, Editor->MovingPointArena);
+                           } break;
+                           
+                           case CurveCollision_CurveLine: {
+                              Editor->Mode = MakeMovingEntityMode(Collision.Entity);
+                           } break;
+                           
+                           case CurveCollision_SplitPoint: {
+                              Editor->Mode = MakeMovingSplitPointMode(Collision.Entity);
+                           } break;
+                        }
+                     } break;
                      
-                     SelectEntity(Editor, Collision.Entity);
+                     case Entity_Image: {
+                        Editor->Mode = MakeMovingEntityMode(Collision.Entity);
+                     } break;
                   }
-                  else
-                  {
-                     Editor->Mode = MakeMovingCameraMode(); 
-                  }
+                  
+                  SelectEntity(Editor, Collision.Entity);
+               }
+               else
+               {
+                  Editor->Mode = MakeMovingCameraMode(); 
                }
             } break;
             
@@ -930,119 +923,11 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
          }
       } break;
       
-      case UserAction_ButtonReleased: {
-         switch (Action.Drag.Button)
-         {
-            case Button_Left: { Editor->CurveSplitting.DraggingSplitPoint = false; } break;
-            case Button_Right:
-            case Button_Middle: {} break;
-            case Button_Count: InvalidPath;
-         }
-      } break;
-      
-      case UserAction_MouseMove: {
-         curve_splitting_state *Split = &Editor->CurveSplitting;
-         
-         // NOTE(hbr): Pretty involved logic to move point along the curve and have pleasant experience
-         if (Editor->CurveSplitting.DraggingSplitPoint)
-         {
-            world_position FromPosition = ScreenToWorldSpace(Action.MouseMove.FromPosition, &Editor->RenderData);
-            world_position ToPosition = ScreenToWorldSpace(Action.MouseMove.ToPosition, &Editor->RenderData);
-            
-            v2f32 Translation = ToPosition - FromPosition;
-            
-            entity *CurveEntity = Split->SplitCurveEntity;
-            curve *Curve = &CurveEntity->Curve;
-            u64 CurvePointCount = Curve->CurvePointCount;
-            local_position *CurvePoints = Curve->CurvePoints;
-            
-            f32 T = Clamp(Split->T, 0.0f, 1.0f);
-            f32 DeltaT = 1.0f / (CurvePointCount - 1);
-            
-            {
-               u64 SplitCurvePointIndex = ClampTop(Cast(u64)FloorF32(T * (CurvePointCount - 1)), CurvePointCount - 1);
-               while (SplitCurvePointIndex + 1 < CurvePointCount)
-               {
-                  f32 NextT = Cast(f32)(SplitCurvePointIndex + 1) / (CurvePointCount - 1);
-                  f32 PrevT = Cast(f32)SplitCurvePointIndex / (CurvePointCount - 1);
-                  T = Clamp(T, PrevT, NextT);
-                  
-                  f32 SegmentFraction = (NextT - T) / DeltaT;
-                  SegmentFraction = Clamp(SegmentFraction, 0.0f, 1.0f);
-                  
-                  v2f32 CurveSegment =
-                     LocalEntityPositionToWorld(CurveEntity, CurvePoints[SplitCurvePointIndex + 1])
-                     - LocalEntityPositionToWorld(CurveEntity, CurvePoints[SplitCurvePointIndex]);
-                  
-                  f32 CurveSegmentLength = Norm(CurveSegment);
-                  f32 InvCurveSegmentLength = 1.0f / CurveSegmentLength;
-                  
-                  f32 ProjectionSegmentFraction = ClampBot(Dot(CurveSegment, Translation) *
-                                                           InvCurveSegmentLength * InvCurveSegmentLength,
-                                                           0.0f);
-                  
-                  if (SegmentFraction <= ProjectionSegmentFraction)
-                  {
-                     T = NextT;
-                     Translation -= SegmentFraction * CurveSegment;
-                     
-                     SplitCurvePointIndex += 1;
-                  }
-                  else
-                  {
-                     T += ProjectionSegmentFraction * DeltaT;
-                     Translation -= ProjectionSegmentFraction * CurveSegment;
-                     
-                     break;
-                  }
-               }
-            }
-            
-            {
-               u64 SplitCurvePointIndex = ClampTop(Cast(u64)CeilF32(T * (CurvePointCount - 1)), CurvePointCount - 1);
-               while (SplitCurvePointIndex >= 1)
-               {
-                  f32 NextT = Cast(f32)(SplitCurvePointIndex - 1) / (CurvePointCount - 1);
-                  f32 PrevT = Cast(f32)SplitCurvePointIndex / (CurvePointCount - 1);
-                  T = Clamp(T, NextT, PrevT);
-                  
-                  f32 SegmentFraction = (T - NextT) / DeltaT;
-                  SegmentFraction = Clamp(SegmentFraction, 0.0f, 1.0f);
-                  
-                  v2f32 CurveSegment =
-                     LocalEntityPositionToWorld(CurveEntity, CurvePoints[SplitCurvePointIndex - 1])
-                     - LocalEntityPositionToWorld(CurveEntity, CurvePoints[SplitCurvePointIndex]);
-                  
-                  f32 CurveSegmentLength = Norm(CurveSegment);
-                  f32 InvCurveSegmentLength = 1.0f / CurveSegmentLength;
-                  
-                  f32 ProjectionSegmentFraction = ClampBot(Dot(CurveSegment, Translation) *
-                                                           InvCurveSegmentLength * InvCurveSegmentLength,
-                                                           0.0f);
-                  
-                  if (SegmentFraction <= ProjectionSegmentFraction)
-                  {
-                     T = NextT;
-                     Translation -= SegmentFraction * CurveSegment;
-                     
-                     SplitCurvePointIndex -= 1;
-                  }
-                  else
-                  {
-                     T -= ProjectionSegmentFraction * DeltaT;
-                     Translation -= ProjectionSegmentFraction * CurveSegment;
-                     
-                     break;
-                  }
-               }
-            }
-            
-            Editor->CurveSplitting.T = T;
-         }
-      } break;
-      
+      case UserAction_ButtonReleased: {} break;
+      case UserAction_MouseMove: {} break;
       case UserAction_None: {} break;
    }
+   
    EndTemp(Temp);
 }
 
@@ -1055,39 +940,126 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action)
          world_position From = ScreenToWorldSpace(Action.MouseMove.FromPosition, &Editor->RenderData);
          world_position To = ScreenToWorldSpace(Action.MouseMove.ToPosition, &Editor->RenderData);
          v2f32 Translation = To - From;
-         
          auto *Moving = &Editor->Mode.Moving;
-         if (Moving->Type == MovingMode_CurvePoint)
-         {
-            translate_control_point_flags TranslateFlags = 0;
-            if (Editor->Mode.Moving.IsBezierPoint)       TranslateFlags |= TranslateControlPoint_BezierPoint;
-            if (!Action.Input->Keys[Key_LeftCtrl].Pressed)  TranslateFlags |= TranslateControlPoint_MatchBezierTwinDirection;
-            if (!Action.Input->Keys[Key_LeftShift].Pressed) TranslateFlags |= TranslateControlPoint_MatchBezierTwinDirection;
-            
-            TranslateCurveControlPoint(Editor->Mode.Moving.Entity,
-                                       Editor->Mode.Moving.PointIndex,
-                                       TranslateFlags, Translation);
-         }
-         else
-         {
-            switch (Moving->Type)
-            {
-               case MovingMode_Entity: {
-                  Moving->Entity->Position += Translation;
-               } break;
-               
-               case MovingMode_Camera: {
-                  // TODO(hbr): Maybe tackle this note.
-                  // NOTE(hbr): This is a little janky, in a sense that we assume the camera is moving when [Entity == 0].
-                  // Maybe get rid of this and store [camera] pointer directly in [Moving], but the camera right now is copied
-                  // to [Result] by value so have to do it like this.
-                  CameraMove(&Editor->RenderData.Camera, -Translation);
-               } break;
-               
-               case MovingMode_CurvePoint: InvalidPath;
-            }
-         }
          
+         switch (Moving->Type)
+         {
+            case MovingMode_Entity: {
+               Moving->Entity->Position += Translation;
+            } break;
+            
+            case MovingMode_Camera: {
+               // TODO(hbr): Maybe tackle this note.
+               // NOTE(hbr): This is a little janky, in a sense that we assume the camera is moving when [Entity == 0].
+               // Maybe get rid of this and store [camera] pointer directly in [Moving], but the camera right now is copied
+               // to [Result] by value so have to do it like this.
+               MoveCamera(&Editor->RenderData.Camera, -Translation);
+            } break;
+            
+            case MovingMode_CurvePoint: {
+               translate_control_point_flags TranslateFlags = 0;
+               if (Editor->Mode.Moving.IsBezierPoint)       TranslateFlags |= TranslateControlPoint_BezierPoint;
+               if (!Action.Input->Keys[Key_LeftCtrl].Pressed)  TranslateFlags |= TranslateControlPoint_MatchBezierTwinDirection;
+               if (!Action.Input->Keys[Key_LeftShift].Pressed) TranslateFlags |= TranslateControlPoint_MatchBezierTwinDirection;
+               
+               TranslateCurveControlPoint(Editor->Mode.Moving.Entity,
+                                          Editor->Mode.Moving.PointIndex,
+                                          TranslateFlags, Translation);
+            } break;
+            
+            case MovingMode_SplitPoint: {
+               entity *Entity = Moving->Entity;
+               curve *Curve = GetCurve(Entity);
+               curve_splitting_state *Splitting = &Curve->Splitting;
+               Assert(Splitting->Active);
+               
+               // NOTE(hbr): Pretty involved logic to move point along the curve and have pleasant experience
+               u64 CurvePointCount = Curve->CurvePointCount;
+               local_position *CurvePoints = Curve->CurvePoints;
+               curve_splitting_state *Split = &Curve->Splitting;
+               
+               f32 T = Clamp(Split->T, 0.0f, 1.0f);
+               f32 DeltaT = 1.0f / (CurvePointCount - 1);
+               {
+                  u64 SplitCurvePointIndex = ClampTop(Cast(u64)FloorF32(T * (CurvePointCount - 1)), CurvePointCount - 1);
+                  while (SplitCurvePointIndex + 1 < CurvePointCount)
+                  {
+                     f32 NextT = Cast(f32)(SplitCurvePointIndex + 1) / (CurvePointCount - 1);
+                     f32 PrevT = Cast(f32)SplitCurvePointIndex / (CurvePointCount - 1);
+                     T = Clamp(T, PrevT, NextT);
+                     
+                     f32 SegmentFraction = (NextT - T) / DeltaT;
+                     SegmentFraction = Clamp(SegmentFraction, 0.0f, 1.0f);
+                     
+                     v2f32 CurveSegment =
+                        LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex + 1])
+                        - LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex]);
+                     
+                     f32 CurveSegmentLength = Norm(CurveSegment);
+                     f32 InvCurveSegmentLength = 1.0f / CurveSegmentLength;
+                     
+                     f32 ProjectionSegmentFraction = ClampBot(Dot(CurveSegment, Translation) *
+                                                              InvCurveSegmentLength * InvCurveSegmentLength,
+                                                              0.0f);
+                     
+                     if (SegmentFraction <= ProjectionSegmentFraction)
+                     {
+                        T = NextT;
+                        Translation -= SegmentFraction * CurveSegment;
+                        
+                        SplitCurvePointIndex += 1;
+                     }
+                     else
+                     {
+                        T += ProjectionSegmentFraction * DeltaT;
+                        Translation -= ProjectionSegmentFraction * CurveSegment;
+                        
+                        break;
+                     }
+                  }
+               }
+               {
+                  u64 SplitCurvePointIndex = ClampTop(Cast(u64)CeilF32(T * (CurvePointCount - 1)), CurvePointCount - 1);
+                  while (SplitCurvePointIndex >= 1)
+                  {
+                     f32 NextT = Cast(f32)(SplitCurvePointIndex - 1) / (CurvePointCount - 1);
+                     f32 PrevT = Cast(f32)SplitCurvePointIndex / (CurvePointCount - 1);
+                     T = Clamp(T, NextT, PrevT);
+                     
+                     f32 SegmentFraction = (T - NextT) / DeltaT;
+                     SegmentFraction = Clamp(SegmentFraction, 0.0f, 1.0f);
+                     
+                     v2f32 CurveSegment =
+                        LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex - 1])
+                        - LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex]);
+                     
+                     f32 CurveSegmentLength = Norm(CurveSegment);
+                     f32 InvCurveSegmentLength = 1.0f / CurveSegmentLength;
+                     
+                     f32 ProjectionSegmentFraction = ClampBot(Dot(CurveSegment, Translation) *
+                                                              InvCurveSegmentLength * InvCurveSegmentLength,
+                                                              0.0f);
+                     
+                     if (SegmentFraction <= ProjectionSegmentFraction)
+                     {
+                        T = NextT;
+                        Translation -= SegmentFraction * CurveSegment;
+                        
+                        SplitCurvePointIndex -= 1;
+                     }
+                     else
+                     {
+                        T -= ProjectionSegmentFraction * DeltaT;
+                        Translation -= ProjectionSegmentFraction * CurveSegment;
+                        
+                        break;
+                     }
+                  }
+               }
+               
+               SetSplitT(Split, T);
+            } break;
+         }
       } break;
       
       case UserAction_ButtonReleased: {
@@ -1195,7 +1167,7 @@ ExecuteUserActionRotateMode(editor *Editor, user_action Action)
             else
             {
                rotation_2d InverseRotation = Rotation2DInverse(StableRotation.Rotation);
-               CameraRotate(&Editor->RenderData.Camera, InverseRotation);
+               RotateCamera(&Editor->RenderData.Camera, InverseRotation);
             }
          }
       } break;
@@ -1332,360 +1304,11 @@ ResetCtxMenu_(string Label)
 }
 #define ResetCtxMenu(LabelLit) ResetCtxMenu_(StrLit(LabelLit))
 
-enum change_curve_params_ui_mode
-{
-   ChangeCurveParamsUI_DefaultCurve,
-   ChangeCurveParamsUI_SelectedCurve,
-};
-struct change_curve_params_ui
-{
-   change_curve_params_ui_mode Mode;
-   curve_params *DefaultCurveParams;
-   curve *SelectedCurve;
-};
-internal change_curve_params_ui
-ChangeCurveShapeUIModeDefaultCurve(curve_params *DefaultCurveParams)
-{
-   change_curve_params_ui Result = {};
-   Result.Mode = ChangeCurveParamsUI_DefaultCurve;
-   Result.DefaultCurveParams = DefaultCurveParams;
-   
-   return Result;
-}
-internal change_curve_params_ui
-ChangeCurveShapeUIModeSelectedCurve(curve_params *DefaultCurveParams, curve *SelectedCurve)
-{
-   change_curve_params_ui Result = {};
-   Result.Mode = ChangeCurveParamsUI_SelectedCurve;
-   Result.DefaultCurveParams = DefaultCurveParams;
-   Result.SelectedCurve = SelectedCurve;
-   
-   return Result;
-}
-
-internal b32
-RenderChangeCurveParametersUI(char const *PushId, change_curve_params_ui UIMode)
-{
-   b32 SomeCurveParamChanged = false;
-   
-   curve_params DefaultParams = {};
-   curve_params *ChangeParams = 0;
-   switch (UIMode.Mode)
-   {
-      case ChangeCurveParamsUI_DefaultCurve: {
-         DefaultParams = DefaultCurveParams();
-         ChangeParams = UIMode.DefaultCurveParams;
-      } break;
-      
-      case ChangeCurveParamsUI_SelectedCurve: {
-         DefaultParams = *UIMode.DefaultCurveParams;
-         ChangeParams = &UIMode.SelectedCurve->CurveParams;
-      } break;
-   }
-   
-   DeferBlock(UI_PushLabelF(PushId), UI_PopId())
-   {   
-      UI_SeparatorTextF("Curve");
-      DeferBlock(UI_PushLabelF("Curve"), UI_PopId())
-      {
-         SomeCurveParamChanged |= UI_ComboF(&ChangeParams->InterpolationType, Interpolation_Count, InterpolationNames, "Interpolation Type");
-         if (ResetCtxMenu("InterpolationTypeReset"))
-         {
-            ChangeParams->InterpolationType = DefaultParams.InterpolationType;
-            SomeCurveParamChanged = true;
-         }
-         
-         switch (ChangeParams->InterpolationType)
-         {
-            case Interpolation_Polynomial: {
-               polynomial_interpolation_params *PolynomialParams = &ChangeParams->PolynomialInterpolationParams;
-               
-               SomeCurveParamChanged |= UI_ComboF(&PolynomialParams->Type, PolynomialInterpolation_Count, PolynomialInterpolationNames, "Polynomial Type");
-               if (ResetCtxMenu("PolynomialTypeReset"))
-               {
-                  PolynomialParams->Type = DefaultParams.PolynomialInterpolationParams.Type;
-                  SomeCurveParamChanged = true;
-               }
-               
-               SomeCurveParamChanged |= UI_ComboF(&PolynomialParams->PointsArrangement, PointsArrangement_Count, PointsArrangementNames, "Points Arrangement");
-               if (ResetCtxMenu("PointsArrangementReset"))
-               {
-                  PolynomialParams->PointsArrangement =
-                     DefaultParams.PolynomialInterpolationParams.PointsArrangement;
-                  SomeCurveParamChanged = true;
-               }
-            } break;
-            
-            case Interpolation_CubicSpline: {
-               SomeCurveParamChanged |= UI_ComboF(&ChangeParams->CubicSplineType, CubicSpline_Count, CubicSplineNames, "Spline Types");
-               if (ResetCtxMenu("SplineTypeReset"))
-               {
-                  ChangeParams->CubicSplineType = DefaultParams.CubicSplineType;
-                  SomeCurveParamChanged = true;
-               }
-            } break;
-            
-            case Interpolation_Bezier: {
-               SomeCurveParamChanged |= UI_ComboF(&ChangeParams->BezierType, Bezier_Count, BezierNames, "Bezier Types");
-               if (ResetCtxMenu("BezierTypeReset"))
-               {
-                  ChangeParams->BezierType = DefaultParams.BezierType;
-                  SomeCurveParamChanged = true;
-               }
-            } break;
-            
-            case Interpolation_Count: InvalidPath;
-         }
-      }
-      
-      UI_NewRow();
-      UI_SeparatorTextF("Line");
-      DeferBlock(UI_PushLabelF("Line"), UI_PopId())
-      {
-         SomeCurveParamChanged |= UI_ColorPickerF(&ChangeParams->CurveColor, "Color");
-         if (ResetCtxMenu("CurveColorReset"))
-         {
-            ChangeParams->CurveColor = DefaultParams.CurveColor;
-            SomeCurveParamChanged = true;
-         }
-         
-         SomeCurveParamChanged |= UI_DragFloatF(&ChangeParams->CurveWidth, 0.0f, FLT_MAX, 0, "Width");
-         if (ResetCtxMenu("CurveWidthReset"))
-         {
-            ChangeParams->CurveWidth = DefaultParams.CurveWidth;
-            SomeCurveParamChanged = true;
-         }
-         
-         SomeCurveParamChanged |= UI_SliderIntegerF(&ChangeParams->CurvePointCountPerSegment, 1, 2000, "Detail");
-         if (ResetCtxMenu("DetailReset"))
-         {
-            ChangeParams->CurvePointCountPerSegment = DefaultParams.CurvePointCountPerSegment;
-            SomeCurveParamChanged = true;
-         }
-      }
-      
-      
-      UI_NewRow();
-      UI_SeparatorTextF("Control Points");
-      DeferBlock(UI_PushLabelF("ControlPoints"), UI_PopId())
-      {
-         UI_CheckboxF(&ChangeParams->PointsDisabled, "Points Disabled");
-         if (ResetCtxMenu("PointsDisabledReset"))
-         {
-            ChangeParams->PointsDisabled= DefaultParams.PointsDisabled;
-         }
-         
-         SomeCurveParamChanged |= UI_ColorPickerF(&ChangeParams->PointColor, "Color");
-         if (ResetCtxMenu("PointColorReset"))
-         {
-            ChangeParams->PointColor = DefaultParams.PointColor;
-            SomeCurveParamChanged = true;
-         }
-         
-         SomeCurveParamChanged |= UI_DragFloatF(&ChangeParams->PointSize, 0.0f, FLT_MAX, 0, "Size");
-         if (ResetCtxMenu("PointSizeReset"))
-         {
-            ChangeParams->PointSize = DefaultParams.PointSize;
-            SomeCurveParamChanged = true;
-         }
-         
-         {
-            // TODO(hbr): Maybe let ControlPoint weight to be 0 as well
-            local f32 ControlPointMinWeight = EPS_F32;
-            local f32 ControlPointMaxWeight = FLT_MAX;
-            switch (UIMode.Mode)
-            {
-               case ChangeCurveParamsUI_DefaultCurve: {} break;
-               
-               case ChangeCurveParamsUI_SelectedCurve: {
-                  if (ChangeParams->InterpolationType == Interpolation_Bezier &&
-                      ChangeParams->BezierType == Bezier_Weighted)
-                  {
-                     UI_SeparatorTextF("Weights");
-                     
-                     curve *SelectedCurve = UIMode.SelectedCurve;
-                     u64 ControlPointCount = SelectedCurve->ControlPointCount;
-                     f32 *ControlPointWeights = SelectedCurve->ControlPointWeights;
-                     u64 SelectedControlPointIndex = SelectedCurve->SelectedControlPointIndex;
-                     
-                     if (SelectedControlPointIndex < ControlPointCount)
-                     {
-                        // TODO(hbr): Replace to StrF
-                        char ControlPointWeightLabel[128];
-                        Fmt(ControlPointWeightLabel, ArrayCount(ControlPointWeightLabel),
-                            "Selected Point (%llu)", SelectedControlPointIndex);
-                        
-                        SomeCurveParamChanged |= UI_DragFloatF(&ControlPointWeights[SelectedControlPointIndex],
-                                                               ControlPointMinWeight, ControlPointMaxWeight,
-                                                               0, ControlPointWeightLabel);
-                        if (ResetCtxMenu("SelectedPointWeightReset"))
-                        {
-                           ControlPointWeights[SelectedControlPointIndex] = 1.0f;
-                        }
-                        
-                        ImGui::Spacing();
-                     }
-                     
-                     if (ImGui::TreeNode("All Points"))
-                     {
-                        for (u64 ControlPointIndex = 0;
-                             ControlPointIndex < ControlPointCount;
-                             ++ControlPointIndex)
-                        {
-                           DeferBlock(UI_PushId(ControlPointIndex), UI_PopId())
-                           {                              
-                              char ControlPointWeightLabel[128];
-                              Fmt(ControlPointWeightLabel, ArrayCount(ControlPointWeightLabel),
-                                  "Point (%llu)", ControlPointIndex);
-                              
-                              SomeCurveParamChanged |= UI_DragFloatF(&ControlPointWeights[ControlPointIndex],
-                                                                     ControlPointMinWeight, ControlPointMaxWeight,
-                                                                     0, ControlPointWeightLabel);
-                              if (ResetCtxMenu("PointWeightReset"))
-                              {
-                                 ControlPointWeights[ControlPointIndex] = 1.0f;
-                              }
-                           }
-                        }
-                        
-                        ImGui::TreePop();
-                     }
-                  }
-               } break;
-            }
-         }
-         if (ChangeParams->InterpolationType == Interpolation_Bezier &&
-             ChangeParams->BezierType == Bezier_Cubic)
-         {
-            UI_CheckboxF(&ChangeParams->CubicBezierHelpersDisabled, "Helpers Disabled");
-            if (ResetCtxMenu("HelpersDisabledReset"))
-            {
-               ChangeParams->CubicBezierHelpersDisabled = DefaultParams.CubicBezierHelpersDisabled;
-            }
-         }
-      }
-      
-      UI_NewRow();
-      UI_SeparatorTextF("Polyline");
-      DeferBlock(UI_PushLabelF("Polyline"), UI_PopId())
-      {
-         UI_CheckboxF(&ChangeParams->PolylineEnabled, "Enabled");
-         if (ResetCtxMenu("PolylineEnabled"))
-         {
-            ChangeParams->PolylineEnabled = DefaultParams.PolylineEnabled;
-         }
-         
-         SomeCurveParamChanged |= UI_ColorPickerF(&ChangeParams->PolylineColor, "Color");
-         if (ResetCtxMenu("PolylineColorReset"))
-         {
-            ChangeParams->PolylineColor = DefaultParams.PolylineColor;
-            SomeCurveParamChanged = true;
-         }
-         
-         SomeCurveParamChanged |= UI_DragFloatF(&ChangeParams->PolylineWidth, 0.0f, FLT_MAX, 0, "Width");
-         if (ResetCtxMenu("PolylineWidthReset"))
-         {
-            ChangeParams->PolylineWidth = DefaultParams.PolylineWidth;
-            SomeCurveParamChanged = true;
-         }
-      }
-      
-      UI_NewRow();
-      UI_SeparatorTextF("Convex Hull");
-      DeferBlock(UI_PushLabelF("ConvexHull"), UI_PopId())
-      {
-         UI_CheckboxF(&ChangeParams->ConvexHullEnabled, "Enabled");
-         if (ResetCtxMenu("ConvexHullEnabledReset"))
-         {
-            ChangeParams->ConvexHullEnabled = DefaultParams.ConvexHullEnabled;
-         }
-         
-         SomeCurveParamChanged |= UI_ColorPickerF(&ChangeParams->ConvexHullColor, "Color");
-         if (ResetCtxMenu("ConvexHullColorReset"))
-         {
-            ChangeParams->ConvexHullColor = DefaultParams.ConvexHullColor;
-            SomeCurveParamChanged = true;
-         }
-         
-         SomeCurveParamChanged |= UI_DragFloatF(&ChangeParams->ConvexHullWidth, 0.0f, FLT_MAX, 0, "Width");
-         if (ResetCtxMenu("ConvexHullWidthReset"))
-         {
-            ChangeParams->ConvexHullWidth = DefaultParams.ConvexHullWidth;
-            SomeCurveParamChanged = true;
-         }
-      }
-      
-      // NOTE(hbr): De Casteljau section logic (somewhat complex, maybe refactor).
-      b32 ShowDeCasteljauGradientPicking = false;
-      b32 ShowDeCasteljauVisualParamtersPicking = false;
-      switch (UIMode.Mode)
-      {
-         case ChangeCurveParamsUI_DefaultCurve: {
-            ShowDeCasteljauGradientPicking = true;
-         } break;
-         
-         case ChangeCurveParamsUI_SelectedCurve: {
-            if (ChangeParams->InterpolationType == Interpolation_Bezier)
-            {
-               ShowDeCasteljauGradientPicking = true;
-               ShowDeCasteljauVisualParamtersPicking = true;
-            }
-         } break;
-      }
-      
-      if (ChangeParams->InterpolationType == Interpolation_Bezier)
-      {
-         switch (ChangeParams->BezierType)
-         {
-            case Bezier_Normal:
-            case Bezier_Weighted: {
-               UI_NewRow();
-               UI_SeparatorTextF("De Casteljau's Visualization");
-               DeferBlock(UI_PushLabelF("DeCasteljauVisual"), UI_PopId())
-               {
-                  SomeCurveParamChanged |= UI_ColorPickerF(&ChangeParams->DeCasteljau.GradientA, "Gradient A");
-                  if (ResetCtxMenu("DeCasteljauVisualGradientAReset"))
-                  {
-                     ChangeParams->DeCasteljau.GradientA = DefaultParams.DeCasteljau.GradientA;
-                     SomeCurveParamChanged = true;
-                  }
-                  
-                  SomeCurveParamChanged |= UI_ColorPickerF(&ChangeParams->DeCasteljau.GradientB, "Gradient B");
-                  if (ResetCtxMenu("DeCasteljauVisualGradientBReset"))
-                  {
-                     ChangeParams->DeCasteljau.GradientB = DefaultParams.DeCasteljau.GradientB;
-                     SomeCurveParamChanged = true;
-                  }
-               }
-            } break;
-            
-            case Bezier_Cubic: {} break;
-            case Bezier_Count: InvalidPath;
-         }
-      }
-   }
-   
-   return SomeCurveParamChanged;
-}
-
 internal void
-BeginCurveSplitting(curve_splitting_state *Splitting, entity *CurveEntity)
+BeginCurveSplitting(curve_splitting_state *Splitting)
 {
-   Splitting->IsSplitting = true;
-   Splitting->SplitCurveEntity = CurveEntity;
-   Splitting->DraggingSplitPoint = false;
-   Splitting->T = 0.0f;
-   Splitting->SavedCurveVersion = U64_MAX;
-}
-
-internal void
-BeginVisualizingDeCasteljauAlgorithm(de_casteljau_visual_state *Visualization, entity *CurveEntity)
-{
-   Visualization->IsVisualizing = true;
-   Visualization->T = 0.0f;
-   Visualization->CurveEntity = CurveEntity;
-   Visualization->SavedCurveVersion = U64_MAX;
-   ClearArena(Visualization->Arena);
+   Splitting->Active = true;
+   SetSplitT(Splitting, 0.0f);
 }
 
 internal void
@@ -1944,12 +1567,12 @@ internal void
 RenderSelectedEntityUI(editor *Editor)
 {
    entity *Entity = Editor->SelectedEntity;
-   Assert(Entity);
-   DeferBlock(UI_PushLabelF("SelectedEntity"), UI_PopId())
+   ui_config *Config = &Editor->UI_Config;
+   if (Config->ViewSelectedEntityWindow && Entity)
    {
-      if (Editor->UI_Config.ViewSelectedEntityWindow)
+      UI_LabelF("SelectedEntity")
       {
-         if (UI_BeginWindowF(&Editor->UI_Config.ViewSelectedEntityWindow, "Entity Parameters"))
+         if (UI_BeginWindowF(&Config->ViewSelectedEntityWindow, "Entity Parameters"))
          {
             curve *Curve = 0;
             image *Image = 0;
@@ -2023,10 +1646,223 @@ RenderSelectedEntityUI(editor *Editor)
             b32 SomeCurveParamChanged = false;
             if (Curve)
             {
-               change_curve_params_ui UIMode =
-                  ChangeCurveShapeUIModeSelectedCurve(&Editor->Params.CurveDefaultParams, Curve);
+               curve_params DefaultParams = Editor->Params.CurveDefaultParams;
+               curve_params *CurveParams = &Curve->CurveParams;
+               
                UI_NewRow();
-               SomeCurveParamChanged |= RenderChangeCurveParametersUI("SelectedCurveShape", UIMode);
+               UI_SeparatorTextF("Curve");
+               UI_LabelF("Curve")
+               {
+                  SomeCurveParamChanged |= UI_ComboF(&CurveParams->InterpolationType, Interpolation_Count, InterpolationNames, "Interpolation Type");
+                  if (ResetCtxMenu("InterpolationTypeReset"))
+                  {
+                     CurveParams->InterpolationType = DefaultParams.InterpolationType;
+                     SomeCurveParamChanged = true;
+                  }
+                  
+                  switch (CurveParams->InterpolationType)
+                  {
+                     case Interpolation_Polynomial: {
+                        polynomial_interpolation_params *PolynomialParams = &CurveParams->PolynomialInterpolationParams;
+                        
+                        SomeCurveParamChanged |= UI_ComboF(&PolynomialParams->Type, PolynomialInterpolation_Count, PolynomialInterpolationNames, "Polynomial Type");
+                        if (ResetCtxMenu("PolynomialTypeReset"))
+                        {
+                           PolynomialParams->Type = DefaultParams.PolynomialInterpolationParams.Type;
+                           SomeCurveParamChanged = true;
+                        }
+                        
+                        SomeCurveParamChanged |= UI_ComboF(&PolynomialParams->PointsArrangement, PointsArrangement_Count, PointsArrangementNames, "Points Arrangement");
+                        if (ResetCtxMenu("PointsArrangementReset"))
+                        {
+                           PolynomialParams->PointsArrangement =
+                              DefaultParams.PolynomialInterpolationParams.PointsArrangement;
+                           SomeCurveParamChanged = true;
+                        }
+                     } break;
+                     
+                     case Interpolation_CubicSpline: {
+                        SomeCurveParamChanged |= UI_ComboF(&CurveParams->CubicSplineType, CubicSpline_Count, CubicSplineNames, "Spline Types");
+                        if (ResetCtxMenu("SplineTypeReset"))
+                        {
+                           CurveParams->CubicSplineType = DefaultParams.CubicSplineType;
+                           SomeCurveParamChanged = true;
+                        }
+                     } break;
+                     
+                     case Interpolation_Bezier: {
+                        SomeCurveParamChanged |= UI_ComboF(&CurveParams->BezierType, Bezier_Count, BezierNames, "Bezier Types");
+                        if (ResetCtxMenu("BezierTypeReset"))
+                        {
+                           CurveParams->BezierType = DefaultParams.BezierType;
+                           SomeCurveParamChanged = true;
+                        }
+                     } break;
+                     
+                     case Interpolation_Count: InvalidPath;
+                  }
+               }
+               
+               UI_NewRow();
+               UI_SeparatorTextF("Line");
+               UI_LabelF("Line")
+               {
+                  SomeCurveParamChanged |= UI_ColorPickerF(&CurveParams->CurveColor, "Color");
+                  if (ResetCtxMenu("CurveColorReset"))
+                  {
+                     CurveParams->CurveColor = DefaultParams.CurveColor;
+                     SomeCurveParamChanged = true;
+                  }
+                  
+                  SomeCurveParamChanged |= UI_DragFloatF(&CurveParams->CurveWidth, 0.0f, FLT_MAX, 0, "Width");
+                  if (ResetCtxMenu("CurveWidthReset"))
+                  {
+                     CurveParams->CurveWidth = DefaultParams.CurveWidth;
+                     SomeCurveParamChanged = true;
+                  }
+                  
+                  SomeCurveParamChanged |= UI_SliderIntegerF(&CurveParams->CurvePointCountPerSegment, 1, 2000, "Detail");
+                  if (ResetCtxMenu("DetailReset"))
+                  {
+                     CurveParams->CurvePointCountPerSegment = DefaultParams.CurvePointCountPerSegment;
+                     SomeCurveParamChanged = true;
+                  }
+               }
+               
+               UI_NewRow();
+               UI_SeparatorTextF("Control Points");
+               UI_LabelF("ControlPoints")
+               {
+                  UI_CheckboxF(&CurveParams->PointsDisabled, "Points Disabled");
+                  if (ResetCtxMenu("PointsDisabledReset"))
+                  {
+                     CurveParams->PointsDisabled= DefaultParams.PointsDisabled;
+                  }
+                  
+                  if (!CurveParams->PointsDisabled)
+                  {                     
+                     SomeCurveParamChanged |= UI_ColorPickerF(&CurveParams->PointColor, "Color");
+                     if (ResetCtxMenu("PointColorReset"))
+                     {
+                        CurveParams->PointColor = DefaultParams.PointColor;
+                        SomeCurveParamChanged = true;
+                     }
+                     
+                     SomeCurveParamChanged |= UI_DragFloatF(&CurveParams->PointSize, 0.0f, FLT_MAX, 0, "Size");
+                     if (ResetCtxMenu("PointSizeReset"))
+                     {
+                        CurveParams->PointSize = DefaultParams.PointSize;
+                        SomeCurveParamChanged = true;
+                     }
+                     
+                     {
+                        // TODO(hbr): Maybe let ControlPoint weight to be 0 as well
+                        local f32 ControlPointMinWeight = EPS_F32;
+                        local f32 ControlPointMaxWeight = FLT_MAX;
+                        if (CurveParams->InterpolationType == Interpolation_Bezier &&
+                            CurveParams->BezierType == Bezier_Weighted)
+                        {
+                           UI_SeparatorTextF("Weights");
+                           
+                           curve *SelectedCurve = Curve;
+                           u64 ControlPointCount = SelectedCurve->ControlPointCount;
+                           f32 *ControlPointWeights = SelectedCurve->ControlPointWeights;
+                           u64 SelectedControlPointIndex = SelectedCurve->SelectedControlPointIndex;
+                           
+                           if (SelectedControlPointIndex < ControlPointCount)
+                           {
+                              SomeCurveParamChanged |= UI_DragFloatF(&ControlPointWeights[SelectedControlPointIndex],
+                                                                     ControlPointMinWeight, ControlPointMaxWeight,
+                                                                     0, "Selected Point (%llu)", SelectedControlPointIndex);
+                              if (ResetCtxMenu("SelectedPointWeightReset"))
+                              {
+                                 ControlPointWeights[SelectedControlPointIndex] = 1.0f;
+                              }
+                              
+                              ImGui::Spacing();
+                           }
+                           
+                           if (ImGui::TreeNode("All Points"))
+                           {
+                              for (u64 ControlPointIndex = 0;
+                                   ControlPointIndex < ControlPointCount;
+                                   ++ControlPointIndex)
+                              {
+                                 DeferBlock(UI_PushId(ControlPointIndex), UI_PopId())
+                                 {                              
+                                    SomeCurveParamChanged |= UI_DragFloatF(&ControlPointWeights[ControlPointIndex],
+                                                                           ControlPointMinWeight, ControlPointMaxWeight,
+                                                                           0, "Point (%llu)", ControlPointIndex);
+                                    if (ResetCtxMenu("PointWeightReset"))
+                                    {
+                                       ControlPointWeights[ControlPointIndex] = 1.0f;
+                                    }
+                                 }
+                              }
+                              
+                              ImGui::TreePop();
+                           }
+                        }
+                     }
+                  }
+                  
+               }
+               
+               UI_NewRow();
+               UI_SeparatorTextF("Polyline");
+               DeferBlock(UI_PushLabelF("Polyline"), UI_PopId())
+               {
+                  UI_CheckboxF(&CurveParams->PolylineEnabled, "Enabled");
+                  if (ResetCtxMenu("PolylineEnabled"))
+                  {
+                     CurveParams->PolylineEnabled = DefaultParams.PolylineEnabled;
+                  }
+                  
+                  if (CurveParams->PolylineEnabled)
+                  {
+                     SomeCurveParamChanged |= UI_ColorPickerF(&CurveParams->PolylineColor, "Color");
+                     if (ResetCtxMenu("PolylineColorReset"))
+                     {
+                        CurveParams->PolylineColor = DefaultParams.PolylineColor;
+                        SomeCurveParamChanged = true;
+                     }
+                     
+                     SomeCurveParamChanged |= UI_DragFloatF(&CurveParams->PolylineWidth, 0.0f, FLT_MAX, 0, "Width");
+                     if (ResetCtxMenu("PolylineWidthReset"))
+                     {
+                        CurveParams->PolylineWidth = DefaultParams.PolylineWidth;
+                        SomeCurveParamChanged = true;
+                     }
+                  }
+               }
+               
+               UI_NewRow();
+               UI_SeparatorTextF("Convex Hull");
+               DeferBlock(UI_PushLabelF("ConvexHull"), UI_PopId())
+               {
+                  UI_CheckboxF(&CurveParams->ConvexHullEnabled, "Enabled");
+                  if (ResetCtxMenu("ConvexHullEnabledReset"))
+                  {
+                     CurveParams->ConvexHullEnabled = DefaultParams.ConvexHullEnabled;
+                  }
+                  
+                  if (CurveParams->ConvexHullEnabled)
+                  {
+                     SomeCurveParamChanged |= UI_ColorPickerF(&CurveParams->ConvexHullColor, "Color");
+                     if (ResetCtxMenu("ConvexHullColorReset"))
+                     {
+                        CurveParams->ConvexHullColor = DefaultParams.ConvexHullColor;
+                        SomeCurveParamChanged = true;
+                     }
+                     
+                     SomeCurveParamChanged |= UI_DragFloatF(&CurveParams->ConvexHullWidth, 0.0f, FLT_MAX, 0, "Width");
+                     if (ResetCtxMenu("ConvexHullWidthReset"))
+                     {
+                        CurveParams->ConvexHullWidth = DefaultParams.ConvexHullWidth;
+                        SomeCurveParamChanged = true;
+                     }
+                  }
+               }
             }
             
             b32 Delete                        = false;
@@ -2036,7 +1872,6 @@ RenderSelectedEntityUI(editor *Editor)
             b32 FocusOn                       = false;
             b32 ElevateBezierCurve            = false;
             b32 LowerBezierCurve              = false;
-            b32 VisualizeDeCasteljauAlgorithm = false;
             b32 SplitBezierCurve              = false;
             b32 AnimateCurve                  = false;
             b32 CombineCurve                  = false;
@@ -2057,6 +1892,52 @@ RenderSelectedEntityUI(editor *Editor)
                
                if (Curve)
                {
+                  curve_params *CurveParams = &Curve->CurveParams;
+                  
+                  UI_LabelF("De Casteljau")
+                  {
+                     de_casteljau_visual_state *DeCasteljau = &Curve->DeCasteljau;
+                     
+                     b32 CurveQualifiesForVisualizing = false;
+                     if (CurveParams->InterpolationType == Interpolation_Bezier)
+                     {
+                        switch (CurveParams->BezierType)
+                        {
+                           case Bezier_Normal:
+                           case Bezier_Weighted: { CurveQualifiesForVisualizing = true; } break;
+                           case Bezier_Cubic: {} break;
+                           case Bezier_Count: InvalidPath;
+                        }
+                     }
+                     
+                     if (CurveQualifiesForVisualizing)
+                     {
+                        UI_NewRow();
+                        UI_SeparatorTextF("De Casteljau Visualization");
+                        DeCasteljau->NeedsRecomputationThisFrame |= UI_CheckboxF(&DeCasteljau->Enabled, "Enabled");
+                        
+                        if (DeCasteljau->Enabled)
+                        {
+                           DeCasteljau->NeedsRecomputationThisFrame |= UI_ColorPickerF(&CurveParams->DeCasteljau.GradientA, "Gradient A");
+                           // TODO(hbr): Don't require GlobalDefaultDeCastelajuGradient(A|B), probably move this to this function
+                           if (ResetCtxMenu("DeCasteljauVisualGradientAReset"))
+                           {
+                              CurveParams->DeCasteljau.GradientA = Editor->Params.CurveDefaultParams.DeCasteljau.GradientA;
+                              DeCasteljau->NeedsRecomputationThisFrame = true;
+                           }
+                           
+                           DeCasteljau->NeedsRecomputationThisFrame |= UI_ColorPickerF(&CurveParams->DeCasteljau.GradientB, "Gradient B");
+                           if (ResetCtxMenu("GradientBReset"))
+                           {
+                              CurveParams->DeCasteljau.GradientB = Editor->Params.CurveDefaultParams.DeCasteljau.GradientB;
+                              DeCasteljau->NeedsRecomputationThisFrame = true;
+                           }
+                           
+                           DeCasteljau->NeedsRecomputationThisFrame |= UI_SliderFloatF(&DeCasteljau->T, 0.0f, 1.0f, "T");
+                        }
+                     }
+                  }
+                  
                   // TODO(hbr): Maybe pick better name than transform
                   AnimateCurve = UI_ButtonF("Animate");
                   UI_SameRow();
@@ -2069,7 +1950,6 @@ RenderSelectedEntityUI(editor *Editor)
                      SplitOnControlPoint = UI_ButtonF("Split on Control Point");
                   }
                   
-                  curve_params *CurveParams = &Curve->CurveParams;
                   b32 IsBezierNormalOrWeighted =
                   (CurveParams->InterpolationType == Interpolation_Bezier &&
                    (CurveParams->BezierType == Bezier_Normal || CurveParams->BezierType == Bezier_Weighted));
@@ -2087,7 +1967,6 @@ RenderSelectedEntityUI(editor *Editor)
                         UI_SameRow();
                         LowerBezierCurve = UI_ButtonF("Lower Degree");
                      }
-                     VisualizeDeCasteljauAlgorithm = UI_ButtonF("Visualize De Casteljau's Algorithm");
                   }
                }
             }
@@ -2129,12 +2008,7 @@ RenderSelectedEntityUI(editor *Editor)
             
             if (SplitBezierCurve)
             {
-               BeginCurveSplitting(&Editor->CurveSplitting, Entity);
-            }
-            
-            if (VisualizeDeCasteljauAlgorithm)
-            {
-               BeginVisualizingDeCasteljauAlgorithm(&Editor->DeCasteljauVisual, Entity);
+               BeginCurveSplitting(&Entity->Curve.Splitting);
             }
             
             if (AnimateCurve)
@@ -2515,15 +2389,15 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
             camera *Camera = &Editor->RenderData.Camera;
             if (UI_MenuItemF(0, 0, "Reset Position"))
             {
-               CameraMove(Camera, -Camera->Position);
+               MoveCamera(Camera, -Camera->Position);
             }
             if (UI_MenuItemF(0, 0, "Reset Rotation"))
             {
-               CameraRotate(Camera, Rotation2DInverse(Camera->Rotation));
+               RotateCamera(Camera, Rotation2DInverse(Camera->Rotation));
             }
             if (UI_MenuItemF(0, 0, "Reset Zoom"))
             {
-               CameraSetZoom(Camera, 1.0f);
+               SetCameraZoom(Camera, 1.0f);
             }
             UI_EndMenu();
          }
@@ -2549,7 +2423,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
       UI_OpenPopup(ConfirmCloseProject);
       Editor->ActionWaitingToBeDone = ActionToDo_OpenProject;
    }
-   if (Quit || KeyPressed(Input, Key_Q, 0) || KeyPressed(Input, Key_ESC, 0))
+   if (Quit || KeyPressed(Input, Key_Q, 0) || KeyPressed(Input, Key_Esc, 0))
    {
       UI_OpenPopup(ConfirmCloseProject);
       Editor->ActionWaitingToBeDone = ActionToDo_Quit;
@@ -2935,13 +2809,6 @@ RenderSettingsWindow(editor *Editor)
    {
       if (UI_BeginWindowF(&Config->ViewParametersWindow, "Editor Settings"))
       {
-         if (UI_CollapsingHeaderF("Default Curve"))
-         {
-            change_curve_params_ui UIMode =
-               ChangeCurveShapeUIModeDefaultCurve(&Params->CurveDefaultParams);
-            RenderChangeCurveParametersUI("DefaultCurve", UIMode);
-         }
-         
          if (UI_CollapsingHeaderF("Rotation Indicator"))
          {
             RenderUIForRenderPointData("RotationIndicator",
@@ -3029,20 +2896,18 @@ RenderDiagnosticsWindow(editor *Editor, f32 DeltaTime)
 }
 
 internal void
-UpdateAndRenderCurveSplitting(editor *Editor, sf::Transform Transform)
+UpdateAndRenderCurveSplitting(editor *Editor, entity *Entity, sf::Transform Transform)
 {
    TimeFunction;
    
    // TODO(hbr): Remove those variables or rename them
    editor_params *EditorParams = &Editor->Params;
    sf::RenderWindow *Window = Editor->RenderData.Window;
-   
-   curve_splitting_state *Splitting = &Editor->CurveSplitting;
-   entity *Entity = Splitting->SplitCurveEntity;
    curve *Curve = GetCurve(Entity);
+   curve_splitting_state *Splitting = &Curve->Splitting;
    curve_params *CurveParams = &Curve->CurveParams;
    
-   if (Splitting->IsSplitting)
+   if (Splitting->Active)
    {
       b32 CurveQualifiesForSplitting = false;
       if (CurveParams->InterpolationType == Interpolation_Bezier)
@@ -3058,31 +2923,27 @@ UpdateAndRenderCurveSplitting(editor *Editor, sf::Transform Transform)
       
       if (!CurveQualifiesForSplitting)
       {
-         Splitting->IsSplitting = false;
+         Splitting->Active = false;
       }
    }
    
-   bool PerformSplit = false;
-   bool T_ParamterChanged = false;
-   if (Splitting->IsSplitting)
+   b32 PerformSplit = false;
+   if (Splitting->Active)
    {
-      bool Cancel = false;
-      bool IsSplitWindowOpen = true;
+      b32 Cancel = false;
+      b32 IsSplitWindowOpen = true;
       
-      DeferBlock(ImGui::Begin("Curve Splitting", &IsSplitWindowOpen,
-                              ImGuiWindowFlags_AlwaysAutoResize),
-                 ImGui::End())
+      DeferBlock(UI_BeginWindowF(&IsSplitWindowOpen, "Splitting '%S'", Entity->Name),
+                 UI_EndWindow())
       {
-         T_ParamterChanged = ImGui::SliderFloat("Split Point", &Splitting->T, 0.0f, 1.0f);
-         
+         Splitting->NeedsRecomputationThisFrame |= UI_SliderFloatF(&Splitting->T, 0.0f, 1.0f, "Split Point");
          PerformSplit = UI_ButtonF("Split");
-         UI_SameRow();
          Cancel = UI_ButtonF("Cancel");
       }
       
       if (Cancel || !IsSplitWindowOpen)
       {
-         Splitting->IsSplitting = false;
+         Splitting->Active = false;
       }
    }
    
@@ -3134,14 +2995,14 @@ UpdateAndRenderCurveSplitting(editor *Editor, sf::Transform Transform)
       SetCurveControlPoints(LeftEntity, ControlPointCount, LeftPoints, LeftWeights, LeftBeziers);
       SetCurveControlPoints(RightEntity, ControlPointCount, RightPoints, RightWeights, RightBeziers);
       
-      Splitting->IsSplitting = false;
+      Splitting->Active = false;
       
       EndTemp(Temp);
    }
    
-   if (Splitting->IsSplitting)
+   if (Splitting->Active)
    {
-      if (T_ParamterChanged || Splitting->SavedCurveVersion != Curve->CurveVersion)
+      if (Splitting->NeedsRecomputationThisFrame || Curve->NeedsRecomputationThisFrame)
       {
          local_position SplitPoint = {};
          switch (CurveParams->BezierType)
@@ -3162,178 +3023,19 @@ UpdateAndRenderCurveSplitting(editor *Editor, sf::Transform Transform)
             case Bezier_Cubic:
             case Bezier_Count: InvalidPath;
          }
-         Splitting->SplitPoint = LocalEntityPositionToWorld(Entity, SplitPoint);
+         Splitting->SplitPoint = SplitPoint;
       }
       
       if (!(Entity->Flags & EntityFlag_Hidden))
       {
          RenderPoint(Splitting->SplitPoint,
                      EditorParams->BezierSplitPoint,
-                     &Editor->RenderData, Transform);
-      }
-   }
-}
-
-internal void
-UpdateAndRenderDeCasteljauVisual(de_casteljau_visual_state *Visualization,
-                                 sf::Transform Transform,
-                                 sf::RenderWindow *Window)
-{
-   entity *Entity = Visualization->CurveEntity;
-   curve *Curve = GetCurve(Entity);
-   curve_params *CurveParams = &Curve->CurveParams;
-   
-   if (Visualization->IsVisualizing)
-   {
-      b32 CurveQualifiesForVisualizing = false;
-      if (CurveParams->InterpolationType == Interpolation_Bezier)
-      {
-         switch (CurveParams->BezierType)
-         {
-            case Bezier_Normal:
-            case Bezier_Weighted: { CurveQualifiesForVisualizing = true; } break;
-            case Bezier_Cubic: {} break;
-            case Bezier_Count: InvalidPath;
-         }
-      }
-      
-      if (!CurveQualifiesForVisualizing)
-      {
-         Visualization->IsVisualizing = false;
+                     &Editor->RenderData,
+                     Transform);
       }
    }
    
-   bool T_ParamterChanged = false;
-   if (Visualization->IsVisualizing)
-   {
-      bool IsSplitWindowOpen = true;
-      
-      DeferBlock(ImGui::Begin("De Casteljau's Visualization", &IsSplitWindowOpen,
-                              ImGuiWindowFlags_AlwaysAutoResize),
-                 ImGui::End())
-      {                 
-         T_ParamterChanged = ImGui::SliderFloat("T", &Visualization->T, 0.0f, 1.0f);
-      }
-      
-      if (!IsSplitWindowOpen)
-      {
-         Visualization->IsVisualizing = false;
-      }
-   }
-   
-   if (Visualization->IsVisualizing)
-   {
-      b32 VisualizationNeedsRecomputation = (T_ParamterChanged ||
-                                             Visualization->SavedCurveVersion != Curve->CurveVersion);
-      
-      if (VisualizationNeedsRecomputation)
-      {
-         temp_arena Temp = TempArena(Visualization->Arena);
-         
-         u64 ControlPointCount = Curve->ControlPointCount;
-         u64 NumIterations = ControlPointCount;
-         color *IterationColors = PushArrayNonZero(Visualization->Arena, NumIterations, color);
-         line_vertices *LineVerticesPerIteration = PushArray(Visualization->Arena,
-                                                             NumIterations,
-                                                             line_vertices);
-         u64 NumAllIntermediatePoints = ControlPointCount * ControlPointCount;
-         local_position *AllIntermediatePoints = PushArrayNonZero(Visualization->Arena,
-                                                                  NumAllIntermediatePoints,
-                                                                  local_position);
-         
-         // NOTE(hbr): Deal with cases at once.
-         f32 *ControlPointWeights = Curve->ControlPointWeights;
-         switch (CurveParams->BezierType)
-         {
-            case Bezier_Normal: {
-               ControlPointWeights = PushArrayNonZero(Temp.Arena, ControlPointCount, f32);
-               for (u64 I = 0; I < ControlPointCount; ++I)
-               {
-                  ControlPointWeights[I] = 1.0f;
-               }
-            } break;
-            
-            case Bezier_Weighted: {} break;
-            case Bezier_Cubic:
-            case Bezier_Count: InvalidPath;
-         }
-         
-         // TODO(hbr): Consider passing 0 as ThrowAwayWeights, but make sure algorithm
-         // handles that case
-         f32 *ThrowAwayWeights = PushArrayNonZero(Temp.Arena, NumAllIntermediatePoints, f32);
-         DeCasteljauAlgorithm(Visualization->T,
-                              Curve->ControlPoints,
-                              ControlPointWeights,
-                              ControlPointCount,
-                              AllIntermediatePoints,
-                              ThrowAwayWeights);
-         
-         f32 LineWidth = Curve->CurveParams.CurveWidth;
-         color GradientA = Curve->CurveParams.DeCasteljau.GradientA;
-         color GradientB = Curve->CurveParams.DeCasteljau.GradientB;
-         
-         f32 P = 0.0f;
-         f32 Delta_P = 1.0f / (NumIterations - 1);
-         for (u64 Iteration = 0;
-              Iteration < NumIterations;
-              ++Iteration)
-         {
-            color IterationColor = LerpColor(GradientA, GradientB, P);
-            IterationColors[Iteration] = IterationColor;
-            
-            u64 NumPoints = ControlPointCount - Iteration;
-            u64 PointsIndex = Idx(Iteration, 0, NumIterations);
-            line_vertices *OldLineVertices = &LineVerticesPerIteration[Iteration];
-            *OldLineVertices = CalculateLineVertices(NumPoints,
-                                                     AllIntermediatePoints + PointsIndex,
-                                                     LineWidth, IterationColor,
-                                                     false,
-                                                     LineVerticesAllocationArena(Visualization->Arena));
-            
-            P += Delta_P;
-         }
-         
-         Visualization->SavedCurveVersion = Curve->CurveVersion;
-         Visualization->NumIterations = NumIterations;
-         Visualization->IterationColors = IterationColors;
-         Visualization->LineVerticesPerIteration = LineVerticesPerIteration;
-         Visualization->AllIntermediatePoints = AllIntermediatePoints;
-         
-         EndTemp(Temp);
-      }
-   }
-   
-   if (Visualization->IsVisualizing && !(Visualization->CurveEntity->Flags & EntityFlag_Hidden))
-   {
-      sf::Transform Model = CurveGetAnimate(Visualization->CurveEntity);
-      sf::Transform MVP = Transform * Model;
-      
-      u64 NumIterations = Visualization->NumIterations;
-      
-      for (u64 Iteration = 0;
-           Iteration < NumIterations;
-           ++Iteration)
-      {
-         Window->draw(Visualization->LineVerticesPerIteration[Iteration].Vertices,
-                      Visualization->LineVerticesPerIteration[Iteration].NumVertices,
-                      Visualization->LineVerticesPerIteration[Iteration].PrimitiveType,
-                      MVP);
-      }
-      
-      f32 PointSize = Visualization->CurveEntity->Curve.CurveParams.PointSize;
-      for (u64 Iteration = 0;
-           Iteration < NumIterations;
-           ++Iteration)
-      {
-         color PointColor = Visualization->IterationColors[Iteration];
-         for (u64 I = 0; I < NumIterations - Iteration; ++I)
-         {
-            local_position IntermediatePoint =
-               Visualization->AllIntermediatePoints[Idx(Iteration, I, NumIterations)];
-            DrawCircle(IntermediatePoint, PointSize, PointColor, MVP, Window);
-         }
-      }
-   }
+   Splitting->NeedsRecomputationThisFrame = false;
 }
 
 internal void
@@ -3976,6 +3678,11 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                curve *Curve = &Entity->Curve;
                curve_params *CurveParams = &Curve->CurveParams;
                
+               if (Curve->NeedsRecomputationThisFrame)
+               {
+                  ActuallyRecomputeCurve(Entity);
+               }
+               
                sf::Transform Model = CurveGetAnimate(Entity);
                sf::Transform MVP = VP * Model;
                
@@ -4015,8 +3722,7 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                   b32 IsSelected = (Entity->Flags & EntityFlag_Selected);
                   u64 SelectedControlPointIndex = Curve->SelectedControlPointIndex;
                   
-                  if (!CurveParams->CubicBezierHelpersDisabled &&
-                      IsSelected && SelectedControlPointIndex != U64_MAX &&
+                  if (IsSelected && SelectedControlPointIndex != U64_MAX &&
                       CurveParams->InterpolationType == Interpolation_Bezier &&
                       CurveParams->BezierType == Bezier_Cubic)
                   {
@@ -4087,17 +3793,119 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                   }
                }
                
-               
                curve_degree_lowering_state *Lowering = &Editor->DegreeLowering;
                if (Lowering->Entity == Entity)
                {
                   UpdateAndRenderDegreeLowering(Lowering, VP, Editor->RenderData.Window);
                }
                
-               de_casteljau_visual_state *Visualization = &Editor->DeCasteljauVisual;
-               if (Visualization->IsVisualizing && Visualization->CurveEntity == Entity)
+               // NOTE(hbr): DeCasteljau visualization rendering
                {
-                  UpdateAndRenderDeCasteljauVisual(Visualization, VP, Editor->RenderData.Window);
+                  de_casteljau_visual_state *DeCasteljau = &Curve->DeCasteljau;
+                  if (DeCasteljau->Enabled)
+                  {
+                     if (Curve->NeedsRecomputationThisFrame || DeCasteljau->NeedsRecomputationThisFrame)
+                     {
+                        temp_arena Temp = TempArena(DeCasteljau->Arena);
+                        
+                        u64 ControlPointCount = Curve->ControlPointCount;
+                        u64 IterationCount = ControlPointCount;
+                        color *IterationColors = PushArrayNonZero(DeCasteljau->Arena, IterationCount, color);
+                        line_vertices *LineVerticesPerIteration = PushArray(DeCasteljau->Arena,
+                                                                            IterationCount,
+                                                                            line_vertices);
+                        u64 NumAllIntermediatePoints = ControlPointCount * ControlPointCount;
+                        local_position *AllIntermediatePoints = PushArrayNonZero(DeCasteljau->Arena,
+                                                                                 NumAllIntermediatePoints,
+                                                                                 local_position);
+                        
+                        // NOTE(hbr): Deal with cases at once.
+                        f32 *ControlPointWeights = Curve->ControlPointWeights;
+                        switch (CurveParams->BezierType)
+                        {
+                           case Bezier_Normal: {
+                              ControlPointWeights = PushArrayNonZero(Temp.Arena, ControlPointCount, f32);
+                              for (u64 I = 0; I < ControlPointCount; ++I)
+                              {
+                                 ControlPointWeights[I] = 1.0f;
+                              }
+                           } break;
+                           
+                           case Bezier_Weighted: {} break;
+                           case Bezier_Cubic:
+                           case Bezier_Count: InvalidPath;
+                        }
+                        
+                        // TODO(hbr): Consider passing 0 as ThrowAwayWeights, but make sure algorithm
+                        // handles that case
+                        f32 *ThrowAwayWeights = PushArrayNonZero(Temp.Arena, NumAllIntermediatePoints, f32);
+                        DeCasteljauAlgorithm(DeCasteljau->T,
+                                             Curve->ControlPoints,
+                                             ControlPointWeights,
+                                             ControlPointCount,
+                                             AllIntermediatePoints,
+                                             ThrowAwayWeights);
+                        
+                        f32 LineWidth = Curve->CurveParams.CurveWidth;
+                        color GradientA = Curve->CurveParams.DeCasteljau.GradientA;
+                        color GradientB = Curve->CurveParams.DeCasteljau.GradientB;
+                        
+                        f32 P = 0.0f;
+                        f32 Delta_P = 1.0f / (IterationCount - 1);
+                        for (u64 Iteration = 0;
+                             Iteration < IterationCount;
+                             ++Iteration)
+                        {
+                           color IterationColor = LerpColor(GradientA, GradientB, P);
+                           IterationColors[Iteration] = IterationColor;
+                           
+                           u64 NumPoints = ControlPointCount - Iteration;
+                           u64 PointsIndex = Idx(Iteration, 0, IterationCount);
+                           line_vertices *OldLineVertices = &LineVerticesPerIteration[Iteration];
+                           *OldLineVertices = CalculateLineVertices(NumPoints,
+                                                                    AllIntermediatePoints + PointsIndex,
+                                                                    LineWidth, IterationColor,
+                                                                    false,
+                                                                    LineVerticesAllocationArena(DeCasteljau->Arena));
+                           
+                           P += Delta_P;
+                        }
+                        
+                        DeCasteljau->IterationCount = IterationCount;
+                        DeCasteljau->IterationColors = IterationColors;
+                        DeCasteljau->LineVerticesPerIteration = LineVerticesPerIteration;
+                        DeCasteljau->AllIntermediatePoints = AllIntermediatePoints;
+                        
+                        EndTemp(Temp);
+                     }
+                     
+                     u64 IterationCount = DeCasteljau->IterationCount;
+                     for (u64 Iteration = 0;
+                          Iteration < IterationCount;
+                          ++Iteration)
+                     {
+                        Window->draw(DeCasteljau->LineVerticesPerIteration[Iteration].Vertices,
+                                     DeCasteljau->LineVerticesPerIteration[Iteration].NumVertices,
+                                     DeCasteljau->LineVerticesPerIteration[Iteration].PrimitiveType,
+                                     MVP);
+                     }
+                     
+                     f32 PointSize = CurveParams->PointSize;
+                     for (u64 Iteration = 0;
+                          Iteration < IterationCount;
+                          ++Iteration)
+                     {
+                        color PointColor = DeCasteljau->IterationColors[Iteration];
+                        for (u64 I = 0; I < IterationCount - Iteration; ++I)
+                        {
+                           local_position IntermediatePoint =
+                              DeCasteljau->AllIntermediatePoints[Idx(Iteration, I, IterationCount)];
+                           DrawCircle(IntermediatePoint, PointSize, PointColor, MVP, Window);
+                        }
+                     }
+                  }
+                  
+                  DeCasteljau->NeedsRecomputationThisFrame = false;
                }
                
                curve_animation_state *Animation = &Editor->CurveAnimation;
@@ -4116,11 +3924,9 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                   UpdateAndRenderCurveCombining(Editor, VP);
                }
                
-               curve_splitting_state *Splitting = &Editor->CurveSplitting;
-               if (Splitting->IsSplitting && Splitting->SplitCurveEntity == Entity)
-               {
-                  UpdateAndRenderCurveSplitting(Editor, VP);
-               }
+               UpdateAndRenderCurveSplitting(Editor, Entity, MVP);
+               
+               Curve->NeedsRecomputationThisFrame = false;
             } break;
             
             case Entity_Image: {
@@ -4145,7 +3951,6 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                Window->draw(Sprite, VP);
             }break;
          }
-         
       }
    }
    
@@ -4158,7 +3963,7 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
    TimeFunction;
    
    FrameStatsUpdate(&Editor->FrameStats, DeltaTime);
-   CameraUpdate(&Editor->RenderData.Camera, Input->MouseWheelDelta, DeltaTime);
+   UpdateCamera(&Editor->RenderData.Camera, Input->MouseWheelDelta, DeltaTime);
    UpdateAndRenderNotifications(Editor, DeltaTime);
    
    {
@@ -4213,26 +4018,15 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
       AddNotificationF(Editor, Notification_Error, "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
    }
    
-   if (Editor->SelectedEntity)
+   if (KeyPressed(Input, Key_Tab, 0))
    {
-      RenderSelectedEntityUI(Editor);
+      Editor->HideUI = !Editor->HideUI;
    }
    
-   if (Editor->UI_Config.ViewListOfEntitiesWindow)
-   {
-      RenderListOfEntitiesWindow(Editor);
-   }
-   
-   if (Editor->UI_Config.ViewParametersWindow)
-   {
-      RenderSettingsWindow(Editor);
-   }
-   
-   if (Editor->UI_Config.ViewDiagnosticsWindow)
-   {
-      RenderDiagnosticsWindow(Editor, DeltaTime);
-   }
-   
+   RenderSelectedEntityUI(Editor);
+   RenderListOfEntitiesWindow(Editor);
+   RenderSettingsWindow(Editor);
+   RenderDiagnosticsWindow(Editor, DeltaTime);
    DebugUpdateAndRender(Editor);
    
    // NOTE(hbr): World Space -> Clip Space
@@ -4255,9 +4049,7 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
    }
    
    UpdateAndRenderEntities(Editor, DeltaTime, VP);
-   
    RenderRotationIndicator(Editor, VP);
-   
    // NOTE(hbr): Update menu bar here, because world has to already be rendered
    // and UI not, because we might save our project into image file and we
    // don't want to include UI render into our image.
@@ -4265,13 +4057,13 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
 }
 
 internal void
-SetNormalizedDeviceCoordinatesView(sf::RenderWindow *RenderWindow)
+SetNormalizedDeviceCoordinatesView(sf::RenderWindow *Window)
 {
    sf::Vector2f Size = sf::Vector2f(2.0f, -2.0f);
    sf::Vector2f Center = sf::Vector2f(0.0f, 0.0f);
    sf::View View = sf::View(Center, Size);
    
-   RenderWindow->setView(View);
+   Window->setView(View);
 }
 
 internal f32
@@ -4297,7 +4089,7 @@ main()
    
    SetNormalizedDeviceCoordinatesView(&Window);
    
-#if 1
+#if 0
    //#if not(BUILD_DEBUG)
    Window.setFramerateLimit(60);
    //#endif
@@ -4322,7 +4114,6 @@ main()
          };
          Editor->FrameStats = MakeFrameStats();
          Editor->MovingPointArena = AllocArena();
-         Editor->DeCasteljauVisual.Arena = AllocArena();
          Editor->DegreeLowering.Arena = AllocArena();
          Editor->MovingPointArena = AllocArena();
          Editor->CurveAnimation.Arena = AllocArena();
@@ -4335,6 +4126,7 @@ main()
          {
             entity *Entity = Entities->Entities + EntityIndex;
             Entity->Arena = AllocArena();
+            Entity->Curve.DeCasteljau.Arena = AllocArena();
             // NOTE(hbr): Ugly C++ thing we have to do because of constructors/destructors.
             new (&Entity->Image.Texture) sf::Texture();
          }

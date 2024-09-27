@@ -19,7 +19,7 @@ V2S32(s32 X, s32 Y)
 }
 
 inline internal color
-ColorMake(u8 R, u8 G, u8 B, u8 A)
+MakeColor(u8 R, u8 G, u8 B, u8 A)
 {
    color Result = {};
    Result.R = R;

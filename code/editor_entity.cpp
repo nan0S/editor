@@ -197,21 +197,20 @@ CalcNormalBezierCurvePoints(local_position *ControlPoints,
         ++OutputIndex)
    {
       
-      OutputCurvePoints[OutputIndex] =
-         BezierCurveEvaluateFast(T,
-                                 ControlPoints,
-                                 ControlPointCount);
+      OutputCurvePoints[OutputIndex] = BezierCurveEvaluate(T,
+                                                           ControlPoints,
+                                                           ControlPointCount);
       
       T += Delta;
    }
 }
 
 internal void
-CalcWeightedBezierCurvePoints(local_position *ControlPoints,
-                              f32 *ControlPointWeights,
-                              u64 ControlPointCount,
-                              u64 NumOutputCurvePoints,
-                              local_position *OutputCurvePoints)
+CalcRegularBezierCurvePoints(local_position *ControlPoints,
+                             f32 *ControlPointWeights,
+                             u64 ControlPointCount,
+                             u64 NumOutputCurvePoints,
+                             local_position *OutputCurvePoints)
 {
    f32 T = 0.0f;
    f32 Delta = 1.0f / (NumOutputCurvePoints - 1);
@@ -220,11 +219,10 @@ CalcWeightedBezierCurvePoints(local_position *ControlPoints,
         ++OutputIndex)
    {
       
-      OutputCurvePoints[OutputIndex] =
-         BezierWeightedCurveEvaluateFast(T,
-                                         ControlPoints,
-                                         ControlPointWeights,
-                                         ControlPointCount);
+      OutputCurvePoints[OutputIndex] = BezierCurveEvaluateWeighted(T,
+                                                                   ControlPoints,
+                                                                   ControlPointWeights,
+                                                                   ControlPointCount);
       
       T += Delta;
    }
@@ -253,9 +251,9 @@ CalcCubicBezierCurvePoints(local_position *CubicBezierPoints,
          
          local_position *Segment = CubicBezierPoints + 1 + 3 * SegmentIndex;
          u64 NumSegmentPoints = (SegmentIndex == ControlPointCount - 1 ? 1 : 4);
-         OutputCurvePoints[OutputIndex] = BezierCurveEvaluateFast(Segment_T,
-                                                                  Segment,
-                                                                  NumSegmentPoints);
+         OutputCurvePoints[OutputIndex] = BezierCurveEvaluate(Segment_T,
+                                                              Segment,
+                                                              NumSegmentPoints);
          
          T += Delta;
       }
@@ -306,14 +304,9 @@ EvaluateCurve(curve *Curve, u64 CurvePointCount, v2f32 *CurvePoints)
       case Interpolation_Bezier: {
          switch (CurveParams->BezierType)
          {
-            case Bezier_Normal: {
-               CalcNormalBezierCurvePoints(Curve->ControlPoints, Curve->ControlPointCount,
-                                           CurvePointCount, CurvePoints);
-            } break;
-            
-            case Bezier_Weighted: {
-               CalcWeightedBezierCurvePoints(Curve->ControlPoints, Curve->ControlPointWeights,
-                                             Curve->ControlPointCount, CurvePointCount, CurvePoints);
+            case Bezier_Regular: {
+               CalcRegularBezierCurvePoints(Curve->ControlPoints, Curve->ControlPointWeights,
+                                            Curve->ControlPointCount, CurvePointCount, CurvePoints);
             } break;
             
             case Bezier_Cubic: {

@@ -969,6 +969,8 @@ CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u64 N)
    return Result;
 }
 
+#if 0
+// NOTE(hbr): O(n^2) time, O(n) memory versions for reference
 internal v2f32
 BezierCurveEvaluate(f32 T, v2f32 *P, u64 N)
 {
@@ -992,7 +994,7 @@ BezierCurveEvaluate(f32 T, v2f32 *P, u64 N)
 }
 
 internal v2f32
-BezierWeightedCurveEvaluate(f32 T, v2f32 *P, f32 *W, u64 N)
+BezierCurveEvaluateWeighted(f32 T, v2f32 *P, f32 *W, u64 N)
 {
    temp_arena Temp = TempArena(0);
    
@@ -1020,9 +1022,10 @@ BezierWeightedCurveEvaluate(f32 T, v2f32 *P, f32 *W, u64 N)
    
    return Result;
 }
-
+#else
+// NOTE(hbr): O(n) time, O(1) memory versions
 internal v2f32
-BezierCurveEvaluateFast(f32 T, v2f32 *P, u64 N)
+BezierCurveEvaluate(f32 T, v2f32 *P, u64 N)
 {
    f32 H = 1.0f;
    f32 U = 1 - T;
@@ -1039,7 +1042,7 @@ BezierCurveEvaluateFast(f32 T, v2f32 *P, u64 N)
 }
 
 internal v2f32
-BezierWeightedCurveEvaluateFast(f32 T, v2f32 *P, f32 *W, u64 N)
+BezierCurveEvaluateWeighted(f32 T, v2f32 *P, f32 *W, u64 N)
 {
    f32 H = 1.0f;
    f32 U = 1 - T;
@@ -1054,6 +1057,7 @@ BezierWeightedCurveEvaluateFast(f32 T, v2f32 *P, f32 *W, u64 N)
    
    return Q;
 }
+#endif
 
 internal void
 BezierCurveElevateDegree(v2f32 *P, u64 N)
@@ -1073,7 +1077,7 @@ BezierCurveElevateDegree(v2f32 *P, u64 N)
 }
 
 internal void
-BezierWeightedCurveElevateDegree(v2f32 *P, f32 *W, u64 N)
+BezierCurveElevateDegreeWeighted(v2f32 *P, f32 *W, u64 N)
 {
    if (N >= 1)
    {
@@ -1098,55 +1102,10 @@ BezierWeightedCurveElevateDegree(v2f32 *P, f32 *W, u64 N)
    }
 }
 
-internal bezier_lower_degree
-BezierCurveLowerDegree(v2f32 *P, u64 N)
-{
-   bezier_lower_degree Result = {};
-   
-   if (N >= 2)
-   {
-      u64 H = ((N-1) >> 1) + 1;
-      
-      v2f32 Prev_Front_P = {};
-      for (u64 K = 0; K < H; ++K)
-      {
-         f32 Alpha = Cast(f32)K / (N-1-K);
-         v2f32 New_P = (1 + Alpha) * P[K] - Alpha * Prev_Front_P;
-         P[K] = New_P;
-         Prev_Front_P = New_P;
-      }
-      // NOTE(hbr): Prev_Front_P == P_I[H-1] at this point
-      
-      v2f32 Prev_Back_P = P[N-1];
-      v2f32 Save_P = P[N-1];
-      for (u64 K = N-1; K >= H; --K)
-      {
-         f32 Alpha = Cast(f32)(N-1) / K;
-         v2f32 New_P = Alpha * Save_P + (1 - Alpha) * Prev_Back_P;
-         Save_P = P[K-1];
-         P[K-1] = New_P;
-         Prev_Back_P = New_P;
-      }
-      // NOTE(hbr): Prev_Back_P == P_II[H-1] at this point
-      
-      if (!ApproxEq32(Prev_Front_P.X, Prev_Back_P.X) ||
-          !ApproxEq32(Prev_Front_P.Y, Prev_Back_P.Y))
-      {
-         Result.Failure = true;
-         Result.MiddlePointIndex = H-1;
-         Result.P_I = Prev_Front_P;
-         Result.P_II = Prev_Back_P;
-      }
-   }
-   
-   return Result;
-}
-
 #if 1
-
 // NOTE(hbr): Optimized, O(1) memory version
 internal bezier_lower_degree
-BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
+BezierCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
 {
    bezier_lower_degree Result = {};
    
@@ -1217,12 +1176,10 @@ BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
    
    return Result;
 }
-
 #else
-
 // NOTE(hbr): Non-optimzed, O(N) memory version for reference
 internal void
-BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
+BezierCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
 {
    if (N >= 1)
    {
@@ -1290,7 +1247,6 @@ BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
       P[H-1] = Mix * Front_P[H-1] + (1 - Mix) * Back_P[H-1];
    }
 }
-
 #endif
 
 // TODO(hbr): Refactor
@@ -1369,8 +1325,8 @@ BezierCubicCalculateAllControlPoints(v2f32 *P, u64 N, v2f32 *Output)
 
 internal void
 BezierCurveSplit(f32 T, v2f32 *P, f32 *W, u64 N,
-                 v2f32 *LeftControlPoints, f32 *LeftControlPointWeights,
-                 v2f32 *RightControlPoints, f32 *RightControlPointWeights)
+                 v2f32 *LeftPoints, f32 *LeftWeights,
+                 v2f32 *RightPoints, f32 *RightWeights)
 {
    temp_arena Temp = TempArena(0);
    
@@ -1382,15 +1338,15 @@ BezierCurveSplit(f32 T, v2f32 *P, f32 *W, u64 N,
    for (u64 I = 0; I < N; ++I)
    {
       u64 Index = Idx(I, 0, N);
-      LeftControlPointWeights[I] = We[Index];
-      LeftControlPoints[I] = Pe[Index];
+      LeftWeights[I] = We[Index];
+      LeftPoints[I] = Pe[Index];
    }
    
    for (u64 I = 0; I < N; ++I)
    {
       u64 Index = Idx(N-1-I, I, N);
-      RightControlPointWeights[I] = We[Index];
-      RightControlPoints[I] = Pe[Index];
+      RightWeights[I] = We[Index];
+      RightPoints[I] = Pe[Index];
    }
    
    EndTemp(Temp);

@@ -47,12 +47,11 @@ StaticAssert(ArrayCount(CubicSplineNames) == CubicSpline_Count, CubicSplineNames
 
 enum bezier_type : u8
 {
-   Bezier_Normal,
-   Bezier_Weighted,
+   Bezier_Regular,
    Bezier_Cubic,
    Bezier_Count,
 };
-read_only global char const *BezierNames[] = { "Normal", "Weighted", "Cubic" };
+read_only global char const *BezierNames[] = { "Regular", "Cubic" };
 StaticAssert(ArrayCount(BezierNames) == Bezier_Count, BezierNamesDefined);
 
 struct curve_params

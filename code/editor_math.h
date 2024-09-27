@@ -149,7 +149,6 @@ internal f32  CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u64 N);
 
 struct bezier_lower_degree
 {
-   // TODO(hbr): Change failure to success, always do zero initialization to mean nothing
    b32 Failure;
    
    u64 MiddlePointIndex;
@@ -162,17 +161,14 @@ struct bezier_lower_degree
 };
 
 internal v2f32               BezierCurveEvaluate(f32 T, v2f32 *P, u64 N);
-internal v2f32               BezierWeightedCurveEvaluate(f32 T, v2f32 *P, f32 *W, u64 N);
-internal v2f32               BezierCurveEvaluateFast(f32 T, v2f32 *P, u64 N);
-internal v2f32               BezierWeightedCurveEvaluateFast(f32 T, v2f32 *P, f32 *W, u64 N);
+internal v2f32               BezierCurveEvaluateWeighted(f32 T, v2f32 *P, f32 *W, u64 N);
 internal void                BezierCurveElevateDegree(v2f32 *P, u64 N);
-internal void                BezierWeightedCurveElevateDegree(v2f32 *P, f32 *W, u64 N);
-internal bezier_lower_degree BezierCurveLowerDegree(v2f32 *P, u64 N);
-internal bezier_lower_degree BezierWeightedCurveLowerDegree(v2f32 *P, f32 *W, u64 N);
+internal void                BezierCurveElevateDegreeWeighted(v2f32 *P, f32 *W, u64 N);
+internal bezier_lower_degree BezierCurveLowerDegree(v2f32 *P, f32 *W, u64 N);
 internal void                BezierCubicCalculateAllControlPoints(v2f32 *P, u64 N, v2f32 *Output);
 internal void                BezierCurveSplit(f32 T, v2f32 *P, f32 *W, u64 N,
-                                              v2f32 *LeftControlPoints, f32 *LeftControlPointWeights,
-                                              v2f32 *RightControlPoints, f32 *RightControlPointWeights);
+                                              v2f32 *LeftPoints, f32 *LeftWeights,
+                                              v2f32 *RightPoints, f32 *RightWeights);
 
 internal void DeCasteljauAlgorithm(f32 T, v2f32 *P, f32 *W, u64 N,
                                    v2f32 *OutputP, f32 *OutputW);

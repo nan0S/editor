@@ -336,7 +336,7 @@ CalculateAnimation(animation_type Animation, f32 T)
             V2F32(1.0f, 1.0f),
          };
          
-         Result = BezierCurveEvaluateFast(T, P, ArrayCount(P)).Y;
+         Result = BezierCurveEvaluate(T, P, ArrayCount(P)).Y;
       } break;
       
       case Animation_Linear: { Result = T; } break;
@@ -1335,28 +1335,10 @@ LowerBezierCurveDegree(curve_degree_lowering_state *Lowering, entity *Entity)
       local_position *LowerPoints = PushArrayNonZero(Temp.Arena, PointCount, local_position);
       f32 *LowerWeights = PushArrayNonZero(Temp.Arena, PointCount, f32);
       local_position *LowerBeziers = PushArrayNonZero(Temp.Arena, 3 * (PointCount - 1), local_position);
-      
       MemoryCopy(LowerPoints, Curve->ControlPoints, PointCount * SizeOf(LowerPoints[0]));
       MemoryCopy(LowerWeights, Curve->ControlPointWeights, PointCount * SizeOf(LowerWeights[0]));
       
-      bezier_lower_degree LowerDegree = {};
-      b32 IncludeWeights = false;
-      // NOTE(hbr): We cannot merge those two cases, because weights might be already modified.
-      switch (Curve->CurveParams.BezierType)
-      {
-         case Bezier_Normal: {
-            LowerDegree = BezierCurveLowerDegree(LowerPoints, PointCount);
-         } break;
-         
-         case Bezier_Weighted: {
-            IncludeWeights = true;
-            LowerDegree = BezierWeightedCurveLowerDegree(LowerPoints, LowerWeights, PointCount);
-         } break;
-         
-         case Bezier_Cubic:
-         case Bezier_Count: InvalidPath;
-      }
-      
+      bezier_lower_degree LowerDegree = BezierCurveLowerDegree(LowerPoints, LowerWeights, PointCount);
       if (LowerDegree.Failure)
       {
          Lowering->Entity = Entity;
@@ -1383,17 +1365,11 @@ LowerBezierCurveDegree(curve_degree_lowering_state *Lowering, entity *Entity)
             Vertex->color.a = Cast(u8)(0.5f * Vertex->color.a);
          }
          
+         f32 T = 0.5f;
          Lowering->LowerDegree = LowerDegree;
-         Lowering->P_Mix = 0.5f;
-         Lowering->W_Mix = 0.5f;
-         
-         LowerPoints[LowerDegree.MiddlePointIndex] =
-            Lowering->P_Mix * LowerDegree.P_I + (1 - Lowering->P_Mix) * LowerDegree.P_II;
-         if (IncludeWeights)
-         {
-            LowerWeights[LowerDegree.MiddlePointIndex] =
-               Lowering->W_Mix * LowerDegree.W_I + (1 - Lowering->W_Mix) * LowerDegree.W_II;
-         }
+         Lowering->MixParameter = T;
+         LowerPoints[LowerDegree.MiddlePointIndex] = Lerp(LowerDegree.P_I, LowerDegree.P_II, T);
+         LowerWeights[LowerDegree.MiddlePointIndex] = Lerp(LowerDegree.W_I, LowerDegree.W_II, T);
       }
       
       // TODO(hbr): refactor this, it only has to be here because we still modify control points above
@@ -1427,22 +1403,9 @@ ElevateBezierCurveDegree(entity *Entity, editor_params *EditorParams)
               Curve->ControlPointWeights,
               ControlPointCount * SizeOf(ElevatedControlPointWeights[0]));
    
-   switch (Curve->CurveParams.BezierType)
-   {
-      case Bezier_Normal: {
-         BezierCurveElevateDegree(ElevatedControlPoints, ControlPointCount);
-         ElevatedControlPointWeights[ControlPointCount] = 1.0f;
-      } break;
-      
-      case Bezier_Weighted: {
-         BezierWeightedCurveElevateDegree(ElevatedControlPoints,
-                                          ElevatedControlPointWeights,
-                                          ControlPointCount);
-      } break;
-      
-      case Bezier_Cubic:
-      case Bezier_Count: InvalidPath;
-   }
+   BezierCurveElevateDegreeWeighted(ElevatedControlPoints,
+                                    ElevatedControlPointWeights,
+                                    ControlPointCount);
    
    local_position *ElevatedCubicBezierPoints = PushArrayNonZero(Temp.Arena,
                                                                 3 * (ControlPointCount + 1),
@@ -1760,7 +1723,7 @@ RenderSelectedEntityUI(editor *Editor)
                         local f32 ControlPointMinWeight = EPS_F32;
                         local f32 ControlPointMaxWeight = FLT_MAX;
                         if (CurveParams->InterpolationType == Interpolation_Bezier &&
-                            CurveParams->BezierType == Bezier_Weighted)
+                            CurveParams->BezierType == Bezier_Regular)
                         {
                            UI_SeparatorTextF("Weights");
                            
@@ -1903,8 +1866,7 @@ RenderSelectedEntityUI(editor *Editor)
                      {
                         switch (CurveParams->BezierType)
                         {
-                           case Bezier_Normal:
-                           case Bezier_Weighted: { CurveQualifiesForVisualizing = true; } break;
+                           case Bezier_Regular: { CurveQualifiesForVisualizing = true; } break;
                            case Bezier_Cubic: {} break;
                            case Bezier_Count: InvalidPath;
                         }
@@ -1950,10 +1912,8 @@ RenderSelectedEntityUI(editor *Editor)
                      SplitOnControlPoint = UI_ButtonF("Split on Control Point");
                   }
                   
-                  b32 IsBezierNormalOrWeighted =
-                  (CurveParams->InterpolationType == Interpolation_Bezier &&
-                   (CurveParams->BezierType == Bezier_Normal || CurveParams->BezierType == Bezier_Weighted));
-                  
+                  b32 IsBezierNormalOrWeighted = (CurveParams->InterpolationType == Interpolation_Bezier &&
+                                                  CurveParams->BezierType == Bezier_Regular);
                   UI_Disabled(!IsBezierNormalOrWeighted)
                   {
                      UI_Disabled(Curve->ControlPointCount < 2)
@@ -2914,8 +2874,7 @@ UpdateAndRenderCurveSplitting(editor *Editor, entity *Entity, sf::Transform Tran
       {
          switch (CurveParams->BezierType)
          {
-            case Bezier_Normal:
-            case Bezier_Weighted: { CurveQualifiesForSplitting = true; } break;
+            case Bezier_Regular: { CurveQualifiesForSplitting = true; } break;
             case Bezier_Cubic: {} break;
             case Bezier_Count: InvalidPath;
          }
@@ -2954,21 +2913,6 @@ UpdateAndRenderCurveSplitting(editor *Editor, entity *Entity, sf::Transform Tran
       u64 ControlPointCount = Curve->ControlPointCount;
       f32 *ControlPointWeights = Curve->ControlPointWeights;
       
-      switch (CurveParams->BezierType)
-      {
-         case Bezier_Normal: {
-            ControlPointWeights = PushArrayNonZero(Temp.Arena, ControlPointCount, f32);
-            for (u64 I = 0; I < ControlPointCount; ++I)
-            {
-               ControlPointWeights[I] = 1.0f;
-            }
-         } break;
-         
-         case Bezier_Weighted: {} break;
-         case Bezier_Cubic:
-         case Bezier_Count: InvalidPath;
-      }
-      
       local_position *LeftPoints = PushArrayNonZero(Temp.Arena, ControlPointCount, local_position);
       local_position *RightPoints = PushArrayNonZero(Temp.Arena, ControlPointCount, local_position);
       f32 *LeftWeights  = PushArrayNonZero(Temp.Arena, ControlPointCount, f32);
@@ -3004,26 +2948,10 @@ UpdateAndRenderCurveSplitting(editor *Editor, entity *Entity, sf::Transform Tran
    {
       if (Splitting->NeedsRecomputationThisFrame || Curve->NeedsRecomputationThisFrame)
       {
-         local_position SplitPoint = {};
-         switch (CurveParams->BezierType)
-         {
-            case Bezier_Normal: {
-               SplitPoint = BezierCurveEvaluateFast(Splitting->T,
-                                                    Curve->ControlPoints,
-                                                    Curve->ControlPointCount);
-            } break;
-            
-            case Bezier_Weighted: {
-               SplitPoint = BezierWeightedCurveEvaluateFast(Splitting->T,
-                                                            Curve->ControlPoints,
-                                                            Curve->ControlPointWeights,
-                                                            Curve->ControlPointCount);
-            } break;
-            
-            case Bezier_Cubic:
-            case Bezier_Count: InvalidPath;
-         }
-         Splitting->SplitPoint = SplitPoint;
+         Splitting->SplitPoint = BezierCurveEvaluateWeighted(Splitting->T,
+                                                             Curve->ControlPoints,
+                                                             Curve->ControlPointWeights,
+                                                             Curve->ControlPointCount);
       }
       
       if (!(Entity->Flags & EntityFlag_Hidden))
@@ -3058,31 +2986,17 @@ UpdateAndRenderDegreeLowering(curve_degree_lowering_state *Lowering,
       entity *Entity = Lowering->Entity;
       curve *Curve = GetCurve(Lowering->Entity);
       curve_params *CurveParams = &Curve->CurveParams;
-      
       Assert(CurveParams->InterpolationType == Interpolation_Bezier);
-      b32 IncludeWeights = false;
-      switch (CurveParams->BezierType)
-      {
-         case Bezier_Normal: {} break;
-         case Bezier_Weighted: { IncludeWeights = true; } break;
-         case Bezier_Cubic:
-         case Bezier_Count: InvalidPath;
-      }
       
       b32 IsDegreeLoweringWindowOpen = true;
-      b32 P_MixChanged = false;
-      b32 W_MixChanged = false;
+      b32 MixChanged = false;
       if (UI_BeginWindowF(&IsDegreeLoweringWindowOpen, "Degree Lowering"))
       {          
          // TODO(hbr): Add wrapping
          UI_TextF("Degree lowering failed (curve has higher degree "
                   "than the one you are trying to fit). Tweak parameters"
                   "in order to fit curve manually or revert.");
-         P_MixChanged = UI_SliderFloatF(&Lowering->P_Mix, 0.0f, 1.0f, "Middle Point Mix");
-         if (IncludeWeights)
-         {
-            W_MixChanged = UI_SliderFloatF(&Lowering->W_Mix, 0.0f, 1.0f, "Middle Point Weight Mix");
-         }
+         MixChanged = UI_SliderFloatF(&Lowering->MixParameter, 0.0f, 1.0f, "Middle Point Mix");
       }
       UI_EndWindow();
       
@@ -3092,12 +3006,10 @@ UpdateAndRenderDegreeLowering(curve_degree_lowering_state *Lowering,
       //-
       Assert(Lowering->LowerDegree.MiddlePointIndex < Curve->ControlPointCount);
       
-      if (P_MixChanged || W_MixChanged)
+      if (MixChanged)
       {
-         local_position NewControlPoint =
-            Lowering->P_Mix * Lowering->LowerDegree.P_I + (1 - Lowering->P_Mix) * Lowering->LowerDegree.P_II;
-         f32 NewControlPointWeight =
-            Lowering->W_Mix * Lowering->LowerDegree.W_I + (1 - Lowering->W_Mix) * Lowering->LowerDegree.W_II;
+         local_position NewControlPoint = Lerp(Lowering->LowerDegree.P_I, Lowering->LowerDegree.P_II, Lowering->MixParameter);
+         f32 NewControlPointWeight = Lerp(Lowering->LowerDegree.W_I, Lowering->LowerDegree.W_II, Lowering->MixParameter);
          
          SetCurveControlPoint(Lowering->Entity,
                               Lowering->LowerDegree.MiddlePointIndex,
@@ -3821,20 +3733,6 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                         
                         // NOTE(hbr): Deal with cases at once.
                         f32 *ControlPointWeights = Curve->ControlPointWeights;
-                        switch (CurveParams->BezierType)
-                        {
-                           case Bezier_Normal: {
-                              ControlPointWeights = PushArrayNonZero(Temp.Arena, ControlPointCount, f32);
-                              for (u64 I = 0; I < ControlPointCount; ++I)
-                              {
-                                 ControlPointWeights[I] = 1.0f;
-                              }
-                           } break;
-                           
-                           case Bezier_Weighted: {} break;
-                           case Bezier_Cubic:
-                           case Bezier_Count: InvalidPath;
-                        }
                         
                         // TODO(hbr): Consider passing 0 as ThrowAwayWeights, but make sure algorithm
                         // handles that case

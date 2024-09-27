@@ -354,8 +354,7 @@ struct curve_degree_lowering_state
    sf::PrimitiveType SavedPrimitiveType;
    
    bezier_lower_degree LowerDegree;
-   f32 P_Mix;
-   f32 W_Mix;
+   f32 MixParameter;
 };
 
 enum animate_curve_animation_stage

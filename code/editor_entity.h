@@ -86,15 +86,14 @@ struct curve_params
 
 struct de_casteljau_visual_state
 {
-   // TODO(hbr): Rename to active
    b32 Enabled;
+   b32 NeedsRecomputationThisFrame;
    f32 T;
+   
    arena *Arena;
-   u64 IterationCount;
+   all_de_casteljau_intermediate_results Intermediate;
    color *IterationColors;
    line_vertices *LineVerticesPerIteration;
-   local_position *AllIntermediatePoints;
-   b32 NeedsRecomputationThisFrame;
 };
 
 struct curve_splitting_state
@@ -103,6 +102,27 @@ struct curve_splitting_state
    f32 T;
    b32 NeedsRecomputationThisFrame;
    local_position SplitPoint;
+};
+
+struct curve_degree_lowering_state
+{
+   b32 Active;
+   
+   u64 SavedCurveVersion;
+   
+   arena *Arena;
+   
+   local_position *SavedControlPoints;
+   f32 *SavedControlPointWeights;
+   local_position *SavedCubicBezierPoints;
+   
+   // TODO(hbr): Use line vertices here instead?
+   u64 NumSavedCurveVertices;
+   sf::Vertex *SavedCurveVertices;
+   sf::PrimitiveType SavedPrimitiveType;
+   
+   bezier_lower_degree LowerDegree;
+   f32 MixParameter;
 };
 
 #define MAX_CONTROL_POINT_COUNT 1024
@@ -128,6 +148,7 @@ struct curve
    
    de_casteljau_visual_state DeCasteljau;
    curve_splitting_state Splitting;
+   curve_degree_lowering_state DegreeLowering;
 };
 
 struct image

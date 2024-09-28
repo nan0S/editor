@@ -1330,55 +1330,66 @@ BezierCurveSplit(f32 T, v2f32 *P, f32 *W, u64 N,
 {
    temp_arena Temp = TempArena(0);
    
-   f32 *We = PushArrayNonZero(Temp.Arena, N * N, f32);
-   v2f32 *Pe = PushArrayNonZero(Temp.Arena, N * N, v2f32);
-   
-   DeCasteljauAlgorithm(T, P, W, N, Pe, We);
-   
+   all_de_casteljau_intermediate_results Intermediate = DeCasteljauAlgorithm(Temp.Arena, T, P, W, N);
    for (u64 I = 0; I < N; ++I)
    {
       u64 Index = Idx(I, 0, N);
-      LeftWeights[I] = We[Index];
-      LeftPoints[I] = Pe[Index];
+      LeftWeights[I] = Intermediate.W[Index];
+      LeftPoints[I] = Intermediate.P[Index];
    }
-   
    for (u64 I = 0; I < N; ++I)
    {
       u64 Index = Idx(N-1-I, I, N);
-      RightWeights[I] = We[Index];
-      RightPoints[I] = Pe[Index];
+      RightWeights[I] = Intermediate.W[Index];
+      RightPoints[I] = Intermediate.P[Index];
    }
    
    EndTemp(Temp);
 }
 
-internal void
-DeCasteljauAlgorithm(f32 T, v2f32 *P, f32 *W, u64 N,
-                     v2f32 *OutputP, f32 *OutputW)
+internal all_de_casteljau_intermediate_results
+DeCasteljauAlgorithm(arena *Arena, f32 T, v2f32 *P, f32 *W, u64 N)
 {
-   MemoryCopy(OutputW, W, N * SizeOf(OutputW[0]));
-   MemoryCopy(OutputP, P, N * SizeOf(OutputP[0]));
+   all_de_casteljau_intermediate_results Result = {};
    
+   u64 TotalPointCount = N * (N+1) / 2;
+   v2f32 *OutP = PushArrayNonZero(Arena, TotalPointCount, v2f32);
+   f32   *OutW = PushArrayNonZero(Arena, TotalPointCount, f32);
+   
+   MemoryCopy(OutW, W, N * SizeOf(OutW[0]));
+   MemoryCopy(OutP, P, N * SizeOf(OutP[0]));
+   
+   u64 Index = N;
    for (u64 Iteration = 1;
         Iteration < N;
         ++Iteration)
    {
       for (u64 J = 0; J < N-Iteration; ++J)
       {
-         u64 IndexLeft = Idx(Iteration-1, J, N);
-         u64 IndexRight = Idx(Iteration-1, J+1, N);
-         u64 Index = Idx(Iteration, J, N);
+         u64 IndexLeft = Index - (N-Iteration)-1;
+         u64 IndexRight = Index - (N-Iteration);
          
-         f32 WeightLeft = (1-T) * OutputW[IndexLeft];
-         f32 WeightRight = T * OutputW[IndexRight];
+         f32 WeightLeft = (1-T) * OutW[IndexLeft];
+         f32 WeightRight = T * OutW[IndexRight];
+         
          f32 Weight = WeightLeft + WeightRight;
          f32 InvWeight = 1.0f / Weight;
          
-         OutputW[Index] = Weight;
-         OutputP[Index] = WeightLeft * InvWeight * OutputP[IndexLeft] +
-            WeightRight * InvWeight * OutputP[IndexRight];
+         OutW[Index] = Weight;
+         OutP[Index] = ((WeightLeft*InvWeight) * OutP[IndexLeft] +
+                        (WeightRight*InvWeight) * OutP[IndexRight]);
+         
+         ++Index;
       }
    }
+   Assert(Index == TotalPointCount);
+   
+   Result.IterationCount = N;
+   Result.TotalPointCount = TotalPointCount;
+   Result.P = OutP;
+   Result.W = OutW;
+   
+   return Result;
 }
 
 internal void

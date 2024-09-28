@@ -170,8 +170,15 @@ internal void                BezierCurveSplit(f32 T, v2f32 *P, f32 *W, u64 N,
                                               v2f32 *LeftPoints, f32 *LeftWeights,
                                               v2f32 *RightPoints, f32 *RightWeights);
 
-internal void DeCasteljauAlgorithm(f32 T, v2f32 *P, f32 *W, u64 N,
-                                   v2f32 *OutputP, f32 *OutputW);
+struct all_de_casteljau_intermediate_results
+{
+   u64 IterationCount;
+   u64 TotalPointCount;
+   // NOTE(hbr): Packed points: P1,P2,P3, Q1,Q2, R1
+   v2f32 *P;
+   f32 *W;
+};
+internal all_de_casteljau_intermediate_results DeCasteljauAlgorithm(arena *Arena, f32 T, v2f32 *P, f32 *W, u64 N);
 
 internal void GaussianElimination(f32 *A, u64 N, f32 *Solution);
 

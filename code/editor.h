@@ -236,12 +236,14 @@ struct camera
    f32 ZoomTarget;
 };
 
-enum curve_collision_type
+typedef u64 curve_collision_flags;
+enum
 {
-   CurveCollision_ControlPoint,
-   CurveCollision_CurveLine,
-   CurveCollision_CubicBezierPoint,
-   CurveCollision_SplitPoint,
+   CurveCollision_ControlPoint     = (1<<0),
+   CurveCollision_CurveLine        = (1<<1),
+   CurveCollision_CubicBezierPoint = (1<<2),
+   CurveCollision_SplitPoint       = (1<<3),
+   CurveCollision_DeCasteljauPoint = (1<<4),
 };
 
 struct collision
@@ -254,11 +256,11 @@ struct collision
 typedef u64 check_collision_with_flags;
 enum
 {
-   // TODO(hbr): Change ControlPoints to just Points and, CurvePoints to Line
-   CheckCollisionWith_Points            = (1<<0),
-   CheckCollisionWith_CurveLines        = (1<<1),
-   CheckCollisionWith_Images            = (1<<2),
-   CheckCollisionWith_SplitPoints       = (1<<3),
+   CheckCollisionWith_CurveControlPoints = (1<<0),
+   CheckCollisionWith_CurveLines         = (1<<1),
+   CheckCollisionWith_CurveSplitPoints   = (1<<2),
+   CheckCollisionWith_DeCastelajauPoints = (1<<3),
+   CheckCollisionWith_Images             = (1<<4),
 };
 
 enum user_action_type
@@ -312,6 +314,7 @@ enum moving_mode_type
    MovingMode_Camera,
    MovingMode_CurvePoint,
    MovingMode_SplitPoint,
+   MovingMode_DeCasteljauPoint,
 };
 
 // TODO(hbr): Be consistent in naming Rotating mode or Rotate mode - be consistent
@@ -338,23 +341,6 @@ struct editor_mode
          button Button;
       } Rotating;
    };
-};
-
-struct curve_degree_lowering_state
-{
-   entity *Entity;
-   
-   u64 SavedCurveVersion;
-   arena *Arena;
-   local_position *SavedControlPoints;
-   f32 *SavedControlPointWeights;
-   local_position *SavedCubicBezierPoints;
-   u64 NumSavedCurveVertices;
-   sf::Vertex *SavedCurveVertices;
-   sf::PrimitiveType SavedPrimitiveType;
-   
-   bezier_lower_degree LowerDegree;
-   f32 MixParameter;
 };
 
 enum animate_curve_animation_stage
@@ -484,7 +470,6 @@ struct editor
    editor_params Params;
    ui_config UI_Config;
    
-   curve_degree_lowering_state DegreeLowering;
    curve_animation_state       CurveAnimation;
    curve_combining_state       CurveCombining;
    

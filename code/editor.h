@@ -249,8 +249,10 @@ enum
 struct collision
 {
    entity *Entity;
-   curve_collision_type Type;
-   u64 PointIndex;
+   curve_collision_flags Flags;
+   u64 ControlPointIndex;
+   u64 CubicBezierPointIndex;
+   u64 CurveLinePointIndex;
 };
 
 typedef u64 check_collision_with_flags;

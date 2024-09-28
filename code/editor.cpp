@@ -174,32 +174,26 @@ CheckCollisionWith(entities *Entities,
                   }
                   
                   curve_splitting_state *Splitting = &Curve->Splitting;
-                  if ((CheckCollisionWithFlags & CheckCollisionWith_CurveSplitPoints) && Splitting->Active)
+                  if ((CheckCollisionWithFlags & CheckCollisionWith_CurveSplitPoints) &&
+                      Splitting->Active)
                   {
                      if (PointCollision(CheckPositionLocal, Splitting->SplitPoint,
                                         Curve->CurveParams.CurveWidth))
                      {
-                        Result = {
-                           .Entity = Entity,
-                           .Type = CurveCollision_SplitPoint,
-                           .PointIndex = 0,
-                        };
-                        goto collision_found_label;
+                        Result.Entity = Entity;
+                        Result.Flags |= CurveCollision_SplitPoint;
                      }
                   }
                   
                   de_casteljau_visual_state *DeCasteljau = &Curve->DeCasteljau;
-                  if ((CheckCollisionWithFlags & CheckCollisionWith_DeCastelajauPoints) && DeCasteljau->Enabled)
+                  if ((CheckCollisionWithFlags & CheckCollisionWith_DeCastelajauPoints) &&
+                      DeCasteljau->Enabled)
                   {
                      local_position FinalPoint = DeCasteljau->Intermediate.P[DeCasteljau->Intermediate.TotalPointCount - 1];
                      if (PointCollision(CheckPositionLocal, FinalPoint, Curve->CurveParams.PointSize))
                      {
-                        Result = {
-                           .Entity = Entity,
-                           .Type = CurveCollision_DeCasteljauPoint,
-                           .PointIndex = 0,
-                        };
-                        goto collision_found_label;
+                        Result.Entity = Entity;
+                        Result.Flags |= CurveCollision_DeCasteljauPoint;
                      }
                   }
                   
@@ -218,12 +212,10 @@ CheckCollisionWith(entities *Entities,
                      if (PointCollision(CheckPositionLocal, ControlPoints[ControlPointIndex],
                                         PointSizeWithOutline + CollisionTolerance))
                      {
-                        Result = {
-                           .Entity = Entity,
-                           .Type = CurveCollision_ControlPoint,
-                           .PointIndex = ControlPointIndex
-                        };
-                        goto collision_found_label;
+                        Result.Entity = Entity;
+                        Result.Flags |= CurveCollision_ControlPoint;
+                        Result.ControlPointIndex = ControlPointIndex;
+                        break;
                      }
                   }
                   
@@ -248,12 +240,11 @@ CheckCollisionWith(entities *Entities,
                               local_position CubicBezierPoint = CubicBezierPoints[CheckIndex];
                               if (PointCollision(CheckPositionLocal, CubicBezierPoint, CubicBezierPointSize))
                               {
-                                 Result = {
-                                    .Entity = Entity,
-                                    .Type = CurveCollision_CubicBezierPoint,
-                                    .PointIndex = CheckIndex
-                                 };
-                                 goto collision_found_label;
+                                 Result.Entity = Entity;
+                                 Result.Flags |= CurveCollision_CubicBezierPoint;
+                                 Result.ControlPointIndex = CheckIndex / 3;
+                                 Result.CubicBezierPointIndex = CheckIndex;
+                                 break;
                               }
                            }
                         }
@@ -276,12 +267,10 @@ CheckCollisionWith(entities *Entities,
                      v2f32 P2 = CurvePoints[CurvePointIndex + 1];
                      if (SegmentCollision(CheckPositionLocal, P1, P2, CurveWidth))
                      {
-                        Result = {
-                           .Entity = Entity,
-                           .Type = CurveCollision_CurveLine,
-                           .PointIndex = CurvePointIndex,
-                        };
-                        goto collision_found_label;
+                        Result.Entity = Entity;
+                        Result.Flags |= CurveCollision_CurveLine;
+                        Result.CurveLinePointIndex = CurvePointIndex;
+                        break;
                      }
                   }
                }
@@ -310,16 +299,19 @@ CheckCollisionWith(entities *Entities,
                   if (-Extents.X <= CheckPositionInImageSpace.X && CheckPositionInImageSpace.X <= Extents.X &&
                       -Extents.Y <= CheckPositionInImageSpace.Y && CheckPositionInImageSpace.Y <= Extents.Y)
                   {
-                     Result = { .Entity = Entity, .Type = Cast(curve_collision_type)0, .PointIndex = 0 };
-                     goto collision_found_label;
+                     Result.Entity = Entity;
                   }
                }
             } break;
          }
       }
+      
+      if (Result.Entity)
+      {
+         break;
+      }
    }
    
-   collision_found_label:
    EndTemp(Temp);
    
    return Result;
@@ -637,6 +629,13 @@ SetSplitT(curve_splitting_state *Splitting, f32 T)
 }
 
 internal void
+SetDeCasteljauT(de_casteljau_visual_state *DeCasteljau, f32 T)
+{
+   DeCasteljau->T = T;
+   DeCasteljau->NeedsRecomputationThisFrame = true;
+}
+
+internal void
 ExecuteUserActionNormalMode(editor *Editor, user_action Action)
 {
    temp_arena Temp = TempArena(0);
@@ -665,37 +664,73 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                                                  &Editor->Params, CheckCollisionWithFlags);
                }
                
+               entity *FocusEntity = 0;
+               u64 FocusControlPointIndex = U64_MAX;
+               if (Collision.Entity)
+               {
+                  FocusEntity = Collision.Entity;
+                  
+                  curve *Curve = GetCurve(Collision.Entity);
+                  
+                  curve_splitting_state *Splitting = &Curve->Splitting;
+                  de_casteljau_visual_state *DeCasteljau = &Curve->DeCasteljau;
+                  if ((Splitting->Active || DeCasteljau->Enabled) &&
+                      (Collision.Flags & CurveCollision_CurveLine))
+                  {
+                     f32 T = SafeDiv(Cast(f32)Collision.CurveLinePointIndex, (Curve->CurvePointCount- 1));
+                     T = Clamp(T, 0.0f, 1.0f); // NOTE(hbr): Be safe
+                     if (Splitting->Active)
+                     {
+                        SetSplitT(Splitting, T);
+                     }
+                     else
+                     {
+                        Assert(DeCasteljau->Enabled);
+                        SetDeCasteljauT(DeCasteljau, T);
+                     }
+                  }
+                  else if ((Collision.Flags & CurveCollision_ControlPoint) ||
+                           (Collision.Flags & CurveCollision_CubicBezierPoint))
+                  {
+                     FocusControlPointIndex = Collision.ControlPointIndex;
+                  }
+                  else if (Collision.Flags & CurveCollision_CurveLine)
+                  {
+                     f32 Segment = Cast(f32)Collision.CurveLinePointIndex / (Curve->CurvePointCount - 1);
+                     u64 InsertAfterPointIndex =
+                        Cast(u64)(Segment * (IsCurveLooped(Curve) ?
+                                             Curve->ControlPointCount :
+                                             Curve->ControlPointCount - 1));
+                     InsertAfterPointIndex = Clamp(InsertAfterPointIndex, 0, Curve->ControlPointCount - 1);
+                     FocusControlPointIndex = CurveInsertControlPoint(Collision.Entity, ClickPosition, InsertAfterPointIndex, 1.0f);
+                  }
+               }
+               else
+               {
+                  if (Editor->SelectedEntity &&
+                      Editor->SelectedEntity->Type == Entity_Curve)
+                  {
+                     FocusEntity = Editor->SelectedEntity;
+                  }
+                  else
+                  {
+                     FocusEntity = AllocEntity(Editor);
+                     string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EntityCounter++);
+                     InitEntity(FocusEntity, V2F32(0.0f, 0.0f), V2F32(1.0f, 1.0f), Rotation2DZero(), Name, 0);
+                     InitCurve(FocusEntity, Editor->Params.CurveDefaultParams);
+                  }
+                  Assert(FocusEntity);
+                  FocusControlPointIndex = AppendCurveControlPoint(FocusEntity, ClickPosition, 1.0f);
+               }
+               
+               SelectEntity(Editor, FocusEntity);
+               SelectControlPoint(FocusEntity, FocusControlPointIndex);
+               
+#if 0
                if (Collision.Entity)
                {
                   curve *Curve = GetCurve(Collision.Entity);
-                  curve_splitting_state *Splitting = &Curve->Splitting;
                   b32 ClickActionDone = false; 
-                  
-                  if (Splitting->Active)
-                  {
-                     switch (Collision.Type)
-                     {
-                        case CurveCollision_ControlPoint:
-                        case CurveCollision_CurveLine: {
-                           u64 PointCount =  ((Collision.Type == CurveCollision_ControlPoint) ?
-                                              Curve->ControlPointCount :
-                                              Curve->CurvePointCount);
-                           f32 T = SafeDiv(Cast(f32)Collision.PointIndex, (PointCount - 1));
-                           T = Clamp(T, 0.0f, 1.0f); // NOTE(hbr): Be safe
-                           SetSplitT(Splitting, T);
-                           SelectEntity(Editor, Collision.Entity);
-                        } break;
-                        
-                        case CurveCollision_CubicBezierPoint: {
-                           NotImplemented;
-                        } break;
-                        
-                        case CurveCollision_SplitPoint:
-                        case CurveCollision_DeCasteljauPoint: InvalidPath;
-                     }
-                     
-                     ClickActionDone = true;
-                  }
                   
                   if (Editor->CurveAnimation.Stage == AnimateCurveAnimation_PickingTarget &&
                       Collision.Entity != Editor->CurveAnimation.FromCurveEntity)
@@ -771,66 +806,19 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                      
                      ClickActionDone = true;
                   }
-                  
-                  u64 SelectControlPointIndex = U64_MAX;
-                  switch (Collision.Type)
-                  {
-                     case CurveCollision_ControlPoint: {
-                        SelectControlPointIndex = Collision.PointIndex;
-                     } break;
-                     
-                     case CurveCollision_CubicBezierPoint: {
-                        SelectControlPointIndex = Collision.PointIndex / 3;
-                     } break;
-                     
-                     case CurveCollision_CurveLine: {
-                        if (!ClickActionDone)
-                        {
-                           f32 Segment = Cast(f32)Collision.PointIndex/ (Curve->CurvePointCount - 1);
-                           u64 InsertAfterPointIndex =
-                              Cast(u64)(Segment * (IsCurveLooped(Curve) ?
-                                                   Curve->ControlPointCount :
-                                                   Curve->ControlPointCount - 1));
-                           InsertAfterPointIndex = Clamp(InsertAfterPointIndex, 0, Curve->ControlPointCount - 1);
-                           
-                           u64 InsertPointIndex = CurveInsertControlPoint(Collision.Entity, ClickPosition, InsertAfterPointIndex, 1.0f);
-                           SelectControlPointIndex = InsertAfterPointIndex;
-                        }
-                     } break;
-                     
-                     case CurveCollision_SplitPoint:
-                     case CurveCollision_DeCasteljauPoint: InvalidPath;
-                  }
-                  
-                  SelectEntity(Editor, Collision.Entity);
-                  SelectControlPoint(Collision.Entity, SelectControlPointIndex);
                }
                else
                {
-                  entity *AddCurve = 0;
-                  if (Editor->SelectedEntity &&
-                      Editor->SelectedEntity->Type == Entity_Curve)
-                  {
-                     AddCurve = Editor->SelectedEntity;
-                  }
-                  else
-                  {
-                     AddCurve = AllocEntity(Editor);
-                     string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EntityCounter++);
-                     InitEntity(AddCurve, V2F32(0.0f, 0.0f), V2F32(1.0f, 1.0f), Rotation2DZero(), Name, 0);
-                     InitCurve(AddCurve, Editor->Params.CurveDefaultParams);
-                  }
-                  Assert(AddCurve);
                   
-                  u64 AddedPointIndex = AppendCurveControlPoint(AddCurve, ClickPosition, 1.0f);
-                  SelectControlPoint(AddCurve, AddedPointIndex);
-                  SelectEntity(Editor, AddCurve);
                }
+#endif
             } break;
             
             case Button_Right: {
                check_collision_with_flags CheckCollisionWithFlags =
-                  CheckCollisionWith_CurveControlPoints | CheckCollisionWith_Images;
+                  CheckCollisionWith_CurveControlPoints |
+                  CheckCollisionWith_CurveSplitPoints |
+                  CheckCollisionWith_Images;
                f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->Params.CollisionToleranceClipSpace,
                                                                     &Editor->RenderData);
                collision Collision = CheckCollisionWith(&Editor->Entities, ClickPosition, CollisionTolerance,
@@ -841,18 +829,14 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                   switch (Collision.Entity->Type)
                   {
                      case Entity_Curve: {
-                        switch (Collision.Type)
+                        if (Collision.Flags & CurveCollision_SplitPoint)
                         {
-                           case CurveCollision_ControlPoint: {
-                              RemoveCurveControlPoint(Collision.Entity, Collision.PointIndex);
-                              SelectEntity(Editor, Collision.Entity);
-                           } break;
-                           
-                           case CurveCollision_CubicBezierPoint: { NotImplemented; } break;
-                           
-                           case CurveCollision_CurveLine:
-                           case CurveCollision_SplitPoint:
-                           case CurveCollision_DeCasteljauPoint: InvalidPath;
+                           // TODO(hbr): Do the split
+                        }
+                        else if (Collision.Flags & CurveCollision_ControlPoint)
+                        {
+                           RemoveCurveControlPoint(Collision.Entity, Collision.ControlPointIndex);
+                           SelectEntity(Editor, Collision.Entity);
                         }
                      } break;
                      
@@ -902,33 +886,38 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                   switch (Collision.Entity->Type)
                   {
                      case Entity_Curve: {
-                        switch (Collision.Type)
+                        if ((Collision.Flags & CurveCollision_ControlPoint) ||
+                            (Collision.Flags & CurveCollision_CubicBezierPoint))
                         {
-                           case CurveCollision_ControlPoint:
-                           case CurveCollision_CubicBezierPoint: {
-                              curve *Curve = GetCurve(Collision.Entity);
-                              
-                              b32 IsBezierPoint = (Collision.Type == CurveCollision_CubicBezierPoint);
-                              if (!IsBezierPoint)
-                              {
-                                 SelectControlPoint(Collision.Entity, Collision.PointIndex);
-                              }
-                              
-                              Editor->Mode = MakeMovingCurvePointMode(Collision.Entity, Collision.PointIndex,
-                                                                      IsBezierPoint, Editor->MovingPointArena);
-                           } break;
+                           curve *Curve = GetCurve(Collision.Entity);
                            
-                           case CurveCollision_CurveLine: {
-                              Editor->Mode = MakeMovingEntityMode(Collision.Entity);
-                           } break;
+                           u64 PointIndex = 0;
+                           b32 IsBezierPoint = false;
+                           if (Collision.Flags & CurveCollision_CubicBezierPoint)
+                           {
+                              PointIndex = Collision.CubicBezierPointIndex;
+                              IsBezierPoint = true;
+                           }
+                           else
+                           {
+                              PointIndex = Collision.ControlPointIndex;
+                           }
                            
-                           case CurveCollision_SplitPoint: {
-                              Editor->Mode = MakeMovingSplitPointMode(Collision.Entity);
-                           } break;
-                           
-                           case CurveCollision_DeCasteljauPoint: {
-                              Editor->Mode = MakeMovingDeCasteljauPointMode(Collision.Entity);
-                           } break;
+                           SelectControlPoint(Collision.Entity, Collision.ControlPointIndex);
+                           Editor->Mode = MakeMovingCurvePointMode(Collision.Entity, PointIndex,
+                                                                   IsBezierPoint, Editor->MovingPointArena);
+                        }
+                        else if (Collision.Flags & CurveCollision_CurveLine)
+                        {
+                           Editor->Mode = MakeMovingEntityMode(Collision.Entity);
+                        }
+                        else if (Collision.Flags & CurveCollision_SplitPoint)
+                        {
+                           Editor->Mode = MakeMovingSplitPointMode(Collision.Entity);
+                        }
+                        else if (Collision.Flags & CurveCollision_DeCasteljauPoint)
+                        {
+                           Editor->Mode = MakeMovingDeCasteljauPointMode(Collision.Entity);
                         }
                      } break;
                      
@@ -1110,8 +1099,7 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action)
                   } break;
                   
                   case MovingMode_DeCasteljauPoint: {
-                     Curve->DeCasteljau.T = T;
-                     Curve->DeCasteljau.NeedsRecomputationThisFrame = true;
+                     SetDeCasteljauT(&Curve->DeCasteljau, T);
                   } break;
                   
                   default: InvalidPath;

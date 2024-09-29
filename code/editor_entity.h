@@ -77,11 +77,6 @@ struct curve_params
    f32 ConvexHullWidth;
    
    u64 CurvePointCountPerSegment;
-   
-   struct {
-      color GradientA;
-      color GradientB;
-   } DeCasteljau;
 };
 
 struct curve_point_tracking_state
@@ -244,8 +239,6 @@ DefaultCurveParams(void)
    Result.ConvexHullColor = PolylineColor;
    Result.ConvexHullWidth = CurveWidth;
    Result.CurvePointCountPerSegment = 50;
-   Result.DeCasteljau.GradientA = MakeColor(255, 0, 144);
-   Result.DeCasteljau.GradientB = MakeColor(155, 200, 0);
    
    return Result;
 }

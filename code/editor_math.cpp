@@ -1062,7 +1062,7 @@ BezierCurveEvaluateWeighted(f32 T, v2f32 *P, f32 *W, u64 N)
 internal void
 BezierCurveElevateDegree(v2f32 *P, u64 N)
 {
-   if (N >= 1)
+   if (N > 0)
    {
       v2f32 PN = P[N-1];
       f32 Inv_N = 1.0f / N;
@@ -1079,7 +1079,7 @@ BezierCurveElevateDegree(v2f32 *P, u64 N)
 internal void
 BezierCurveElevateDegreeWeighted(v2f32 *P, f32 *W, u64 N)
 {
-   if (N >= 1)
+   if (N > 0)
    {
       f32 WN = W[N-1];
       v2f32 PN = P[N-1];
@@ -1249,29 +1249,28 @@ BezierCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
 }
 #endif
 
-// TODO(hbr): Refactor
 internal void
-BezierCubicCalculateAllControlPoints(u64 N, v2f32 *P, v2f32 *Output)
+BezierCubicCalculateAllControlPoints(u64 N, v2f32 *P, v2f32 *Out)
 {
    if (N > 0)
    {
       temp_arena Temp = TempArena(0);
       
+      // NOTE(hbr): This is more natural way to calculate those points
+      Out += 1;
+      
       // NOTE(hbr): Assume points are equidistant
       f32 DeltaT = 1.0f / (N - 1);
       f32 Inv_DeltaT = 1.0f / DeltaT;
       f32 A = 0.5f;
-      f32 OneThird = 1.0f / 3.0f;
-      f32 OneThirdDeltaT = OneThird * DeltaT;
+      f32 OneThirdDeltaT = DeltaT / 3.0f;
       
       v2f32 *S = PushArrayNonZero(Temp.Arena, N, v2f32);
       for (u64 I = 1; I + 1 < N; ++I)
       {
-         // TODO(hbr): Optiomize P lookups
          v2f32 C_I_1 = Inv_DeltaT * (P[I] - P[I-1]);
          v2f32 C_I = Inv_DeltaT * (P[I+1] - P[I]);
-         // TODO(hbr): Optimize 1-A
-         S[I] = (1.0f - A) * C_I_1 + A * C_I;
+         S[I] = (1.0f-A) * C_I_1 + A * C_I;
       }
       
       if (N >= 2)
@@ -1287,8 +1286,8 @@ BezierCubicCalculateAllControlPoints(u64 N, v2f32 *P, v2f32 *Output)
          S[0] = V2F32(1.0f, 1.0f);
       }
       
-      u64 OutputIndex = 0;
-      Output[OutputIndex++] = P[0];
+      u64 OutIndex = 0;
+      Out[OutIndex++] = P[0];
       for (u64 I = 1; I < N; ++I)
       {
          v2f32 W_I = P[I];
@@ -1297,29 +1296,25 @@ BezierCubicCalculateAllControlPoints(u64 N, v2f32 *P, v2f32 *Output)
          v2f32 W_I_2_3 = W_I_1 + OneThirdDeltaT * S[I-1];
          v2f32 W_I_1_3 = W_I - OneThirdDeltaT * S[I];
          
-         Output[OutputIndex + 0] = W_I_2_3;
-         Output[OutputIndex + 1] = W_I_1_3;
-         Output[OutputIndex + 2] = W_I;
+         Out[OutIndex + 0] = W_I_2_3;
+         Out[OutIndex + 1] = W_I_1_3;
+         Out[OutIndex + 2] = W_I;
          
-         OutputIndex += 3;
+         OutIndex += 3;
       }
       
-      EndTemp(Temp);
-   }
-   
-   // TODO(hbr): Refactor
-   if (N > 0)
-   {
       if (N == 1)
       {
-         Output[-1] = Output[0] - V2F32(0.1f, 0.0f);
-         Output[ 1] = Output[0] + V2F32(0.1f, 0.0f);
+         Out[-1] = Out[0] - V2F32(0.1f, 0.0f);
+         Out[ 1] = Out[0] + V2F32(0.1f, 0.0f);
       }
       else
       {
-         Output[-1] = Output[0] -  (Output[1] - Output[0]);
-         Output[3 * N - 2] = Output[3 * N - 3] - (Output[3 * N - 4] - Output[3 * N - 3]);
+         Out[-1] = Out[0] -  (Out[1] - Out[0]);
+         Out[3 * N - 2] = Out[3 * N - 3] - (Out[3 * N - 4] - Out[3 * N - 3]);
       }
+      
+      EndTemp(Temp);
    }
 }
 

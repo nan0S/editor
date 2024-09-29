@@ -1337,7 +1337,7 @@ LowerBezierCurveDegree(entity *Entity)
       }
       
       // TODO(hbr): refactor this, it only has to be here because we still modify control points above
-      BezierCubicCalculateAllControlPoints(PointCount - 1, LowerPoints, LowerBeziers + 1);
+      BezierCubicCalculateAllControlPoints(PointCount - 1, LowerPoints, LowerBeziers);
       SetCurveControlPoints(Entity, PointCount - 1, LowerPoints, LowerWeights, LowerBeziers);
       
       Lowering->SavedCurveVersion = Curve->CurveVersion;
@@ -1376,7 +1376,7 @@ ElevateBezierCurveDegree(entity *Entity, editor_params *EditorParams)
                                                                 local_position);
    BezierCubicCalculateAllControlPoints(ControlPointCount + 1,
                                         ElevatedControlPoints,
-                                        ElevatedCubicBezierPoints + 1);
+                                        ElevatedCubicBezierPoints);
    
    SetCurveControlPoints(Entity,
                          ControlPointCount + 1,
@@ -1451,42 +1451,44 @@ FocusCameraOnEntity(editor *Editor, entity *Entity)
 internal void
 SplitCurveOnControlPoint(entity *Entity, editor *Editor)
 {
-   temp_arena Temp = TempArena(0);
    curve *Curve = GetCurve(Entity);
-   Assert(Curve->SelectedControlPointIndex < Curve->ControlPointCount);
-   
-   u64 LeftPointCount = Curve->SelectedControlPointIndex + 1;
-   u64 RightPointCount = Curve->ControlPointCount - Curve->SelectedControlPointIndex;
-   
-   local_position *LeftPoints = PushArrayNonZero(Temp.Arena, LeftPointCount, local_position);
-   local_position *RightPoints = PushArrayNonZero(Temp.Arena, RightPointCount, local_position);
-   f32 *LeftWeights = PushArrayNonZero(Temp.Arena, LeftPointCount, f32);
-   f32 *RightWeights = PushArrayNonZero(Temp.Arena, RightPointCount, f32);
-   local_position *LeftBeziers = PushArrayNonZero(Temp.Arena, 3 * LeftPointCount, local_position);
-   local_position *RightBeziers = PushArrayNonZero(Temp.Arena, 3 * RightPointCount, local_position);
-   
-   // TODO(hbr): Optimize to not do so many copies and allocations
-   // TODO(hbr): Maybe mint internals that create duplicate curve but without allocating and with allocating.
-   // TODO(hbr): Isn't here a good place to optimize memory copies?
-   MemoryCopy(LeftPoints, Curve->ControlPoints, LeftPointCount * SizeOf(LeftPoints[0]));
-   MemoryCopy(LeftWeights, Curve->ControlPointWeights, LeftPointCount * SizeOf(LeftWeights[0]));
-   MemoryCopy(LeftBeziers, Curve->CubicBezierPoints, 3 * LeftPointCount * SizeOf(LeftPoints[0]));
-   MemoryCopy(RightPoints, Curve->ControlPoints + Curve->SelectedControlPointIndex, RightPointCount * SizeOf(RightPoints[0]));
-   MemoryCopy(RightWeights, Curve->ControlPointWeights + Curve->SelectedControlPointIndex, RightPointCount * SizeOf(RightWeights[0]));
-   MemoryCopy(RightBeziers, Curve->CubicBezierPoints + 3 * Curve->SelectedControlPointIndex, 3 * RightPointCount * SizeOf(RightPoints[0]));
-   
-   entity *LeftEntity = Entity;
-   entity *RightEntity = AllocEntity(Editor);
-   string LeftName  = StrF(Temp.Arena, "%S(left)", Entity->Name);
-   string RightName = StrF(Temp.Arena, "%S(right)", Entity->Name);
-   
-   InitEntityFromEntity(RightEntity, LeftEntity);
-   SetEntityName(LeftEntity, LeftName);
-   SetEntityName(RightEntity, RightName);
-   SetCurveControlPoints(LeftEntity, LeftPointCount, LeftPoints, LeftWeights, LeftBeziers);
-   SetCurveControlPoints(RightEntity, RightPointCount, RightPoints, RightWeights, RightBeziers);
-   
-   EndTemp(Temp);
+   if (Curve && Curve->SelectedControlPointIndex < Curve->ControlPointCount)
+   {
+      temp_arena Temp = TempArena(0);
+      
+      u64 LeftPointCount = Curve->SelectedControlPointIndex + 1;
+      u64 RightPointCount = Curve->ControlPointCount - Curve->SelectedControlPointIndex;
+      
+      entity *LeftEntity = Entity;
+      entity *RightEntity = AllocEntity(Editor);
+      InitEntityFromEntity(RightEntity, LeftEntity);
+      
+      curve *LeftCurve = GetCurve(LeftEntity);
+      curve *RightCurve = GetCurve(RightEntity);
+      
+      string LeftName  = StrF(Temp.Arena, "%S(left)", Entity->Name);
+      string RightName = StrF(Temp.Arena, "%S(right)", Entity->Name);
+      SetEntityName(LeftEntity, LeftName);
+      SetEntityName(RightEntity, RightName);
+      
+      BeginCurvePoints(LeftCurve, LeftPointCount);
+      BeginCurvePoints(RightCurve, RightPointCount);
+      
+      MemoryCopy(RightCurve->ControlPoints,
+                 Curve->ControlPoints + Curve->SelectedControlPointIndex,
+                 RightPointCount * SizeOf(RightCurve->ControlPoints[0]));
+      MemoryCopy(RightCurve->ControlPointWeights,
+                 Curve->ControlPointWeights + Curve->SelectedControlPointIndex,
+                 RightPointCount * SizeOf(RightCurve->ControlPointWeights[0]));
+      MemoryCopy(RightCurve->CubicBezierPoints,
+                 Curve->CubicBezierPoints + 3*Curve->SelectedControlPointIndex,
+                 3*RightPointCount * SizeOf(RightCurve->CubicBezierPoints[0]));
+      
+      EndCurvePoints(&LeftEntity->Curve);
+      EndCurvePoints(&RightEntity->Curve);
+      
+      EndTemp(Temp);
+   }
 }
 
 // TODO(hbr): Do a pass oveer this internal to simplify the logic maybe (and simplify how the UI looks like in real life)
@@ -2842,10 +2844,10 @@ UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Trans
                                 RightEntity->Curve.ControlPointWeights);
                BezierCubicCalculateAllControlPoints(ControlPointCount,
                                                     LeftEntity->Curve.ControlPoints,
-                                                    LeftEntity->Curve.CubicBezierPoints + 1);
+                                                    LeftEntity->Curve.CubicBezierPoints);
                BezierCubicCalculateAllControlPoints(ControlPointCount,
                                                     RightEntity->Curve.ControlPoints,
-                                                    RightEntity->Curve.CubicBezierPoints + 1);
+                                                    RightEntity->Curve.CubicBezierPoints);
                
                EndCurvePoints(&RightEntity->Curve);
                EndCurvePoints(&LeftEntity->Curve);
@@ -2902,8 +2904,8 @@ UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Trans
                                                                       line_vertices);
                   
                   f32 LineWidth = Curve->CurveParams.CurveWidth;
-                  color GradientA = Curve->CurveParams.DeCasteljau.GradientA;
-                  color GradientB = Curve->CurveParams.DeCasteljau.GradientB;
+                  color GradientA = MakeColor(255, 0, 144);
+                  color GradientB = MakeColor(155, 200, 0);
                   
                   f32 P = 0.0f;
                   f32 Delta_P = 1.0f / (Intermediate.IterationCount - 1);
@@ -3713,7 +3715,6 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                }
                
                UpdateAndRenderDegreeLowering(Entity, VP, Editor->RenderData.Window);
-               
                
                curve_animation_state *Animation = &Editor->CurveAnimation;
                if (Animation->Stage == AnimateCurveAnimation_Animating && Animation->FromCurveEntity == Entity)

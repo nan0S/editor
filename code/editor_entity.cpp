@@ -354,6 +354,7 @@ ActuallyRecomputeCurve(entity *Entity)
                                                      true, LineVerticesAllocationArena(Entity->Arena));
    
    Curve->CurveVersion += 1;
+   Curve->NeedsRecomputationThisFrame = false;
    
    EndTemp(Temp);
 }
@@ -366,12 +367,20 @@ RecomputeCurve(entity *Entity)
 }
 
 internal void
-BeginVisualizingDeCasteljauAlgorithm(entity *Curve)
+SetTrackingPointT(curve_point_tracking_state *Tracking, f32 T)
 {
-   de_casteljau_visual_state *State = &Curve->Curve.DeCasteljau;
-   ClearArena(State->Arena);
-   State->Enabled = true;
-   State->T = 0.0f;
+   Tracking->T = T;
+   Tracking->NeedsRecomputationThisFrame = true;
+}
+
+internal void
+BeginCurvePointTracking(curve *Curve, b32 IsSplitting)
+{
+   curve_point_tracking_state *Tracking = &Curve->PointTracking;
+   Tracking->Active = true;
+   Tracking->IsSplitting = IsSplitting;
+   ClearArena(Tracking->Arena);
+   SetTrackingPointT(Tracking, 0.0f);
 }
 
 internal local_position

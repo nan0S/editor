@@ -242,8 +242,7 @@ enum
    CurveCollision_ControlPoint     = (1<<0),
    CurveCollision_CurveLine        = (1<<1),
    CurveCollision_CubicBezierPoint = (1<<2),
-   CurveCollision_SplitPoint       = (1<<3),
-   CurveCollision_DeCasteljauPoint = (1<<4),
+   CurveCollision_TrackedPoint     = (1<<3),
 };
 
 struct collision
@@ -260,9 +259,8 @@ enum
 {
    CheckCollisionWith_CurveControlPoints = (1<<0),
    CheckCollisionWith_CurveLines         = (1<<1),
-   CheckCollisionWith_CurveSplitPoints   = (1<<2),
-   CheckCollisionWith_DeCastelajauPoints = (1<<3),
-   CheckCollisionWith_Images             = (1<<4),
+   CheckCollisionWith_TrackedPoints      = (1<<2),
+   CheckCollisionWith_Images             = (1<<3),
 };
 
 enum user_action_type
@@ -315,8 +313,7 @@ enum moving_mode_type
    MovingMode_Entity,
    MovingMode_Camera,
    MovingMode_CurvePoint,
-   MovingMode_SplitPoint,
-   MovingMode_DeCasteljauPoint,
+   MovingMode_TrackedPoint,
 };
 
 // TODO(hbr): Be consistent in naming Rotating mode or Rotate mode - be consistent

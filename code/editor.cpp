@@ -173,27 +173,15 @@ CheckCollisionWith(entities *Entities,
                      OutlineThicknessScale = EditorParams->SelectedCurveControlPointOutlineThicknessScale;
                   }
                   
-                  curve_splitting_state *Splitting = &Curve->Splitting;
-                  if ((CheckCollisionWithFlags & CheckCollisionWith_CurveSplitPoints) &&
-                      Splitting->Active)
+                  curve_point_tracking_state *Tracking = &Curve->PointTracking;
+                  if ((CheckCollisionWithFlags & CheckCollisionWith_TrackedPoints) &&
+                      Tracking->Active)
                   {
-                     if (PointCollision(CheckPositionLocal, Splitting->SplitPoint,
+                     if (PointCollision(CheckPositionLocal, Tracking->TrackedPoint,
                                         Curve->CurveParams.CurveWidth))
                      {
                         Result.Entity = Entity;
-                        Result.Flags |= CurveCollision_SplitPoint;
-                     }
-                  }
-                  
-                  de_casteljau_visual_state *DeCasteljau = &Curve->DeCasteljau;
-                  if ((CheckCollisionWithFlags & CheckCollisionWith_DeCastelajauPoints) &&
-                      DeCasteljau->Enabled)
-                  {
-                     local_position FinalPoint = DeCasteljau->Intermediate.P[DeCasteljau->Intermediate.TotalPointCount - 1];
-                     if (PointCollision(CheckPositionLocal, FinalPoint, Curve->CurveParams.PointSize))
-                     {
-                        Result.Entity = Entity;
-                        Result.Flags |= CurveCollision_DeCasteljauPoint;
+                        Result.Flags |= CurveCollision_TrackedPoint;
                      }
                   }
                   
@@ -368,8 +356,7 @@ AllocEntity(editor *Editor)
          Entity = Current;
          Entity->Flags |= EntityFlag_Active;
          ClearArena(Entity->Arena);
-         Entity->Curve.DeCasteljau.Enabled = false;
-         Entity->Curve.Splitting.Active = false;
+         Entity->Curve.PointTracking.Active = false;
          Entity->Curve.DegreeLowering.Active = false;
          ++Entities->EntityCount;
          break;
@@ -600,39 +587,14 @@ MakeRotatingMode(entity *Entity, screen_position Center, button Button)
 }
 
 internal editor_mode
-MakeMovingSplitPointMode(entity *Entity)
+MakeMovingTrackedPointMode(entity *Entity)
 {
    editor_mode Result = {};
    Result.Type = EditorMode_Moving;
-   Result.Moving.Type = MovingMode_SplitPoint;
+   Result.Moving.Type = MovingMode_TrackedPoint;
    Result.Moving.Entity = Entity;
    
    return Result;
-}
-
-internal editor_mode
-MakeMovingDeCasteljauPointMode(entity *Entity)
-{
-   editor_mode Result = {};
-   Result.Type = EditorMode_Moving;
-   Result.Moving.Type = MovingMode_DeCasteljauPoint;
-   Result.Moving.Entity = Entity;
-   
-   return Result;
-}
-
-internal void
-SetSplitT(curve_splitting_state *Splitting, f32 T)
-{
-   Splitting->T = T;
-   Splitting->NeedsRecomputationThisFrame = true;
-}
-
-internal void
-SetDeCasteljauT(de_casteljau_visual_state *DeCasteljau, f32 T)
-{
-   DeCasteljau->T = T;
-   DeCasteljau->NeedsRecomputationThisFrame = true;
 }
 
 internal void
@@ -672,22 +634,12 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                   
                   curve *Curve = GetCurve(Collision.Entity);
                   
-                  curve_splitting_state *Splitting = &Curve->Splitting;
-                  de_casteljau_visual_state *DeCasteljau = &Curve->DeCasteljau;
-                  if ((Splitting->Active || DeCasteljau->Enabled) &&
-                      (Collision.Flags & CurveCollision_CurveLine))
+                  curve_point_tracking_state *Tracking = &Curve->PointTracking;
+                  if (Tracking->Active && (Collision.Flags & CurveCollision_CurveLine))
                   {
                      f32 T = SafeDiv(Cast(f32)Collision.CurveLinePointIndex, (Curve->CurvePointCount- 1));
                      T = Clamp(T, 0.0f, 1.0f); // NOTE(hbr): Be safe
-                     if (Splitting->Active)
-                     {
-                        SetSplitT(Splitting, T);
-                     }
-                     else
-                     {
-                        Assert(DeCasteljau->Enabled);
-                        SetDeCasteljauT(DeCasteljau, T);
-                     }
+                     SetTrackingPointT(Tracking, T);
                   }
                   else if ((Collision.Flags & CurveCollision_ControlPoint) ||
                            (Collision.Flags & CurveCollision_CubicBezierPoint))
@@ -817,7 +769,7 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
             case Button_Right: {
                check_collision_with_flags CheckCollisionWithFlags =
                   CheckCollisionWith_CurveControlPoints |
-                  CheckCollisionWith_CurveSplitPoints |
+                  CheckCollisionWith_TrackedPoints |
                   CheckCollisionWith_Images;
                f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->Params.CollisionToleranceClipSpace,
                                                                     &Editor->RenderData);
@@ -829,7 +781,7 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                   switch (Collision.Entity->Type)
                   {
                      case Entity_Curve: {
-                        if (Collision.Flags & CurveCollision_SplitPoint)
+                        if (Collision.Flags & CurveCollision_TrackedPoint)
                         {
                            // TODO(hbr): Do the split
                         }
@@ -867,8 +819,7 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
             case Button_Left: {
                check_collision_with_flags CheckCollisionWithFlags =
                   CheckCollisionWith_CurveControlPoints |
-                  CheckCollisionWith_CurveSplitPoints |
-                  CheckCollisionWith_DeCastelajauPoints |
+                  CheckCollisionWith_TrackedPoints |
                   CheckCollisionWith_CurveLines |
                   CheckCollisionWith_Images;
                f32 CollisionTolerance =
@@ -911,13 +862,9 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                         {
                            Editor->Mode = MakeMovingEntityMode(Collision.Entity);
                         }
-                        else if (Collision.Flags & CurveCollision_SplitPoint)
+                        else if (Collision.Flags & CurveCollision_TrackedPoint)
                         {
-                           Editor->Mode = MakeMovingSplitPointMode(Collision.Entity);
-                        }
-                        else if (Collision.Flags & CurveCollision_DeCasteljauPoint)
-                        {
-                           Editor->Mode = MakeMovingDeCasteljauPointMode(Collision.Entity);
+                           Editor->Mode = MakeMovingTrackedPointMode(Collision.Entity);
                         }
                      } break;
                      
@@ -990,30 +937,17 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action)
                                           TranslateFlags, Translation);
             } break;
             
-            case MovingMode_SplitPoint:
-            case MovingMode_DeCasteljauPoint: {
+            case MovingMode_TrackedPoint: {
                entity *Entity = Moving->Entity;
                curve *Curve = GetCurve(Entity);
                
                // NOTE(hbr): Pretty involved logic to move point along the curve and have pleasant experience
                u64 CurvePointCount = Curve->CurvePointCount;
                local_position *CurvePoints = Curve->CurvePoints;
+               curve_point_tracking_state *Tracking = &Curve->PointTracking;
                
-               f32 T = 0.0f;
-               switch (Moving->Type)
-               {
-                  case MovingMode_SplitPoint: {
-                     T = Curve->Splitting.T;
-                  } break;
-                  
-                  case MovingMode_DeCasteljauPoint: {
-                     T = Curve->DeCasteljau.T;
-                  } break;
-                  
-                  default: InvalidPath;
-               }
-               
-               T = Clamp(T, 0.0f, 1.0f);
+               f32 T = Curve->PointTracking.T;
+               T = Clamp(T, 0.0f, 1.0f); // TODO(hbr): Is this needed? Probably not
                f32 DeltaT = 1.0f / (CurvePointCount - 1);
                {
                   u64 SplitCurvePointIndex = ClampTop(Cast(u64)FloorF32(T * (CurvePointCount - 1)), CurvePointCount - 1);
@@ -1092,18 +1026,7 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action)
                   }
                }
                
-               switch (Moving->Type)
-               {
-                  case MovingMode_SplitPoint: {
-                     SetSplitT(&Curve->Splitting, T);
-                  } break;
-                  
-                  case MovingMode_DeCasteljauPoint: {
-                     SetDeCasteljauT(&Curve->DeCasteljau, T);
-                  } break;
-                  
-                  default: InvalidPath;
-               }
+               SetTrackingPointT(Tracking, T);
             } break;
          }
       } break;
@@ -1292,9 +1215,9 @@ RenderRotationIndicator(editor *Editor, sf::Transform Transform)
 
 // TODO(hbr): Maybe move into editor_entity.h
 internal void
-InitEntityFromEntity(entity *Dest, entity *Src, string NewName)
+InitEntityFromEntity(entity *Dest, entity *Src)
 {
-   InitEntity(Dest, Src->Position, Src->Scale, Src->Rotation, NewName, Src->SortingLayer);
+   InitEntity(Dest, Src->Position, Src->Scale, Src->Rotation, Src->Name, Src->SortingLayer);
    switch (Src->Type)
    {
       case Entity_Curve: {
@@ -1318,7 +1241,8 @@ DuplicateEntity(entity *Entity, editor *Editor)
    
    entity *Copy = AllocEntity(Editor);
    string CopyName = StrF(Temp.Arena, "%S(copy)", Entity->Name);
-   InitEntityFromEntity(Copy, Entity, CopyName);
+   InitEntityFromEntity(Copy, Entity);
+   SetEntityName(Copy, CopyName);
    
    SelectEntity(Editor, Copy);
    f32 SlightTranslationX = ClipSpaceLengthToWorldSpace(0.2f, &Editor->RenderData);
@@ -1349,13 +1273,6 @@ ResetCtxMenu_(string Label)
    return Reset;
 }
 #define ResetCtxMenu(LabelLit) ResetCtxMenu_(StrLit(LabelLit))
-
-internal void
-BeginCurveSplitting(curve_splitting_state *Splitting)
-{
-   Splitting->Active = true;
-   SetSplitT(Splitting, 0.0f);
-}
 
 internal void
 BeginAnimatingCurve(curve_animation_state *Animation, entity *CurveEntity)
@@ -1420,7 +1337,7 @@ LowerBezierCurveDegree(entity *Entity)
       }
       
       // TODO(hbr): refactor this, it only has to be here because we still modify control points above
-      BezierCubicCalculateAllControlPoints(LowerPoints, PointCount - 1, LowerBeziers + 1);
+      BezierCubicCalculateAllControlPoints(PointCount - 1, LowerPoints, LowerBeziers + 1);
       SetCurveControlPoints(Entity, PointCount - 1, LowerPoints, LowerWeights, LowerBeziers);
       
       Lowering->SavedCurveVersion = Curve->CurveVersion;
@@ -1457,8 +1374,8 @@ ElevateBezierCurveDegree(entity *Entity, editor_params *EditorParams)
    local_position *ElevatedCubicBezierPoints = PushArrayNonZero(Temp.Arena,
                                                                 3 * (ControlPointCount + 1),
                                                                 local_position);
-   BezierCubicCalculateAllControlPoints(ElevatedControlPoints,
-                                        ControlPointCount + 1,
+   BezierCubicCalculateAllControlPoints(ControlPointCount + 1,
+                                        ElevatedControlPoints,
                                         ElevatedCubicBezierPoints + 1);
    
    SetCurveControlPoints(Entity,
@@ -1563,8 +1480,9 @@ SplitCurveOnControlPoint(entity *Entity, editor *Editor)
    string LeftName  = StrF(Temp.Arena, "%S(left)", Entity->Name);
    string RightName = StrF(Temp.Arena, "%S(right)", Entity->Name);
    
-   InitEntityFromEntity(RightEntity, LeftEntity, RightName);
+   InitEntityFromEntity(RightEntity, LeftEntity);
    SetEntityName(LeftEntity, LeftName);
+   SetEntityName(RightEntity, RightName);
    SetCurveControlPoints(LeftEntity, LeftPointCount, LeftPoints, LeftWeights, LeftBeziers);
    SetCurveControlPoints(RightEntity, RightPointCount, RightPoints, RightWeights, RightBeziers);
    
@@ -1886,6 +1804,7 @@ RenderSelectedEntityUI(editor *Editor)
             b32 AnimateCurve                  = false;
             b32 CombineCurve                  = false;
             b32 SplitOnControlPoint           = false;
+            b32 VisualizeDeCasteljau          = false;
             
             UI_NewRow();
             UI_SeparatorTextF("Actions");
@@ -1904,49 +1823,6 @@ RenderSelectedEntityUI(editor *Editor)
                {
                   curve_params *CurveParams = &Curve->CurveParams;
                   
-                  UI_LabelF("De Casteljau")
-                  {
-                     de_casteljau_visual_state *DeCasteljau = &Curve->DeCasteljau;
-                     
-                     b32 CurveQualifiesForVisualizing = false;
-                     if (CurveParams->InterpolationType == Interpolation_Bezier)
-                     {
-                        switch (CurveParams->BezierType)
-                        {
-                           case Bezier_Regular: { CurveQualifiesForVisualizing = true; } break;
-                           case Bezier_Cubic: {} break;
-                           case Bezier_Count: InvalidPath;
-                        }
-                     }
-                     
-                     if (CurveQualifiesForVisualizing)
-                     {
-                        UI_NewRow();
-                        UI_SeparatorTextF("De Casteljau Visualization");
-                        DeCasteljau->NeedsRecomputationThisFrame |= UI_CheckboxF(&DeCasteljau->Enabled, "Enabled");
-                        
-                        if (DeCasteljau->Enabled)
-                        {
-                           DeCasteljau->NeedsRecomputationThisFrame |= UI_ColorPickerF(&CurveParams->DeCasteljau.GradientA, "Gradient A");
-                           // TODO(hbr): Don't require GlobalDefaultDeCastelajuGradient(A|B), probably move this to this function
-                           if (ResetCtxMenu("DeCasteljauVisualGradientAReset"))
-                           {
-                              CurveParams->DeCasteljau.GradientA = Editor->Params.CurveDefaultParams.DeCasteljau.GradientA;
-                              DeCasteljau->NeedsRecomputationThisFrame = true;
-                           }
-                           
-                           DeCasteljau->NeedsRecomputationThisFrame |= UI_ColorPickerF(&CurveParams->DeCasteljau.GradientB, "Gradient B");
-                           if (ResetCtxMenu("GradientBReset"))
-                           {
-                              CurveParams->DeCasteljau.GradientB = Editor->Params.CurveDefaultParams.DeCasteljau.GradientB;
-                              DeCasteljau->NeedsRecomputationThisFrame = true;
-                           }
-                           
-                           DeCasteljau->NeedsRecomputationThisFrame |= UI_SliderFloatF(&DeCasteljau->T, 0.0f, 1.0f, "T");
-                        }
-                     }
-                  }
-                  
                   // TODO(hbr): Maybe pick better name than transform
                   AnimateCurve = UI_ButtonF("Animate");
                   UI_SameRow();
@@ -1959,9 +1835,9 @@ RenderSelectedEntityUI(editor *Editor)
                      SplitOnControlPoint = UI_ButtonF("Split on Control Point");
                   }
                   
-                  b32 IsBezierNormalOrWeighted = (CurveParams->InterpolationType == Interpolation_Bezier &&
-                                                  CurveParams->BezierType == Bezier_Regular);
-                  UI_Disabled(!IsBezierNormalOrWeighted)
+                  b32 IsBezierRegular = (CurveParams->InterpolationType == Interpolation_Bezier &&
+                                         CurveParams->BezierType == Bezier_Regular);
+                  UI_Disabled(!IsBezierRegular)
                   {
                      UI_Disabled(Curve->ControlPointCount < 2)
                      {
@@ -1974,7 +1850,9 @@ RenderSelectedEntityUI(editor *Editor)
                         UI_SameRow();
                         LowerBezierCurve = UI_ButtonF("Lower Degree");
                      }
+                     VisualizeDeCasteljau = UI_ButtonF("Visualize De Casteljau");
                   }
+                  
                }
             }
             
@@ -2015,7 +1893,7 @@ RenderSelectedEntityUI(editor *Editor)
             
             if (SplitBezierCurve)
             {
-               BeginCurveSplitting(&Entity->Curve.Splitting);
+               BeginCurvePointTracking(Curve, true);
             }
             
             if (AnimateCurve)
@@ -2031,6 +1909,11 @@ RenderSelectedEntityUI(editor *Editor)
             if (SplitOnControlPoint)
             {
                SplitCurveOnControlPoint(Entity, Editor);
+            }
+            
+            if (VisualizeDeCasteljau)
+            {
+               BeginCurvePointTracking(Curve, false);
             }
             
             if (SomeCurveParamChanged)
@@ -2903,114 +2786,190 @@ RenderDiagnosticsWindow(editor *Editor, f32 DeltaTime)
 }
 
 internal void
-UpdateAndRenderCurveSplitting(editor *Editor, entity *Entity, sf::Transform Transform)
+UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Transform)
 {
    TimeFunction;
    
-   // TODO(hbr): Remove those variables or rename them
+   curve *Curve = &Entity->Curve;
+   curve_params *CurveParams = &Curve->CurveParams;
+   curve_point_tracking_state *Tracking = &Curve->PointTracking;
+   temp_arena Temp = TempArena(Tracking->Arena);
    editor_params *EditorParams = &Editor->Params;
    sf::RenderWindow *Window = Editor->RenderData.Window;
-   curve *Curve = GetCurve(Entity);
-   curve_splitting_state *Splitting = &Curve->Splitting;
-   curve_params *CurveParams = &Curve->CurveParams;
    
-   if (Splitting->Active)
+   if (Entity->Type == Entity_Curve && Tracking->Active)
    {
-      b32 CurveQualifiesForSplitting = false;
-      if (CurveParams->InterpolationType == Interpolation_Bezier)
+      b32 IsBezierRegular = (CurveParams->InterpolationType == Interpolation_Bezier &&
+                             CurveParams->BezierType == Bezier_Regular);
+      
+      if (IsBezierRegular)
       {
-         switch (CurveParams->BezierType)
+         if (Tracking->IsSplitting)
          {
-            case Bezier_Regular: { CurveQualifiesForSplitting = true; } break;
-            case Bezier_Cubic: {} break;
-            case Bezier_Count: InvalidPath;
+            b32 PerformSplit = false;
+            b32 Cancel = false;
+            b32 IsWindowOpen = true;
+            DeferBlock(UI_BeginWindowF(&IsWindowOpen, "Splitting '%S'", Entity->Name),
+                       UI_EndWindow())
+            {
+               Tracking->NeedsRecomputationThisFrame |= UI_SliderFloatF(&Tracking->T, 0.0f, 1.0f, "Split Point");
+               PerformSplit = UI_ButtonF("Split");
+               UI_SameRow();
+               Cancel = UI_ButtonF("Cancel");
+            }
+            
+            if (PerformSplit)
+            {
+               u64 ControlPointCount = Curve->ControlPointCount;
+               
+               entity *LeftEntity = Entity;
+               entity *RightEntity = AllocEntity(Editor);
+               string LeftName = StrF(Temp.Arena, "%S(left)", Entity->Name);
+               string RightName = StrF(Temp.Arena, "%S(right)", Entity->Name);
+               
+               SetEntityName(LeftEntity, LeftName);
+               InitEntityFromEntity(RightEntity, LeftEntity);
+               SetEntityName(RightEntity, RightName);
+               
+               BeginCurvePoints(&LeftEntity->Curve, ControlPointCount);
+               BeginCurvePoints(&RightEntity->Curve, ControlPointCount);
+               
+               BezierCurveSplit(Tracking->T,
+                                ControlPointCount, Curve->ControlPoints, Curve->ControlPointWeights,
+                                LeftEntity->Curve.ControlPoints,
+                                LeftEntity->Curve.ControlPointWeights,
+                                RightEntity->Curve.ControlPoints,
+                                RightEntity->Curve.ControlPointWeights);
+               BezierCubicCalculateAllControlPoints(ControlPointCount,
+                                                    LeftEntity->Curve.ControlPoints,
+                                                    LeftEntity->Curve.CubicBezierPoints + 1);
+               BezierCubicCalculateAllControlPoints(ControlPointCount,
+                                                    RightEntity->Curve.ControlPoints,
+                                                    RightEntity->Curve.CubicBezierPoints + 1);
+               
+               EndCurvePoints(&RightEntity->Curve);
+               EndCurvePoints(&LeftEntity->Curve);
+            }
+            
+            if (PerformSplit || Cancel || !IsWindowOpen)
+            {
+               Tracking->Active = false;
+            }
+            else
+            {
+               if (Tracking->NeedsRecomputationThisFrame || Curve->NeedsRecomputationThisFrame)
+               {
+                  Tracking->TrackedPoint = BezierCurveEvaluateWeighted(Tracking->T,
+                                                                       Curve->ControlPoints,
+                                                                       Curve->ControlPointWeights,
+                                                                       Curve->ControlPointCount);
+               }
+               
+               RenderPoint(Tracking->TrackedPoint,
+                           EditorParams->BezierSplitPoint,
+                           &Editor->RenderData,
+                           Transform);
+            }
+         }
+         else
+         {
+            b32 IsWindowOpen = true;
+            DeferBlock(UI_BeginWindowF(&IsWindowOpen, "De Casteljau Algorithm '%S'", Entity->Name),
+                       UI_EndWindow())
+            {
+               Tracking->NeedsRecomputationThisFrame |= UI_SliderFloatF(&Tracking->T, 0.0f, 1.0f, "T");
+            }
+            
+            if (!IsWindowOpen)
+            {
+               Tracking->Active = false;
+            }
+            else
+            {
+               if (Tracking->NeedsRecomputationThisFrame || Curve->NeedsRecomputationThisFrame)
+               {
+                  ClearArena(Tracking->Arena);
+                  
+                  all_de_casteljau_intermediate_results Intermediate =
+                     DeCasteljauAlgorithm(Tracking->Arena,
+                                          Tracking->T,
+                                          Curve->ControlPoints,
+                                          Curve->ControlPointWeights,
+                                          Curve->ControlPointCount);
+                  color *IterationColors = PushArrayNonZero(Tracking->Arena, Intermediate.IterationCount, color);
+                  line_vertices *LineVerticesPerIteration = PushArray(Tracking->Arena,
+                                                                      Intermediate.IterationCount,
+                                                                      line_vertices);
+                  
+                  f32 LineWidth = Curve->CurveParams.CurveWidth;
+                  color GradientA = Curve->CurveParams.DeCasteljau.GradientA;
+                  color GradientB = Curve->CurveParams.DeCasteljau.GradientB;
+                  
+                  f32 P = 0.0f;
+                  f32 Delta_P = 1.0f / (Intermediate.IterationCount - 1);
+                  u64 IterationPointsOffset = 0;
+                  for (u64 Iteration = 0;
+                       Iteration < Intermediate.IterationCount;
+                       ++Iteration)
+                  {
+                     color IterationColor = LerpColor(GradientA, GradientB, P);
+                     IterationColors[Iteration] = IterationColor;
+                     
+                     u64 CurrentIterationPointCount = Intermediate.IterationCount - Iteration;
+                     LineVerticesPerIteration[Iteration] =
+                        CalculateLineVertices(CurrentIterationPointCount,
+                                              Intermediate.P + IterationPointsOffset,
+                                              LineWidth, IterationColor,
+                                              false,
+                                              LineVerticesAllocationArena(Tracking->Arena));
+                     
+                     P += Delta_P;
+                     IterationPointsOffset += CurrentIterationPointCount;
+                  }
+                  
+                  Tracking->Intermediate = Intermediate;
+                  Tracking->IterationColors = IterationColors;
+                  Tracking->LineVerticesPerIteration = LineVerticesPerIteration;
+                  Tracking->TrackedPoint = Intermediate.P[Intermediate.TotalPointCount - 1];
+               }
+               
+               u64 IterationCount = Tracking->Intermediate.IterationCount;
+               for (u64 Iteration = 0;
+                    Iteration < IterationCount;
+                    ++Iteration)
+               {
+                  Window->draw(Tracking->LineVerticesPerIteration[Iteration].Vertices,
+                               Tracking->LineVerticesPerIteration[Iteration].NumVertices,
+                               Tracking->LineVerticesPerIteration[Iteration].PrimitiveType,
+                               Transform);
+               }
+               
+               f32 PointSize = CurveParams->PointSize;
+               u64 PointIndex = 0;
+               for (u64 Iteration = 0;
+                    Iteration < IterationCount;
+                    ++Iteration)
+               {
+                  color PointColor = Tracking->IterationColors[Iteration];
+                  for (u64 I = 0; I < IterationCount - Iteration; ++I)
+                  {
+                     local_position Point = Tracking->Intermediate.P[PointIndex];
+                     DrawCircle(Point, PointSize, PointColor, Transform, Window);
+                     ++PointIndex;
+                  }
+               }
+            }
          }
       }
-      
-      if (!CurveQualifiesForSplitting)
+      else
       {
-         Splitting->Active = false;
+         Tracking->Active = false;
       }
    }
    
-   b32 PerformSplit = false;
-   if (Splitting->Active)
-   {
-      b32 Cancel = false;
-      b32 IsSplitWindowOpen = true;
-      
-      DeferBlock(UI_BeginWindowF(&IsSplitWindowOpen, "Splitting '%S'", Entity->Name),
-                 UI_EndWindow())
-      {
-         Splitting->NeedsRecomputationThisFrame |= UI_SliderFloatF(&Splitting->T, 0.0f, 1.0f, "Split Point");
-         PerformSplit = UI_ButtonF("Split");
-         Cancel = UI_ButtonF("Cancel");
-      }
-      
-      if (Cancel || !IsSplitWindowOpen)
-      {
-         Splitting->Active = false;
-      }
-   }
+   Tracking->NeedsRecomputationThisFrame = false;
    
-   if (PerformSplit)
-   {
-      temp_arena Temp = TempArena(0);
-      
-      u64 ControlPointCount = Curve->ControlPointCount;
-      f32 *ControlPointWeights = Curve->ControlPointWeights;
-      
-      local_position *LeftPoints = PushArrayNonZero(Temp.Arena, ControlPointCount, local_position);
-      local_position *RightPoints = PushArrayNonZero(Temp.Arena, ControlPointCount, local_position);
-      f32 *LeftWeights  = PushArrayNonZero(Temp.Arena, ControlPointCount, f32);
-      f32 *RightWeights = PushArrayNonZero(Temp.Arena, ControlPointCount, f32);
-      local_position *LeftBeziers = PushArrayNonZero(Temp.Arena, 3 * ControlPointCount, local_position);
-      local_position *RightBeziers = PushArrayNonZero(Temp.Arena, 3 * ControlPointCount, local_position);
-      BezierCurveSplit(Splitting->T, Curve->ControlPoints, ControlPointWeights, ControlPointCount,
-                       LeftPoints, LeftWeights, RightPoints, RightWeights);
-      BezierCubicCalculateAllControlPoints(LeftPoints, ControlPointCount, LeftBeziers + 1);
-      BezierCubicCalculateAllControlPoints(RightPoints, ControlPointCount, RightBeziers + 1);
-      
-      // TODO(hbr): Optimize here not to do so many copies, maybe merge with split on control point code
-      // TODO(hbr): Isn't this similar to split on curve point
-      // TODO(hbr): Maybe remove this duplication of initialzation, maybe not?
-      // TODO(hbr): Refactor that code into common internal that splits curve into two curves
-      entity *LeftEntity = Entity;
-      entity *RightEntity = AllocEntity(Editor);
-      string LeftName = StrF(Temp.Arena, "%S(left)", Entity->Name);
-      string RightName = StrF(Temp.Arena, "%S(right)", Entity->Name);
-      
-      InitEntityFromEntity(RightEntity, LeftEntity, RightName);
-      SetEntityName(LeftEntity, LeftName);
-      
-      SetCurveControlPoints(LeftEntity, ControlPointCount, LeftPoints, LeftWeights, LeftBeziers);
-      SetCurveControlPoints(RightEntity, ControlPointCount, RightPoints, RightWeights, RightBeziers);
-      
-      Splitting->Active = false;
-      
-      EndTemp(Temp);
-   }
-   
-   if (Splitting->Active)
-   {
-      if (Splitting->NeedsRecomputationThisFrame || Curve->NeedsRecomputationThisFrame)
-      {
-         Splitting->SplitPoint = BezierCurveEvaluateWeighted(Splitting->T,
-                                                             Curve->ControlPoints,
-                                                             Curve->ControlPointWeights,
-                                                             Curve->ControlPointCount);
-      }
-      
-      if (!(Entity->Flags & EntityFlag_Hidden))
-      {
-         RenderPoint(Splitting->SplitPoint,
-                     EditorParams->BezierSplitPoint,
-                     &Editor->RenderData,
-                     Transform);
-      }
-   }
-   
-   Splitting->NeedsRecomputationThisFrame = false;
+   EndTemp(Temp);
 }
 
 internal void
@@ -3755,88 +3714,6 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                
                UpdateAndRenderDegreeLowering(Entity, VP, Editor->RenderData.Window);
                
-               // NOTE(hbr): DeCasteljau visualization rendering
-               {
-                  de_casteljau_visual_state *DeCasteljau = &Curve->DeCasteljau;
-                  if (DeCasteljau->Enabled)
-                  {
-                     if (Curve->NeedsRecomputationThisFrame || DeCasteljau->NeedsRecomputationThisFrame)
-                     {
-                        temp_arena Temp = TempArena(DeCasteljau->Arena);
-                        
-                        all_de_casteljau_intermediate_results Intermediate =
-                           DeCasteljauAlgorithm(DeCasteljau->Arena,
-                                                DeCasteljau->T,
-                                                Curve->ControlPoints,
-                                                Curve->ControlPointWeights,
-                                                Curve->ControlPointCount);
-                        color *IterationColors = PushArrayNonZero(DeCasteljau->Arena, Intermediate.IterationCount, color);
-                        line_vertices *LineVerticesPerIteration = PushArray(DeCasteljau->Arena,
-                                                                            Intermediate.IterationCount,
-                                                                            line_vertices);
-                        
-                        f32 LineWidth = Curve->CurveParams.CurveWidth;
-                        color GradientA = Curve->CurveParams.DeCasteljau.GradientA;
-                        color GradientB = Curve->CurveParams.DeCasteljau.GradientB;
-                        
-                        f32 P = 0.0f;
-                        f32 Delta_P = 1.0f / (Intermediate.IterationCount - 1);
-                        u64 IterationPointsOffset = 0;
-                        for (u64 Iteration = 0;
-                             Iteration < Intermediate.IterationCount;
-                             ++Iteration)
-                        {
-                           color IterationColor = LerpColor(GradientA, GradientB, P);
-                           IterationColors[Iteration] = IterationColor;
-                           
-                           u64 CurrentIterationPointCount = Intermediate.IterationCount - Iteration;
-                           LineVerticesPerIteration[Iteration] =
-                              CalculateLineVertices(CurrentIterationPointCount,
-                                                    Intermediate.P + IterationPointsOffset,
-                                                    LineWidth, IterationColor,
-                                                    false,
-                                                    LineVerticesAllocationArena(DeCasteljau->Arena));
-                           
-                           P += Delta_P;
-                           IterationPointsOffset += CurrentIterationPointCount;
-                        }
-                        
-                        DeCasteljau->Intermediate = Intermediate;
-                        DeCasteljau->IterationColors = IterationColors;
-                        DeCasteljau->LineVerticesPerIteration = LineVerticesPerIteration;
-                        
-                        EndTemp(Temp);
-                     }
-                     
-                     u64 IterationCount = DeCasteljau->Intermediate.IterationCount;
-                     for (u64 Iteration = 0;
-                          Iteration < IterationCount;
-                          ++Iteration)
-                     {
-                        Window->draw(DeCasteljau->LineVerticesPerIteration[Iteration].Vertices,
-                                     DeCasteljau->LineVerticesPerIteration[Iteration].NumVertices,
-                                     DeCasteljau->LineVerticesPerIteration[Iteration].PrimitiveType,
-                                     MVP);
-                     }
-                     
-                     f32 PointSize = CurveParams->PointSize;
-                     u64 PointIndex = 0;
-                     for (u64 Iteration = 0;
-                          Iteration < IterationCount;
-                          ++Iteration)
-                     {
-                        color PointColor = DeCasteljau->IterationColors[Iteration];
-                        for (u64 I = 0; I < IterationCount - Iteration; ++I)
-                        {
-                           local_position Point = DeCasteljau->Intermediate.P[PointIndex];
-                           DrawCircle(Point, PointSize, PointColor, MVP, Window);
-                           ++PointIndex;
-                        }
-                     }
-                  }
-                  
-                  DeCasteljau->NeedsRecomputationThisFrame = false;
-               }
                
                curve_animation_state *Animation = &Editor->CurveAnimation;
                if (Animation->Stage == AnimateCurveAnimation_Animating && Animation->FromCurveEntity == Entity)
@@ -3854,9 +3731,7 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                   UpdateAndRenderCurveCombining(Editor, VP);
                }
                
-               UpdateAndRenderCurveSplitting(Editor, Entity, MVP);
-               
-               Curve->NeedsRecomputationThisFrame = false;
+               UpdateAndRenderPointTracking(Editor, Entity, MVP);
             } break;
             
             case Entity_Image: {
@@ -4055,7 +3930,7 @@ main()
          {
             entity *Entity = Entities->Entities + EntityIndex;
             Entity->Arena = AllocArena();
-            Entity->Curve.DeCasteljau.Arena = AllocArena();
+            Entity->Curve.PointTracking.Arena = AllocArena();
             Entity->Curve.DegreeLowering.Arena = AllocArena();
             // NOTE(hbr): Ugly C++ thing we have to do because of constructors/destructors.
             new (&Entity->Image.Texture) sf::Texture();

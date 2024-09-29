@@ -165,8 +165,8 @@ internal v2f32               BezierCurveEvaluateWeighted(f32 T, v2f32 *P, f32 *W
 internal void                BezierCurveElevateDegree(v2f32 *P, u64 N);
 internal void                BezierCurveElevateDegreeWeighted(v2f32 *P, f32 *W, u64 N);
 internal bezier_lower_degree BezierCurveLowerDegree(v2f32 *P, f32 *W, u64 N);
-internal void                BezierCubicCalculateAllControlPoints(v2f32 *P, u64 N, v2f32 *Output);
-internal void                BezierCurveSplit(f32 T, v2f32 *P, f32 *W, u64 N,
+internal void                BezierCubicCalculateAllControlPoints(u64 N, v2f32 *P, v2f32 *Output);
+internal void                BezierCurveSplit(f32 T, u64 N, v2f32 *P, f32 *W, 
                                               v2f32 *LeftPoints, f32 *LeftWeights,
                                               v2f32 *RightPoints, f32 *RightWeights);
 

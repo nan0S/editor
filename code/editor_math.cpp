@@ -1251,7 +1251,7 @@ BezierCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
 
 // TODO(hbr): Refactor
 internal void
-BezierCubicCalculateAllControlPoints(v2f32 *P, u64 N, v2f32 *Output)
+BezierCubicCalculateAllControlPoints(u64 N, v2f32 *P, v2f32 *Output)
 {
    if (N > 0)
    {
@@ -1324,24 +1324,32 @@ BezierCubicCalculateAllControlPoints(v2f32 *P, u64 N, v2f32 *Output)
 }
 
 internal void
-BezierCurveSplit(f32 T, v2f32 *P, f32 *W, u64 N,
+BezierCurveSplit(f32 T, u64 N, v2f32 *P, f32 *W, 
                  v2f32 *LeftPoints, f32 *LeftWeights,
                  v2f32 *RightPoints, f32 *RightWeights)
 {
    temp_arena Temp = TempArena(0);
    
    all_de_casteljau_intermediate_results Intermediate = DeCasteljauAlgorithm(Temp.Arena, T, P, W, N);
-   for (u64 I = 0; I < N; ++I)
-   {
-      u64 Index = Idx(I, 0, N);
-      LeftWeights[I] = Intermediate.W[Index];
-      LeftPoints[I] = Intermediate.P[Index];
+   
+   {   
+      u64 Index = 0;
+      for (u64 I = 0; I < N; ++I)
+      {
+         LeftPoints[I] = Intermediate.P[Index];
+         LeftWeights[I] = Intermediate.W[Index];
+         Index += N - I;
+      }
    }
-   for (u64 I = 0; I < N; ++I)
+   
    {
-      u64 Index = Idx(N-1-I, I, N);
-      RightWeights[I] = Intermediate.W[Index];
-      RightPoints[I] = Intermediate.P[Index];
+      u64 Index = Intermediate.TotalPointCount - 1;
+      for (u64 I = 0; I < N; ++I)
+      {
+         RightPoints[I] = Intermediate.P[Index];
+         RightWeights[I] = Intermediate.W[Index];
+         Index -= I + 1;
+      }
    }
    
    EndTemp(Temp);

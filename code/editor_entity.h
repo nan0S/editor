@@ -84,24 +84,20 @@ struct curve_params
    } DeCasteljau;
 };
 
-struct de_casteljau_visual_state
+struct curve_point_tracking_state
 {
-   b32 Enabled;
+   b32 Active;
    b32 NeedsRecomputationThisFrame;
    f32 T;
+   local_position TrackedPoint;
    
+   b32 IsSplitting;
+   
+   // NOTE(hbr): De Casteljau visualization
    arena *Arena;
    all_de_casteljau_intermediate_results Intermediate;
    color *IterationColors;
    line_vertices *LineVerticesPerIteration;
-};
-
-struct curve_splitting_state
-{
-   b32 Active;
-   f32 T;
-   b32 NeedsRecomputationThisFrame;
-   local_position SplitPoint;
 };
 
 struct curve_degree_lowering_state
@@ -146,8 +142,7 @@ struct curve
    u64 CurveVersion; // NOTE(hbr): Changes every recomputation
    b32 NeedsRecomputationThisFrame;
    
-   de_casteljau_visual_state DeCasteljau;
-   curve_splitting_state Splitting;
+   curve_point_tracking_state PointTracking;
    curve_degree_lowering_state DegreeLowering;
 };
 
@@ -367,6 +362,18 @@ InitImage(entity *Entity, string ImagePath, sf::Texture *Texture)
    ClearArena(Entity->Arena);
    Entity->Image.ImagePath = StrCopy(Entity->Arena, ImagePath);
    new (&Entity->Image.Texture) sf::Texture(*Texture);
+}
+
+internal void
+BeginCurvePoints(curve *Curve, u64 ControlPointCount)
+{
+   Curve->ControlPointCount = Min(ControlPointCount, MAX_CONTROL_POINT_COUNT);
+}
+
+internal void
+EndCurvePoints(curve *Curve)
+{
+   Curve->NeedsRecomputationThisFrame = true;
 }
 
 #endif //EDITOR_ENTITY_H

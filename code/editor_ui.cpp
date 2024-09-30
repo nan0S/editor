@@ -197,6 +197,18 @@ UI_PushTextColor(color Color)
 
 internal void UI_PopTextColor(void) { ImGui::PopStyleColor(1); }
 
+internal void
+UI_PushAlpha(f32 Alpha)
+{
+   ImGui::PushStyleVar(ImGuiStyleVar_Alpha, Alpha);
+}
+
+internal void
+UI_PopAlpha(void)
+{
+   ImGui::PopStyleVar();
+}
+
 internal b32
 UI_DragFloat(f32 *Value, f32 MinValue, f32 MaxValue, char const *ValueFormat, string Label)
 {

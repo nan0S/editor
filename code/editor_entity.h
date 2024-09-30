@@ -99,8 +99,6 @@ struct curve_degree_lowering_state
 {
    b32 Active;
    
-   u64 SavedCurveVersion;
-   
    arena *Arena;
    
    local_position *SavedControlPoints;
@@ -134,8 +132,7 @@ struct curve
    line_vertices PolylineVertices;
    line_vertices ConvexHullVertices;
    
-   u64 CurveVersion; // NOTE(hbr): Changes every recomputation
-   b32 NeedsRecomputationThisFrame;
+   b32 RecomputeRequested;
    
    curve_point_tracking_state PointTracking;
    curve_degree_lowering_state DegreeLowering;
@@ -357,16 +354,23 @@ InitImage(entity *Entity, string ImagePath, sf::Texture *Texture)
    new (&Entity->Image.Texture) sf::Texture(*Texture);
 }
 
-internal void
+internal b32
 BeginCurvePoints(curve *Curve, u64 ControlPointCount)
 {
-   Curve->ControlPointCount = Min(ControlPointCount, MAX_CONTROL_POINT_COUNT);
+   b32 Result = false;
+   if (ControlPointCount <= MAX_CONTROL_POINT_COUNT)
+   {
+      Curve->ControlPointCount = ControlPointCount;
+      Result = true;
+   }
+   
+   return Result;
 }
 
 internal void
 EndCurvePoints(curve *Curve)
 {
-   Curve->NeedsRecomputationThisFrame = true;
+   Curve->RecomputeRequested = true;
 }
 
 #endif //EDITOR_ENTITY_H

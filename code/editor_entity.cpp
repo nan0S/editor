@@ -328,8 +328,9 @@ ActuallyRecomputeCurve(entity *Entity)
 {
    TimeFunction;
    
-   curve *Curve = GetCurve(Entity);
    temp_arena Temp = TempArena(Entity->Arena);
+   
+   curve *Curve = GetCurve(Entity);
    ClearArena(Entity->Arena);
    
    u64 CurvePointCount = 0;
@@ -353,9 +354,6 @@ ActuallyRecomputeCurve(entity *Entity)
                                                      Curve->CurveParams.ConvexHullWidth, Curve->CurveParams.ConvexHullColor,
                                                      true, LineVerticesAllocationArena(Entity->Arena));
    
-   Curve->CurveVersion += 1;
-   Curve->NeedsRecomputationThisFrame = false;
-   
    EndTemp(Temp);
 }
 
@@ -363,7 +361,7 @@ ActuallyRecomputeCurve(entity *Entity)
 internal void
 RecomputeCurve(entity *Entity)
 {
-   Entity->Curve.NeedsRecomputationThisFrame = true;
+   Entity->Curve.RecomputeRequested = true;
 }
 
 internal void

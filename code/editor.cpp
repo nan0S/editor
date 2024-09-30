@@ -597,6 +597,68 @@ MakeMovingTrackedPointMode(entity *Entity)
    return Result;
 }
 
+// TODO(hbr): Maybe move into editor_entity.h
+internal void
+InitEntityFromEntity(entity *Dest, entity *Src)
+{
+   InitEntity(Dest, Src->Position, Src->Scale, Src->Rotation, Src->Name, Src->SortingLayer);
+   switch (Src->Type)
+   {
+      case Entity_Curve: {
+         curve *Curve = GetCurve(Src);
+         InitCurve(Dest, Curve->CurveParams);
+         SetCurveControlPoints(Dest, Curve->ControlPointCount, Curve->ControlPoints, Curve->ControlPointWeights, Curve->CubicBezierPoints);
+         SelectControlPoint(Dest, Curve->SelectedControlPointIndex);
+      } break;
+      
+      case Entity_Image: {
+         image *Image = GetImage(Src);
+         InitImage(Dest, Image->ImagePath, &Image->Texture);
+      } break;
+   }
+}
+
+internal void
+PerformBezierCurveSplit(editor *Editor, entity *Entity)
+{
+   temp_arena Temp = TempArena(0);
+   
+   curve *Curve = GetCurve(Entity);
+   curve_point_tracking_state *Tracking = &Curve->PointTracking;
+   
+   u64 ControlPointCount = Curve->ControlPointCount;
+   
+   entity *LeftEntity = Entity;
+   entity *RightEntity = AllocEntity(Editor);
+   string LeftName = StrF(Temp.Arena, "%S(left)", Entity->Name);
+   string RightName = StrF(Temp.Arena, "%S(right)", Entity->Name);
+   
+   SetEntityName(LeftEntity, LeftName);
+   InitEntityFromEntity(RightEntity, LeftEntity);
+   SetEntityName(RightEntity, RightName);
+   
+   BeginCurvePoints(&LeftEntity->Curve, ControlPointCount);
+   BeginCurvePoints(&RightEntity->Curve, ControlPointCount);
+   
+   BezierCurveSplit(Tracking->T,
+                    ControlPointCount, Curve->ControlPoints, Curve->ControlPointWeights,
+                    LeftEntity->Curve.ControlPoints,
+                    LeftEntity->Curve.ControlPointWeights,
+                    RightEntity->Curve.ControlPoints,
+                    RightEntity->Curve.ControlPointWeights);
+   BezierCubicCalculateAllControlPoints(ControlPointCount,
+                                        LeftEntity->Curve.ControlPoints,
+                                        LeftEntity->Curve.CubicBezierPoints);
+   BezierCubicCalculateAllControlPoints(ControlPointCount,
+                                        RightEntity->Curve.ControlPoints,
+                                        RightEntity->Curve.CubicBezierPoints);
+   
+   EndCurvePoints(&RightEntity->Curve);
+   EndCurvePoints(&LeftEntity->Curve);
+   
+   EndTemp(Temp);
+}
+
 internal void
 ExecuteUserActionNormalMode(editor *Editor, user_action Action)
 {
@@ -781,9 +843,11 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                   switch (Collision.Entity->Type)
                   {
                      case Entity_Curve: {
-                        if (Collision.Flags & CurveCollision_TrackedPoint)
+                        if ((Collision.Flags & CurveCollision_TrackedPoint) &&
+                            Collision.Entity->Type == Entity_Curve &&
+                            Collision.Entity->Curve.PointTracking.IsSplitting)
                         {
-                           // TODO(hbr): Do the split
+                           PerformBezierCurveSplit(Editor, Collision.Entity);
                         }
                         else if (Collision.Flags & CurveCollision_ControlPoint)
                         {
@@ -837,8 +901,12 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                   switch (Collision.Entity->Type)
                   {
                      case Entity_Curve: {
-                        if ((Collision.Flags & CurveCollision_ControlPoint) ||
-                            (Collision.Flags & CurveCollision_CubicBezierPoint))
+                        if (Collision.Flags & CurveCollision_TrackedPoint)
+                        {
+                           Editor->Mode = MakeMovingTrackedPointMode(Collision.Entity);
+                        }
+                        else if ((Collision.Flags & CurveCollision_ControlPoint) ||
+                                 (Collision.Flags & CurveCollision_CubicBezierPoint))
                         {
                            curve *Curve = GetCurve(Collision.Entity);
                            
@@ -861,10 +929,6 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                         else if (Collision.Flags & CurveCollision_CurveLine)
                         {
                            Editor->Mode = MakeMovingEntityMode(Collision.Entity);
-                        }
-                        else if (Collision.Flags & CurveCollision_TrackedPoint)
-                        {
-                           Editor->Mode = MakeMovingTrackedPointMode(Collision.Entity);
                         }
                      } break;
                      
@@ -919,10 +983,6 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action)
             } break;
             
             case MovingMode_Camera: {
-               // TODO(hbr): Maybe tackle this note.
-               // NOTE(hbr): This is a little janky, in a sense that we assume the camera is moving when [Entity == 0].
-               // Maybe get rid of this and store [camera] pointer directly in [Moving], but the camera right now is copied
-               // to [Result] by value so have to do it like this.
                MoveCamera(&Editor->RenderData.Camera, -Translation);
             } break;
             
@@ -947,7 +1007,6 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action)
                curve_point_tracking_state *Tracking = &Curve->PointTracking;
                
                f32 T = Curve->PointTracking.T;
-               T = Clamp(T, 0.0f, 1.0f); // TODO(hbr): Is this needed? Probably not
                f32 DeltaT = 1.0f / (CurvePointCount - 1);
                {
                   u64 SplitCurvePointIndex = ClampTop(Cast(u64)FloorF32(T * (CurvePointCount - 1)), CurvePointCount - 1);
@@ -975,14 +1034,12 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action)
                      {
                         T = NextT;
                         Translation -= SegmentFraction * CurveSegment;
-                        
                         SplitCurvePointIndex += 1;
                      }
                      else
                      {
                         T += ProjectionSegmentFraction * DeltaT;
                         Translation -= ProjectionSegmentFraction * CurveSegment;
-                        
                         break;
                      }
                   }
@@ -1013,19 +1070,16 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action)
                      {
                         T = NextT;
                         Translation -= SegmentFraction * CurveSegment;
-                        
                         SplitCurvePointIndex -= 1;
                      }
                      else
                      {
                         T -= ProjectionSegmentFraction * DeltaT;
                         Translation -= ProjectionSegmentFraction * CurveSegment;
-                        
                         break;
                      }
                   }
                }
-               
                SetTrackingPointT(Tracking, T);
             } break;
          }
@@ -1034,8 +1088,8 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action)
       case UserAction_ButtonReleased: {
          switch (Action.Release.Button)
          {
-            case Button_Left:
-            case Button_Middle: { Editor->Mode = EditorModeNormal(); } break;
+            case Button_Left: { Editor->Mode = EditorModeNormal(); } break;
+            case Button_Middle:
             case Button_Right: {} break;
             case Button_Count: InvalidPath;
          }
@@ -1181,60 +1235,6 @@ RenderPoint(v2f32 Position,
 }
 
 internal void
-RenderRotationIndicator(editor *Editor, sf::Transform Transform)
-{
-   if (Editor->Mode.Type == EditorMode_Rotating)
-   {
-      // TODO(hbr): Merge cases here.
-      entity *Entity = Editor->Mode.Rotating.Entity;
-      world_position RotationIndicatorPosition = {};
-      if (Entity)
-      {
-         switch (Entity->Type)
-         {
-            case Entity_Curve: {
-               RotationIndicatorPosition = ScreenToWorldSpace(Editor->Mode.Rotating.RotationCenter,
-                                                              &Editor->RenderData);
-            } break;
-            
-            case Entity_Image: {
-               RotationIndicatorPosition = Entity->Position;
-            } break;
-         }
-      }
-      else
-      {
-         RotationIndicatorPosition = Editor->RenderData.Camera.Position;
-      }
-      
-      RenderPoint(RotationIndicatorPosition,
-                  Editor->Params.RotationIndicator,
-                  &Editor->RenderData, Transform);
-   }
-}
-
-// TODO(hbr): Maybe move into editor_entity.h
-internal void
-InitEntityFromEntity(entity *Dest, entity *Src)
-{
-   InitEntity(Dest, Src->Position, Src->Scale, Src->Rotation, Src->Name, Src->SortingLayer);
-   switch (Src->Type)
-   {
-      case Entity_Curve: {
-         curve *Curve = GetCurve(Src);
-         InitCurve(Dest, Curve->CurveParams);
-         SetCurveControlPoints(Dest, Curve->ControlPointCount, Curve->ControlPoints, Curve->ControlPointWeights, Curve->CubicBezierPoints);
-         SelectControlPoint(Dest, Curve->SelectedControlPointIndex);
-      } break;
-      
-      case Entity_Image: {
-         image *Image = GetImage(Src);
-         InitImage(Dest, Image->ImagePath, &Image->Texture);
-      } break;
-   }
-}
-
-internal void
 DuplicateEntity(entity *Entity, editor *Editor)
 {
    temp_arena Temp = TempArena(0);
@@ -1339,8 +1339,6 @@ LowerBezierCurveDegree(entity *Entity)
       // TODO(hbr): refactor this, it only has to be here because we still modify control points above
       BezierCubicCalculateAllControlPoints(PointCount - 1, LowerPoints, LowerBeziers);
       SetCurveControlPoints(Entity, PointCount - 1, LowerPoints, LowerWeights, LowerBeziers);
-      
-      Lowering->SavedCurveVersion = Curve->CurveVersion;
       
       EndTemp(Temp);
    }
@@ -1471,8 +1469,10 @@ SplitCurveOnControlPoint(entity *Entity, editor *Editor)
       SetEntityName(LeftEntity, LeftName);
       SetEntityName(RightEntity, RightName);
       
-      BeginCurvePoints(LeftCurve, LeftPointCount);
-      BeginCurvePoints(RightCurve, RightPointCount);
+      b32 LeftOK = BeginCurvePoints(LeftCurve, LeftPointCount);
+      b32 RightOK = BeginCurvePoints(RightCurve, RightPointCount);
+      Assert(LeftOK);
+      Assert(RightOK);
       
       MemoryCopy(RightCurve->ControlPoints,
                  Curve->ControlPoints + Curve->SelectedControlPointIndex,
@@ -1990,12 +1990,9 @@ UpdateAndRenderNotifications(editor *Editor, f32 DeltaTime)
             NotificationLifeTime_Invisible,
             NotificationLifeTime_Count,
          };
-         // TODO(hbr): Try to create this table at compile time
-         local f32 LifeTimes[NotificationLifeTime_Count] = {};
-         LifeTimes[NotificationLifeTime_In] = 0.15f;
-         LifeTimes[NotificationLifeTime_Out] = 0.15f;
-         LifeTimes[NotificationLifeTime_Proper] = 10.0f;
-         LifeTimes[NotificationLifeTime_Invisible] = 0.1f;
+         local f32 LifeTimes[NotificationLifeTime_Count] = {
+            0.15f, 10.0f, 0.15f, 0.1f,
+         };
          
          f32 RelLifeTime = Notification->LifeTime;
          u64 LifeTimeIndex = 0;
@@ -2036,8 +2033,7 @@ UpdateAndRenderNotifications(editor *Editor, f32 DeltaTime)
          ImGui::SetNextWindowPos(WindowPosition, ImGuiCond_Always, ImVec2(1.0f, 1.0f));
          ImGui::SetNextWindowSizeConstraints(WindowMinSize, WindowMaxSize);
          
-         DeferBlock(ImGui::PushStyleVar(ImGuiStyleVar_Alpha, Fade),
-                    ImGui::PopStyleVar())
+         UI_Alpha(Fade)
          {
             string Label = StrF(Temp.Arena, "Notification#%llu", NotificationIndex);
             DeferBlock(ImGui::Begin(Label.Data, 0,
@@ -2822,35 +2818,7 @@ UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Trans
             
             if (PerformSplit)
             {
-               u64 ControlPointCount = Curve->ControlPointCount;
-               
-               entity *LeftEntity = Entity;
-               entity *RightEntity = AllocEntity(Editor);
-               string LeftName = StrF(Temp.Arena, "%S(left)", Entity->Name);
-               string RightName = StrF(Temp.Arena, "%S(right)", Entity->Name);
-               
-               SetEntityName(LeftEntity, LeftName);
-               InitEntityFromEntity(RightEntity, LeftEntity);
-               SetEntityName(RightEntity, RightName);
-               
-               BeginCurvePoints(&LeftEntity->Curve, ControlPointCount);
-               BeginCurvePoints(&RightEntity->Curve, ControlPointCount);
-               
-               BezierCurveSplit(Tracking->T,
-                                ControlPointCount, Curve->ControlPoints, Curve->ControlPointWeights,
-                                LeftEntity->Curve.ControlPoints,
-                                LeftEntity->Curve.ControlPointWeights,
-                                RightEntity->Curve.ControlPoints,
-                                RightEntity->Curve.ControlPointWeights);
-               BezierCubicCalculateAllControlPoints(ControlPointCount,
-                                                    LeftEntity->Curve.ControlPoints,
-                                                    LeftEntity->Curve.CubicBezierPoints);
-               BezierCubicCalculateAllControlPoints(ControlPointCount,
-                                                    RightEntity->Curve.ControlPoints,
-                                                    RightEntity->Curve.CubicBezierPoints);
-               
-               EndCurvePoints(&RightEntity->Curve);
-               EndCurvePoints(&LeftEntity->Curve);
+               PerformBezierCurveSplit(Editor, Entity);
             }
             
             if (PerformSplit || Cancel || !IsWindowOpen)
@@ -2859,7 +2827,7 @@ UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Trans
             }
             else
             {
-               if (Tracking->NeedsRecomputationThisFrame || Curve->NeedsRecomputationThisFrame)
+               if (Tracking->NeedsRecomputationThisFrame || Curve->RecomputeRequested)
                {
                   Tracking->TrackedPoint = BezierCurveEvaluateWeighted(Tracking->T,
                                                                        Curve->ControlPoints,
@@ -2888,7 +2856,7 @@ UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Trans
             }
             else
             {
-               if (Tracking->NeedsRecomputationThisFrame || Curve->NeedsRecomputationThisFrame)
+               if (Tracking->NeedsRecomputationThisFrame || Curve->RecomputeRequested)
                {
                   ClearArena(Tracking->Arena);
                   
@@ -2987,7 +2955,7 @@ UpdateAndRenderDegreeLowering(entity *Entity,
    
    if (Lowering->Active)
    {
-      if (Lowering->SavedCurveVersion != Curve->CurveVersion)
+      if (Curve->RecomputeRequested)
       { 
          Lowering->Active = false;
       }
@@ -3024,8 +2992,6 @@ UpdateAndRenderDegreeLowering(entity *Entity,
                               Lowering->LowerDegree.MiddlePointIndex,
                               NewControlPoint,
                               NewControlPointWeight);
-         
-         Lowering->SavedCurveVersion = Curve->CurveVersion;
       }
       
       if (Revert)
@@ -3599,7 +3565,7 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                curve *Curve = &Entity->Curve;
                curve_params *CurveParams = &Curve->CurveParams;
                
-               if (Curve->NeedsRecomputationThisFrame)
+               if (Curve->RecomputeRequested)
                {
                   ActuallyRecomputeCurve(Entity);
                }
@@ -3733,6 +3699,8 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                }
                
                UpdateAndRenderPointTracking(Editor, Entity, MVP);
+               
+               Curve->RecomputeRequested = false;
             } break;
             
             case Entity_Image: {
@@ -3855,7 +3823,37 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
    }
    
    UpdateAndRenderEntities(Editor, DeltaTime, VP);
-   RenderRotationIndicator(Editor, VP);
+   
+   // NOTE(hbr): Render rotation indicator if rotating
+   if (Editor->Mode.Type == EditorMode_Rotating)
+   {
+      // TODO(hbr): Merge cases here.
+      entity *Entity = Editor->Mode.Rotating.Entity;
+      world_position RotationIndicatorPosition = {};
+      if (Entity)
+      {
+         switch (Entity->Type)
+         {
+            case Entity_Curve: {
+               RotationIndicatorPosition = ScreenToWorldSpace(Editor->Mode.Rotating.RotationCenter,
+                                                              &Editor->RenderData);
+            } break;
+            
+            case Entity_Image: {
+               RotationIndicatorPosition = Entity->Position;
+            } break;
+         }
+      }
+      else
+      {
+         RotationIndicatorPosition = Editor->RenderData.Camera.Position;
+      }
+      
+      RenderPoint(RotationIndicatorPosition,
+                  Editor->Params.RotationIndicator,
+                  &Editor->RenderData, VP);
+   }
+   
    // NOTE(hbr): Update menu bar here, because world has to already be rendered
    // and UI not, because we might save our project into image file and we
    // don't want to include UI render into our image.

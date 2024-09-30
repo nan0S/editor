@@ -93,7 +93,6 @@ struct line_vertices
 enum line_vertices_allocation_type
 {
    LineVerticesAllocation_None,
-   LineVerticesAllocation_Heap,
    LineVerticesAllocation_Arena,
 };
 struct line_vertices_allocation
@@ -106,7 +105,6 @@ struct line_vertices_allocation
    };
 };
 internal line_vertices_allocation LineVerticesAllocationNone(sf::Vertex *VerticesBuffer);
-internal line_vertices_allocation LineVerticesAllocationHeap(line_vertices OldVertices);
 internal line_vertices_allocation LineVerticesAllocationArena(arena *Arena);
 internal line_vertices            CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
                                                         f32 LineWidth, color LineColor, b32 Loop,

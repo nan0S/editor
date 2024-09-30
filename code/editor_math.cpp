@@ -322,16 +322,6 @@ LineVerticesAllocationNone(sf::Vertex *VerticesBuffer)
 }
 
 internal line_vertices_allocation
-LineVerticesAllocationHeap(line_vertices OldVertices)
-{
-   line_vertices_allocation Result = {};
-   Result.Type = LineVerticesAllocation_Heap;
-   Result.OldVertices = OldVertices;
-   
-   return Result;
-}
-
-internal line_vertices_allocation
 LineVerticesAllocationArena(arena *Arena)
 {
    line_vertices_allocation Result = {};
@@ -361,12 +351,6 @@ CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
    {
       case LineVerticesAllocation_None: {
          Vertices = Allocation.VerticesBuffer;
-      } break;
-      
-      case LineVerticesAllocation_Heap: {
-         Vertices = Allocation.OldVertices.Vertices;
-         CapVertices = Allocation.OldVertices.CapVertices;
-         ArrayReserve(Vertices, CapVertices, MaxNumVertices);
       } break;
       
       case LineVerticesAllocation_Arena: {

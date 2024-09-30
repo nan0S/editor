@@ -165,34 +165,6 @@ DeallocPool(pool *Pool)
    DeallocArena(Pool->BackingArena);
 }
 
-inline internal void *
-HeapAllocNonZero(u64 Size)
-{
-   void *Result = malloc(Size);
-   return Result;
-}
-
-inline internal void *
-HeapAlloc(u64 Size)
-{
-   void *Result = HeapAllocNonZero(Size);
-   MemoryZero(Result, Size);
-   return Result;
-}
-
-internal void *
-HeapRealloc(void *Memory, u64 NewSize)
-{
-   void *Result = realloc(Memory, NewSize);
-   return Result;
-}
-
-internal void
-HeapDealloc(void *Pointer)
-{
-   free(Pointer);
-}
-
 struct thread_ctx
 {
    b32 Initialized;

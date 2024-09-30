@@ -4,8 +4,6 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <math.h>
-#include <malloc.h>
-#include <string.h>
 
 //- context crack
 #if defined(_WIN32)
@@ -148,7 +146,7 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 # define Trap() __debugbreak()
 #endif
 #if COMPILER_GCC || COMPILER_CLANG
-# define Trap() __builtin_trap()
+# define Trap() __builti.n_trap()
 #endif
 #if !defined(Trap)
 # error trap not defined

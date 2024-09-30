@@ -16,7 +16,7 @@ internal void UI_BeginDisabled(b32 Disabled);
 internal void UI_EndDisabled(void);
 internal void UI_PushTextColor(color Color);
 internal void UI_PopTextColor(void);
-internal void UI_PushAlphaF32(f32 Alpha);
+internal void UI_PushAlpha(f32 Alpha);
 internal void UI_PopAlpha(void);
 
 #define UI_Label(Label)        DeferBlock(UI_PushLabel(Label), UI_PopLabel())
@@ -24,7 +24,7 @@ internal void UI_PopAlpha(void);
 #define UI_Id(Id)              DeferBlock(UI_PushId(Id), UI_PopId())
 #define UI_Disabled(Disabled)  DeferBlock(UI_BeginDisabled(Disabled), UI_EndDisabled())
 #define UI_ColoredText(Color)  DeferBlock(UI_PushTextColor(Color), UI_PopTextColor())
-#define UI_Alpha(Alpha)        DeferBlock(UI_PushAlphaF32(Alpha), UI_PopAlpha())
+#define UI_Alpha(Alpha)        DeferBlock(UI_PushAlpha(Alpha), UI_PopAlpha())
 
 internal not_collapsed_b32 UI_BeginWindow(b32 *IsOpen, string Label);
 internal not_collapsed_b32 UI_BeginWindowF(b32 *IsOpen, char const *Format, ...);

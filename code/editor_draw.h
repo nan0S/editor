@@ -8,6 +8,46 @@ DrawCircle(Position, 0.01f, MakeColor(255, 10, 143), Animate, RenderWindow)
 #define DEBUG_DRAW_POINT(Position, Animate, RenderWindow)
 #endif
 
+typedef sf::Transform transform;
+typedef sf::RenderWindow window;
+
+struct render_info
+{
+   window *Window;
+   transform Transform;
+};
+
+internal void
+PushTransform(render_info *Info, transform *Transform)
+{
+   Info->Transform = *Transform * Info->Transform;
+}
+
+internal void
+DrawCircle(render_info *Info,
+           v2f32 Position, f32 Radius, color Color,
+           f32 OutlineThickness = 0.0f,
+           color OutlineColor = MakeColor(0, 0, 0, 0))
+{
+   sf::CircleShape Circle;
+   Circle.setRadius(Radius);
+   Circle.setFillColor(ColorToSFMLColor(Color));
+   Circle.setOrigin(Radius, Radius);
+   Circle.setPosition(Position.X, Position.Y);
+   Circle.setOutlineThickness(OutlineThickness);
+   Circle.setOutlineColor(ColorToSFMLColor(OutlineColor));
+   
+   Info->Window->draw(Circle, Info->Transform);
+}
+
+internal void
+DrawSquare(render_info *Info, v2f32 Position, f32 Side, color Color)
+{
+   DrawRectangle(Position, V2F32(Side, Side), Rotation2DZero(),
+                 Color, Transform, RenderWindow);
+}
+
+
 internal void DrawCircle(v2f32 Position, f32 Radius,
                          color Color, sf::Transform Transform,
                          sf::RenderWindow *RenderWindow,

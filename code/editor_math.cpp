@@ -1,17 +1,17 @@
-inline internal v2f32
-V2F32(f32 X, f32 Y)
+inline internal v2
+V2(f32 X, f32 Y)
 {
-   v2f32 Result = {};
+   v2 Result = {};
    Result.X = X;
    Result.Y = Y;
    
    return Result;
 }
 
-inline internal v2s32
+inline internal v2s
 V2S32(s32 X, s32 Y)
 {
-   v2s32 Result = {};
+   v2s Result = {};
    Result.X = X;
    Result.Y = Y;
    
@@ -31,28 +31,28 @@ MakeColor(u8 R, u8 G, u8 B, u8 A)
 }
 
 internal f32
-Norm(v2f32 V)
+Norm(v2 V)
 {
    f32 Result = sqrtf(NormSquared(V));
    return Result;
 }
 
 internal f32
-NormSquared(v2f32 V)
+NormSquared(v2 V)
 {
    f32 Result = V.X*V.X + V.Y*V.Y;
    return Result;
 }
 
 internal s32
-NormSquared(v2s32 V)
+NormSquared(v2s V)
 {
    s32 Result = V.X*V.X + V.Y*V.Y;
    return Result;
 }
 
 internal void
-Normalize(v2f32 *V)
+Normalize(v2 *V)
 {
    f32 NormValue = Norm(*V);
    if (NormValue != 0.0f)
@@ -62,14 +62,14 @@ Normalize(v2f32 *V)
 }
 
 internal f32
-Dot(v2f32 U, v2f32 V)
+Dot(v2 U, v2 V)
 {
    f32 Result = U.X*V.X + U.Y*V.Y;
    return Result;
 }
 
 internal f32
-Cross(v2f32 U, v2f32 V)
+Cross(v2 U, v2 V)
 {
    f32 Result = U.X*V.Y - U.Y*V.X;
    return Result;
@@ -93,7 +93,7 @@ Rotation2DZero(void)
 }
 
 internal rotation_2d
-Rotation2DFromVector(v2f32 Vector)
+Rotation2DFromVector(v2 Vector)
 {
    Normalize(&Vector);
    rotation_2d Result = Rotation2D(Vector.X, Vector.Y);
@@ -155,10 +155,10 @@ Rotate90DegreesClockwise(rotation_2d Rotation)
 }
 
 internal rotation_2d
-Rotation2DFromMovementAroundPoint(v2f32 From, v2f32 To, v2f32 Center)
+Rotation2DFromMovementAroundPoint(v2 From, v2 To, v2 Center)
 {
-   v2f32 FromTranslated = From - Center;
-   v2f32 ToTranslated = To - Center;
+   v2 FromTranslated = From - Center;
+   v2 ToTranslated = To - Center;
    
    Normalize(&FromTranslated);
    Normalize(&ToTranslated);
@@ -176,13 +176,13 @@ Rotation2DFromMovementAroundPoint(v2f32 From, v2f32 To, v2f32 Center)
    return Rotation;
 }
 
-internal v2f32
-RotateAround(v2f32 Point, v2f32 Center, rotation_2d Rotation)
+internal v2
+RotateAround(v2 Point, v2 Center, rotation_2d Rotation)
 {
-   v2f32 Translated = Point - Center;
-   v2f32 Rotated = V2F32(Rotation.X * Translated.X - Rotation.Y * Translated.Y,
-                         Rotation.X * Translated.Y + Rotation.Y * Translated.X);
-   v2f32 Result = Rotated + Center;
+   v2 Translated = Point - Center;
+   v2 Rotated = V2(Rotation.X * Translated.X - Rotation.Y * Translated.Y,
+                   Rotation.X * Translated.Y + Rotation.Y * Translated.X);
+   v2 Result = Rotated + Center;
    
    return Result;
 }
@@ -192,7 +192,7 @@ CombineRotations2D(rotation_2d RotationA, rotation_2d RotationB)
 {
    f32 RotationX = RotationA.X * RotationB.X - RotationA.Y * RotationB.Y;
    f32 RotationY = RotationA.X * RotationB.Y + RotationA.Y * RotationB.X;
-   v2f32 RotationVector = V2F32(RotationX, RotationY);
+   v2 RotationVector = V2(RotationX, RotationY);
    Normalize(&RotationVector);
    
    rotation_2d Result = Rotation2D(RotationVector.X, RotationVector.Y);
@@ -200,10 +200,10 @@ CombineRotations2D(rotation_2d RotationA, rotation_2d RotationB)
 }
 
 internal b32
-AngleCompareLess(v2f32 A, v2f32 B, v2f32 O)
+AngleCompareLess(v2 A, v2 B, v2 O)
 {
-   v2f32 U = A - O;
-   v2f32 V = B - O;
+   v2 U = A - O;
+   v2 V = B - O;
    
    f32 C = Cross(U, V);
    f32 LU = Dot(U, U);
@@ -214,16 +214,16 @@ AngleCompareLess(v2f32 A, v2f32 B, v2f32 O)
 }
 
 internal void
-AngleSort(u64 NumPoints, v2f32 *Points)
+AngleSort(u64 NumPoints, v2 *Points)
 {
    if (NumPoints > 0)
    {
-      v2f32 BottomLeftMostPoint = Points[0];
+      v2 BottomLeftMostPoint = Points[0];
       for (u64 PointIndex = 1;
            PointIndex < NumPoints;
            ++PointIndex)
       {
-         v2f32 Point = Points[PointIndex];
+         v2 Point = Points[PointIndex];
          if (Point.Y < BottomLeftMostPoint.Y ||
              (Point.Y == BottomLeftMostPoint.Y && Point.X < BottomLeftMostPoint.X))
          {
@@ -240,8 +240,8 @@ AngleSort(u64 NumPoints, v2f32 *Points)
          Sorting = false;
          for (u64 J = 1; J < NumPoints - Iteration; ++J)
          {
-            v2f32 A = Points[J-1];
-            v2f32 B = Points[J];
+            v2 A = Points[J-1];
+            v2 B = Points[J];
             if (AngleCompareLess(B, A, BottomLeftMostPoint))
             {
                Points[J-1] = B;
@@ -254,7 +254,7 @@ AngleSort(u64 NumPoints, v2f32 *Points)
 }
 
 internal u64
-RemoveDupliatesSorted(u64 NumPoints, v2f32 *Points)
+RemoveDupliatesSorted(u64 NumPoints, v2 *Points)
 {
    u64 NumUnique = 0;
    if (NumPoints > 0)
@@ -275,7 +275,7 @@ RemoveDupliatesSorted(u64 NumPoints, v2f32 *Points)
 }
 
 internal u64
-CalcConvexHull(u64 PointCount, v2f32 *Points, v2f32 *OutPoints)
+CalcConvexHull(u64 PointCount, v2 *Points, v2 *OutPoints)
 {
    u64 HullPointCount = 0;
    if (PointCount > 0)
@@ -287,12 +287,12 @@ CalcConvexHull(u64 PointCount, v2f32 *Points, v2f32 *OutPoints)
       HullPointCount = 1;
       for (u64 PointIndex = 1; PointIndex < UniquePointCount; ++PointIndex)
       {
-         v2f32 Point = OutPoints[PointIndex];
+         v2 Point = OutPoints[PointIndex];
          while (HullPointCount >= 2)
          {
-            v2f32 O = OutPoints[HullPointCount - 2];
-            v2f32 U = OutPoints[HullPointCount - 1] - O;
-            v2f32 V = Point - O;
+            v2 O = OutPoints[HullPointCount - 2];
+            v2 U = OutPoints[HullPointCount - 1] - O;
+            v2 V = Point - O;
             
             if (Cross(U, V) <= 0.0f)
             {
@@ -335,7 +335,7 @@ LineVerticesAllocationArena(arena *Arena)
 // TODO(hbr): Loop logic is very ugly but works. Clean it up.
 // Might have only work because we need only loop on convex hull order points.
 internal line_vertices
-CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
+CalculateLineVertices(u64 NumLinePoints, v2 *LinePoints,
                       f32 LineWidth, color LineColor, b32 Loop,
                       line_vertices_allocation Allocation)
 {
@@ -363,15 +363,15 @@ CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
    
    if (!Loop && NumLinePoints >= 2)
    {
-      v2f32 A = LinePoints[0];
-      v2f32 B = LinePoints[1];
+      v2 A = LinePoints[0];
+      v2 B = LinePoints[1];
       
-      v2f32 V_Line = B - A;
-      v2f32 NV_Line = Rotate90DegreesAntiClockwise(V_Line);
+      v2 V_Line = B - A;
+      v2 NV_Line = Rotate90DegreesAntiClockwise(V_Line);
       Normalize(&NV_Line);
       
-      Vertices[VertexIndex + 0].position = V2F32ToVector2f(A + 0.5f * LineWidth * NV_Line);
-      Vertices[VertexIndex + 1].position = V2F32ToVector2f(A - 0.5f * LineWidth * NV_Line);
+      Vertices[VertexIndex + 0].position = V2ToVector2f(A + 0.5f * LineWidth * NV_Line);
+      Vertices[VertexIndex + 1].position = V2ToVector2f(A - 0.5f * LineWidth * NV_Line);
       
       Vertices[VertexIndex + 0].color = ColorToSFMLColor(LineColor);
       Vertices[VertexIndex + 1].color = ColorToSFMLColor(LineColor);
@@ -385,17 +385,17 @@ CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
         PointIndex + 1 < N;
         ++PointIndex)
    {
-      v2f32 A = LinePoints[PointIndex - 1];
-      v2f32 B = LinePoints[(PointIndex + 0) % NumLinePoints];
-      v2f32 C = LinePoints[(PointIndex + 1) % NumLinePoints];
+      v2 A = LinePoints[PointIndex - 1];
+      v2 B = LinePoints[(PointIndex + 0) % NumLinePoints];
+      v2 C = LinePoints[(PointIndex + 1) % NumLinePoints];
       
-      v2f32 V_Line = B - A;
+      v2 V_Line = B - A;
       Normalize(&V_Line);
-      v2f32 NV_Line = Rotate90DegreesAntiClockwise(V_Line);
+      v2 NV_Line = Rotate90DegreesAntiClockwise(V_Line);
       
-      v2f32 V_Succ = C - B;
+      v2 V_Succ = C - B;
       Normalize(&V_Succ);
-      v2f32 NV_Succ = Rotate90DegreesAntiClockwise(V_Succ);
+      v2 NV_Succ = Rotate90DegreesAntiClockwise(V_Succ);
       
       b32 LeftTurn = (Cross(V_Line, V_Succ) >= 0.0f);
       f32 TurnedHalfWidth = (LeftTurn ? 1.0f : -1.0f) * 0.5f * LineWidth;
@@ -405,7 +405,7 @@ CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
                                                         B + TurnedHalfWidth * NV_Succ,
                                                         C + TurnedHalfWidth * NV_Succ);
       
-      v2f32 IntersectionPoint = {};
+      v2 IntersectionPoint = {};
       if (Intersection.IsOneIntersection)
       {
          IntersectionPoint = Intersection.IntersectionPoint;
@@ -415,8 +415,8 @@ CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
          IntersectionPoint = B + TurnedHalfWidth * NV_Line;
       }
       
-      v2f32 B_Line = B - TurnedHalfWidth * NV_Line;
-      v2f32 B_Succ = B - TurnedHalfWidth * NV_Succ;
+      v2 B_Line = B - TurnedHalfWidth * NV_Line;
+      v2 B_Succ = B - TurnedHalfWidth * NV_Succ;
       
       Vertices[VertexIndex + 0].color = ColorToSFMLColor(LineColor);
       Vertices[VertexIndex + 1].color = ColorToSFMLColor(LineColor);
@@ -424,18 +424,18 @@ CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
       
       if ((LeftTurn && IsLastInside) || (!LeftTurn && !IsLastInside))
       {
-         Vertices[VertexIndex + 0].position = V2F32ToVector2f(B_Line);
-         Vertices[VertexIndex + 1].position = V2F32ToVector2f(IntersectionPoint);
-         Vertices[VertexIndex + 2].position = V2F32ToVector2f(B_Succ);
+         Vertices[VertexIndex + 0].position = V2ToVector2f(B_Line);
+         Vertices[VertexIndex + 1].position = V2ToVector2f(IntersectionPoint);
+         Vertices[VertexIndex + 2].position = V2ToVector2f(B_Succ);
          
          VertexIndex += 3;
       }
       else
       {
-         Vertices[VertexIndex + 0].position = V2F32ToVector2f(IntersectionPoint);
-         Vertices[VertexIndex + 1].position = V2F32ToVector2f(B_Line);
-         Vertices[VertexIndex + 2].position = V2F32ToVector2f(IntersectionPoint);
-         Vertices[VertexIndex + 3].position = V2F32ToVector2f(B_Succ);
+         Vertices[VertexIndex + 0].position = V2ToVector2f(IntersectionPoint);
+         Vertices[VertexIndex + 1].position = V2ToVector2f(B_Line);
+         Vertices[VertexIndex + 2].position = V2ToVector2f(IntersectionPoint);
+         Vertices[VertexIndex + 3].position = V2ToVector2f(B_Succ);
          
          Vertices[VertexIndex + 3].color = ColorToSFMLColor(LineColor);
          
@@ -449,25 +449,25 @@ CalculateLineVertices(u64 NumLinePoints, v2f32 *LinePoints,
    {
       if (NumLinePoints >= 2)
       {
-         v2f32 A = LinePoints[N-2];
-         v2f32 B = LinePoints[N-1];
+         v2 A = LinePoints[N-2];
+         v2 B = LinePoints[N-1];
          
-         v2f32 V_Line = B - A;
-         v2f32 NV_Line = Rotate90DegreesAntiClockwise(V_Line);
+         v2 V_Line = B - A;
+         v2 NV_Line = Rotate90DegreesAntiClockwise(V_Line);
          Normalize(&NV_Line);
          
-         v2f32 B_Inside  = B + 0.5f * LineWidth * NV_Line;
-         v2f32 B_Outside = B - 0.5f * LineWidth * NV_Line;
+         v2 B_Inside  = B + 0.5f * LineWidth * NV_Line;
+         v2 B_Outside = B - 0.5f * LineWidth * NV_Line;
          
          if (IsLastInside)
          {
-            Vertices[VertexIndex + 0].position = V2F32ToVector2f(B_Outside);
-            Vertices[VertexIndex + 1].position = V2F32ToVector2f(B_Inside);
+            Vertices[VertexIndex + 0].position = V2ToVector2f(B_Outside);
+            Vertices[VertexIndex + 1].position = V2ToVector2f(B_Inside);
          }
          else
          {
-            Vertices[VertexIndex + 0].position = V2F32ToVector2f(B_Inside);
-            Vertices[VertexIndex + 1].position = V2F32ToVector2f(B_Outside);
+            Vertices[VertexIndex + 0].position = V2ToVector2f(B_Inside);
+            Vertices[VertexIndex + 1].position = V2ToVector2f(B_Outside);
          }
          
          Vertices[VertexIndex + 0].color = ColorToSFMLColor(LineColor);
@@ -955,12 +955,12 @@ CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u64 N)
 
 #if 0
 // NOTE(hbr): O(n^2) time, O(n) memory versions for reference
-internal v2f32
-BezierCurveEvaluate(f32 T, v2f32 *P, u64 N)
+internal v2
+BezierCurveEvaluate(f32 T, v2 *P, u64 N)
 {
    temp_arena Temp = TempArena(0);
    
-   v2f32 *E = PushArrayNonZero(Temp.Arena, N, v2f32);
+   v2 *E = PushArrayNonZero(Temp.Arena, N, v2);
    MemoryCopy(E, P, N * SizeOf(E[0]));
    
    for (u64 I = 1; I < N; ++I)
@@ -971,18 +971,18 @@ BezierCurveEvaluate(f32 T, v2f32 *P, u64 N)
       }
    }
    
-   v2f32 Result = E[0];
+   v2 Result = E[0];
    EndTemp(Temp);
    
    return Result;
 }
 
-internal v2f32
-BezierCurveEvaluateWeighted(f32 T, v2f32 *P, f32 *W, u64 N)
+internal v2
+BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u64 N)
 {
    temp_arena Temp = TempArena(0);
    
-   v2f32 *EP = PushArrayNonZero(Temp.Arena, N, v2f32);
+   v2 *EP = PushArrayNonZero(Temp.Arena, N, v2);
    f32 *EW = PushArrayNonZero(Temp.Arena, N, f32);
    MemoryCopy(EP, P, N * SizeOf(EP[0]));
    MemoryCopy(EW, W, N * SizeOf(EW[0]));
@@ -1001,19 +1001,19 @@ BezierCurveEvaluateWeighted(f32 T, v2f32 *P, f32 *W, u64 N)
       }
    }
    
-   v2f32 Result = EP[0];
+   v2 Result = EP[0];
    EndTemp(Temp);
    
    return Result;
 }
 #else
 // NOTE(hbr): O(n) time, O(1) memory versions
-internal v2f32
-BezierCurveEvaluate(f32 T, v2f32 *P, u64 N)
+internal v2
+BezierCurveEvaluate(f32 T, v2 *P, u64 N)
 {
    f32 H = 1.0f;
    f32 U = 1 - T;
-   v2f32 Q = P[0];
+   v2 Q = P[0];
    
    for (u64 K = 1; K < N; ++K)
    {
@@ -1025,12 +1025,12 @@ BezierCurveEvaluate(f32 T, v2f32 *P, u64 N)
    return Q;
 }
 
-internal v2f32
-BezierCurveEvaluateWeighted(f32 T, v2f32 *P, f32 *W, u64 N)
+internal v2
+BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u64 N)
 {
    f32 H = 1.0f;
    f32 U = 1 - T;
-   v2f32 Q = P[0];
+   v2 Q = P[0];
    
    for (u64 K = 1; K < N; ++K)
    {
@@ -1044,11 +1044,11 @@ BezierCurveEvaluateWeighted(f32 T, v2f32 *P, f32 *W, u64 N)
 #endif
 
 internal void
-BezierCurveElevateDegree(v2f32 *P, u64 N)
+BezierCurveElevateDegree(v2 *P, u64 N)
 {
    if (N > 0)
    {
-      v2f32 PN = P[N-1];
+      v2 PN = P[N-1];
       f32 Inv_N = 1.0f / N;
       for (u64 I = N-1; I >= 1; --I)
       {
@@ -1061,12 +1061,12 @@ BezierCurveElevateDegree(v2f32 *P, u64 N)
 }
 
 internal void
-BezierCurveElevateDegreeWeighted(v2f32 *P, f32 *W, u64 N)
+BezierCurveElevateDegreeWeighted(v2 *P, f32 *W, u64 N)
 {
    if (N > 0)
    {
       f32 WN = W[N-1];
-      v2f32 PN = P[N-1];
+      v2 PN = P[N-1];
       f32 Inv_N = 1.0f / N;
       for (u64 I = N-1; I >= 1; --I)
       {
@@ -1089,7 +1089,7 @@ BezierCurveElevateDegreeWeighted(v2f32 *P, f32 *W, u64 N)
 #if 1
 // NOTE(hbr): Optimized, O(1) memory version
 internal bezier_lower_degree
-BezierCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
+BezierCurveLowerDegree(v2 *P, f32 *W, u64 N)
 {
    bezier_lower_degree Result = {};
    
@@ -1098,7 +1098,7 @@ BezierCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
       u64 H = ((N-1) >> 1) + 1;
       
       f32 Prev_Front_W = 0.0f;
-      v2f32 Prev_Front_P = {};
+      v2 Prev_Front_P = {};
       for (u64 K = 0; K < H; ++K)
       {
          f32 Alpha = Cast(f32)K / (N-1-K);
@@ -1108,7 +1108,7 @@ BezierCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
          f32 New_W = Left_W - Right_W;
          
          f32 Inv_New_W = 1.0f / New_W;
-         v2f32 New_P = Left_W * Inv_New_W * P[K] - Right_W * Inv_New_W * Prev_Front_P;
+         v2 New_P = Left_W * Inv_New_W * P[K] - Right_W * Inv_New_W * Prev_Front_P;
          
          W[K] = New_W;
          P[K] = New_P;
@@ -1120,9 +1120,9 @@ BezierCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
       // at this point
       
       f32 Prev_Back_W = 0.0f;
-      v2f32 Prev_Back_P = {};
+      v2 Prev_Back_P = {};
       f32 Save_W = W[N-1];
-      v2f32 Save_P = P[N-1];
+      v2 Save_P = P[N-1];
       for (u64 K = N-1; K >= H; --K)
       {
          f32 Alpha = Cast(f32)(N-1) / K;
@@ -1132,7 +1132,7 @@ BezierCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
          f32 New_W = Left_W + Right_W;
          
          f32 Inv_New_W = 1.0f / New_W;
-         v2f32 New_P = Left_W * Inv_New_W * Save_P + Right_W * Inv_New_W * Prev_Back_P;
+         v2 New_P = Left_W * Inv_New_W * Save_P + Right_W * Inv_New_W * Prev_Back_P;
          
          Save_W = W[K-1];
          Save_P = P[K-1];
@@ -1163,7 +1163,7 @@ BezierCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
 #else
 // NOTE(hbr): Non-optimzed, O(N) memory version for reference
 internal void
-BezierCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
+BezierCurveLowerDegree(v2 *P, f32 *W, u64 N)
 {
    if (N >= 1)
    {
@@ -1193,12 +1193,12 @@ BezierCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
          }
       }
       
-      v2f32 *Front_P = PushArrayNonZero(Temp.Arena, N-1, v2f32);
-      v2f32 *Back_P = PushArrayNonZero(Temp.Arena, N-1, v2f32);
+      v2 *Front_P = PushArrayNonZero(Temp.Arena, N-1, v2);
+      v2 *Back_P = PushArrayNonZero(Temp.Arena, N-1, v2);
       
       {   
          f32 Prev_Front_W = 0.0f;
-         v2f32 Prev_Front_P = {};
+         v2 Prev_Front_P = {};
          for (u64 K = 0; K < N-1; ++K)
          {
             f32 Alpha = Cast(f32)K / (N-1-K);
@@ -1210,7 +1210,7 @@ BezierCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
       
       {
          f32 Prev_Back_W = 0.0f;
-         v2f32 Prev_Back_P = {};
+         v2 Prev_Back_P = {};
          for (u64 K = N-1; K >= 1; --K)
          {
             f32 Alpha = Cast(f32)(N-1-K) / K;
@@ -1234,7 +1234,7 @@ BezierCurveLowerDegree(v2f32 *P, f32 *W, u64 N)
 #endif
 
 internal void
-BezierCubicCalculateAllControlPoints(u64 N, v2f32 *P, v2f32 *Out)
+BezierCubicCalculateAllControlPoints(u64 N, v2 *P, v2 *Out)
 {
    if (N > 0)
    {
@@ -1249,36 +1249,36 @@ BezierCubicCalculateAllControlPoints(u64 N, v2f32 *P, v2f32 *Out)
       f32 A = 0.5f;
       f32 OneThirdDeltaT = DeltaT / 3.0f;
       
-      v2f32 *S = PushArrayNonZero(Temp.Arena, N, v2f32);
+      v2 *S = PushArrayNonZero(Temp.Arena, N, v2);
       for (u64 I = 1; I + 1 < N; ++I)
       {
-         v2f32 C_I_1 = Inv_DeltaT * (P[I] - P[I-1]);
-         v2f32 C_I = Inv_DeltaT * (P[I+1] - P[I]);
+         v2 C_I_1 = Inv_DeltaT * (P[I] - P[I-1]);
+         v2 C_I = Inv_DeltaT * (P[I+1] - P[I]);
          S[I] = (1.0f-A) * C_I_1 + A * C_I;
       }
       
       if (N >= 2)
       {
-         v2f32 C_0 = Inv_DeltaT * (P[1] - P[0]);
-         v2f32 C_N_2 = Inv_DeltaT * (P[N-1] - P[N-2]);
+         v2 C_0 = Inv_DeltaT * (P[1] - P[0]);
+         v2 C_N_2 = Inv_DeltaT * (P[N-1] - P[N-2]);
          S[0] = 2.0f * C_0 - S[1];
          S[N-1] = 2.0f * C_N_2 - S[N-2];
       }
       else
       {
          Assert(N == 1);
-         S[0] = V2F32(1.0f, 1.0f);
+         S[0] = V2(1.0f, 1.0f);
       }
       
       u64 OutIndex = 0;
       Out[OutIndex++] = P[0];
       for (u64 I = 1; I < N; ++I)
       {
-         v2f32 W_I = P[I];
-         v2f32 W_I_1 = P[I-1];
+         v2 W_I = P[I];
+         v2 W_I_1 = P[I-1];
          
-         v2f32 W_I_2_3 = W_I_1 + OneThirdDeltaT * S[I-1];
-         v2f32 W_I_1_3 = W_I - OneThirdDeltaT * S[I];
+         v2 W_I_2_3 = W_I_1 + OneThirdDeltaT * S[I-1];
+         v2 W_I_1_3 = W_I - OneThirdDeltaT * S[I];
          
          Out[OutIndex + 0] = W_I_2_3;
          Out[OutIndex + 1] = W_I_1_3;
@@ -1289,8 +1289,8 @@ BezierCubicCalculateAllControlPoints(u64 N, v2f32 *P, v2f32 *Out)
       
       if (N == 1)
       {
-         Out[-1] = Out[0] - V2F32(0.1f, 0.0f);
-         Out[ 1] = Out[0] + V2F32(0.1f, 0.0f);
+         Out[-1] = Out[0] - V2(0.1f, 0.0f);
+         Out[ 1] = Out[0] + V2(0.1f, 0.0f);
       }
       else
       {
@@ -1303,9 +1303,9 @@ BezierCubicCalculateAllControlPoints(u64 N, v2f32 *P, v2f32 *Out)
 }
 
 internal void
-BezierCurveSplit(f32 T, u64 N, v2f32 *P, f32 *W, 
-                 v2f32 *LeftPoints, f32 *LeftWeights,
-                 v2f32 *RightPoints, f32 *RightWeights)
+BezierCurveSplit(f32 T, u64 N, v2 *P, f32 *W, 
+                 v2 *LeftPoints, f32 *LeftWeights,
+                 v2 *RightPoints, f32 *RightWeights)
 {
    temp_arena Temp = TempArena(0);
    
@@ -1335,12 +1335,12 @@ BezierCurveSplit(f32 T, u64 N, v2f32 *P, f32 *W,
 }
 
 internal all_de_casteljau_intermediate_results
-DeCasteljauAlgorithm(arena *Arena, f32 T, v2f32 *P, f32 *W, u64 N)
+DeCasteljauAlgorithm(arena *Arena, f32 T, v2 *P, f32 *W, u64 N)
 {
    all_de_casteljau_intermediate_results Result = {};
    
    u64 TotalPointCount = N * (N+1) / 2;
-   v2f32 *OutP = PushArrayNonZero(Arena, TotalPointCount, v2f32);
+   v2 *OutP = PushArrayNonZero(Arena, TotalPointCount, v2);
    f32   *OutW = PushArrayNonZero(Arena, TotalPointCount, f32);
    
    MemoryCopy(OutW, W, N * SizeOf(OutW[0]));
@@ -1443,17 +1443,17 @@ GaussianElimination(f32 *A, u64 N, f32 *Solution)
 }
 
 internal b32
-PointCollision(v2f32 Position, v2f32 Point, f32 PointRadius)
+PointCollision(v2 Position, v2 Point, f32 PointRadius)
 {
-   v2f32 Delta = Position - Point;
+   v2 Delta = Position - Point;
    b32 Collision = ((Abs(Delta.X) <= PointRadius) && (Abs(Delta.Y) <= PointRadius));
    
    return Collision;
 }
 
 internal b32
-SegmentCollision(v2f32 Position,
-                 v2f32 LineA, v2f32 LineB, f32 LineWidth)
+SegmentCollision(v2 Position,
+                 v2 LineA, v2 LineB, f32 LineWidth)
 {
    b32 Result = false;
    
@@ -1486,8 +1486,8 @@ SegmentCollision(v2f32 Position,
    
 #else
    
-   v2f32 U = LineA - LineB;
-   v2f32 V = Position - LineB;
+   v2 U = LineA - LineB;
+   v2 V = Position - LineB;
    
    f32 SegmentLengthSquared = Dot(U, U);
    f32 DotUV = Dot(U, V);
@@ -1517,7 +1517,7 @@ SegmentCollision(v2f32 Position,
 }
 
 internal line_intersection
-LineIntersection(v2f32 A, v2f32 B, v2f32 C, v2f32 D)
+LineIntersection(v2 A, v2 B, v2 C, v2 D)
 {
    line_intersection Result = {};
    
@@ -1532,7 +1532,7 @@ LineIntersection(v2f32 A, v2f32 B, v2f32 C, v2f32 D)
       Result.IsOneIntersection = true;
       f32 X = (X1*Y2 - Y1*X2) * (X3-X4) - (X1-X2) * (X3*Y4 - Y3*X4);
       f32 Y = (X1*Y2 - Y1*X2) * (Y3-Y4) - (Y1-Y2) * (X3*Y4 - Y3*X4);
-      Result.IntersectionPoint = V2F32(X/Det, Y/Det);
+      Result.IntersectionPoint = V2(X/Det, Y/Det);
    }
    
    return Result;

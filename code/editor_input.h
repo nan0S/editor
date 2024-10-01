@@ -14,8 +14,8 @@ struct button_state
 {
    b32 WasPressed;
    b32 Pressed;
-   v2s32 PressPosition;
-   v2s32 ReleasePosition;
+   v2s PressPosition;
+   v2s ReleasePosition;
 };
 
 enum key
@@ -54,8 +54,8 @@ struct user_input
    button_state Buttons[Button_Count];
    key_state Keys[Key_Count];
    
-   v2s32 MousePosition;
-   v2s32 MouseLastPosition;
+   v2s MousePosition;
+   v2s MouseLastPosition;
    
    f32 MouseWheelDelta;
    
@@ -78,7 +78,7 @@ KeyPressed(user_input *Input, key Key, modifier_flags Flags)
    return Result;
 }
 
-internal user_input UserInputMake(v2s32 MousePosition, u64 WindowWidth, u64 WindowHeight);
+internal user_input UserInputMake(v2s MousePosition, u64 WindowWidth, u64 WindowHeight);
 internal void HandleEvents(sf::RenderWindow *Window, user_input *UserInput);
 
 #endif //EDITOR_INPUT_H

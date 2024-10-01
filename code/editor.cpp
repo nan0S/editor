@@ -66,7 +66,7 @@ UpdateCamera(camera *Camera, f32 MouseWheelDelta, f32 DeltaTime)
 }
 
 internal void
-MoveCamera(camera *Camera, v2f32 Translation)
+MoveCamera(camera *Camera, v2 Translation)
 {
    Camera->Position += Translation;
    Camera->ReachingTarget = false;
@@ -82,9 +82,9 @@ RotateCamera(camera *Camera, rotation_2d Rotation)
 internal world_position
 CameraToWorldSpace(camera_position Position, render_data *Data)
 {
-   v2f32 Rotated = RotateAround(Position, V2F32(0.0f, 0.0f), Data->Camera.Rotation);
-   v2f32 Scaled = Rotated / Data->Camera.Zoom;
-   v2f32 Translated = Scaled + Data->Camera.Position;
+   v2 Rotated = RotateAround(Position, V2(0.0f, 0.0f), Data->Camera.Rotation);
+   v2 Scaled = Rotated / Data->Camera.Zoom;
+   v2 Translated = Scaled + Data->Camera.Position;
    
    world_position WorldPosition = Translated;
    return WorldPosition;
@@ -93,11 +93,11 @@ CameraToWorldSpace(camera_position Position, render_data *Data)
 internal camera_position
 WorldToCameraSpace(world_position Position, render_data *Data)
 {
-   v2f32 Translated = Position - Data->Camera.Position;
-   v2f32 Scaled = Data->Camera.Zoom * Translated;
-   v2f32 Rotated = RotateAround(Scaled,
-                                V2F32(0.0f, 0.0f),
-                                Rotation2DInverse(Data->Camera.Rotation));
+   v2 Translated = Position - Data->Camera.Position;
+   v2 Scaled = Data->Camera.Zoom * Translated;
+   v2 Rotated = RotateAround(Scaled,
+                             V2(0.0f, 0.0f),
+                             Rotation2DInverse(Data->Camera.Rotation));
    
    camera_position CameraPosition = Rotated;
    return CameraPosition;
@@ -106,13 +106,13 @@ WorldToCameraSpace(world_position Position, render_data *Data)
 internal camera_position
 ScreenToCameraSpace(screen_position Position, render_data *Data)
 {
-   v2f32 ClipPosition = V2F32FromVec(Data->Window->mapPixelToCoords(V2S32ToVector2i(Position)));
+   v2 ClipPosition = V2FromVec(Data->Window->mapPixelToCoords(V2S32ToVector2i(Position)));
    
    f32 FrustumExtent = 0.5f * Data->FrustumSize;
    f32 CameraPositionX = ClipPosition.X * Data->AspectRatio * FrustumExtent;
    f32 CameraPositionY = ClipPosition.Y * FrustumExtent;
    
-   camera_position CameraPosition = V2F32(CameraPositionX, CameraPositionY);
+   camera_position CameraPosition = V2(CameraPositionX, CameraPositionY);
    return CameraPosition;
 }
 
@@ -251,8 +251,8 @@ CheckCollisionWith(entities *Entities,
                        CurvePointIndex + 1 < CurvePointCount;
                        ++CurvePointIndex)
                   {
-                     v2f32 P1 = CurvePoints[CurvePointIndex];
-                     v2f32 P2 = CurvePoints[CurvePointIndex + 1];
+                     v2 P1 = CurvePoints[CurvePointIndex];
+                     v2 P2 = CurvePoints[CurvePointIndex + 1];
                      if (SegmentCollision(CheckPositionLocal, P1, P2, CurveWidth))
                      {
                         Result.Entity = Entity;
@@ -269,19 +269,19 @@ CheckCollisionWith(entities *Entities,
                
                if (CheckCollisionWithFlags & CheckCollisionWith_Images)
                {
-                  v2f32 Position = Entity->Position;
+                  v2 Position = Entity->Position;
                   
                   sf::Vector2u TextureSize = Image->Texture.getSize();
                   f32 SizeX = Abs(GlobalImageScaleFactor * Entity->Scale.X * TextureSize.x);
                   f32 SizeY = Abs(GlobalImageScaleFactor * Entity->Scale.Y * TextureSize.y);
-                  v2f32 Extents = 0.5f * V2F32(SizeX + CollisionTolerance,
-                                               SizeY + CollisionTolerance);
+                  v2 Extents = 0.5f * V2(SizeX + CollisionTolerance,
+                                         SizeY + CollisionTolerance);
                   
                   rotation_2d InverseRotation = Rotation2DInverse(Entity->Rotation);
                   
-                  v2f32 CheckPositionInImageSpace = CheckPosition - Position;
+                  v2 CheckPositionInImageSpace = CheckPosition - Position;
                   CheckPositionInImageSpace = RotateAround(CheckPositionInImageSpace,
-                                                           V2F32(0.0f, 0.0f),
+                                                           V2(0.0f, 0.0f),
                                                            InverseRotation);
                   
                   if (-Extents.X <= CheckPositionInImageSpace.X && CheckPositionInImageSpace.X <= Extents.X &&
@@ -324,11 +324,11 @@ CalculateAnimation(animation_type Animation, f32 T)
    {
       case Animation_Smooth: {
          // TODO(hbr): Consider just hardcoding.
-         v2f32 P[] = {
-            V2F32(0.0f, 0.0f),
-            V2F32(1.0f, 0.0f),
-            V2F32(0.0f, 1.0f),
-            V2F32(1.0f, 1.0f),
+         v2 P[] = {
+            V2(0.0f, 0.0f),
+            V2(1.0f, 0.0f),
+            V2(0.0f, 1.0f),
+            V2(1.0f, 1.0f),
          };
          
          Result = BezierCurveEvaluate(T, P, ArrayCount(P)).Y;
@@ -506,7 +506,7 @@ ClickedWithButton(button_state *ButtonState,
 
 internal b32
 DraggedWithButton(button_state *ButtonState,
-                  v2s32 MousePosition,
+                  v2s MousePosition,
                   render_data * CoordinateSystemData)
 {
    b32 Result = ButtonState->Pressed &&
@@ -730,7 +730,7 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                   {
                      FocusEntity = AllocEntity(Editor);
                      string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EntityCounter++);
-                     InitEntity(FocusEntity, V2F32(0.0f, 0.0f), V2F32(1.0f, 1.0f), Rotation2DZero(), Name, 0);
+                     InitEntity(FocusEntity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
                      InitCurve(FocusEntity, Editor->Params.CurveDefaultParams);
                   }
                   Assert(FocusEntity);
@@ -973,7 +973,7 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action)
       case UserAction_MouseMove: {
          world_position From = ScreenToWorldSpace(Action.MouseMove.FromPosition, &Editor->RenderData);
          world_position To = ScreenToWorldSpace(Action.MouseMove.ToPosition, &Editor->RenderData);
-         v2f32 Translation = To - From;
+         v2 Translation = To - From;
          auto *Moving = &Editor->Mode.Moving;
          
          switch (Moving->Type)
@@ -1019,7 +1019,7 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action)
                      f32 SegmentFraction = (NextT - T) / DeltaT;
                      SegmentFraction = Clamp(SegmentFraction, 0.0f, 1.0f);
                      
-                     v2f32 CurveSegment =
+                     v2 CurveSegment =
                         LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex + 1])
                         - LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex]);
                      
@@ -1055,7 +1055,7 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action)
                      f32 SegmentFraction = (T - NextT) / DeltaT;
                      SegmentFraction = Clamp(SegmentFraction, 0.0f, 1.0f);
                      
-                     v2f32 CurveSegment =
+                     v2 CurveSegment =
                         LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex - 1])
                         - LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex]);
                      
@@ -1220,7 +1220,7 @@ ExecuteUserAction(editor *Editor, user_action Action)
 }
 
 internal void
-RenderPoint(v2f32 Position,
+RenderPoint(v2 Position,
             render_point_data PointData,
             render_data *RenderData,
             sf::Transform Transform)
@@ -1246,7 +1246,7 @@ DuplicateEntity(entity *Entity, editor *Editor)
    
    SelectEntity(Editor, Copy);
    f32 SlightTranslationX = ClipSpaceLengthToWorldSpace(0.2f, &Editor->RenderData);
-   v2f32 SlightTranslation = V2F32(SlightTranslationX, 0.0f);
+   v2 SlightTranslation = V2(SlightTranslationX, 0.0f);
    Copy->Position += SlightTranslation;
    
    EndTemp(Temp);
@@ -1386,7 +1386,7 @@ ElevateBezierCurveDegree(entity *Entity, editor_params *EditorParams)
 }
 
 internal void
-FocusCameraOn(editor *Editor, world_position Position, v2f32 Extents)
+FocusCameraOn(editor *Editor, world_position Position, v2 Extents)
 {
    Editor->RenderData.Camera.PositionTarget = Position;
    local f32 Margin = 0.7f;
@@ -1414,9 +1414,9 @@ FocusCameraOnEntity(editor *Editor, entity *Entity)
             {
                world_position ControlPointWorld = LocalEntityPositionToWorld(Entity,
                                                                              Curve->ControlPoints[ControlPointIndex]);
-               v2f32 ControlPointRotated = RotateAround(ControlPointWorld,
-                                                        V2F32(0.0f, 0.0f),
-                                                        Rotation2DInverse(Editor->RenderData.Camera.Rotation));
+               v2 ControlPointRotated = RotateAround(ControlPointWorld,
+                                                     V2(0.0f, 0.0f),
+                                                     Rotation2DInverse(Editor->RenderData.Camera.Rotation));
                
                if (ControlPointRotated.X < Left)  Left  = ControlPointRotated.X;
                if (ControlPointRotated.X > Right) Right = ControlPointRotated.X;
@@ -1424,10 +1424,10 @@ FocusCameraOnEntity(editor *Editor, entity *Entity)
                if (ControlPointRotated.Y > Top)   Top   = ControlPointRotated.Y;
             }
             
-            world_position FocusPosition =  RotateAround(V2F32(0.5f * (Left + Right), 0.5f * (Down + Top)),
-                                                         V2F32(0.0f, 0.0f), Editor->RenderData.Camera.Rotation);
-            v2f32 Extents = V2F32(0.5f * (Right - Left) + 2.0f * Curve->CurveParams.PointSize,
-                                  0.5f * (Top - Down) + 2.0f * Curve->CurveParams.PointSize);
+            world_position FocusPosition =  RotateAround(V2(0.5f * (Left + Right), 0.5f * (Down + Top)),
+                                                         V2(0.0f, 0.0f), Editor->RenderData.Camera.Rotation);
+            v2 Extents = V2(0.5f * (Right - Left) + 2.0f * Curve->CurveParams.PointSize,
+                            0.5f * (Top - Down) + 2.0f * Curve->CurveParams.PointSize);
             FocusCameraOn(Editor, FocusPosition, Extents);
          }
       } break;
@@ -1438,8 +1438,8 @@ FocusCameraOnEntity(editor *Editor, entity *Entity)
          if (ScaleX != 0.0f && ScaleY != 0.0f)
          {
             sf::Vector2u TextureSize = Entity->Image.Texture.getSize();
-            v2f32 Extents = V2F32(0.5f * GlobalImageScaleFactor * ScaleX * TextureSize.x,
-                                  0.5f * GlobalImageScaleFactor * ScaleY * TextureSize.y);
+            v2 Extents = V2(0.5f * GlobalImageScaleFactor * ScaleX * TextureSize.x,
+                            0.5f * GlobalImageScaleFactor * ScaleY * TextureSize.y);
             FocusCameraOn(Editor, Entity->Position, Extents);
          }
       } break;
@@ -1525,7 +1525,7 @@ RenderSelectedEntityUI(editor *Editor)
                UI_DragFloat2F(Entity->Position.Es, 0.0f, 0.0f, 0, "Position");
                if (ResetCtxMenu("PositionReset"))
                {
-                  Entity->Position = V2F32(0.0f, 0.0f);
+                  Entity->Position = V2(0.0f, 0.0f);
                }
             }
             
@@ -1538,7 +1538,7 @@ RenderSelectedEntityUI(editor *Editor)
             if (Image)
             {
                sf::Vector2u ImageTextureSize = Image->Texture.getSize();
-               v2f32 SelectedImageScale = Entity->Scale;
+               v2 SelectedImageScale = Entity->Scale;
                f32 ImageWidth = SelectedImageScale.X * ImageTextureSize.x;
                f32 ImageHeight = SelectedImageScale.Y * ImageTextureSize.y;
                f32 ImageScale = 1.0f;
@@ -1564,7 +1564,7 @@ RenderSelectedEntityUI(editor *Editor)
                
                f32 ImageNewScaleX = ImageScale * ImageWidth / ImageTextureSize.x;
                f32 ImageNewScaleY = ImageScale * ImageHeight / ImageTextureSize.y;
-               Entity->Scale = V2F32(ImageNewScaleX, ImageNewScaleY);
+               Entity->Scale = V2(ImageNewScaleX, ImageNewScaleY);
             }
             
             UI_SliderIntegerF(&Entity->SortingLayer, -100, 100, "Sorting Layer");
@@ -2665,8 +2665,8 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
             
             entity *Entity = AllocEntity(&Editor);
             InitImageEntity(Entity,
-                            V2F32(0.0f, 0.0f),
-                            V2F32(1.0f, 1.0f),
+                            V2(0.0f, 0.0f),
+                            V2(1.0f, 1.0f),
                             Rotation2DZero(),
                             StrToNameStr(ImageFileName),
                             NewImageFilePath,
@@ -3204,7 +3204,7 @@ UpdateAnimateCurveAnimation(editor *Editor, f32 DeltaTime, sf::Transform Transfo
                ClearArena(Animation->Arena);
                
                Animation->CurvePointCount = CurvePointCount;
-               Animation->ToCurvePoints = PushArrayNonZero(Animation->Arena, CurvePointCount, v2f32);
+               Animation->ToCurvePoints = PushArrayNonZero(Animation->Arena, CurvePointCount, v2);
                EvaluateCurve(ToCurve, CurvePointCount, Animation->ToCurvePoints);
                Animation->SavedToCurveVersion = ToCurve->CurveVersion;
                
@@ -3213,9 +3213,9 @@ UpdateAnimateCurveAnimation(editor *Editor, f32 DeltaTime, sf::Transform Transfo
             
             if (ToCurvePointsRecalculated || BlendChanged)
             {               
-               v2f32 *ToCurvePoints = Animation->ToCurvePoints;
-               v2f32 *FromCurvePoints = FromCurve->CurvePoints;
-               v2f32 *AnimatedCurvePoints = PushArrayNonZero(Temp.Arena, CurvePointCount, v2f32);
+               v2 *ToCurvePoints = Animation->ToCurvePoints;
+               v2 *FromCurvePoints = FromCurve->CurvePoints;
+               v2 *AnimatedCurvePoints = PushArrayNonZero(Temp.Arena, CurvePointCount, v2);
                
                f32 Blend = CalculateAnimation(Animation->Animation, Animation->Blend);
                f32 T = 0.0f;
@@ -3224,10 +3224,10 @@ UpdateAnimateCurveAnimation(editor *Editor, f32 DeltaTime, sf::Transform Transfo
                     VertexIndex < CurvePointCount;
                     ++VertexIndex)
                {
-                  v2f32 From = LocalEntityPositionToWorld(FromCurveEntity,
-                                                          FromCurvePoints[VertexIndex]);
-                  v2f32 To = LocalEntityPositionToWorld(ToCurveEntity,
-                                                        ToCurvePoints[VertexIndex]);
+                  v2 From = LocalEntityPositionToWorld(FromCurveEntity,
+                                                       FromCurvePoints[VertexIndex]);
+                  v2 To = LocalEntityPositionToWorld(ToCurveEntity,
+                                                     ToCurvePoints[VertexIndex]);
                   
                   AnimatedCurvePoints[VertexIndex] = Lerp(From, To, Blend);
                   
@@ -3363,7 +3363,7 @@ UpdateAndRenderCurveCombining(editor *Editor, sf::Transform Transform)
          
          u64 CombinedPointCount = ToCount;
          u64 StartIndex = 0;
-         v2f32 Translation = {};
+         v2 Translation = {};
          switch (State->CombinationType)
          {
             case CurveCombination_Merge: {
@@ -3392,9 +3392,9 @@ UpdateAndRenderCurveCombining(editor *Editor, sf::Transform Transform)
          }
          
          // NOTE(hbr): Allocate buffers and copy control points into them
-         v2f32 *CombinedPoints  = PushArrayNonZero(Temp.Arena, CombinedPointCount, v2f32);
+         v2 *CombinedPoints  = PushArrayNonZero(Temp.Arena, CombinedPointCount, v2);
          f32   *CombinedWeights = PushArrayNonZero(Temp.Arena, CombinedPointCount, f32);
-         v2f32 *CombinedBeziers = PushArrayNonZero(Temp.Arena, 3 * CombinedPointCount, v2f32);
+         v2 *CombinedBeziers = PushArrayNonZero(Temp.Arena, 3 * CombinedPointCount, v2);
          MemoryCopy(CombinedPoints, To->ControlPoints, ToCount * SizeOf(CombinedPoints[0]));
          MemoryCopy(CombinedWeights, To->ControlPointWeights, ToCount * SizeOf(CombinedWeights[0]));
          MemoryCopy(CombinedBeziers, To->CubicBezierPoints, 3 * ToCount * SizeOf(CombinedBeziers[0]));
@@ -3426,12 +3426,12 @@ UpdateAndRenderCurveCombining(editor *Editor, sf::Transform Transform)
             case CurveCombination_C1: {
                if (FromCount >= 2 && ToCount >= 2)
                {
-                  v2f32 P = CombinedPoints[ToCount - 1];
-                  v2f32 Q = CombinedPoints[ToCount - 2];
+                  v2 P = CombinedPoints[ToCount - 1];
+                  v2 Q = CombinedPoints[ToCount - 2];
                   
                   // NOTE(hbr): First derivative equal
-                  v2f32 FixedControlPoint = Cast(f32)ToCount/FromCount * (P - Q) + P;
-                  v2f32 Fix = FixedControlPoint - CombinedPoints[ToCount];
+                  v2 FixedControlPoint = Cast(f32)ToCount/FromCount * (P - Q) + P;
+                  v2 Fix = FixedControlPoint - CombinedPoints[ToCount];
                   CombinedPoints[ToCount] = FixedControlPoint;
                   
                   CombinedBeziers[3 * ToCount + 0] += Fix;
@@ -3444,16 +3444,16 @@ UpdateAndRenderCurveCombining(editor *Editor, sf::Transform Transform)
                if (FromCount >= 3 && ToCount >= 3)
                {
                   // TODO(hbr): Merge C1 with C2, maybe G1.
-                  v2f32 R = CombinedPoints[ToCount - 3];
-                  v2f32 Q = CombinedPoints[ToCount - 2];
-                  v2f32 P = CombinedPoints[ToCount - 1];
+                  v2 R = CombinedPoints[ToCount - 3];
+                  v2 Q = CombinedPoints[ToCount - 2];
+                  v2 P = CombinedPoints[ToCount - 1];
                   
                   // NOTE(hbr): First derivative equal
-                  v2f32 Fixed_T = Cast(f32)ToCount/FromCount * (P - Q) + P;
+                  v2 Fixed_T = Cast(f32)ToCount/FromCount * (P - Q) + P;
                   // NOTE(hbr): Second derivative equal
-                  v2f32 Fixed_U = Cast(f32)(FromCount * (FromCount-1))/(ToCount * (ToCount-1)) * (P - 2.0f * Q + R) + 2.0f * Fixed_T - P;
-                  v2f32 Fix_T = Fixed_T - CombinedPoints[ToCount];
-                  v2f32 Fix_U = Fixed_U - CombinedPoints[ToCount + 1];
+                  v2 Fixed_U = Cast(f32)(FromCount * (FromCount-1))/(ToCount * (ToCount-1)) * (P - 2.0f * Q + R) + 2.0f * Fixed_T - P;
+                  v2 Fix_T = Fixed_T - CombinedPoints[ToCount];
+                  v2 Fix_U = Fixed_U - CombinedPoints[ToCount + 1];
                   CombinedPoints[ToCount] = Fixed_T;
                   CombinedPoints[ToCount + 1] = Fixed_U;
                   
@@ -3472,13 +3472,13 @@ UpdateAndRenderCurveCombining(editor *Editor, sf::Transform Transform)
                {
                   f32 PreserveLength = Norm(From->ControlPoints[1] - From->ControlPoints[0]);
                   
-                  v2f32 P = CombinedPoints[ToCount - 2];
-                  v2f32 Q = CombinedPoints[ToCount - 1];
-                  v2f32 Direction = P - Q;
+                  v2 P = CombinedPoints[ToCount - 2];
+                  v2 Q = CombinedPoints[ToCount - 1];
+                  v2 Direction = P - Q;
                   Normalize(&Direction);
                   
-                  v2f32 FixedControlPoint = Q - PreserveLength * Direction;
-                  v2f32 Fix = FixedControlPoint - CombinedPoints[ToCount];
+                  v2 FixedControlPoint = Q - PreserveLength * Direction;
+                  v2 Fix = FixedControlPoint - CombinedPoints[ToCount];
                   CombinedPoints[ToCount] = FixedControlPoint;
                   
                   CombinedBeziers[3 * ToCount + 0] += Fix;
@@ -3524,7 +3524,7 @@ UpdateAndRenderCurveCombining(editor *Editor, sf::Transform Transform)
       color Color = SourceCurve->CurveParams.CurveColor;
       Color.A = Cast(u8)(0.5f * Color.A);
       
-      v2f32 LineDirection = WithPoint - SourcePoint;
+      v2 LineDirection = WithPoint - SourcePoint;
       Normalize(&LineDirection);
       
       f32 TriangleSide = 10.0f * LineWidth;
@@ -3532,7 +3532,7 @@ UpdateAndRenderCurveCombining(editor *Editor, sf::Transform Transform)
       world_position BaseVertex = WithPoint - TriangleHeight * LineDirection;
       DrawLine(SourcePoint, BaseVertex, LineWidth, Color, Transform, Editor->RenderData.Window);
       
-      v2f32 LinePerpendicular = Rotate90DegreesAntiClockwise(LineDirection);
+      v2 LinePerpendicular = Rotate90DegreesAntiClockwise(LineDirection);
       world_position LeftVertex = BaseVertex + 0.5f * TriangleSide * LinePerpendicular;
       world_position RightVertex = BaseVertex - 0.5f * TriangleSide * LinePerpendicular;
       DrawTriangle(LeftVertex, RightVertex, WithPoint, Color, Transform, Editor->RenderData.Window);
@@ -3712,11 +3712,11 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                sf::Vector2u TextureSize = Image->Texture.getSize();
                Sprite.setOrigin(0.5f*TextureSize.x, 0.5f*TextureSize.y);
                
-               v2f32 Scale = GlobalImageScaleFactor * Entity->Scale;
+               v2 Scale = GlobalImageScaleFactor * Entity->Scale;
                // NOTE(hbr): Flip vertically because SFML images are flipped.
                Sprite.setScale(Scale.X, -Scale.Y);
                
-               v2f32 Position = Entity->Position;
+               v2 Position = Entity->Position;
                Sprite.setPosition(Position.X, Position.Y);
                
                f32 AngleRotation = Rotation2DToDegrees(Entity->Rotation);
@@ -3813,7 +3813,7 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
          sf::Transform()
          .rotate(-CameraRotationInDegrees)
          .scale(Data->Camera.Zoom, Data->Camera.Zoom)
-         .translate(-V2F32ToVector2f(Data->Camera.Position));
+         .translate(-V2ToVector2f(Data->Camera.Position));
       // NOTE(hbr): Data->Camera Space -> Clip Space
       sf::Transform ProjectionAnimate =
          sf::Transform()
@@ -3908,7 +3908,7 @@ main()
          Editor->RenderData = {
             .Window = &Window,
             .Camera = {
-               .Position = V2F32(0.0f, 0.0f),
+               .Position = V2(0.0f, 0.0f),
                .Rotation = Rotation2DZero(),
                .Zoom = 1.0f,
                .ZoomSensitivity = 0.05f,

@@ -2,7 +2,7 @@
 #define EDITOR_ADAPT_H
 
 internal inline sf::Vector2f
-V2F32ToVector2f(v2f32 V)
+V2ToVector2f(v2 V)
 {
    sf::Vector2f Result = {};
    Result.x = V.X;
@@ -12,7 +12,7 @@ V2F32ToVector2f(v2f32 V)
 }
 
 internal inline sf::Vector2i
-V2S32ToVector2i(v2s32 V)
+V2S32ToVector2i(v2s V)
 {
    sf::Vector2i Result = {};
    Result.x = V.X;

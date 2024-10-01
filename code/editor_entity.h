@@ -163,7 +163,7 @@ struct entity
    arena *Arena;
    
    world_position Position;
-   v2f32 Scale;
+   v2 Scale;
    rotation_2d Rotation;
    
    char NameBuffer[64];
@@ -303,7 +303,7 @@ CurveGetAnimate(entity *Curve)
 {
    sf::Transform Result =
       sf::Transform()
-      .translate(V2F32ToVector2f(Curve->Position))
+      .translate(V2ToVector2f(Curve->Position))
       .rotate(Rotation2DToDegrees(Curve->Rotation));
    
    return Result;
@@ -321,7 +321,7 @@ SetEntityName(entity *Entity, string Name)
 internal void
 InitEntity(entity *Entity,
            world_position Position,
-           v2f32 Scale,
+           v2 Scale,
            rotation_2d Rotation,
            string Name,
            s64 SortingLayer)

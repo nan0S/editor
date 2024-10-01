@@ -113,9 +113,9 @@ DONE:
 - update TODO comments
 - world_position, screen_position, camera_position
 - when creating images and curves in editor_project.cpp, first gather the data, and then make the curve and image
-- replace sf::Vector2f with v2f32
+- replace sf::Vector2f with v2
 - replace float with f32
-- replace sf::Vector2i with v2s32
+- replace sf::Vector2i with v2s
 - replace sf::Vector2u with v2u32
 - measure and improve performance
 - add point selection
@@ -371,7 +371,7 @@ struct curve_animation_state
    // NOTE(hbr): Number of points in ToCurve has to match number
    // of points in FromCurve in order to avoid animation artifacts.
    u64 CurvePointCount;
-   v2f32 *ToCurvePoints;
+   v2 *ToCurvePoints;
    line_vertices AnimatedCurveVertices;
    
    b32 IsAnimationPlaying;

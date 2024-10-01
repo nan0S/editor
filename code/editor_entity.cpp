@@ -13,7 +13,7 @@ struct points_soa
    f32 *Ys;
 };
 internal points_soa
-SplitPointsIntoComponents(arena *Arena, v2f32 *Points, u64 NumPoints)
+SplitPointsIntoComponents(arena *Arena, v2 *Points, u64 NumPoints)
 {
    points_soa Result = {};
    Result.Xs = PushArrayNonZero(Arena, NumPoints, f32);
@@ -58,7 +58,7 @@ CalcNewtonPolynomialCurvePoints(local_position *ControlPoints,
       {
          f32 X = NewtonEvaluate(T, Beta_X, Ti, ControlPointCount);
          f32 Y = NewtonEvaluate(T, Beta_Y, Ti, ControlPointCount);
-         OutputCurvePoints[OutputIndex] = V2F32(X, Y);
+         OutputCurvePoints[OutputIndex] = V2(X, Y);
          
          T += Delta;
       }
@@ -108,7 +108,7 @@ CalcBarycentricPolynomialCurvePoints(local_position *ControlPoints,
       {
          f32 X = BarycentricEvaluate(T, Omega, Ti, SOA.Xs, ControlPointCount);
          f32 Y = BarycentricEvaluate(T, Omega, Ti, SOA.Ys, ControlPointCount);
-         OutputCurvePoints[OutputIndex] = V2F32(X, Y);
+         OutputCurvePoints[OutputIndex] = V2(X, Y);
          
          T += Delta;
       }
@@ -132,7 +132,7 @@ CalcCubicSplineCurvePoints(local_position *ControlPoints,
       {
          local_position *OriginalControlPoints = ControlPoints;
          
-         ControlPoints = PushArrayNonZero(Temp.Arena, ControlPointCount + 1, v2f32);
+         ControlPoints = PushArrayNonZero(Temp.Arena, ControlPointCount + 1, v2);
          MemoryCopy(ControlPoints,
                     OriginalControlPoints,
                     ControlPointCount * SizeOf(ControlPoints[0]));
@@ -175,7 +175,7 @@ CalcCubicSplineCurvePoints(local_position *ControlPoints,
          
          f32 X = CubicSplineEvaluate(T, Mx, Ti, SOA.Xs, ControlPointCount);
          f32 Y = CubicSplineEvaluate(T, My, Ti, SOA.Ys, ControlPointCount);
-         OutputCurvePoints[OutputIndex] = V2F32(X, Y);
+         OutputCurvePoints[OutputIndex] = V2(X, Y);
          
          T += Delta;
       }
@@ -261,7 +261,7 @@ CalcCubicBezierCurvePoints(local_position *CubicBezierPoints,
 }
 
 internal void
-EvaluateCurve(curve *Curve, u64 CurvePointCount, v2f32 *CurvePoints)
+EvaluateCurve(curve *Curve, u64 CurvePointCount, v2 *CurvePoints)
 {
    temp_arena Temp = TempArena(0);
    curve_params *CurveParams = &Curve->CurveParams;
@@ -384,7 +384,7 @@ BeginCurvePointTracking(curve *Curve, b32 IsSplitting)
 internal local_position
 WorldToLocalEntityPosition(entity *Entity, world_position Position)
 {
-   local_position Result = RotateAround(Position - Entity->Position, V2F32(0.0f, 0.0f),
+   local_position Result = RotateAround(Position - Entity->Position, V2(0.0f, 0.0f),
                                         Rotation2DInverse(Entity->Rotation));
    return Result;
 }
@@ -392,12 +392,12 @@ WorldToLocalEntityPosition(entity *Entity, world_position Position)
 internal world_position
 LocalEntityPositionToWorld(entity *Entity, local_position Position)
 {
-   world_position Result = RotateAround(Position, V2F32(0.0f, 0.0f), Entity->Rotation) + Entity->Position;
+   world_position Result = RotateAround(Position, V2(0.0f, 0.0f), Entity->Rotation) + Entity->Position;
    return Result;
 }
 
 internal local_position
-TranslateLocalEntityPositionInWorldSpace(entity *Entity, local_position Local, v2f32 Translation)
+TranslateLocalEntityPositionInWorldSpace(entity *Entity, local_position Local, v2 Translation)
 {
    world_position World = LocalEntityPositionToWorld(Entity, Local);
    world_position Translated = World + Translation;
@@ -458,7 +458,7 @@ AppendCurveControlPoint(entity *Entity, world_position Point, f32 Weight)
       // TODO(hbr): Improve this, but now works
       if (PointCount >= 2)
       {
-         v2f32 S =
+         v2 S =
             2.0f * (Points[PointCount] - Points[PointCount - 1]) -
             0.5f * (Points[PointCount] - Points[PointCount - 2]);
          
@@ -468,9 +468,9 @@ AppendCurveControlPoint(entity *Entity, world_position Point, f32 Weight)
       }
       else if (PointCount == 0)
       {
-         CubicBeziers[-1] = PointLocal - V2F32(0.1f, 0.0f);
+         CubicBeziers[-1] = PointLocal - V2(0.1f, 0.0f);
          CubicBeziers[ 0] = PointLocal;
-         CubicBeziers[ 1] = PointLocal + V2F32(0.1f, 0.0f);
+         CubicBeziers[ 1] = PointLocal + V2(0.1f, 0.0f);
       }
       else // PointCount == 1
       {
@@ -579,7 +579,7 @@ SetCurveControlPoint(entity *Entity, u64 PointIndex, local_position Point, f32 W
    curve *Curve = GetCurve(Entity);
    if (PointIndex < Curve->ControlPointCount)
    {
-      v2f32 Translation = Point - Curve->ControlPoints[PointIndex];
+      v2 Translation = Point - Curve->ControlPoints[PointIndex];
       
       Curve->ControlPoints[PointIndex] = Point;
       Curve->ControlPointWeights[PointIndex] = Weight;
@@ -596,7 +596,7 @@ SetCurveControlPoint(entity *Entity, u64 PointIndex, local_position Point, f32 W
 internal void
 TranslateCurveControlPoint(entity *Entity, u64 PointIndex,
                            translate_control_point_flags Flags,
-                           v2f32 TranslationWorld)
+                           v2 TranslationWorld)
 {
    curve *Curve = GetCurve(Entity);
    if (Flags & TranslateControlPoint_BezierPoint)
@@ -627,9 +627,9 @@ TranslateCurveControlPoint(entity *Entity, u64 PointIndex,
          local_position TranslatedPoint = TranslateLocalEntityPositionInWorldSpace(Entity, *Point, TranslationWorld);
          *Point = TranslatedPoint;
          
-         v2f32 DesiredTwinDirection = ((Flags & TranslateControlPoint_MatchBezierTwinDirection) ?
-                                       (CenterPoint - TranslatedPoint) :
-                                       (*TwinPoint - CenterPoint));
+         v2 DesiredTwinDirection = ((Flags & TranslateControlPoint_MatchBezierTwinDirection) ?
+                                    (CenterPoint - TranslatedPoint) :
+                                    (*TwinPoint - CenterPoint));
          Normalize(&DesiredTwinDirection);
          f32 DesiredTwinLength = ((Flags & TranslateControlPoint_MatchBezierTwinLength) ?
                                   Norm(CenterPoint - TranslatedPoint) :

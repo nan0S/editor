@@ -373,4 +373,238 @@ EndCurvePoints(curve *Curve)
    Curve->RecomputeRequested = true;
 }
 
+internal b32 IsCurvePointSelected(curve *Curve);
+internal void InsertPointLocalToCurve(curve *Curve, local_position Point, u64 At);
+internal void InsertPointToCurveEntity(entity *Entity, world_position Point, u64 At);
+internal u64 AppendPointToCurveEntity(entity *Entity, world_position Point);
+internal u64 CurvePointIndexToControlPointIndex(curve *Curve, u64 CurvePointIndex);
+internal local_position WorldToLocalEntityPosition(entity *Entity, world_position Position);
+
+internal local_position
+WorldToLocalEntityPosition(entity *Entity, world_position Position)
+{
+   local_position Result = RotateAround(Position - Entity->Position, V2(0.0f, 0.0f),
+                                        Rotation2DInverse(Entity->Rotation));
+   return Result;
+}
+
+internal b32
+IsCurvePointSelected(curve *Curve)
+{
+   b32 Result = (Curve->SelectedControlPointIndex < Curve->ControlPointCount);
+   return Result;
+}
+
+// TODO(hbr): Rename this function into MarkCurveChanged or sth like that
+internal void
+RecomputeCurve(entity *Entity)
+{
+   Entity->Curve.RecomputeRequested = true;
+}
+
+internal void
+InsertPointToCurveEntity(entity *Entity, world_position PointWorld, u64 At)
+{
+   curve *Curve = GetCurve(Entity);
+   if (Curve && Curve->ControlPointCount < MAX_CONTROL_POINT_COUNT && At <= Curve->ControlPointCount)
+   {
+      u64 N = Curve->ControlPointCount;
+      local_position *P = Curve->ControlPoints;
+      f32 *W = Curve->ControlPointWeights;
+      local_position *B = Curve->CubicBezierPoints;
+      local_position Point = WorldToLocalEntityPosition(Entity, PointWorld);
+      
+#define ShiftRightArray(Array, ArrayLength, At, ShiftCount) MemoryMove((Array) + ((At)+(ShiftCount)), (Array) + (At), ((ArrayLength) - (At)) * SizeOf((Array)[0]))
+      ShiftRightArray(P, N, At, 1);
+      ShiftRightArray(W, N, At, 1);
+      ShiftRightArray(B, 3*N, 3*At, 3);
+      
+      if (At == 0 || At == N)
+      {
+         u64 I1, I2;
+         if (At == 0)
+         {
+            I1 = At+1;
+            I2 = At+2;
+         }
+         else
+         {
+            I1 = At-1;
+            I2 = At-2;
+         }
+         
+         if (N >= 2)
+         {
+            // TODO(hbr): Verify that this math is correct. And also try to merge with general case.
+            v2 S =
+               2.0f * (Point - P[I1]) -
+               0.5f * (Point - P[I2]);
+            
+            B[3*At + 0] = Point - 1.0f/3.0f * S;
+            B[3*At + 2] = Point + 1.0f/3.0f * S;
+         }
+         else if (N == 1)
+         {
+            B[3*At + 0] = Point - 1.0f/3.0f * (Point - P[I1]);
+            B[3*At + 2] = Point + 1.0f/3.0f * (Point - P[I1]);
+         }
+         else // N == 0
+         {
+            B[3*At + 0] = Point - V2(0.1f, 0.0f);
+            B[3*At + 2] = Point + V2(0.1f, 0.0f);
+         }
+      }
+      else
+      {
+         B[3*At + 0] = Point - 1.0f/6.0f * (P[At+1] - P[At-1]);
+         B[3*At + 2] = Point + 1.0f/6.0f * (P[At+1] - P[At-1]);
+      }
+      
+      P[At] = Point;
+      W[At] = 1.0f;
+      B[3*At + 1] = Point;
+      
+      if (IsCurvePointSelected(Curve) && Curve->SelectedControlPointIndex >= At)
+      {
+         Curve->SelectedControlPointIndex = Curve->SelectedControlPointIndex + 1;
+      }
+      
+      ++Curve->ControlPointCount;
+   }
+   
+   RecomputeCurve(Entity);
+}
+
+internal u64
+AppendPointToCurveEntity(entity *Entity, world_position Point)
+{
+   u64 InsertAt = Entity->Curve.ControlPointCount;
+   InsertPointToCurveEntity(Entity, Point, InsertAt);
+   
+   return InsertAt;
+}
+
+internal u64
+CurvePointIndexToControlPointIndex(curve *Curve, u64 CurvePointIndex)
+{
+   u64 Index = SafeDiv0(CurvePointIndex, Curve->CurveParams.CurvePointCountPerSegment);
+   Assert(Index < Curve->ControlPointCount);
+   u64 Result = ClampTop(Index, Curve->ControlPointCount - 1);
+   
+   return Result;
+}
+
+internal void
+SelectControlPoint(entity *Entity, u64 PointIndex)
+{
+   curve *Curve = GetCurve(Entity);
+   if (Curve)
+   {
+      Curve->SelectedControlPointIndex = PointIndex;
+   }
+}
+
+// TODO(hbr): Probably just implement Append in terms of insert instead of making append special case of insert
+internal u64
+AppendCurveControlPoint(entity *Entity, world_position Point, f32 Weight)
+{
+   u64 AppendIndex = U64_MAX;
+   
+   curve *Curve = GetCurve(Entity);
+   u64 PointCount = Curve->ControlPointCount;
+   if (PointCount < MAX_CONTROL_POINT_COUNT)
+   {
+      local_position *Points = Curve->ControlPoints;
+      f32 *Weights = Curve->ControlPointWeights;
+      local_position PointLocal = WorldToLocalEntityPosition(Entity, Point);
+      Points[PointCount] = PointLocal;
+      Weights[PointCount] = Weight;
+      
+      local_position *CubicBeziers = Curve->CubicBezierPoints + (3 * PointCount + 1);
+      // TODO(hbr): Improve this, but now works
+      if (PointCount >= 2)
+      {
+         v2 S =
+            2.0f * (Points[PointCount] - Points[PointCount - 1]) -
+            0.5f * (Points[PointCount] - Points[PointCount - 2]);
+         
+         CubicBeziers[-1] = PointLocal - 1.0f/3.0f * S;
+         CubicBeziers[ 0] = PointLocal;
+         CubicBeziers[ 1] = PointLocal + 1.0f/3.0f * S;
+      }
+      else if (PointCount == 0)
+      {
+         CubicBeziers[-1] = PointLocal - V2(0.1f, 0.0f);
+         CubicBeziers[ 0] = PointLocal;
+         CubicBeziers[ 1] = PointLocal + V2(0.1f, 0.0f);
+      }
+      else // PointCount == 1
+      {
+         CubicBeziers[-1] = PointLocal - 1.0f/3.0f * (PointLocal - Points[PointCount - 1]);
+         CubicBeziers[ 0] = PointLocal;
+         CubicBeziers[ 1] = PointLocal + 1.0f/3.0f * (PointLocal - Points[PointCount - 1]);
+      }
+      
+      AppendIndex = PointCount;
+      ++Curve->ControlPointCount;
+      
+      RecomputeCurve(Entity);
+   }
+   
+   return AppendIndex;
+}
+
+internal u64
+CurveInsertControlPoint(entity *Entity, world_position Point, u64 InsertAfterIndex, f32 Weight)
+{
+   u64 InsertIndex = U64_MAX;
+   
+   curve *Curve = GetCurve(Entity);
+   Assert(InsertAfterIndex < Curve->ControlPointCount);
+   if (Curve->ControlPointCount < MAX_CONTROL_POINT_COUNT)
+   {
+      if (InsertAfterIndex == Curve->ControlPointCount - 1)
+      {
+         InsertIndex = AppendCurveControlPoint(Entity, Point, Weight);
+      }
+      else
+      {
+         local_position PointLocal = WorldToLocalEntityPosition(Entity, Point);
+         
+         u64 PointsAfter = (Curve->ControlPointCount - InsertAfterIndex - 1);
+         MemoryMove(Curve->ControlPoints + InsertAfterIndex + 2,
+                    Curve->ControlPoints + InsertAfterIndex + 1,
+                    PointsAfter * SizeOf(Curve->ControlPoints[0]));
+         Curve->ControlPoints[InsertAfterIndex + 1] = PointLocal;
+         
+         MemoryMove(Curve->ControlPointWeights + InsertAfterIndex + 2,
+                    Curve->ControlPointWeights + InsertAfterIndex + 1,
+                    PointsAfter * SizeOf(Curve->ControlPointWeights[0]));
+         Curve->ControlPointWeights[InsertAfterIndex + 1] = Weight;
+         
+         MemoryMove(Curve->CubicBezierPoints + 3 * (InsertAfterIndex + 2),
+                    Curve->CubicBezierPoints + 3 * (InsertAfterIndex + 1),
+                    3 * PointsAfter * SizeOf(Curve->CubicBezierPoints[0]));
+         Curve->CubicBezierPoints[3 * (InsertAfterIndex + 1) + 0] = PointLocal - 1.0f/6.0f * (Curve->ControlPoints[InsertAfterIndex + 2] - Curve->ControlPoints[InsertAfterIndex]);
+         Curve->CubicBezierPoints[3 * (InsertAfterIndex + 1) + 1] = PointLocal;
+         Curve->CubicBezierPoints[3 * (InsertAfterIndex + 1) + 2] = PointLocal + 1.0f/6.0f * (Curve->ControlPoints[InsertAfterIndex + 2] - Curve->ControlPoints[InsertAfterIndex]);
+         
+         InsertIndex = InsertAfterIndex + 1;
+         ++Curve->ControlPointCount;
+         
+         if (Curve->SelectedControlPointIndex != U64_MAX)
+         {
+            if (Curve->SelectedControlPointIndex > InsertAfterIndex)
+            {
+               SelectControlPoint(Entity, Curve->SelectedControlPointIndex + 1);
+            }
+         }
+         
+         RecomputeCurve(Entity);
+      }
+   }
+   
+   return InsertIndex;
+}
+
 #endif //EDITOR_ENTITY_H

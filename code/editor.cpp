@@ -699,7 +699,7 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                   curve_point_tracking_state *Tracking = &Curve->PointTracking;
                   if (Tracking->Active && (Collision.Flags & CurveCollision_CurveLine))
                   {
-                     f32 T = SafeDiv(Cast(f32)Collision.CurveLinePointIndex, (Curve->CurvePointCount- 1));
+                     f32 T = SafeDiv0(Cast(f32)Collision.CurveLinePointIndex, (Curve->CurvePointCount- 1));
                      T = Clamp(T, 0.0f, 1.0f); // NOTE(hbr): Be safe
                      SetTrackingPointT(Tracking, T);
                   }
@@ -710,13 +710,10 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                   }
                   else if (Collision.Flags & CurveCollision_CurveLine)
                   {
-                     f32 Segment = Cast(f32)Collision.CurveLinePointIndex / (Curve->CurvePointCount - 1);
-                     u64 InsertAfterPointIndex =
-                        Cast(u64)(Segment * (IsCurveLooped(Curve) ?
-                                             Curve->ControlPointCount :
-                                             Curve->ControlPointCount - 1));
-                     InsertAfterPointIndex = Clamp(InsertAfterPointIndex, 0, Curve->ControlPointCount - 1);
-                     FocusControlPointIndex = CurveInsertControlPoint(Collision.Entity, ClickPosition, InsertAfterPointIndex, 1.0f);
+                     u64 InsertAt = CurvePointIndexToControlPointIndex(Curve, Collision.CurveLinePointIndex) + 1;
+                     InsertPointToCurveEntity(Collision.Entity, ClickPosition, InsertAt);
+                     CurveInsertControlPoint(Editor->TempEntity, ClickPosition + Editor->TempEntity->Position, InsertAt - 1, 1.0f);
+                     FocusControlPointIndex = InsertAt;
                   }
                }
                else
@@ -731,10 +728,19 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                      FocusEntity = AllocEntity(Editor);
                      string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EntityCounter++);
                      InitEntity(FocusEntity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
+                     Editor->Params.CurveDefaultParams.InterpolationType = Interpolation_Bezier;
+                     Editor->Params.CurveDefaultParams.BezierType = Bezier_Cubic;
                      InitCurve(FocusEntity, Editor->Params.CurveDefaultParams);
+                     
+                     Editor->TempEntity = AllocEntity(Editor);
+                     Name = StrF(Temp.Arena, "curve(%lu)temp", Editor->EntityCounter++);
+                     InitEntity(Editor->TempEntity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
+                     InitCurve(Editor->TempEntity, Editor->Params.CurveDefaultParams);
+                     Editor->TempEntity->Position = V2(1.0f, 1.0f);
                   }
                   Assert(FocusEntity);
-                  FocusControlPointIndex = AppendCurveControlPoint(FocusEntity, ClickPosition, 1.0f);
+                  FocusControlPointIndex = AppendPointToCurveEntity(FocusEntity, ClickPosition);
+                  AppendCurveControlPoint(Editor->TempEntity, ClickPosition + Editor->TempEntity->Position, 1.0f);
                }
                
                SelectEntity(Editor, FocusEntity);

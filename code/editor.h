@@ -481,6 +481,8 @@ struct editor
    notification Notifications[32];
    
    b32 HideUI;
+   
+   entity *TempEntity;
 };
 
 #endif //EDITOR_H

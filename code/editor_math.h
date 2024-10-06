@@ -158,8 +158,8 @@ struct bezier_lower_degree
    f32 W_II;
 };
 
-internal v2               BezierCurveEvaluate(f32 T, v2 *P, u64 N);
-internal v2               BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u64 N);
+internal v2                  BezierCurveEvaluate(f32 T, v2 *P, u64 N);
+internal v2                  BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u64 N);
 internal void                BezierCurveElevateDegree(v2 *P, u64 N);
 internal void                BezierCurveElevateDegreeWeighted(v2 *P, f32 *W, u64 N);
 internal bezier_lower_degree BezierCurveLowerDegree(v2 *P, f32 *W, u64 N);

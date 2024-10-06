@@ -1233,72 +1233,46 @@ BezierCurveLowerDegree(v2 *P, f32 *W, u64 N)
 }
 #endif
 
+internal inline void
+CalculateBezierCubicPointAt(u64 N, v2 *P, v2 *Out, u64 At)
+{
+   v2 *W = Out;
+   u64 i = At;
+   
+   // NOTE(hbr): All of these equations assume that all t_i are equidistant.
+   // Otherwise equations are more complicated. Either way, this is the current
+   // state of t_i - they are equidistant.
+#define w(i) (i < N ? P[i] : V2(0, 0)) 
+   
+#define s_(i) (0.5f*c(i-1) + 0.5f*c(i))
+#define s(i) \
+(i == 0 ? \
+(2*c(0) - s_(1)) : \
+((i == N-1) ? \
+(2*c(N-2) - s_(N-2)) : \
+s_(i)))
+   
+#define c(i) (SafeDiv0(1, dt) * (w(i+1) - w(i)))
+   
+   f32 dt = SafeDiv0(1.0f, N-1);
+   
+   u64 Index = 3 * At;
+   W[Index + 0] = (N > 2 ? (w(i) - 1.0f/3.0f * dt * s(i)) : w(i));
+   W[Index + 1] = w(i);
+   W[Index + 2] = (N > 2 ? (w(i) + 1.0f/3.0f * dt * s(i)) : w(i));
+   
+#undef s
+#undef s_
+#undef c
+#undef w
+}
+
 internal void
 BezierCubicCalculateAllControlPoints(u64 N, v2 *P, v2 *Out)
 {
-   if (N > 0)
+   for (u64 I = 0; I < N; ++I)
    {
-      temp_arena Temp = TempArena(0);
-      
-      // NOTE(hbr): This is more natural way to calculate those points
-      Out += 1;
-      
-      // NOTE(hbr): Assume points are equidistant
-      f32 DeltaT = 1.0f / (N - 1);
-      f32 Inv_DeltaT = 1.0f / DeltaT;
-      f32 A = 0.5f;
-      f32 OneThirdDeltaT = DeltaT / 3.0f;
-      
-      v2 *S = PushArrayNonZero(Temp.Arena, N, v2);
-      for (u64 I = 1; I + 1 < N; ++I)
-      {
-         v2 C_I_1 = Inv_DeltaT * (P[I] - P[I-1]);
-         v2 C_I = Inv_DeltaT * (P[I+1] - P[I]);
-         S[I] = (1.0f-A) * C_I_1 + A * C_I;
-      }
-      
-      if (N >= 2)
-      {
-         v2 C_0 = Inv_DeltaT * (P[1] - P[0]);
-         v2 C_N_2 = Inv_DeltaT * (P[N-1] - P[N-2]);
-         S[0] = 2.0f * C_0 - S[1];
-         S[N-1] = 2.0f * C_N_2 - S[N-2];
-      }
-      else
-      {
-         Assert(N == 1);
-         S[0] = V2(1.0f, 1.0f);
-      }
-      
-      u64 OutIndex = 0;
-      Out[OutIndex++] = P[0];
-      for (u64 I = 1; I < N; ++I)
-      {
-         v2 W_I = P[I];
-         v2 W_I_1 = P[I-1];
-         
-         v2 W_I_2_3 = W_I_1 + OneThirdDeltaT * S[I-1];
-         v2 W_I_1_3 = W_I - OneThirdDeltaT * S[I];
-         
-         Out[OutIndex + 0] = W_I_2_3;
-         Out[OutIndex + 1] = W_I_1_3;
-         Out[OutIndex + 2] = W_I;
-         
-         OutIndex += 3;
-      }
-      
-      if (N == 1)
-      {
-         Out[-1] = Out[0] - V2(0.1f, 0.0f);
-         Out[ 1] = Out[0] + V2(0.1f, 0.0f);
-      }
-      else
-      {
-         Out[-1] = Out[0] -  (Out[1] - Out[0]);
-         Out[3 * N - 2] = Out[3 * N - 3] - (Out[3 * N - 4] - Out[3 * N - 3]);
-      }
-      
-      EndTemp(Temp);
+      CalculateBezierCubicPointAt(N, P, Out, I);
    }
 }
 

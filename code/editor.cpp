@@ -713,6 +713,7 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                      u64 InsertAt = CurvePointIndexToControlPointIndex(Curve, Collision.CurveLinePointIndex) + 1;
                      InsertPointToCurveEntity(Collision.Entity, ClickPosition, InsertAt);
                      FocusControlPointIndex = InsertAt;
+                     InsertPointToCurveEntity(Editor->TempEntity, ClickPosition, InsertAt);
                   }
                }
                else
@@ -728,9 +729,19 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                      string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EntityCounter++);
                      InitEntity(FocusEntity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
                      InitCurve(FocusEntity, Editor->Params.CurveDefaultParams);
+                     FocusEntity->Curve.CurveParams.InterpolationType = Interpolation_Bezier;
+                     FocusEntity->Curve.CurveParams.BezierType = Bezier_Cubic;
+                     
+                     Editor->TempEntity = AllocEntity(Editor);
+                     Name = StrF(Temp.Arena, "curve(%lu)temp", Editor->EntityCounter++);
+                     InitEntity(Editor->TempEntity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
+                     InitCurve(Editor->TempEntity, Editor->Params.CurveDefaultParams);
+                     Editor->TempEntity->Curve.CurveParams.InterpolationType = Interpolation_Bezier;
+                     Editor->TempEntity->Curve.CurveParams.BezierType = Bezier_Cubic;
                   }
                   Assert(FocusEntity);
                   FocusControlPointIndex = AppendPointToCurveEntity(FocusEntity, ClickPosition);
+                  AppendPointToCurveEntity(Editor->TempEntity, ClickPosition + V2(1, 1));
                }
                
                SelectEntity(Editor, FocusEntity);

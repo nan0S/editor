@@ -374,7 +374,6 @@ EndCurvePoints(curve *Curve)
 }
 
 internal b32 IsCurvePointSelected(curve *Curve);
-internal void InsertPointLocalToCurve(curve *Curve, local_position Point, u64 At);
 internal void InsertPointToCurveEntity(entity *Entity, world_position Point, u64 At);
 internal u64 AppendPointToCurveEntity(entity *Entity, world_position Point);
 internal u64 CurvePointIndexToControlPointIndex(curve *Curve, u64 CurvePointIndex);
@@ -404,67 +403,45 @@ RecomputeCurve(entity *Entity)
    Entity->Curve.RecomputeRequested = true;
 }
 
+// TODO(hbr): remove this
+internal void CalculateBezierCubicPointAt(u64 N, v2 *P, v2 *Out, u64 At);
+
 internal void
 InsertPointToCurveEntity(entity *Entity, world_position PointWorld, u64 At)
 {
    curve *Curve = GetCurve(Entity);
-   if (Curve && Curve->ControlPointCount < MAX_CONTROL_POINT_COUNT && At <= Curve->ControlPointCount)
+   if (Curve && Curve->ControlPointCount < MAX_CONTROL_POINT_COUNT &&
+       At <= Curve->ControlPointCount)
    {
       u64 N = Curve->ControlPointCount;
       local_position *P = Curve->ControlPoints;
       f32 *W = Curve->ControlPointWeights;
       local_position *B = Curve->CubicBezierPoints;
-      local_position Point = WorldToLocalEntityPosition(Entity, PointWorld);
       
-#define ShiftRightArray(Array, ArrayLength, At, ShiftCount) MemoryMove((Array) + ((At)+(ShiftCount)), (Array) + (At), ((ArrayLength) - (At)) * SizeOf((Array)[0]))
+#define ShiftRightArray(Array, ArrayLength, At, ShiftCount) \
+MemoryMove((Array) + ((At)+(ShiftCount)), \
+(Array) + (At), \
+((ArrayLength) - (At)) * SizeOf((Array)[0]))
       ShiftRightArray(P, N, At, 1);
       ShiftRightArray(W, N, At, 1);
       ShiftRightArray(B, 3*N, 3*At, 3);
+#undef ShiftRightArray
       
-      if (At == 0 || At == N)
+      P[At] = WorldToLocalEntityPosition(Entity, PointWorld);;
+      W[At] = 1.0f;
+      
+      // NOTE(hbr): Cubic bezier point calculation is not really defined
+      // for N=2. At least I tried to "define" it but failed to do something
+      // that was more useful. In that case, when the third point is added,
+      // just recalculate all bezier points.
+      if (N == 2)
       {
-         u64 I1, I2;
-         if (At == 0)
-         {
-            I1 = At+1;
-            I2 = At+2;
-         }
-         else
-         {
-            I1 = At-1;
-            I2 = At-2;
-         }
-         
-         if (N >= 2)
-         {
-            // TODO(hbr): Verify that this math is correct. And also try to merge with general case.
-            v2 S =
-               2.0f * (Point - P[I1]) -
-               0.5f * (Point - P[I2]);
-            
-            B[3*At + 0] = Point - 1.0f/3.0f * S;
-            B[3*At + 2] = Point + 1.0f/3.0f * S;
-         }
-         else if (N == 1)
-         {
-            B[3*At + 0] = Point - 1.0f/3.0f * (Point - P[I1]);
-            B[3*At + 2] = Point + 1.0f/3.0f * (Point - P[I1]);
-         }
-         else // N == 0
-         {
-            B[3*At + 0] = Point - V2(0.1f, 0.0f);
-            B[3*At + 2] = Point + V2(0.1f, 0.0f);
-         }
+         BezierCubicCalculateAllControlPoints(N+1, P, B);
       }
       else
       {
-         B[3*At + 0] = Point - 1.0f/6.0f * (P[At+1] - P[At-1]);
-         B[3*At + 2] = Point + 1.0f/6.0f * (P[At+1] - P[At-1]);
+         CalculateBezierCubicPointAt(N+1, P, B, At);
       }
-      
-      P[At] = Point;
-      W[At] = 1.0f;
-      B[3*At + 1] = Point;
       
       if (IsCurvePointSelected(Curve) && Curve->SelectedControlPointIndex >= At)
       {

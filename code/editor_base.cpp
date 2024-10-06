@@ -1001,6 +1001,36 @@ StrSplit(arena *Arena, string Split, string On)
    return Result;
 }
 
+internal b32
+StrContains(string S, string Sub)
+{
+   b32 Result = false;
+   for (u64 I = Sub.Count; I <= S.Count; ++I)
+   {
+      string At = StrSubstr(S, I - Sub.Count, Sub.Count);
+      if (StrMatch(At, Sub, false))
+      {
+         Result = true;
+         break;
+      }
+   }
+   
+   return Result;
+}
+
+internal string
+StrSubstr(string S, u64 Pos, u64 Count)
+{
+   string Result = {};
+   if (Pos < S.Count)
+   {
+      Result.Data = S.Data + Pos;
+      Result.Count = ClampTop(Count, S.Count - Pos);
+   }
+   
+   return Result;
+}
+
 internal string
 PathChopLastPart(string Str)
 {

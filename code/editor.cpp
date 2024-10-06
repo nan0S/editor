@@ -712,7 +712,6 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                   {
                      u64 InsertAt = CurvePointIndexToControlPointIndex(Curve, Collision.CurveLinePointIndex) + 1;
                      InsertPointToCurveEntity(Collision.Entity, ClickPosition, InsertAt);
-                     CurveInsertControlPoint(Editor->TempEntity, ClickPosition + Editor->TempEntity->Position, InsertAt - 1, 1.0f);
                      FocusControlPointIndex = InsertAt;
                   }
                }
@@ -728,24 +727,14 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                      FocusEntity = AllocEntity(Editor);
                      string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EntityCounter++);
                      InitEntity(FocusEntity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
-                     Editor->Params.CurveDefaultParams.InterpolationType = Interpolation_Bezier;
-                     Editor->Params.CurveDefaultParams.BezierType = Bezier_Cubic;
                      InitCurve(FocusEntity, Editor->Params.CurveDefaultParams);
-                     
-                     Editor->TempEntity = AllocEntity(Editor);
-                     Name = StrF(Temp.Arena, "curve(%lu)temp", Editor->EntityCounter++);
-                     InitEntity(Editor->TempEntity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
-                     InitCurve(Editor->TempEntity, Editor->Params.CurveDefaultParams);
-                     Editor->TempEntity->Position = V2(1.0f, 1.0f);
                   }
                   Assert(FocusEntity);
                   FocusControlPointIndex = AppendPointToCurveEntity(FocusEntity, ClickPosition);
-                  AppendCurveControlPoint(Editor->TempEntity, ClickPosition + Editor->TempEntity->Position, 1.0f);
                }
                
                SelectEntity(Editor, FocusEntity);
                SelectControlPoint(FocusEntity, FocusControlPointIndex);
-               
 #if 0
                if (Collision.Entity)
                {

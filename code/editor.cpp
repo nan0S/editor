@@ -28,9 +28,6 @@ global editor_params GlobalDefaultEditorParams = {
    },
    .BackgroundColor = MakeColor(21, 21, 21),
    .CollisionToleranceClipSpace = 0.02f,
-   .SelectedCurveControlPointOutlineThicknessScale = 0.55f,
-   .SelectedCurveControlPointOutlineColor = MakeColor(1, 52, 49, 209),
-   .SelectedControlPointOutlineColor = MakeColor(58, 183, 183, 177),
    .CubicBezierHelperLineWidthClipSpace = 0.003f,
    .CurveDefaultParams = DefaultCurveParams(),
 };
@@ -141,7 +138,7 @@ CheckCollisionWith(entities *Entities,
                    world_position CheckPosition,
                    f32 CollisionTolerance,
                    editor_params *EditorParams,
-                   check_collision_with_flags CheckCollisionWithFlags)
+                   collision_flags CollisionWithFlags)
 {
    collision Result = {};
    
@@ -164,8 +161,7 @@ CheckCollisionWith(entities *Entities,
          {
             case Entity_Curve: {
                curve *Curve = &Entity->Curve;
-               if (AreCurvePointsVisible(Curve) &&
-                   (CheckCollisionWithFlags & CheckCollisionWith_CurvePoints))
+               if (AreCurvePointsVisible(Curve) && (CollisionWithFlags & Collision_CurvePoint))
                {
                   u64 ControlPointCount = Curve->ControlPointCount;
                   local_position *ControlPoints = Curve->ControlPoints;
@@ -175,13 +171,13 @@ CheckCollisionWith(entities *Entities,
                   {
                      // TODO(hbr): Maybe move this function call outside of this loop
                      // due to performance reasons.
-                     f32 PointSize = GetCurveControlPointSize(Entity, PointIndex, EditorParams);
+                     point_info PointInfo = GetCurveControlPointInfo(Entity, PointIndex);
                      if (PointCollision(CheckPositionLocal,
                                         ControlPoints[PointIndex],
-                                        PointSize + CollisionTolerance))
+                                        PointInfo.Radius + PointInfo.OutlineThickness + CollisionTolerance))
                      {
                         Result.Entity = Entity;
-                        Result.Flags |= CurveCollision_CurvePoint;
+                        Result.Flags |= Collision_CurvePoint;
                         Result.CurvePointIndex = MakeCurvePointIndexFromControlPointIndex(PointIndex);
                         break;
                      }
@@ -195,35 +191,32 @@ CheckCollisionWith(entities *Entities,
                      f32 PointSize = GetCurveCubicBezierPointSize(Curve);
                      cubic_bezier_point_index BezierIndex = VisibleBeziers.Indices[Index];
                      local_position BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
-                     
                      if (PointCollision(CheckPositionLocal,
                                         BezierPoint,
-                                        PointSize))
+                                        PointSize + CollisionTolerance))
                      {
                         Result.Entity = Entity;
-                        Result.Flags |= CurveCollision_CurvePoint;
+                        Result.Flags |= Collision_CurvePoint;
                         Result.CurvePointIndex = MakeCurvePointIndexFromBezierPointIndex(BezierIndex);
-                        
                         break;
                      }
                   }
                }
                
                curve_point_tracking_state *Tracking = &Curve->PointTracking;
-               if ((CheckCollisionWithFlags & CheckCollisionWith_TrackedPoints) &&
-                   Tracking->Active)
+               if (Tracking->Active && (CollisionWithFlags & Collision_TrackedPoint))
                {
                   f32 PointSize = GetCurveTrackedPointSize(Curve);
                   if (PointCollision(CheckPositionLocal,
                                      Tracking->TrackedPoint,
-                                     PointSize))
+                                     PointSize + CollisionTolerance))
                   {
                      Result.Entity = Entity;
-                     Result.Flags |= CurveCollision_TrackedPoint;
+                     Result.Flags |= Collision_TrackedPoint;
                   }
                }
                
-               if (CheckCollisionWithFlags & CheckCollisionWith_CurveLines)
+               if (CollisionWithFlags & Collision_CurveLine)
                {
                   local_position *CurvePoints = Curve->CurvePoints;
                   u64 CurvePointCount = Curve->CurvePointCount;
@@ -239,7 +232,7 @@ CheckCollisionWith(entities *Entities,
                      if (SegmentCollision(CheckPositionLocal, P1, P2, CurveWidth))
                      {
                         Result.Entity = Entity;
-                        Result.Flags |= CurveCollision_CurveLine;
+                        Result.Flags |= Collision_CurveLine;
                         Result.CurveLinePointIndex = CurvePointIndex;
                         break;
                      }
@@ -249,7 +242,7 @@ CheckCollisionWith(entities *Entities,
             
             case Entity_Image: {
                image *Image = &Entity->Image;
-               if (CheckCollisionWithFlags & CheckCollisionWith_Images)
+               if (CollisionWithFlags & Collision_Image)
                {
                   sf::Vector2u TextureSize = Image->Texture.getSize();
                   f32 SizeX = Abs(GlobalImageScaleFactor * Entity->Scale.X * TextureSize.x);
@@ -261,6 +254,7 @@ CheckCollisionWith(entities *Entities,
                       -Extents.Y <= CheckPositionLocal.Y && CheckPositionLocal.Y <= Extents.Y)
                   {
                      Result.Entity = Entity;
+                     Result.Flags |= Collision_Image;
                   }
                }
             } break;
@@ -655,14 +649,11 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                }
                else
                {
-                  check_collision_with_flags CheckCollisionWithFlags =
-                     CheckCollisionWith_CurvePoints |
-                     CheckCollisionWith_CurveLines;
-                  
+                  collision_flags CollisionWithFlags = (Collision_CurvePoint | Collision_CurveLine);
                   f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->Params.CollisionToleranceClipSpace,
                                                                        &Editor->RenderData);
                   Collision = CheckCollisionWith(&Editor->Entities, ClickPosition, CollisionTolerance,
-                                                 &Editor->Params, CheckCollisionWithFlags);
+                                                 &Editor->Params, CollisionWithFlags);
                }
                
                entity *FocusEntity = 0;
@@ -675,18 +666,18 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                   curve *Curve = GetCurve(Collision.Entity);
                   
                   curve_point_tracking_state *Tracking = &Curve->PointTracking;
-                  if (Tracking->Active && (Collision.Flags & CurveCollision_CurveLine))
+                  if (Tracking->Active && (Collision.Flags & Collision_CurveLine))
                   {
                      f32 T = SafeDiv0(Cast(f32)Collision.CurveLinePointIndex, (Curve->CurvePointCount- 1));
                      T = Clamp(T, 0.0f, 1.0f); // NOTE(hbr): Be safe
                      SetTrackingPointT(Tracking, T);
                   }
-                  else if (Collision.Flags & CurveCollision_CurvePoint)
+                  else if (Collision.Flags & Collision_CurvePoint)
                   {
                      FocusCurvePoint = true;
                      FocusCurvePointIndex = Collision.CurvePointIndex;
                   }
-                  else if (Collision.Flags & CurveCollision_CurveLine)
+                  else if (Collision.Flags & Collision_CurveLine)
                   {
                      control_point_index Index = CurvePointIndexToControlPointIndex(Curve, Collision.CurveLinePointIndex);
                      u64 InsertAt = Index.Index + 1;
@@ -708,8 +699,6 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                      string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EntityCounter++);
                      InitEntity(FocusEntity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
                      InitCurve(FocusEntity, Editor->Params.CurveDefaultParams);
-                     FocusEntity->Curve.CurveParams.InterpolationType = Interpolation_Bezier;
-                     FocusEntity->Curve.CurveParams.BezierType = Bezier_Cubic;
                   }
                   Assert(FocusEntity);
                   
@@ -813,14 +802,11 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
             } break;
             
             case Button_Right: {
-               check_collision_with_flags CheckCollisionWithFlags =
-                  CheckCollisionWith_CurvePoints |
-                  CheckCollisionWith_TrackedPoints |
-                  CheckCollisionWith_Images;
+               collision_flags CollisionWithFlags = (Collision_CurvePoint | Collision_TrackedPoint | Collision_Image);
                f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->Params.CollisionToleranceClipSpace,
                                                                     &Editor->RenderData);
                collision Collision = CheckCollisionWith(&Editor->Entities, ClickPosition, CollisionTolerance,
-                                                        &Editor->Params, CheckCollisionWithFlags);
+                                                        &Editor->Params, CollisionWithFlags);
                
                if (Collision.Entity)
                {
@@ -829,12 +815,12 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                      case Entity_Curve: {
                         curve *Curve = GetCurve(Collision.Entity);
                         
-                        if ((Collision.Flags & CurveCollision_TrackedPoint) &&
+                        if ((Collision.Flags & Collision_TrackedPoint) &&
                             Curve->PointTracking.IsSplitting)
                         {
                            PerformBezierCurveSplit(Editor, Collision.Entity);
                         }
-                        else if (Collision.Flags & CurveCollision_CurvePoint)
+                        else if (Collision.Flags & Collision_CurvePoint)
                         {
                            if (Collision.CurvePointIndex.Type == CurvePoint_ControlPoint)
                            {
@@ -869,11 +855,11 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
          switch (DragButton)
          {
             case Button_Left: {
-               check_collision_with_flags CheckCollisionWithFlags =
-                  CheckCollisionWith_CurvePoints |
-                  CheckCollisionWith_TrackedPoints |
-                  CheckCollisionWith_CurveLines |
-                  CheckCollisionWith_Images;
+               collision_flags CollisionWithFlags =
+                  Collision_CurvePoint |
+                  Collision_TrackedPoint |
+                  Collision_CurveLine |
+                  Collision_Image;
                f32 CollisionTolerance =
                   ClipSpaceLengthToWorldSpace(Editor->Params.CollisionToleranceClipSpace,
                                               &Editor->RenderData);
@@ -881,7 +867,7 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                                                         DragFromWorldPosition,
                                                         CollisionTolerance,
                                                         &Editor->Params,
-                                                        CheckCollisionWithFlags);
+                                                        CollisionWithFlags);
                
                if (Collision.Entity)
                {
@@ -889,18 +875,18 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                   switch (Collision.Entity->Type)
                   {
                      case Entity_Curve: {
-                        if (Collision.Flags & CurveCollision_TrackedPoint)
+                        if (Collision.Flags & Collision_TrackedPoint)
                         {
                            Editor->Mode = MakeMovingTrackedPointMode(Collision.Entity);
                         }
-                        else if (Collision.Flags & CurveCollision_CurvePoint)
+                        else if (Collision.Flags & Collision_CurvePoint)
                         {
                            curve *Curve = GetCurve(Collision.Entity);
                            SelectControlPointFromCurvePointIndex(Curve, Collision.CurvePointIndex);
                            Editor->Mode = MakeMovingCurvePointMode(Collision.Entity, Collision.CurvePointIndex,
                                                                    Editor->MovingPointArena);
                         }
-                        else if (Collision.Flags & CurveCollision_CurveLine)
+                        else if (Collision.Flags & Collision_CurveLine)
                         {
                            Editor->Mode = MakeMovingEntityMode(Collision.Entity);
                         }
@@ -2702,25 +2688,6 @@ RenderSettingsWindow(editor *Editor)
                if (ResetCtxMenu("LastControlPointSizeReset"))
                {
                   Params->LastControlPointSizeMultiplier = GlobalDefaultEditorParams.LastControlPointSizeMultiplier;
-               }
-               
-               UI_DragFloatF(&Params->SelectedCurveControlPointOutlineThicknessScale,
-                             0.0f, FLT_MAX, 0, "Selected Curve Control Point Outline Thickness");
-               if (ResetCtxMenu("SelectedCurveControlPointOutlineThicknessReset"))
-               {
-                  Params->SelectedCurveControlPointOutlineThicknessScale = GlobalDefaultEditorParams.SelectedCurveControlPointOutlineThicknessScale;
-               }
-               
-               UI_ColorPickerF(&Params->SelectedCurveControlPointOutlineColor, "Selected Curve Control Point Outline Color");
-               if (ResetCtxMenu("SelectedCurveControlPointOutlineColorReset"))
-               {
-                  Params->SelectedCurveControlPointOutlineColor = GlobalDefaultEditorParams.SelectedCurveControlPointOutlineColor;
-               }
-               
-               UI_ColorPickerF(&Params->SelectedControlPointOutlineColor, "Selected Control Point Outline Color");
-               if (ResetCtxMenu("SelectedControlPointOutlineColorReset"))
-               {
-                  Params->SelectedControlPointOutlineColor = GlobalDefaultEditorParams.SelectedControlPointOutlineColor;
                }
                
                UI_DragFloatF(&Params->CubicBezierHelperLineWidthClipSpace, 0.0f, FLT_MAX, 0, "Cubic Bezier Helper Line Width");

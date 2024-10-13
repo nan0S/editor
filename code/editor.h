@@ -218,9 +218,6 @@ struct editor_params
    f32   CollisionToleranceClipSpace;
    f32   LastControlPointSizeMultiplier;
    
-   f32   SelectedCurveControlPointOutlineThicknessScale;
-   color SelectedCurveControlPointOutlineColor;
-   color SelectedControlPointOutlineColor;
    f32   CubicBezierHelperLineWidthClipSpace;
    curve_params CurveDefaultParams;
 };
@@ -239,29 +236,21 @@ struct camera
    f32 ZoomTarget;
 };
 
-typedef u64 curve_collision_flags;
+typedef u64 collision_flags;
 enum
 {
-   CurveCollision_CurvePoint       = (1<<0),
-   CurveCollision_CurveLine        = (1<<1),
-   CurveCollision_TrackedPoint     = (1<<2),
+   Collision_CurvePoint       = (1<<0),
+   Collision_CurveLine        = (1<<1),
+   Collision_TrackedPoint     = (1<<2),
+   Collision_Image            = (1<<3),
 };
 
 struct collision
 {
    entity *Entity;
-   curve_collision_flags Flags;
+   collision_flags Flags;
    curve_point_index CurvePointIndex;
    u64 CurveLinePointIndex;
-};
-
-typedef u64 check_collision_with_flags;
-enum
-{
-   CheckCollisionWith_CurvePoints        = (1<<0),
-   CheckCollisionWith_CurveLines         = (1<<1),
-   CheckCollisionWith_TrackedPoints      = (1<<2),
-   CheckCollisionWith_Images             = (1<<3),
 };
 
 enum user_action_type

@@ -20,32 +20,6 @@ IsEntitySelected(entity *Entity)
 }
 
 internal f32
-GetCurveControlPointSize(entity *Entity, u64 PointIndex, editor_params *Params)
-{
-   f32 Result = 0;
-   
-   curve *Curve = GetCurve(Entity);
-   if (Curve && PointIndex < Curve->ControlPointCount)
-   {
-      f32 PointSize = Curve->CurveParams.PointSize;
-      if (PointIndex == Curve->ControlPointCount - 1)
-      {
-         PointSize *= 1.5f;
-      }
-      
-      f32 OutlineThicknessScale = 0.0f;
-      if (Entity->Flags & EntityFlag_Selected)
-      {
-         OutlineThicknessScale = Params->SelectedCurveControlPointOutlineThicknessScale;
-      }
-      
-      Result = (1.0f + OutlineThicknessScale) * PointSize;
-   }
-   
-   return Result;
-}
-
-internal f32
 GetCurveTrackedPointSize(curve *Curve)
 {
    f32 Result = Curve->CurveParams.CurveWidth;
@@ -76,7 +50,7 @@ inline internal b32
 NextCubicBezierPoint(curve *Curve, cubic_bezier_point_index *Index)
 {
    b32 Result = false;
-   if (Index->Index < 3 * Curve->ControlPointCount)
+   if (Index->Index + 1 < 3 * Curve->ControlPointCount)
    {
       ++Index->Index;
       Result = true;
@@ -144,7 +118,11 @@ GetCurveControlPointInfo(entity *Entity, u64 PointIndex)
    Result.OutlineThickness = OutlineScale * Result.Radius;
    
    Result.Color = Params->PointColor;
-   Result.OutlineColor = BrightenColor(Result.Color, 0.1f);
+   Result.OutlineColor = BrightenColor(Result.Color, 0.3f);
+   if (PointIndex == Curve->SelectedIndex.Index)
+   {
+      Result.OutlineColor = BrightenColor(Result.OutlineColor, 0.5f);
+   }
    
    return Result;
 }
@@ -189,8 +167,8 @@ TranslateCurvePoint(entity *Entity, curve_point_index Index,
    if (ControlPointIndex.Index < Curve->ControlPointCount)
    {
       cubic_bezier_point *B = Curve->CubicBezierPoints + ControlPointIndex.Index;
-      
-      world_position World = LocalEntityPositionToWorld(Entity, B->P1);
+      local_position *TranslatePoint = B->Ps + BezierOffset;
+      world_position World = LocalEntityPositionToWorld(Entity, *TranslatePoint);
       local_position Translated = WorldToLocalEntityPosition(Entity, World + Translation);
       
       if (BezierOffset == 1)
@@ -198,7 +176,6 @@ TranslateCurvePoint(entity *Entity, curve_point_index Index,
          v2 LocalTranslation = Translated - B->P1;
          
          B->P0 += LocalTranslation;
-         B->P1 += LocalTranslation;
          B->P2 += LocalTranslation;
          
          Curve->ControlPoints[ControlPointIndex.Index] += LocalTranslation;
@@ -232,6 +209,8 @@ TranslateCurvePoint(entity *Entity, curve_point_index Index,
          
          *Twin = B->P1 + DesiredTwinLength * DesiredTwinDirection;
       }
+      
+      *TranslatePoint = Translated;
    }
    
    RecomputeCurve(Entity);
@@ -381,7 +360,7 @@ MemoryMove((Array) + ((At)+(ShiftCount)), \
 ((ArrayLength) - (At)) * SizeOf((Array)[0]))
       ShiftRightArray(P, N, At, 1);
       ShiftRightArray(W, N, At, 1);
-      ShiftRightArray(B, 3*N, 3*At, 3);
+      ShiftRightArray(B, N, At, 1);
 #undef ShiftRightArray
       
       P[At] = WorldToLocalEntityPosition(Entity, PointWorld);;

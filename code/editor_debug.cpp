@@ -40,7 +40,7 @@ RenderDebugWindow(editor *Editor)
       
       if (Editor->UI_Config.ViewDebugWindow)
       {
-         ImGui::Text("Number of entities = %lu", Editor->Entities.EntityCount);
+         ImGui::Text("Number of entities = %lu", Editor->EntityCount);
          
          if (Editor->SelectedEntity &&
              Editor->SelectedEntity->Type == Entity_Curve)

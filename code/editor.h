@@ -14,6 +14,9 @@
 #include "editor_profiler.h"
 #include "editor_math.h"
 #include "editor_ui.h"
+#include "editor_sort.h"
+
+#include "editor_entity2.h"
 
 #include "editor_adapt.h"
 #include "editor_entity.h"
@@ -239,25 +242,23 @@ struct camera
 typedef u64 curve_collision_flags;
 enum
 {
-   CurveCollision_ControlPoint     = (1<<0),
+   CurveCollision_CurvePoint       = (1<<0),
    CurveCollision_CurveLine        = (1<<1),
-   CurveCollision_CubicBezierPoint = (1<<2),
-   CurveCollision_TrackedPoint     = (1<<3),
+   CurveCollision_TrackedPoint     = (1<<2),
 };
 
 struct collision
 {
    entity *Entity;
    curve_collision_flags Flags;
-   u64 ControlPointIndex;
-   u64 CubicBezierPointIndex;
+   curve_point_index CurvePointIndex;
    u64 CurveLinePointIndex;
 };
 
 typedef u64 check_collision_with_flags;
 enum
 {
-   CheckCollisionWith_CurveControlPoints = (1<<0),
+   CheckCollisionWith_CurvePoints        = (1<<0),
    CheckCollisionWith_CurveLines         = (1<<1),
    CheckCollisionWith_TrackedPoints      = (1<<2),
    CheckCollisionWith_Images             = (1<<3),
@@ -325,10 +326,7 @@ struct editor_mode
       struct {
          moving_mode_type Type;
          entity *Entity;
-         
-         u64 PointIndex;
-         b32 IsBezierPoint;
-         
+         curve_point_index MovingPointIndex;
          sf::Vertex *SavedCurveVertices;
          u64 SavedNumCurveVertices;
          sf::PrimitiveType SavedPrimitiveType;
@@ -454,12 +452,19 @@ struct render_data
    f32 FrustumSize;
 };
 
+struct entities
+{
+#define MAX_ENTITY_COUNT 1024
+   entity Entities[MAX_ENTITY_COUNT];
+};
+
 struct editor
 {
    sf::Clock DeltaClock;
    frame_stats FrameStats;
    render_data RenderData;
    
+   u64 EntityCount;
    entities Entities;
    u64 EntityCounter;
    entity *SelectedEntity;
@@ -481,8 +486,6 @@ struct editor
    notification Notifications[32];
    
    b32 HideUI;
-   
-   entity *TempEntity;
 };
 
 #endif //EDITOR_H

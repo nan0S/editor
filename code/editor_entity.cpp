@@ -228,11 +228,29 @@ CalcRegularBezierCurvePoints(local_position *ControlPoints,
    }
 }
 
+struct cubic_bezier_curve_segment
+{
+   u64 PointCount;
+   v2 *Points;
+};
+internal cubic_bezier_curve_segment
+GetCubicBezierCurveSegment(cubic_bezier_point *BezierPoints, u64 PointCount, u64 SegmentIndex)
+{
+   cubic_bezier_curve_segment Result = {};
+   if (SegmentIndex < PointCount)
+   {
+      Result.PointCount = (SegmentIndex < PointCount - 1 ? 4 : 1);
+      Result.Points = &BezierPoints[SegmentIndex].P1;
+   }
+   
+   return Result;
+}
+
 internal void
-CalcCubicBezierCurvePoints(local_position *CubicBezierPoints,
+CalcCubicBezierCurvePoints(cubic_bezier_point *CubicBezierPoints,
                            u64 ControlPointCount,
                            u64 NumOutputCurvePoints,
-                           local_position *OutputCurvePoints)
+                           v2 *OutputCurvePoints)
 {
    if (ControlPointCount > 0)
    {
@@ -249,11 +267,10 @@ CalcCubicBezierCurvePoints(local_position *CubicBezierPoints,
          Assert(SegmentIndex < ControlPointCount);
          Assert(0.0f <= Segment_T && Segment_T <= 1.0f);
          
-         local_position *Segment = CubicBezierPoints + 1 + 3 * SegmentIndex;
-         u64 NumSegmentPoints = (SegmentIndex == ControlPointCount - 1 ? 1 : 4);
+         cubic_bezier_curve_segment Segment = GetCubicBezierCurveSegment(CubicBezierPoints, ControlPointCount, SegmentIndex);
          OutputCurvePoints[OutputIndex] = BezierCurveEvaluate(Segment_T,
-                                                              Segment,
-                                                              NumSegmentPoints);
+                                                              Segment.Points,
+                                                              Segment.PointCount);
          
          T += Delta;
       }
@@ -396,53 +413,21 @@ SetCurveControlPoints(entity *Entity,
                       u64 ControlPointCount,
                       local_position *ControlPoints,
                       f32 *ControlPointWeights,
-                      local_position *CubicBezierPoints)
+                      cubic_bezier_point *CubicBezierPoints)
 {
    curve *Curve = GetCurve(Entity);
    Assert(ControlPointCount <= MAX_CONTROL_POINT_COUNT);
    ControlPointCount = Min(ControlPointCount, MAX_CONTROL_POINT_COUNT);
    
-   MemoryCopy(Curve->ControlPoints, ControlPoints, ControlPointCount * SizeOf(Curve->ControlPoints[0]));
-   MemoryCopy(Curve->ControlPointWeights, ControlPointWeights, ControlPointCount * SizeOf(Curve->ControlPointWeights[0]));
-   MemoryCopy(Curve->CubicBezierPoints, CubicBezierPoints, 3*ControlPointCount * SizeOf(Curve->CubicBezierPoints[0]));
+   ArrayCopy(Curve->ControlPoints, ControlPoints, ControlPointCount);
+   ArrayCopy(Curve->ControlPointWeights, ControlPointWeights, ControlPointCount);
+   ArrayCopy(Curve->CubicBezierPoints, CubicBezierPoints, ControlPointCount);
    
    Curve->ControlPointCount = ControlPointCount;
    // TODO(hbr): Make sure this is expected, maybe add to internal arguments
-   Curve->SelectedControlPointIndex = U64_MAX;
+   UnselectControlPoint(Curve);
    
    RecomputeCurve(Entity);
-}
-
-internal void
-RemoveCurveControlPoint(entity *Entity, u64 PointIndex)
-{
-   curve *Curve = GetCurve(Entity);
-   if (PointIndex < Curve->ControlPointCount)
-   {
-      u64 PointsAfter = (Curve->ControlPointCount - PointIndex - 1);
-      MemoryMove(Curve->ControlPoints + PointIndex,
-                 Curve->ControlPoints + PointIndex + 1,
-                 PointsAfter * SizeOf(Curve->ControlPoints[0]));
-      MemoryMove(Curve->ControlPointWeights + PointIndex,
-                 Curve->ControlPointWeights + PointIndex + 1,
-                 PointsAfter * SizeOf(Curve->ControlPointWeights[0]));
-      MemoryMove(Curve->CubicBezierPoints + 3 * PointIndex,
-                 Curve->CubicBezierPoints + 3 * (PointIndex + 1),
-                 3 * PointsAfter * SizeOf(Curve->CubicBezierPoints[0]));
-      
-      --Curve->ControlPointCount;
-      
-      if (PointIndex == Curve->SelectedControlPointIndex)
-      {
-         Curve->SelectedControlPointIndex = U64_MAX;
-      }
-      else if (PointIndex < Curve->SelectedControlPointIndex)
-      {
-         SelectControlPoint(Entity, Curve->SelectedControlPointIndex - 1);
-      }
-      
-      RecomputeCurve(Entity);
-   }
 }
 
 internal void
@@ -456,71 +441,11 @@ SetCurveControlPoint(entity *Entity, u64 PointIndex, local_position Point, f32 W
       Curve->ControlPoints[PointIndex] = Point;
       Curve->ControlPointWeights[PointIndex] = Weight;
       
-      local_position *CubicBeziers = Curve->CubicBezierPoints + (3 * PointIndex + 1);
-      CubicBeziers[-1] += Translation;
-      CubicBeziers[0] = Point;
-      CubicBeziers[1] += Translation;
+      cubic_bezier_point *BezierPoints = Curve->CubicBezierPoints + PointIndex;
+      BezierPoints->P0 += Translation;
+      BezierPoints->P1 += Translation;
+      BezierPoints->P2 += Translation;
       
       RecomputeCurve(Entity);
-   }
-}
-
-internal void
-TranslateCurveControlPoint(entity *Entity, u64 PointIndex,
-                           translate_control_point_flags Flags,
-                           v2 TranslationWorld)
-{
-   curve *Curve = GetCurve(Entity);
-   if (Flags & TranslateControlPoint_BezierPoint)
-   {
-      if (PointIndex < 3 * Curve->ControlPointCount)
-      {
-         local_position *Points = Curve->CubicBezierPoints;
-         local_position *Point = Points + PointIndex;
-         
-         local_position CenterPoint = {};
-         local_position *TwinPoint = 0;
-         u64 PointOffset = PointIndex % 3;
-         if (PointOffset == 2)
-         {
-            CenterPoint = Points[PointIndex - 1];
-            TwinPoint = Points + (PointIndex - 2);
-         }
-         else if (PointOffset == 0)
-         {
-            CenterPoint = Points[PointIndex + 1];
-            TwinPoint = Points + (PointIndex + 2);
-         }
-         else
-         {
-            Assert(!"Expected cubic bezier point index");
-         }
-         
-         local_position TranslatedPoint = TranslateLocalEntityPositionInWorldSpace(Entity, *Point, TranslationWorld);
-         *Point = TranslatedPoint;
-         
-         v2 DesiredTwinDirection = ((Flags & TranslateControlPoint_MatchBezierTwinDirection) ?
-                                    (CenterPoint - TranslatedPoint) :
-                                    (*TwinPoint - CenterPoint));
-         Normalize(&DesiredTwinDirection);
-         f32 DesiredTwinLength = ((Flags & TranslateControlPoint_MatchBezierTwinLength) ?
-                                  Norm(CenterPoint - TranslatedPoint) :
-                                  Norm(*TwinPoint - CenterPoint));
-         *TwinPoint = CenterPoint + DesiredTwinLength * DesiredTwinDirection;
-         
-         RecomputeCurve(Entity);
-      }
-   }
-   else
-   {
-      if (PointIndex < Curve->ControlPointCount)
-      {
-         local_position TranslatedPoint =
-            TranslateLocalEntityPositionInWorldSpace(Entity,
-                                                     Curve->ControlPoints[PointIndex],
-                                                     TranslationWorld);
-         SetCurveControlPoint(Entity, PointIndex, TranslatedPoint,
-                              Curve->ControlPointWeights[PointIndex]);
-      }
    }
 }

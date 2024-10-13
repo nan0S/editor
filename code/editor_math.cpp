@@ -30,6 +30,18 @@ MakeColor(u8 R, u8 G, u8 B, u8 A)
    return Result;
 }
 
+internal color
+BrightenColor(color Color, f32 BrightenByRatio)
+{
+   color Result = {};
+   Result.R = ClampTop(Cast(u32)((1.0f + BrightenByRatio) * Color.R), 255);
+   Result.G = ClampTop(Cast(u32)((1.0f + BrightenByRatio) * Color.G), 255);
+   Result.B = ClampTop(Cast(u32)((1.0f + BrightenByRatio) * Color.B), 255);
+   Result.A = Color.A;
+   
+   return Result;
+}
+
 internal f32
 Norm(v2 V)
 {
@@ -1234,11 +1246,8 @@ BezierCurveLowerDegree(v2 *P, f32 *W, u64 N)
 #endif
 
 internal inline void
-CalculateBezierCubicPointAt(u64 N, v2 *P, v2 *Out, u64 At)
+CalculateBezierCubicPointAt(u64 N, v2 *P, cubic_bezier_point *Out, u64 At)
 {
-   v2 *W = Out;
-   u64 i = At;
-   
    // NOTE(hbr): All of these equations assume that all t_i are equidistant.
    // Otherwise equations are more complicated. Either way, this is the current
    // state of t_i - they are equidistant.
@@ -1255,11 +1264,11 @@ s_(i)))
 #define c(i) (SafeDiv0(1, dt) * (w(i+1) - w(i)))
    
    f32 dt = SafeDiv0(1.0f, N-1);
+   u64 i = At;
    
-   u64 Index = 3 * At;
-   W[Index + 0] = (N > 2 ? (w(i) - 1.0f/3.0f * dt * s(i)) : w(i));
-   W[Index + 1] = w(i);
-   W[Index + 2] = (N > 2 ? (w(i) + 1.0f/3.0f * dt * s(i)) : w(i));
+   Out[At].P0 = (N > 2 ? (w(i) - 1.0f/3.0f * dt * s(i)) : w(i));
+   Out[At].P1 = w(i);
+   Out[At].P2 = (N > 2 ? (w(i) + 1.0f/3.0f * dt * s(i)) : w(i));
    
 #undef s
 #undef s_
@@ -1268,7 +1277,7 @@ s_(i)))
 }
 
 internal void
-BezierCubicCalculateAllControlPoints(u64 N, v2 *P, v2 *Out)
+BezierCubicCalculateAllControlPoints(u64 N, v2 *P, cubic_bezier_point *Out)
 {
    for (u64 I = 0; I < N; ++I)
    {

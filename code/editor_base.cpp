@@ -80,7 +80,7 @@ DeallocArena(arena *Arena)
    while (Node)
    {
       arena *Next = Node->Next;
-      ZeroStruct(Node);
+      StructZero(Node);
       OS_DeallocVirtualMemory(Arena->Memory, Arena->Capacity);
       Node = Next;
    }
@@ -1132,7 +1132,7 @@ StrListConcatInPlace(string_list *List, string_list *ToPush)
    {
       *List = *ToPush;
    }
-   ZeroStruct(ToPush);
+   StructZero(ToPush);
 }
 
 internal string

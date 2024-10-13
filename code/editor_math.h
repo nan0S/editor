@@ -50,7 +50,9 @@ internal v2s V2S32(s32 X, s32 Y);
 internal b32 operator==(v2s U, v2s V) { return (U.X == V.X && U.Y == V.Y); }
 internal b32 operator!=(v2s U, v2s V) { return !(U == V); }
 
+// TODO(hbr): Change color representation to r32
 internal color MakeColor(u8 R, u8 G, u8 B, u8 A = 255);
+internal color BrightenColor(color Color, f32 BrightenByRatio);
 
 read_only global color BlackColor       = MakeColor(0, 0, 0);
 read_only global color WhiteColor       = MakeColor(255, 255, 255);
@@ -158,12 +160,22 @@ struct bezier_lower_degree
    f32 W_II;
 };
 
+union cubic_bezier_point
+{
+   struct {
+      local_position P0;
+      local_position P1;
+      local_position P2;
+   };
+   local_position Ps[3];
+};
+
 internal v2                  BezierCurveEvaluate(f32 T, v2 *P, u64 N);
 internal v2                  BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u64 N);
 internal void                BezierCurveElevateDegree(v2 *P, u64 N);
 internal void                BezierCurveElevateDegreeWeighted(v2 *P, f32 *W, u64 N);
 internal bezier_lower_degree BezierCurveLowerDegree(v2 *P, f32 *W, u64 N);
-internal void                BezierCubicCalculateAllControlPoints(u64 N, v2 *P, v2 *Output);
+internal void                BezierCubicCalculateAllControlPoints(u64 N, v2 *P, cubic_bezier_point *Out);
 internal void                BezierCurveSplit(f32 T, u64 N, v2 *P, f32 *W, 
                                               v2 *LeftPoints, f32 *LeftWeights,
                                               v2 *RightPoints, f32 *RightWeights);

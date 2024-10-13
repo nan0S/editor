@@ -192,13 +192,14 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define SafeDiv0(Num, Den) ((Den) == 0 ? 0 : (Num) / (Den))
 #define SafeDiv1(Num, Den) ((Den) == 0 ? 1 : (Num) / (Den))
 
-#define MemoryCopy(Dest, Src, NumBytes) memcpy(Dest, Src, NumBytes)
-#define MemoryMove(Dest, Src, NumBytes) memmove(Dest, Src, NumBytes)
+#define MemoryCopy(Dst, Src, NumBytes) memcpy(Dst, Src, NumBytes)
+#define MemoryMove(Dst, Src, NumBytes) memmove(Dst, Src, NumBytes)
 #define MemorySet(Ptr, Byte, NumBytes) memset(Ptr, Byte, NumBytes)
 #define MemoryZero(Ptr, NumBytes) MemorySet(Ptr, 0, NumBytes)
 #define MemoryCmp(Ptr1, Ptr2, NumBytes) memcmp(Ptr1, Ptr2, NumBytes)
 #define MemoryEqual(Ptr1, Ptr2, NumBytes) (MemoryCmp(Ptr1, Ptr2, NumBytes) == 0)
-#define ZeroStruct(Ptr) MemoryZero(Ptr, SizeOf(*(Ptr)))
+#define StructZero(Ptr) MemoryZero(Ptr, SizeOf(*(Ptr)))
+#define ArrayCopy(Dst, Src, ElemCount) MemoryCopy(Dst, Src, (ElemCount) * SizeOf((Dst)[0]))
 
 #define ListIter(Var, Head, Type) for (Type *Var = (Head), *__Next = ((Head) ? (Head)->Next : 0); Var; Var = __Next, __Next = (__Next ? __Next->Next : 0))
 #define ListIterRev(Var, Tail, Type) for (Type *Var = (Tail), *__Prev = ((Tail) ? (Tail)->Prev : 0); Var; Var = __Prev, __Prev = (__Prev ? __Prev->Prev : 0))

@@ -188,12 +188,12 @@ CheckCollisionWith(entities *Entities,
                        Index < VisibleBeziers.Count;
                        ++Index)
                   {
-                     f32 PointSize = GetCurveCubicBezierPointSize(Curve);
+                     f32 PointRadius = GetCurveCubicBezierPointRadius(Curve);
                      cubic_bezier_point_index BezierIndex = VisibleBeziers.Indices[Index];
                      local_position BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
                      if (PointCollision(CheckPositionLocal,
                                         BezierPoint,
-                                        PointSize + CollisionTolerance))
+                                        PointRadius + CollisionTolerance))
                      {
                         Result.Entity = Entity;
                         Result.Flags |= Collision_CurvePoint;
@@ -1383,8 +1383,8 @@ FocusCameraOnEntity(editor *Editor, entity *Entity)
             
             world_position FocusPosition =  RotateAround(V2(0.5f * (Left + Right), 0.5f * (Down + Top)),
                                                          V2(0.0f, 0.0f), Editor->RenderData.Camera.Rotation);
-            v2 Extents = V2(0.5f * (Right - Left) + 2.0f * Curve->CurveParams.PointSize,
-                            0.5f * (Top - Down) + 2.0f * Curve->CurveParams.PointSize);
+            v2 Extents = V2(0.5f * (Right - Left) + 2.0f * Curve->CurveParams.PointRadius,
+                            0.5f * (Top - Down) + 2.0f * Curve->CurveParams.PointRadius);
             FocusCameraOn(Editor, FocusPosition, Extents);
          }
       } break;
@@ -1635,16 +1635,16 @@ RenderSelectedEntityUI(editor *Editor)
                         SomeCurveParamChanged = true;
                      }
                      
-                     SomeCurveParamChanged |= UI_DragFloatF(&CurveParams->PointSize, 0.0f, FLT_MAX, 0, "Size");
-                     if (ResetCtxMenu("PointSizeReset"))
+                     SomeCurveParamChanged |= UI_DragFloatF(&CurveParams->PointRadius, 0.0f, FLT_MAX, 0, "Radius");
+                     if (ResetCtxMenu("PointRadiusReset"))
                      {
-                        CurveParams->PointSize = DefaultParams.PointSize;
+                        CurveParams->PointRadius = DefaultParams.PointRadius;
                         SomeCurveParamChanged = true;
                      }
                      
                      {
                         // TODO(hbr): Maybe let ControlPoint weight to be 0 as well
-                        local f32 ControlPointMinWeight = EPS_F32;
+                        local f32 ControlPointMinWeight = 0.0f;
                         local f32 ControlPointMaxWeight = FLT_MAX;
                         if (CurveParams->InterpolationType == Interpolation_Bezier &&
                             CurveParams->BezierType == Bezier_Regular)
@@ -2852,7 +2852,7 @@ UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Trans
                                Transform);
                }
                
-               f32 PointSize = CurveParams->PointSize;
+               f32 PointSize = CurveParams->PointRadius;
                u64 PointIndex = 0;
                for (u64 Iteration = 0;
                     Iteration < IterationCount;
@@ -3530,12 +3530,15 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                        ++Index)
                   {
                      cubic_bezier_point_index BezierIndex = VisibleBeziers.Indices[Index];
+                     
                      local_position BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
                      local_position CenterPoint = GetCenterPointFromCubicBezierPointIndex(Curve, BezierIndex);
-                     f32 HelperLineWidth = ClipSpaceLengthToWorldSpace(Editor->Params.CubicBezierHelperLineWidthClipSpace,
-                                                                       &Editor->RenderData);
+                     
+                     f32 BezierPointRadius = GetCurveCubicBezierPointRadius(Curve);
+                     f32 HelperLineWidth = 0.2f * CurveParams->CurveWidth;
+                     
                      DrawLine(BezierPoint, CenterPoint, HelperLineWidth, CurveParams->CurveColor, MVP, Window);
-                     DrawCircle(BezierPoint, CurveParams->PointSize, CurveParams->PointColor, MVP, Window);
+                     DrawCircle(BezierPoint, BezierPointRadius, CurveParams->PointColor, MVP, Window);
                   }
                   
                   u64 ControlPointCount = Curve->ControlPointCount;
@@ -3645,10 +3648,10 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
             Action.Release.Button = Button;
             Action.Release.ReleasePosition = ButtonState->ReleasePosition;
          }
-      }
-      if (Action.Type != UserAction_None)
-      {
-         ExecuteUserAction(Editor, Action);
+         if (Action.Type != UserAction_None)
+         {
+            ExecuteUserAction(Editor, Action);
+         }
       }
       
       if (Input->MouseLastPosition != Input->MousePosition)

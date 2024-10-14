@@ -37,7 +37,7 @@ DefaultCurveParams(void)
    Result.CurveColor = MakeColor(21, 69, 98);
    Result.CurveWidth = CurveWidth;
    Result.PointColor = MakeColor(0, 138, 138, 148);
-   Result.PointSize = 0.014f;
+   Result.PointRadius = 0.014f;
    color PolylineColor = MakeColor(16, 31, 31, 200);
    Result.PolylineColor = PolylineColor;
    Result.PolylineWidth = CurveWidth;

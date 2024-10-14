@@ -104,7 +104,7 @@ GetCurveControlPointInfo(entity *Entity, u64 PointIndex)
    curve *Curve = GetCurve(Entity);
    curve_params *Params = &Curve->CurveParams;
    
-   Result.Radius = Params->PointSize;
+   Result.Radius = Params->PointRadius;
    if (PointIndex == Curve->ControlPointCount - 1)
    {
       Result.Radius *= 1.5f;
@@ -128,10 +128,10 @@ GetCurveControlPointInfo(entity *Entity, u64 PointIndex)
 }
 
 internal f32
-GetCurveCubicBezierPointSize(curve *Curve)
+GetCurveCubicBezierPointRadius(curve *Curve)
 {
    // TODO(hbr): Make bezier points smaller
-   f32 Result = Curve->CurveParams.PointSize;
+   f32 Result = Curve->CurveParams.PointRadius;
    return Result;
 }
 
@@ -316,17 +316,6 @@ SortEntities(arena *Arena, entity_array Entities)
    sorted_entries Result = {};
    Result.Count = EntryCount;
    Result.Entries = Entries;
-   
-   return Result;
-}
-
-internal control_point_index
-CurvePointIndexToControlPointIndex(curve *Curve, u64 CurvePointIndex)
-{
-   u64 Index = SafeDiv0(CurvePointIndex, Curve->CurveParams.CurvePointCountPerSegment);
-   Assert(Index < Curve->ControlPointCount);
-   control_point_index Result = {};
-   Result.Index = ClampTop(Index, Curve->ControlPointCount - 1);
    
    return Result;
 }

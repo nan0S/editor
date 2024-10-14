@@ -97,7 +97,7 @@ struct curve_params
    
    b32 PointsDisabled;
    color PointColor;
-   f32 PointSize;
+   f32 PointRadius;
    
    b32 PolylineEnabled;
    color PolylineColor;
@@ -234,8 +234,8 @@ internal b32 IsEntityVisible(entity *Entity);
 internal b32 IsEntitySelected(entity *Entity);
 internal b32 AreCurvePointsVisible(curve *Curve);
 internal point_info GetCurveControlPointInfo(entity *Curve, u64 PointIndex);
-internal f32 GetCurveTrackedPointSize(curve *Curve);
-internal f32 GetCurveCubicBezierPointSize(curve *Curve);
+internal f32 GetCurveTrackedPointRadius(curve *Curve);
+internal f32 GetCurveCubicBezierPointRadius(curve *Curve);
 internal visible_cubic_bezier_points GetVisibleCubicBezierPoints(entity *Entity);
 
 inline internal curve_point_index
@@ -308,8 +308,18 @@ GetCenterPointFromCubicBezierPointIndex(curve *Curve, cubic_bezier_point_index I
    return Result;
 }
 
-internal void TranslateCurvePoint(entity *Entity, curve_point_index Index,
-                                  v2 Translation, translate_curve_point_flags Flags);
+inline internal control_point_index
+CurvePointIndexToControlPointIndex(curve *Curve, u64 CurvePointIndex)
+{
+   u64 Index = SafeDiv0(CurvePointIndex, Curve->CurveParams.CurvePointCountPerSegment);
+   Assert(Index < Curve->ControlPointCount);
+   control_point_index Result = {};
+   Result.Index = ClampTop(Index, Curve->ControlPointCount - 1);
+   
+   return Result;
+}
+
+internal void TranslateCurvePoint(entity *Entity, curve_point_index Index, v2 Translation, translate_curve_point_flags Flags);
 internal void RemoveControlPoint(entity *Entity, u64 Index);
 internal control_point_index AppendControlPoint(entity *Entity, world_position Point);
 internal void InsertControlPoint(entity *Entity, world_position PointWorld, u64 At);
@@ -321,7 +331,5 @@ internal b32 IsControlPointSelected(curve *Curve);
 internal void UnselectControlPoint(curve *Curve);
 
 internal sorted_entries SortEntities(arena *Arena, entity_array Entities);
-
-internal control_point_index CurvePointIndexToControlPointIndex(curve *Curve, u64 CurvePointIndex);
 
 #endif //EDITOR_ENTITY2_H

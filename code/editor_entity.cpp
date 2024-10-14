@@ -398,16 +398,6 @@ LocalEntityPositionToWorld(entity *Entity, local_position Position)
    return Result;
 }
 
-internal local_position
-TranslateLocalEntityPositionInWorldSpace(entity *Entity, local_position Local, v2 Translation)
-{
-   world_position World = LocalEntityPositionToWorld(Entity, Local);
-   world_position Translated = World + Translation;
-   local_position Result = WorldToLocalEntityPosition(Entity, Translated);
-   
-   return Result;
-}
-
 internal void
 SetCurveControlPoints(entity *Entity,
                       u64 ControlPointCount,

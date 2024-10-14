@@ -1,42 +1,22 @@
-inline internal v2
-V2(f32 X, f32 Y)
+internal v4
+RGBA_Color(u8 R, u8 G, u8 B, u8 A)
 {
-   v2 Result = {};
-   Result.X = X;
-   Result.Y = Y;
+   v4 Result = {};
+   Result.R = R / 255.0f;
+   Result.G = G / 255.0f;
+   Result.B = B / 255.0f;
+   Result.A = A / 255.0f;
    
    return Result;
 }
 
-inline internal v2s
-V2S32(s32 X, s32 Y)
+internal v4
+BrightenColor(v4 Color, f32 BrightenByRatio)
 {
-   v2s Result = {};
-   Result.X = X;
-   Result.Y = Y;
-   
-   return Result;
-}
-
-inline internal color
-MakeColor(u8 R, u8 G, u8 B, u8 A)
-{
-   color Result = {};
-   Result.R = R;
-   Result.G = G;
-   Result.B = B;
-   Result.A = A;
-   
-   return Result;
-}
-
-internal color
-BrightenColor(color Color, f32 BrightenByRatio)
-{
-   color Result = {};
-   Result.R = ClampTop(Cast(u32)((1.0f + BrightenByRatio) * Color.R), 255);
-   Result.G = ClampTop(Cast(u32)((1.0f + BrightenByRatio) * Color.G), 255);
-   Result.B = ClampTop(Cast(u32)((1.0f + BrightenByRatio) * Color.B), 255);
+   v4 Result = {};
+   Result.R = (1.0f + BrightenByRatio) * Color.R;
+   Result.G = (1.0f + BrightenByRatio) * Color.G;
+   Result.B = (1.0f + BrightenByRatio) * Color.B;
    Result.A = Color.A;
    
    return Result;
@@ -45,7 +25,7 @@ BrightenColor(color Color, f32 BrightenByRatio)
 internal f32
 Norm(v2 V)
 {
-   f32 Result = sqrtf(NormSquared(V));
+   f32 Result = SqrtF32(NormSquared(V));
    return Result;
 }
 
@@ -347,11 +327,11 @@ LineVerticesAllocationArena(arena *Arena)
 // TODO(hbr): Loop logic is very ugly but works. Clean it up.
 // Might have only work because we need only loop on convex hull order points.
 internal line_vertices
-CalculateLineVertices(u64 NumLinePoints, v2 *LinePoints,
-                      f32 LineWidth, color LineColor, b32 Loop,
+CalculateLineVertices(u64 PointCount, v2 *LinePoints,
+                      f32 Width, v4 Color, b32 Loop,
                       line_vertices_allocation Allocation)
 {
-   u64 N = NumLinePoints;
+   u64 N = PointCount;
    if (Loop) N += 2;
    
    u64 MaxNumVertices = 0;
@@ -373,7 +353,7 @@ CalculateLineVertices(u64 NumLinePoints, v2 *LinePoints,
    u64 VertexIndex = 0;
    b32 IsLastInside = false;
    
-   if (!Loop && NumLinePoints >= 2)
+   if (!Loop && PointCount >= 2)
    {
       v2 A = LinePoints[0];
       v2 B = LinePoints[1];
@@ -382,11 +362,11 @@ CalculateLineVertices(u64 NumLinePoints, v2 *LinePoints,
       v2 NV_Line = Rotate90DegreesAntiClockwise(V_Line);
       Normalize(&NV_Line);
       
-      Vertices[VertexIndex + 0].position = V2ToVector2f(A + 0.5f * LineWidth * NV_Line);
-      Vertices[VertexIndex + 1].position = V2ToVector2f(A - 0.5f * LineWidth * NV_Line);
+      Vertices[VertexIndex + 0].position = V2ToVector2f(A + 0.5f * Width * NV_Line);
+      Vertices[VertexIndex + 1].position = V2ToVector2f(A - 0.5f * Width * NV_Line);
       
-      Vertices[VertexIndex + 0].color = ColorToSFMLColor(LineColor);
-      Vertices[VertexIndex + 1].color = ColorToSFMLColor(LineColor);
+      Vertices[VertexIndex + 0].color = ColorToSFMLColor(Color);
+      Vertices[VertexIndex + 1].color = ColorToSFMLColor(Color);
       
       VertexIndex += 2;
       
@@ -398,8 +378,8 @@ CalculateLineVertices(u64 NumLinePoints, v2 *LinePoints,
         ++PointIndex)
    {
       v2 A = LinePoints[PointIndex - 1];
-      v2 B = LinePoints[(PointIndex + 0) % NumLinePoints];
-      v2 C = LinePoints[(PointIndex + 1) % NumLinePoints];
+      v2 B = LinePoints[(PointIndex + 0) % PointCount];
+      v2 C = LinePoints[(PointIndex + 1) % PointCount];
       
       v2 V_Line = B - A;
       Normalize(&V_Line);
@@ -410,7 +390,7 @@ CalculateLineVertices(u64 NumLinePoints, v2 *LinePoints,
       v2 NV_Succ = Rotate90DegreesAntiClockwise(V_Succ);
       
       b32 LeftTurn = (Cross(V_Line, V_Succ) >= 0.0f);
-      f32 TurnedHalfWidth = (LeftTurn ? 1.0f : -1.0f) * 0.5f * LineWidth;
+      f32 TurnedHalfWidth = (LeftTurn ? 1.0f : -1.0f) * 0.5f * Width;
       
       line_intersection Intersection = LineIntersection(A + TurnedHalfWidth * NV_Line,
                                                         B + TurnedHalfWidth * NV_Line,
@@ -430,9 +410,9 @@ CalculateLineVertices(u64 NumLinePoints, v2 *LinePoints,
       v2 B_Line = B - TurnedHalfWidth * NV_Line;
       v2 B_Succ = B - TurnedHalfWidth * NV_Succ;
       
-      Vertices[VertexIndex + 0].color = ColorToSFMLColor(LineColor);
-      Vertices[VertexIndex + 1].color = ColorToSFMLColor(LineColor);
-      Vertices[VertexIndex + 2].color = ColorToSFMLColor(LineColor);
+      Vertices[VertexIndex + 0].color = ColorToSFMLColor(Color);
+      Vertices[VertexIndex + 1].color = ColorToSFMLColor(Color);
+      Vertices[VertexIndex + 2].color = ColorToSFMLColor(Color);
       
       if ((LeftTurn && IsLastInside) || (!LeftTurn && !IsLastInside))
       {
@@ -449,7 +429,7 @@ CalculateLineVertices(u64 NumLinePoints, v2 *LinePoints,
          Vertices[VertexIndex + 2].position = V2ToVector2f(IntersectionPoint);
          Vertices[VertexIndex + 3].position = V2ToVector2f(B_Succ);
          
-         Vertices[VertexIndex + 3].color = ColorToSFMLColor(LineColor);
+         Vertices[VertexIndex + 3].color = ColorToSFMLColor(Color);
          
          VertexIndex += 4;
       }
@@ -459,7 +439,7 @@ CalculateLineVertices(u64 NumLinePoints, v2 *LinePoints,
    
    if (!Loop)
    {
-      if (NumLinePoints >= 2)
+      if (PointCount >= 2)
       {
          v2 A = LinePoints[N-2];
          v2 B = LinePoints[N-1];
@@ -468,8 +448,8 @@ CalculateLineVertices(u64 NumLinePoints, v2 *LinePoints,
          v2 NV_Line = Rotate90DegreesAntiClockwise(V_Line);
          Normalize(&NV_Line);
          
-         v2 B_Inside  = B + 0.5f * LineWidth * NV_Line;
-         v2 B_Outside = B - 0.5f * LineWidth * NV_Line;
+         v2 B_Inside  = B + 0.5f * Width * NV_Line;
+         v2 B_Outside = B - 0.5f * Width * NV_Line;
          
          if (IsLastInside)
          {
@@ -482,8 +462,8 @@ CalculateLineVertices(u64 NumLinePoints, v2 *LinePoints,
             Vertices[VertexIndex + 1].position = V2ToVector2f(B_Outside);
          }
          
-         Vertices[VertexIndex + 0].color = ColorToSFMLColor(LineColor);
-         Vertices[VertexIndex + 1].color = ColorToSFMLColor(LineColor);
+         Vertices[VertexIndex + 0].color = ColorToSFMLColor(Color);
+         Vertices[VertexIndex + 1].color = ColorToSFMLColor(Color);
          
          VertexIndex += 2;
          
@@ -521,10 +501,10 @@ CalculateLineVertices(u64 NumLinePoints, v2 *LinePoints,
    return Result;
 }
 
-internal color
-LerpColor(color From, color To, f32 T)
+internal v4
+LerpColor(v4 From, v4 To, f32 T)
 {
-   color Result = {};
+   v4 Result = {};
    Result.R = Cast(u8)((1-T) * From.R + T * To.R);
    Result.G = Cast(u8)((1-T) * From.G + T * To.G);
    Result.B = Cast(u8)((1-T) * From.B + T * To.B);

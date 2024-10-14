@@ -22,13 +22,13 @@ V2S32ToVector2i(v2s V)
 }
 
 internal inline sf::Color
-ColorToSFMLColor(color Color)
+ColorToSFMLColor(v4 Color)
 {
    sf::Color Result = {};
-   Result.r = Color.R;
-   Result.g = Color.G;
-   Result.b = Color.B;
-   Result.a = Color.A;
+   Result.r = Cast(u8)(255 * ClampTop(Color.R, 1.0f));
+   Result.g = Cast(u8)(255 * ClampTop(Color.G, 1.0f));
+   Result.b = Cast(u8)(255 * ClampTop(Color.B, 1.0f));
+   Result.a = Cast(u8)(255 * ClampTop(Color.A, 1.0f));
    
    return Result;
 }

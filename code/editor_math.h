@@ -18,23 +18,23 @@
 union v2
 {
    struct { f32 X, Y; };
-   f32 Es[2];
+   f32 E[2];
 };
 
 union v2s
 {
    struct { s32 X, Y; };
-   s32 Es[2];
+   s32 E[2];
 };
 
-union color
+union v4
 {
-   struct { u8 R, G, B, A; };
-   u8 Es[4];
-   u32 ColorU32;
+   struct { f32 X, Y, Z, W; };
+   struct { f32 R, G, B, A; };
+   f32 E[4];
 };
 
-internal v2 V2(f32 X, f32 Y);
+inline internal v2 V2(f32 X, f32 Y) { return { X, Y }; }
 inline internal v2  operator+ (v2 U, v2 V)   { return V2(U.X + V.X, U.Y + V.Y); }
 inline internal v2  operator- (v2 U, v2 V)   { return V2(U.X - V.X, U.Y - V.Y); }
 inline internal v2  operator- (v2 U)            { return V2(-U.X, -U.Y); }
@@ -46,25 +46,33 @@ inline internal v2 &operator-=(v2 &U, v2 V)  { U.X -= V.X; U.Y -= V.Y; return U;
 inline internal b32 operator==(v2 U, v2 V)   { return (U.X == V.X && U.Y == V.Y); }
 inline internal b32 operator!=(v2 U, v2 V)   { return !(U == V); }
 
-internal v2s V2S32(s32 X, s32 Y);
-internal b32 operator==(v2s U, v2s V) { return (U.X == V.X && U.Y == V.Y); }
-internal b32 operator!=(v2s U, v2s V) { return !(U == V); }
+inline internal v2s V2S32(s32 X, s32 Y) { return { X, Y }; }
+inline internal b32 operator==(v2s U, v2s V) { return (U.X == V.X && U.Y == V.Y); }
+inline internal b32 operator!=(v2s U, v2s V) { return !(U == V); }
 
-// TODO(hbr): Change color representation to r32
-internal color MakeColor(u8 R, u8 G, u8 B, u8 A = 255);
-internal color BrightenColor(color Color, f32 BrightenByRatio);
+inline internal v4 V4(f32 X, f32 Y, f32 Z, f32 W) { return { X, Y, Z, W }; }
+inline internal v4 operator+(v4 U, v4 V) { return V4(U.X + V.X, U.Y + V.Y, U.Z + V.Z, U.W + V.W); }
+inline internal v4 operator-(v4 U, v4 V) { return V4(U.X - V.X, U.Y - V.Y, U.Z - V.Z, U.W - V.W); }
+inline internal v4 operator*(f32 Scale, v4 U) { return V4(Scale * U.X, Scale * U.Y, Scale * U.Z, Scale * U.W); }
+inline internal v4 operator*(v4 U, f32 Scale) { return Scale * U; }
+inline internal v4 &operator+=(v4 &U, v4 V) { U.X += V.X; U.Y += V.Y; U.Z += V.Z; U.W += V.W; return U; }
+inline internal v4 &operator-=(v4 &U, v4 V) { U.X -= V.X; U.Y -= V.Y; U.Z -= V.Z; U.W -= V.W; return U; }
+inline internal v4 &operator*=(v4 &U, f32 Scale) { U.X *= Scale; U.Y *= Scale; U.Z *= Scale; U.W *= Scale; return U; }
 
-read_only global color BlackColor       = MakeColor(0, 0, 0);
-read_only global color WhiteColor       = MakeColor(255, 255, 255);
-read_only global color GreenColor       = MakeColor(0, 255, 0);
-read_only global color RedColor         = MakeColor(255, 0, 0);
-read_only global color BlueColor        = MakeColor(0, 0, 255);
-read_only global color YellowColor      = MakeColor(255, 255, 0);
-read_only global color TransparentColor = MakeColor(0, 0, 0, 0);
+internal v4 RGBA_Color(u8 R, u8 G, u8 B, u8 A = 255);
+internal v4 BrightenColor(v4 Color, f32 BrightenByRatio);
+
+read_only global v4 BlackColor       = V4(0.0f, 0.0f, 0.0f, 1.0f);
+read_only global v4 WhiteColor       = V4(1.0f, 1.0f, 1.0f, 1.0f);
+read_only global v4 GreenColor       = V4(0.0f, 1.0f, 0.0f, 1.0f);
+read_only global v4 RedColor         = V4(1.0f, 0.0f, 0.0f, 1.0f);
+read_only global v4 BlueColor        = V4(0.0f, 0.0f, 1.0f, 1.0f);
+read_only global v4 YellowColor      = V4(1.0f, 1.0f, 0.0f, 1.0f);
+read_only global v4 TransparentColor = V4(0.0f, 0.0f, 0.0f, 0.0f);
 
 #define V2FromVec(V) V2((f32)(V).x, (f32)(V).y)
 #define V2S32FromVec(V) V2S32((s32)(V).x, (s32)(V).y)
-#define ColorFromVec(V) MakeColor((u8)(V).r, (u8)(V).g, (u8)(V).b, (u8)(V).a)
+#define ColorFromVec(V) RGBA_Color((u8)(V).r, (u8)(V).g, (u8)(V).b, (u8)(V).a)
 
 typedef v2s screen_position;
 typedef v2  camera_position;
@@ -108,11 +116,9 @@ struct line_vertices_allocation
 };
 internal line_vertices_allocation LineVerticesAllocationNone(sf::Vertex *VerticesBuffer);
 internal line_vertices_allocation LineVerticesAllocationArena(arena *Arena);
-internal line_vertices            CalculateLineVertices(u64 NumLinePoints, v2 *LinePoints,
-                                                        f32 LineWidth, color LineColor, b32 Loop,
+internal line_vertices            CalculateLineVertices(u64 PointCount, v2 *LinePoints,
+                                                        f32 Width, v4 Color, b32 Loop,
                                                         line_vertices_allocation Allocation);
-
-internal color LerpColor(color From, color To, f32 T);
 
 typedef v2 rotation_2d;
 internal rotation_2d Rotation2D(f32 X, f32 Y);

@@ -17,16 +17,16 @@ global editor_params GlobalDefaultEditorParams = {
    .RotationIndicator = {
       .RadiusClipSpace = 0.06f,
       .OutlineThicknessFraction = 0.1f,
-      .FillColor = MakeColor(30, 56, 87, 80),
-      .OutlineColor = MakeColor(255, 255, 255, 24),
+      .FillColor = RGBA_Color(30, 56, 87, 80),
+      .OutlineColor = RGBA_Color(255, 255, 255, 24),
    },
    .BezierSplitPoint = {
       .RadiusClipSpace = 0.025f,
       .OutlineThicknessFraction = 0.1f,
-      .FillColor = MakeColor(0, 255, 0, 100),
-      .OutlineColor = MakeColor(0, 200, 0, 200),
+      .FillColor = RGBA_Color(0, 255, 0, 100),
+      .OutlineColor = RGBA_Color(0, 200, 0, 200),
    },
-   .BackgroundColor = MakeColor(21, 21, 21),
+   .BackgroundColor = RGBA_Color(21, 21, 21),
    .CollisionToleranceClipSpace = 0.02f,
    .CubicBezierHelperLineWidthClipSpace = 0.003f,
    .CurveDefaultParams = DefaultCurveParams(),
@@ -1479,7 +1479,7 @@ RenderSelectedEntityUI(editor *Editor)
             
             if (Curve)
             {
-               UI_DragFloat2F(Entity->Position.Es, 0.0f, 0.0f, 0, "Position");
+               UI_DragFloat2F(Entity->Position.E, 0.0f, 0.0f, 0, "Position");
                if (ResetCtxMenu("PositionReset"))
                {
                   Entity->Position = V2(0.0f, 0.0f);
@@ -2009,7 +2009,7 @@ UpdateAndRenderNotifications(editor *Editor, f32 DeltaTime)
                }
                
                char const *Title = 0;
-               color TitleColor = {};
+               v4 TitleColor = {};
                switch (Notification->Type)
                {
                   case Notification_Success: { Title = "Success"; TitleColor = GreenColor; } break;
@@ -2804,14 +2804,14 @@ UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Trans
                                           Curve->ControlPoints,
                                           Curve->ControlPointWeights,
                                           Curve->ControlPointCount);
-                  color *IterationColors = PushArrayNonZero(Tracking->Arena, Intermediate.IterationCount, color);
+                  v4 *IterationColors = PushArrayNonZero(Tracking->Arena, Intermediate.IterationCount, v4);
                   line_vertices *LineVerticesPerIteration = PushArray(Tracking->Arena,
                                                                       Intermediate.IterationCount,
                                                                       line_vertices);
                   
                   f32 LineWidth = Curve->CurveParams.CurveWidth;
-                  color GradientA = MakeColor(255, 0, 144);
-                  color GradientB = MakeColor(155, 200, 0);
+                  v4 GradientA = RGBA_Color(255, 0, 144);
+                  v4 GradientB = RGBA_Color(155, 200, 0);
                   
                   f32 P = 0.0f;
                   f32 Delta_P = 1.0f / (Intermediate.IterationCount - 1);
@@ -2820,7 +2820,7 @@ UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Trans
                        Iteration < Intermediate.IterationCount;
                        ++Iteration)
                   {
-                     color IterationColor = LerpColor(GradientA, GradientB, P);
+                     v4 IterationColor = LerpColor(GradientA, GradientB, P);
                      IterationColors[Iteration] = IterationColor;
                      
                      u64 CurrentIterationPointCount = Intermediate.IterationCount - Iteration;
@@ -2858,7 +2858,7 @@ UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Trans
                     Iteration < IterationCount;
                     ++Iteration)
                {
-                  color PointColor = Tracking->IterationColors[Iteration];
+                  v4 PointColor = Tracking->IterationColors[Iteration];
                   for (u64 I = 0; I < IterationCount - Iteration; ++I)
                   {
                      local_position Point = Tracking->Intermediate.P[PointIndex];
@@ -2985,7 +2985,7 @@ UpdateAnimateCurveAnimation(editor *Editor, f32 DeltaTime, sf::Transform Transfo
          {                    
             UI_TextF("Animate");
             UI_SameRow();
-            // TODO(hbr): Add color UI_TextFColored(CURVE_NAME_HIGHLIGHT_COLOR, Animation->FromCurveEntity->Name.Data);
+            // TODO(hbr): Add v4 UI_TextFColored(CURVE_NAME_HIGHLIGHT_COLOR, Animation->FromCurveEntity->Name.Data);
             UI_TextF(Animation->FromCurveEntity->Name.Data);
             UI_SameRow();
             UI_TextF("with");
@@ -3147,9 +3147,9 @@ UpdateAnimateCurveAnimation(editor *Editor, f32 DeltaTime, sf::Transform Transfo
                f32 AnimatedCurveWidth = Lerp(FromCurve->CurveParams.CurveWidth,
                                              ToCurve->CurveParams.CurveWidth,
                                              Blend);
-               color AnimatedCurveColor = LerpColor(FromCurve->CurveParams.CurveColor,
-                                                    ToCurve->CurveParams.CurveColor,
-                                                    Blend);
+               v4 AnimatedCurveColor = LerpColor(FromCurve->CurveParams.CurveColor,
+                                                 ToCurve->CurveParams.CurveColor,
+                                                 Blend);
                
                // NOTE(hbr): If there is no recalculation we can reuse previous buffer without
                // any calculation, because there is already enough space.
@@ -3435,7 +3435,7 @@ UpdateAndRenderCurveCombining(editor *Editor, sf::Transform Transform)
       world_position WithPoint = LocalEntityPositionToWorld(State->WithEntity, WithPointLocal);
       
       f32 LineWidth = 0.5f * SourceCurve->CurveParams.CurveWidth;
-      color Color = SourceCurve->CurveParams.CurveColor;
+      v4 Color = SourceCurve->CurveParams.CurveColor;
       Color.A = Cast(u8)(0.5f * Color.A);
       
       v2 LineDirection = WithPoint - SourcePoint;

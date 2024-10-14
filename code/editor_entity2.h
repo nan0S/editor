@@ -92,19 +92,19 @@ struct curve_params
    cubic_spline_type CubicSplineType;
    bezier_type BezierType;
    
-   color CurveColor;
+   v4 CurveColor;
    f32 CurveWidth;
    
    b32 PointsDisabled;
-   color PointColor;
+   v4 PointColor;
    f32 PointRadius;
    
    b32 PolylineEnabled;
-   color PolylineColor;
+   v4 PolylineColor;
    f32 PolylineWidth;
    
    b32 ConvexHullEnabled;
-   color ConvexHullColor;
+   v4 ConvexHullColor;
    f32 ConvexHullWidth;
    
    u64 CurvePointCountPerSegment;
@@ -122,7 +122,7 @@ struct curve_point_tracking_state
    // NOTE(hbr): De Casteljau visualization
    arena *Arena;
    all_de_casteljau_intermediate_results Intermediate;
-   color *IterationColors;
+   v4 *IterationColors;
    line_vertices *LineVerticesPerIteration;
 };
 
@@ -225,9 +225,9 @@ enum
 struct point_info
 {
    f32 Radius;
-   color Color;
+   v4 Color;
    f32 OutlineThickness;
-   color OutlineColor;
+   v4 OutlineColor;
 };
 
 internal b32 IsEntityVisible(entity *Entity);

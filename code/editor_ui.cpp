@@ -53,28 +53,18 @@ UI_CheckboxF(b32 *Enabled, char const *Format, ...)
 }
 
 internal b32
-UI_ColorPicker(color *Color, string Label)
+UI_ColorPicker(v4 *Color, string Label)
 {
    temp_arena Temp = TempArena(0);
    string CLabel = CStrFromStr(Temp.Arena, Label);
-   f32 ColorF32[4] = {
-      Color->R / 255.0f,
-      Color->G / 255.0f,
-      Color->B / 255.0f,
-      Color->A / 255.0f,
-   };
-   b32 Result = Cast(b32)ImGui::ColorEdit4(CLabel.Data, ColorF32);
-   *Color = MakeColor(Cast(u8)(255 * ColorF32[0]),
-                      Cast(u8)(255 * ColorF32[1]),
-                      Cast(u8)(255 * ColorF32[2]),
-                      Cast(u8)(255 * ColorF32[3]));
+   b32 Result = Cast(b32)ImGui::ColorEdit4(CLabel.Data, Color->E);
    EndTemp(Temp);
    
    return Result;
 }
 
 internal b32
-UI_ColorPickerF(color *Color, char const *Format, ...)
+UI_ColorPickerF(v4 *Color, char const *Format, ...)
 {
    temp_arena Temp = TempArena(0);
    va_list Args;
@@ -189,7 +179,7 @@ internal void UI_BeginDisabled(b32 Disabled) { ImGui::BeginDisabled(Cast(bool)Di
 internal void UI_EndDisabled(void) { ImGui::EndDisabled(); }
 
 internal void
-UI_PushTextColor(color Color)
+UI_PushTextColor(v4 Color)
 {
    ImVec4 ImColor = ImVec4(Color.R, Color.G, Color.B, Color.A);
    ImGui::PushStyleColor(ImGuiCol_Text, ImColor);

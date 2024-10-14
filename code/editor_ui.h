@@ -14,7 +14,7 @@ internal void UI_PopLabel(void);
 internal void UI_PopId(void);
 internal void UI_BeginDisabled(b32 Disabled);
 internal void UI_EndDisabled(void);
-internal void UI_PushTextColor(color Color);
+internal void UI_PushTextColor(v4 Color);
 internal void UI_PopTextColor(void);
 internal void UI_PushAlpha(f32 Alpha);
 internal void UI_PopAlpha(void);
@@ -65,8 +65,8 @@ internal changed_b32       UI_SliderFloatF(f32 *Value, f32 MinValue, f32 MaxValu
 #define                    UI_SliderIntegerF(Value, MinValue, MaxValue, Format, ...) UI_SliderIntegerF_(Cast(s64 *)(Value), MinValue, MaxValue, Format, __VA_ARGS__)
 internal void              UI_AngleSlider(rotation_2d *Rotation, string Label);
 internal void              UI_AngleSliderF(rotation_2d *Rotation, char const *Format, ...);
-internal changed_b32       UI_ColorPicker(color *Color, string Label);
-internal changed_b32       UI_ColorPickerF(color *Color, char const *Format, ...);
+internal changed_b32       UI_ColorPicker(v4 *Color, string Label);
+internal changed_b32       UI_ColorPickerF(v4 *Color, char const *Format, ...);
 internal string            UI_InputText(char *Buf, u64 BufSize, string Label);
 internal string            UI_InputTextF(char *Buf, u64 BufSize, char const *Format, ...);
 internal void              UI_Text(string Text);

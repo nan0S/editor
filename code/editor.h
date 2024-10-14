@@ -54,7 +54,7 @@ TODOs:
 - add SIMD
 - maybe splitting, deCasteljau visualization, degree lowering should be per curve, not global (but maybe not)
 - better profiler, snapshots, shouldn't update so frequently
-- change curve colors when combining or choosing to transform
+- change curve v4s when combining or choosing to transform
 - splitting and splitting on point curves should have either the same name or something better than (left), (right)
 - change the way SetCurveControlPoints works to optimize a little - avoid unnecessary memcpys and allocs
 - take more things by pointer in general
@@ -122,14 +122,14 @@ DONE:
 - replace sf::Vector2u with v2u32
 - measure and improve performance
 - add point selection
-- selected curve points should have outline instead of different color
-- add different color selected point
+- selected curve points should have outline instead of different v4
+- add different v4 selected point
 - control point weights should have nicer ui for changing weights
 - add possibilty to change default editor parameters
 - add possibility to change default curve parameters
 - add parameters to project file format saving
-- fit nice default colors, especially selected curve outline color
-- add possibility for curve color to have different alpha than 255
+- fit nice default v4s, especially selected curve outline v4
+- add possibility for curve v4 to have different alpha than 255
 - collision tolerance should not be in world space, it should be in camera space
 - fix GlobalImageScaleFactor
 - rename some variables from Scale to ClipSpace
@@ -205,8 +205,8 @@ struct render_point_data
 {
    f32 RadiusClipSpace;
    f32 OutlineThicknessFraction;
-   color FillColor;
-   color OutlineColor;
+   v4 FillColor;
+   v4 OutlineColor;
 };
 
 struct editor_params
@@ -214,7 +214,7 @@ struct editor_params
    render_point_data RotationIndicator;
    render_point_data BezierSplitPoint;
    
-   color BackgroundColor;
+   v4 BackgroundColor;
    f32   CollisionToleranceClipSpace;
    f32   LastControlPointSizeMultiplier;
    

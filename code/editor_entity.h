@@ -34,11 +34,11 @@ DefaultCurveParams(void)
 {
    curve_params Result = {};
    f32 CurveWidth = 0.009f;
-   Result.CurveColor = MakeColor(21, 69, 98);
+   Result.CurveColor = RGBA_Color(21, 69, 98);
    Result.CurveWidth = CurveWidth;
-   Result.PointColor = MakeColor(0, 138, 138, 148);
+   Result.PointColor = RGBA_Color(0, 138, 138, 148);
    Result.PointRadius = 0.014f;
-   color PolylineColor = MakeColor(16, 31, 31, 200);
+   v4 PolylineColor = RGBA_Color(16, 31, 31, 200);
    Result.PolylineColor = PolylineColor;
    Result.PolylineWidth = CurveWidth;
    Result.ConvexHullColor = PolylineColor;

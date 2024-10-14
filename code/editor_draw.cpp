@@ -1,9 +1,9 @@
 internal void
 DrawCircle(v2 Position, f32 Radius,
-           color Color, sf::Transform Transform,
+           v4 Color, sf::Transform Transform,
            sf::RenderWindow *RenderWindow,
            f32 OutlineThickness,
-           color OutlineColor)
+           v4 OutlineColor)
 {
    sf::CircleShape Circle = sf::CircleShape();
    
@@ -19,7 +19,7 @@ DrawCircle(v2 Position, f32 Radius,
 
 internal void
 DrawSquare(v2 Position, f32 Side,
-           color Color, sf::Transform Transform,
+           v4 Color, sf::Transform Transform,
            sf::RenderWindow *RenderWindow)
 {
    DrawRectangle(Position, V2(Side, Side), Rotation2DZero(),
@@ -28,7 +28,7 @@ DrawSquare(v2 Position, f32 Side,
 
 internal void
 DrawRectangle(v2 Position, v2 Size, rotation_2d Rotation,
-              color Color, sf::Transform Transform,
+              v4 Color, sf::Transform Transform,
               sf::RenderWindow *RenderWindow)
 {
    sf::RectangleShape Rectangle = sf::RectangleShape();
@@ -44,7 +44,7 @@ DrawRectangle(v2 Position, v2 Size, rotation_2d Rotation,
 
 internal void
 DrawLine(v2 BeginPoint, v2 EndPoint,
-         f32 LineWidth, color Color,
+         f32 LineWidth, v4 Color,
          sf::Transform Transform,
          sf::RenderWindow *RenderWindow)
 {
@@ -63,7 +63,7 @@ DrawLine(v2 BeginPoint, v2 EndPoint,
 
 internal void
 DrawTriangle(v2 P0, v2 P1, v2 P2,
-             color Color, sf::Transform Transform,
+             v4 Color, sf::Transform Transform,
              sf::RenderWindow *Window)
 {
    sf::Vertex Vertices[3] = {};

@@ -183,6 +183,7 @@ obstacles, I don't want to unwittingly click on some other curve/image and selec
 
 Bugs:
 - clicking on control point doesn't do anything, but should select this curve and control point
+- splitting bezier curve doesnt fully recompute one of the curves
 */
 
 #define WINDOW_TITLE "Parametric Curves Editor"
@@ -201,25 +202,9 @@ PROJECT_FILE_EXTENSION_SELECTION "{" SAVED_PROJECT_FILE_EXTENSION "}" \
 // and images to be different size.
 global f32 GlobalImageScaleFactor         = 1.0f / 1920.0f;
 
-struct render_point_data
-{
-   f32 RadiusClipSpace;
-   f32 OutlineThicknessFraction;
-   v4 FillColor;
-   v4 OutlineColor;
-};
-
 struct editor_params
 {
-   render_point_data RotationIndicator;
-   render_point_data BezierSplitPoint;
    
-   v4 BackgroundColor;
-   f32   CollisionToleranceClipSpace;
-   f32   LastControlPointSizeMultiplier;
-   
-   f32   CubicBezierHelperLineWidthClipSpace;
-   curve_params CurveDefaultParams;
 };
 
 struct camera
@@ -426,7 +411,6 @@ struct ui_config
    b32 ViewDiagnosticsWindow;
    b32 ViewProfilerWindow;
    b32 ViewDebugWindow;
-   
    b32 DefaultCurveHeaderCollapsed;
    b32 RotationIndicatorHeaderCollapsed;
    b32 BezierSplitPointHeaderCollapsed;
@@ -460,11 +444,17 @@ struct editor
    
    arena *MovingPointArena;
    editor_mode Mode;
-   editor_params Params;
+   
+   v4 DefaultBackgroundColor;
+   v4 BackgroundColor;
+   f32 DefaultCollisionToleranceClipSpace;
+   f32 CollisionToleranceClipSpace;
+   curve_params CurveDefaultParams;
+   
    ui_config UI_Config;
    
-   curve_animation_state       CurveAnimation;
-   curve_combining_state       CurveCombining;
+   curve_animation_state CurveAnimation;
+   curve_combining_state CurveCombining;
    
    b32 Empty;
    arena *ProjectPathArena;

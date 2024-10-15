@@ -20,9 +20,9 @@ IsEntitySelected(entity *Entity)
 }
 
 internal f32
-GetCurveTrackedPointSize(curve *Curve)
+GetCurveTrackedPointRadius(curve *Curve)
 {
-   f32 Result = Curve->CurveParams.CurveWidth;
+   f32 Result = 1.5f * Curve->CurveParams.CurveWidth;
    return Result;
 }
 

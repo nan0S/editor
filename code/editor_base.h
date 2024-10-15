@@ -123,7 +123,7 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define Billion(N)  (Cast(u64)(N) * 1000000000ull)
 
 #define ArrayCount(Arr) (SizeOf(Arr)/SizeOf((Arr)[0]))
-#define AssertAlways(Expr) do { if (!(Expr)) { Trap(); } } while (0)
+#define AssertAlways(Expr) do { if (!(Expr)) { Trap; } } while (0)
 #define StaticAssert(Expr, Label) typedef int Static_Assert_Failed_##Label[(Expr) ? 1 : -1]
 #define MarkUnused(Var) (void)Var
 #define Cast(Type) (Type)
@@ -143,10 +143,10 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #endif
 
 #if COMPILER_MSVC
-# define Trap() __debugbreak()
+# define Trap __debugbreak()
 #endif
 #if COMPILER_GCC || COMPILER_CLANG
-# define Trap() __builti.n_trap()
+# define Trap __builtin_trap()
 #endif
 #if !defined(Trap)
 # error trap not defined

@@ -22,6 +22,13 @@ BrightenColor(v4 Color, f32 BrightenByRatio)
    return Result;
 }
 
+inline internal v4
+DarkenColor(v4 Color, f32 DarkenByRatio)
+{
+   v4 Result = BrightenColor(Color, -DarkenByRatio);
+   return Result;
+}
+
 internal f32
 Norm(v2 V)
 {

@@ -13,25 +13,6 @@
 
 #include "editor_entity2.cpp"
 
-global editor_params GlobalDefaultEditorParams = {
-   .RotationIndicator = {
-      .RadiusClipSpace = 0.06f,
-      .OutlineThicknessFraction = 0.1f,
-      .FillColor = RGBA_Color(30, 56, 87, 80),
-      .OutlineColor = RGBA_Color(255, 255, 255, 24),
-   },
-   .BezierSplitPoint = {
-      .RadiusClipSpace = 0.025f,
-      .OutlineThicknessFraction = 0.1f,
-      .FillColor = RGBA_Color(0, 255, 0, 100),
-      .OutlineColor = RGBA_Color(0, 200, 0, 200),
-   },
-   .BackgroundColor = RGBA_Color(21, 21, 21),
-   .CollisionToleranceClipSpace = 0.02f,
-   .CubicBezierHelperLineWidthClipSpace = 0.003f,
-   .CurveDefaultParams = DefaultCurveParams(),
-};
-
 internal void
 SetCameraZoom(camera *Camera, f32 Zoom)
 {
@@ -137,7 +118,6 @@ internal collision
 CheckCollisionWith(entities *Entities,
                    world_position CheckPosition,
                    f32 CollisionTolerance,
-                   editor_params *EditorParams,
                    collision_flags CollisionWithFlags)
 {
    collision Result = {};
@@ -206,10 +186,10 @@ CheckCollisionWith(entities *Entities,
                curve_point_tracking_state *Tracking = &Curve->PointTracking;
                if (Tracking->Active && (CollisionWithFlags & Collision_TrackedPoint))
                {
-                  f32 PointSize = GetCurveTrackedPointSize(Curve);
+                  f32 PointRadius = GetCurveTrackedPointRadius(Curve);
                   if (PointCollision(CheckPositionLocal,
                                      Tracking->TrackedPoint,
-                                     PointSize + CollisionTolerance))
+                                     PointRadius + CollisionTolerance))
                   {
                      Result.Entity = Entity;
                      Result.Flags |= Collision_TrackedPoint;
@@ -649,15 +629,14 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                }
                else
                {
-                  collision_flags CollisionWithFlags = (Collision_CurvePoint | Collision_CurveLine);
-                  f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->Params.CollisionToleranceClipSpace,
+                  f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->CollisionToleranceClipSpace,
                                                                        &Editor->RenderData);
                   Collision = CheckCollisionWith(&Editor->Entities, ClickPosition, CollisionTolerance,
-                                                 &Editor->Params, CollisionWithFlags);
+                                                 Collision_CurvePoint | Collision_CurveLine);
                }
                
                entity *FocusEntity = 0;
-               b32 FocusCurvePoint = false;
+               b32 DoFocusCurvePoint = false;
                curve_point_index FocusCurvePointIndex = {};
                if (Collision.Entity)
                {
@@ -674,7 +653,7 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                   }
                   else if (Collision.Flags & Collision_CurvePoint)
                   {
-                     FocusCurvePoint = true;
+                     DoFocusCurvePoint = true;
                      FocusCurvePointIndex = Collision.CurvePointIndex;
                   }
                   else if (Collision.Flags & Collision_CurveLine)
@@ -682,7 +661,7 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                      control_point_index Index = CurvePointIndexToControlPointIndex(Curve, Collision.CurveLinePointIndex);
                      u64 InsertAt = Index.Index + 1;
                      InsertControlPoint(Collision.Entity, ClickPosition, InsertAt);
-                     FocusCurvePoint = true;
+                     DoFocusCurvePoint = true;
                      FocusCurvePointIndex = MakeCurvePointIndexFromControlPointIndex(InsertAt);
                   }
                }
@@ -698,17 +677,17 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                      FocusEntity = AllocEntity(Editor);
                      string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EntityCounter++);
                      InitEntity(FocusEntity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
-                     InitCurve(FocusEntity, Editor->Params.CurveDefaultParams);
+                     InitCurve(FocusEntity, Editor->CurveDefaultParams);
                   }
                   Assert(FocusEntity);
                   
-                  FocusCurvePoint = true;
+                  DoFocusCurvePoint = true;
                   control_point_index Appended = AppendControlPoint(FocusEntity, ClickPosition);
                   FocusCurvePointIndex = MakeCurvePointIndexFromControlPointIndex(Appended);
                }
                
                SelectEntity(Editor, FocusEntity);
-               if (FocusCurvePoint)
+               if (DoFocusCurvePoint)
                {
                   curve *FocusCurve = GetCurve(FocusEntity);
                   SelectControlPointFromCurvePointIndex(FocusCurve, FocusCurvePointIndex);
@@ -802,11 +781,14 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
             } break;
             
             case Button_Right: {
-               collision_flags CollisionWithFlags = (Collision_CurvePoint | Collision_TrackedPoint | Collision_Image);
-               f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->Params.CollisionToleranceClipSpace,
+               f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->CollisionToleranceClipSpace,
                                                                     &Editor->RenderData);
-               collision Collision = CheckCollisionWith(&Editor->Entities, ClickPosition, CollisionTolerance,
-                                                        &Editor->Params, CollisionWithFlags);
+               collision Collision = CheckCollisionWith(&Editor->Entities,
+                                                        ClickPosition,
+                                                        CollisionTolerance,
+                                                        Collision_CurvePoint |
+                                                        Collision_TrackedPoint |
+                                                        Collision_Image);
                
                if (Collision.Entity)
                {
@@ -814,7 +796,6 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
                   {
                      case Entity_Curve: {
                         curve *Curve = GetCurve(Collision.Entity);
-                        
                         if ((Collision.Flags & Collision_TrackedPoint) &&
                             Curve->PointTracking.IsSplitting)
                         {
@@ -855,46 +836,35 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
          switch (DragButton)
          {
             case Button_Left: {
-               collision_flags CollisionWithFlags =
-                  Collision_CurvePoint |
-                  Collision_TrackedPoint |
-                  Collision_CurveLine |
-                  Collision_Image;
                f32 CollisionTolerance =
-                  ClipSpaceLengthToWorldSpace(Editor->Params.CollisionToleranceClipSpace,
+                  ClipSpaceLengthToWorldSpace(Editor->CollisionToleranceClipSpace,
                                               &Editor->RenderData);
+               
                collision Collision = CheckCollisionWith(&Editor->Entities,
                                                         DragFromWorldPosition,
                                                         CollisionTolerance,
-                                                        &Editor->Params,
-                                                        CollisionWithFlags);
+                                                        Collision_CurvePoint |
+                                                        Collision_TrackedPoint |
+                                                        Collision_CurveLine |
+                                                        Collision_Image);
                
                if (Collision.Entity)
                {
-                  // TODO(hbr): Try to simplify this logic - we effectively just translate CurveCollision_* to MovingMode_*
-                  switch (Collision.Entity->Type)
+                  if (Collision.Flags & Collision_TrackedPoint)
                   {
-                     case Entity_Curve: {
-                        if (Collision.Flags & Collision_TrackedPoint)
-                        {
-                           Editor->Mode = MakeMovingTrackedPointMode(Collision.Entity);
-                        }
-                        else if (Collision.Flags & Collision_CurvePoint)
-                        {
-                           curve *Curve = GetCurve(Collision.Entity);
-                           SelectControlPointFromCurvePointIndex(Curve, Collision.CurvePointIndex);
-                           Editor->Mode = MakeMovingCurvePointMode(Collision.Entity, Collision.CurvePointIndex,
-                                                                   Editor->MovingPointArena);
-                        }
-                        else if (Collision.Flags & Collision_CurveLine)
-                        {
-                           Editor->Mode = MakeMovingEntityMode(Collision.Entity);
-                        }
-                     } break;
-                     
-                     case Entity_Image: {
-                        Editor->Mode = MakeMovingEntityMode(Collision.Entity);
-                     } break;
+                     Editor->Mode = MakeMovingTrackedPointMode(Collision.Entity);
+                  }
+                  else if (Collision.Flags & Collision_CurvePoint)
+                  {
+                     curve *Curve = GetCurve(Collision.Entity);
+                     SelectControlPointFromCurvePointIndex(Curve, Collision.CurvePointIndex);
+                     Editor->Mode = MakeMovingCurvePointMode(Collision.Entity, Collision.CurvePointIndex,
+                                                             Editor->MovingPointArena);
+                  }
+                  else if ((Collision.Flags & Collision_CurveLine) ||
+                           (Collision.Entity->Type == Entity_Image))
+                  {
+                     Editor->Mode = MakeMovingEntityMode(Collision.Entity);
                   }
                   
                   SelectEntity(Editor, Collision.Entity);
@@ -1063,20 +1033,22 @@ struct stable_rotation
    rotation_2d Rotation;
    world_position RotationCenter;
 };
+#define ROTATION_INDICATOR_RADIUS_CLIP_SPACE 0.06f
 internal stable_rotation
 CalculateRotationIfStable(screen_position From,
                           screen_position To,
                           camera_position RotationCenterCamera,
-                          render_data * CoordinateSystemData,
-                          editor_params Params)
+                          editor *Editor)
 {
    stable_rotation Result = {};
    
-   world_position FromWorld = ScreenToWorldSpace(From, CoordinateSystemData);
-   world_position ToWorld = ScreenToWorldSpace(To, CoordinateSystemData);
-   world_position CenterWorld = CameraToWorldSpace(RotationCenterCamera, CoordinateSystemData);
-   f32 DeadDistance = ClipSpaceLengthToWorldSpace(Params.RotationIndicator.RadiusClipSpace,
-                                                  CoordinateSystemData);
+   render_data *RenderData = &Editor->RenderData;
+   
+   world_position FromWorld = ScreenToWorldSpace(From, RenderData);
+   world_position ToWorld = ScreenToWorldSpace(To, RenderData);
+   world_position CenterWorld = CameraToWorldSpace(RotationCenterCamera, RenderData);
+   
+   f32 DeadDistance = ClipSpaceLengthToWorldSpace(ROTATION_INDICATOR_RADIUS_CLIP_SPACE, RenderData);
    
    if (NormSquared(FromWorld - CenterWorld) >= Square(DeadDistance) &&
        NormSquared(ToWorld   - CenterWorld) >= Square(DeadDistance))
@@ -1121,8 +1093,7 @@ ExecuteUserActionRotateMode(editor *Editor, user_action Action)
             CalculateRotationIfStable(Action.MouseMove.FromPosition,
                                       Action.MouseMove.ToPosition,
                                       RotationCenter,
-                                      &Editor->RenderData,
-                                      Editor->Params);
+                                      Editor);
          
          if (StableRotation.IsStable)
          {
@@ -1173,21 +1144,6 @@ ExecuteUserAction(editor *Editor, user_action Action)
       case EditorMode_Moving:   { ExecuteUserActionMoveMode(Editor, Action); } break;
       case EditorMode_Rotating: { ExecuteUserActionRotateMode(Editor, Action); } break;
    }
-}
-
-internal void
-RenderPoint(v2 Position,
-            render_point_data PointData,
-            render_data *RenderData,
-            sf::Transform Transform)
-{
-   f32 TotalRadius = ClipSpaceLengthToWorldSpace(PointData.RadiusClipSpace, RenderData);
-   f32 OutlineThickness = PointData.OutlineThicknessFraction * TotalRadius;
-   f32 InsideRadius = TotalRadius - OutlineThickness;
-   
-   DrawCircle(Position, InsideRadius, PointData.FillColor,
-              Transform, RenderData->Window, OutlineThickness,
-              PointData.OutlineColor);
 }
 
 internal void
@@ -1302,7 +1258,7 @@ LowerBezierCurveDegree(entity *Entity)
 }
 
 internal void
-ElevateBezierCurveDegree(entity *Entity, editor_params *EditorParams)
+ElevateBezierCurveDegree(entity *Entity)
 {
    curve *Curve = GetCurve(Entity);
    Assert(Curve->CurveParams.InterpolationType == Interpolation_Bezier);
@@ -1533,7 +1489,7 @@ RenderSelectedEntityUI(editor *Editor)
             b32 SomeCurveParamChanged = false;
             if (Curve)
             {
-               curve_params DefaultParams = Editor->Params.CurveDefaultParams;
+               curve_params DefaultParams = Editor->CurveDefaultParams;
                curve_params *CurveParams = &Curve->CurveParams;
                
                UI_NewRow();
@@ -1842,7 +1798,7 @@ RenderSelectedEntityUI(editor *Editor)
             
             if (ElevateBezierCurve)
             {
-               ElevateBezierCurveDegree(Entity, &Editor->Params);
+               ElevateBezierCurveDegree(Entity);
             }
             
             if (LowerBezierCurve)
@@ -1881,37 +1837,6 @@ RenderSelectedEntityUI(editor *Editor)
             }
          }
          UI_EndWindow();
-      }
-   }
-}
-
-internal void
-RenderUIForRenderPointData(char const *Label, render_point_data *PointData, render_point_data DefaultData)
-{
-   DeferBlock(UI_PushLabelF(Label), UI_PopId())
-   {      
-      UI_DragFloatF(&PointData->RadiusClipSpace, 0.0f, FLT_MAX, 0, "Radius");
-      if (ResetCtxMenu("RadiusReset"))
-      {
-         PointData->RadiusClipSpace = DefaultData.RadiusClipSpace;
-      }
-      
-      UI_DragFloatF(&PointData->OutlineThicknessFraction, 0.0f, 1.0f, 0, "Outline Thickness");
-      if (ResetCtxMenu("OutlineThicknessReset"))
-      {
-         PointData->OutlineThicknessFraction = DefaultData.OutlineThicknessFraction;
-      }
-      
-      UI_ColorPickerF(&PointData->FillColor, "Fill Color");
-      if (ResetCtxMenu("FillColorReset"))
-      {
-         PointData->FillColor = DefaultData.FillColor;
-      }
-      
-      UI_ColorPickerF(&PointData->OutlineColor, "Outline Color");
-      if (ResetCtxMenu("OutlineColorReset"))
-      {
-         PointData->OutlineColor = DefaultData.OutlineColor;
       }
    }
 }
@@ -2649,51 +2574,24 @@ internal void
 RenderSettingsWindow(editor *Editor)
 {
    ui_config *Config = &Editor->UI_Config;
-   editor_params *Params = &Editor->Params;
    if (Config->ViewParametersWindow)
    {
       if (UI_BeginWindowF(&Config->ViewParametersWindow, "Editor Settings"))
       {
-         if (UI_CollapsingHeaderF("Rotation Indicator"))
-         {
-            RenderUIForRenderPointData("RotationIndicator",
-                                       &Params->RotationIndicator,
-                                       GlobalDefaultEditorParams.RotationIndicator);
-         }
-         
-         if (UI_CollapsingHeaderF("Bezier Split Point"))
-         {
-            RenderUIForRenderPointData("BezierSplitPoint",
-                                       &Params->BezierSplitPoint,
-                                       GlobalDefaultEditorParams.BezierSplitPoint);
-         }
-         
          if (UI_CollapsingHeaderF("Other Settings"))
          {
             DeferBlock(UI_PushLabelF("OtherSettings"), UI_PopId())
             {
-               UI_ColorPickerF(&Params->BackgroundColor, "Background Color");
+               UI_ColorPickerF(&Editor->BackgroundColor, "Background Color");
                if (ResetCtxMenu("BackgroundColorReset"))
                {
-                  Params->BackgroundColor = GlobalDefaultEditorParams.BackgroundColor;
+                  Editor->BackgroundColor = Editor->DefaultBackgroundColor;
                }
                
-               UI_DragFloatF(&Params->CollisionToleranceClipSpace, 0.0f, 1.0f, 0, "Collision Tolerance");
+               UI_DragFloatF(&Editor->CollisionToleranceClipSpace, 0.0f, 1.0f, 0, "Collision Tolerance");
                if (ResetCtxMenu("CollisionToleranceReset"))
                {
-                  Params->CollisionToleranceClipSpace = GlobalDefaultEditorParams.CollisionToleranceClipSpace;
-               }
-               
-               UI_DragFloatF(&Params->LastControlPointSizeMultiplier, 0.0f, FLT_MAX, 0, "Last Control Point Size");
-               if (ResetCtxMenu("LastControlPointSizeReset"))
-               {
-                  Params->LastControlPointSizeMultiplier = GlobalDefaultEditorParams.LastControlPointSizeMultiplier;
-               }
-               
-               UI_DragFloatF(&Params->CubicBezierHelperLineWidthClipSpace, 0.0f, FLT_MAX, 0, "Cubic Bezier Helper Line Width");
-               if (ResetCtxMenu("CubicBezierHelperLineWidthReset"))
-               {
-                  Params->CubicBezierHelperLineWidthClipSpace = GlobalDefaultEditorParams.CubicBezierHelperLineWidthClipSpace;
+                  Editor->CollisionToleranceClipSpace = Editor->DefaultCollisionToleranceClipSpace;
                }
             }
          }
@@ -2730,7 +2628,6 @@ UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Trans
    curve_params *CurveParams = &Curve->CurveParams;
    curve_point_tracking_state *Tracking = &Curve->PointTracking;
    temp_arena Temp = TempArena(Tracking->Arena);
-   editor_params *EditorParams = &Editor->Params;
    sf::RenderWindow *Window = Editor->RenderData.Window;
    
    if (Entity->Type == Entity_Curve && Tracking->Active)
@@ -2773,10 +2670,12 @@ UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Trans
                                                                        Curve->ControlPointCount);
                }
                
-               RenderPoint(Tracking->TrackedPoint,
-                           EditorParams->BezierSplitPoint,
-                           &Editor->RenderData,
-                           Transform);
+               f32 Radius = GetCurveTrackedPointRadius(Curve);
+               v4 Color = V4(0.0f, 1.0f, 0.0f, 0.5f);
+               f32 OutlineThickness = 0.3f * Radius;
+               v4 OutlineColor = DarkenColor(Color, 0.5f);
+               DrawCircle(Tracking->TrackedPoint, Radius, Color, Transform,
+                          Window, OutlineThickness, OutlineColor);
             }
          }
          else
@@ -3726,9 +3625,13 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
          RotationIndicatorPosition = Editor->RenderData.Camera.Position;
       }
       
-      RenderPoint(RotationIndicatorPosition,
-                  Editor->Params.RotationIndicator,
-                  &Editor->RenderData, VP);
+      f32 Radius = ClipSpaceLengthToWorldSpace(ROTATION_INDICATOR_RADIUS_CLIP_SPACE, &Editor->RenderData);
+      v4 Color = RGBA_Color(30, 56, 87, 80);
+      f32 OutlineThickness = 0.1f * Radius;
+      v4 OutlineColor = RGBA_Color(255, 255, 255, 24);
+      DrawCircle(RotationIndicatorPosition, Radius - OutlineThickness,
+                 Color, VP, Editor->RenderData.Window,
+                 OutlineThickness, OutlineColor);
    }
    
    // NOTE(hbr): Update menu bar here, because world has to already be rendered
@@ -3782,6 +3685,23 @@ main()
       if (ImGuiInitSuccess)
       {
          editor *Editor = PushStruct(PermamentArena, editor);
+         
+         Editor->BackgroundColor = Editor->DefaultBackgroundColor = RGBA_Color(21, 21, 21);
+         Editor->CollisionToleranceClipSpace = Editor->DefaultCollisionToleranceClipSpace = 0.02f;
+         f32 CurveWidth = 0.009f;
+         v4 PolylineColor = RGBA_Color(16, 31, 31, 200);
+         Editor->CurveDefaultParams = {
+            .CurveColor = RGBA_Color(21, 69, 98),
+            .CurveWidth = CurveWidth,
+            .PointColor = RGBA_Color(0, 138, 138, 148),
+            .PointRadius = 0.014f,
+            .PolylineColor = PolylineColor,
+            .PolylineWidth = CurveWidth,
+            .ConvexHullColor = PolylineColor,
+            .ConvexHullWidth = CurveWidth,
+            .CurvePointCountPerSegment = 50,
+         };
+         
          Editor->RenderData = {
             .Window = &Window,
             .Camera = {
@@ -3824,7 +3744,6 @@ main()
             .BezierSplitPointHeaderCollapsed = false,
             .OtherSettingsHeaderCollapsed = false,
          };
-         Editor->Params = GlobalDefaultEditorParams;
          
          sf::Vector2i MousePosition = sf::Mouse::getPosition(Window);
          
@@ -3850,7 +3769,7 @@ main()
 #endif
             HandleEvents(&Window, &Input);
             Editor->RenderData.AspectRatio = CalculateAspectRatio(Input.WindowWidth, Input.WindowHeight);
-            Window.clear(ColorToSFMLColor(Editor->Params.BackgroundColor));
+            Window.clear(ColorToSFMLColor(Editor->BackgroundColor));
             UpdateAndRender(DeltaTime, &Input, Editor);
             {
                TimeBlock("ImGui::SFML::Render");
@@ -3876,4 +3795,4 @@ main()
 }
 
 // NOTE(hbr): Specifically after every file is included. Works in Unity build only.
-StaticAssert(__COUNTER__ < ArrayCount(profiler::Anchors), ProfileAnchorsFitsIntoArray);
+StaticAssert(__COUNTER__ < ArrayCount(profiler::Anchors), ProfileAnchorsFitIntoArray);

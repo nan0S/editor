@@ -301,11 +301,20 @@ AllocEntity(editor *Editor)
       if (!(Current->Flags & EntityFlag_Active))
       {
          Entity = Current;
+         
+         arena *EntityArena = Entity->Arena;
+         arena *PointTrackingArena = Entity->Curve.PointTracking.Arena;
+         arena *DegreeLoweringArena = Entity->Curve.DegreeLowering.Arena;
+         StructZero(Entity);
+         Entity->Arena = EntityArena;
+         Entity->Curve.PointTracking.Arena = PointTrackingArena;
+         Entity->Curve.DegreeLowering.Arena = DegreeLoweringArena;
+         
          Entity->Flags |= EntityFlag_Active;
          ClearArena(Entity->Arena);
-         Entity->Curve.PointTracking.Active = false;
-         Entity->Curve.DegreeLowering.Active = false;
+         
          ++Editor->EntityCount;
+         
          break;
       }
    }
@@ -918,8 +927,14 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action)
             
             case MovingMode_CurvePoint: {
                translate_curve_point_flags Flags = 0;
-               if (!Action.Input->Keys[Key_LeftCtrl].Pressed)  Flags |= TranslateCurvePoint_MatchBezierTwinDirection;
-               if (!Action.Input->Keys[Key_LeftShift].Pressed) Flags |= TranslateCurvePoint_MatchBezierTwinLength;
+               if (IsKeyPressed(Action.Input, Key_LeftShift))
+               {
+                  Flags |= TranslateCurvePoint_MatchBezierTwinDirection;
+               }
+               if (IsKeyPressed(Action.Input, Key_LeftCtrl))
+               {
+                  Flags |= TranslateCurvePoint_MatchBezierTwinLength;
+               }
                TranslateCurvePoint(Moving->Entity, Moving->MovingPointIndex, Translation, Flags);
             } break;
             
@@ -3512,6 +3527,8 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
 {
    TimeFunction;
    
+   
+   
    FrameStatsUpdate(&Editor->FrameStats, DeltaTime);
    UpdateCamera(&Editor->RenderData.Camera, Input->MouseWheelDelta, DeltaTime);
    UpdateAndRenderNotifications(Editor, DeltaTime);
@@ -3553,7 +3570,8 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
          }
       }
       
-      if (Input->MouseLastPosition != Input->MousePosition)
+      if (Input->MouseLastPosition != Input->MousePosition ||
+          Editor->Mode.Type != EditorMode_Normal)
       {
          Action.Type = UserAction_MouseMove;
          Action.MouseMove.FromPosition = Input->MouseLastPosition;

@@ -145,6 +145,13 @@ struct curve_degree_lowering_state
    f32 MixParameter;
 };
 
+typedef u64 translate_curve_point_flags;
+enum
+{
+   TranslateCurvePoint_MatchBezierTwinDirection = (1<<0),
+   TranslateCurvePoint_MatchBezierTwinLength    = (1<<1),
+};
+
 struct curve
 {
    curve_params CurveParams;
@@ -156,6 +163,8 @@ struct curve
    local_position ControlPoints[MAX_CONTROL_POINT_COUNT];
    f32 ControlPointWeights[MAX_CONTROL_POINT_COUNT];
    cubic_bezier_point CubicBezierPoints[MAX_CONTROL_POINT_COUNT];
+   
+   translate_curve_point_flags CubicBezierTranslateFlags;
    
    u64 CurvePointCount;
    local_position *CurvePoints;
@@ -213,13 +222,6 @@ struct entity_array
 {
    u64 Count;
    entity *Entities;
-};
-
-typedef u64 translate_curve_point_flags;
-enum
-{
-   TranslateCurvePoint_MatchBezierTwinDirection = (1<<0),
-   TranslateCurvePoint_MatchBezierTwinLength    = (1<<1),
 };
 
 struct point_info

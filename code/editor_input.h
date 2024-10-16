@@ -78,6 +78,14 @@ KeyPressed(user_input *Input, key Key, modifier_flags Flags)
    return Result;
 }
 
+internal b32
+IsKeyPressed(user_input *Input, key Key)
+{
+   key_state *State = Input->Keys + Key;
+   b32 Result = State->Pressed;
+   return Result;
+}
+
 internal user_input UserInputMake(v2s MousePosition, u64 WindowWidth, u64 WindowHeight);
 internal void HandleEvents(sf::RenderWindow *Window, user_input *UserInput);
 

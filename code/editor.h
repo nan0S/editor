@@ -24,6 +24,8 @@
 #include "editor_debug.h"
 #include "editor_input.h"
 
+#include "editor_renderer.h"
+
 /* TODO(hbr):
 Refactors:
 - get rid of SFML? (f32).
@@ -184,6 +186,7 @@ obstacles, I don't want to unwittingly click on some other curve/image and selec
 Bugs:
 - clicking on control point doesn't do anything, but should select this curve and control point
 - splitting bezier curve doesnt fully recompute one of the curves
+- removing curve point unselects curve, dont do that
 */
 
 #define WINDOW_TITLE "Parametric Curves Editor"

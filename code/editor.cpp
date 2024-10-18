@@ -13,6 +13,8 @@
 
 #include "editor_entity2.cpp"
 
+#include "editor_renderer.cpp"
+
 internal void
 SetCameraZoom(camera *Camera, f32 Zoom)
 {
@@ -2635,7 +2637,7 @@ RenderDiagnosticsWindow(editor *Editor, f32 DeltaTime)
 }
 
 internal void
-UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Transform)
+UpdateAndRenderPointTracking(render_commands *Commands, editor *Editor, entity *Entity, sf::Transform Transform)
 {
    TimeFunction;
    
@@ -2643,7 +2645,6 @@ UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Trans
    curve_params *CurveParams = &Curve->CurveParams;
    curve_point_tracking_state *Tracking = &Curve->PointTracking;
    temp_arena Temp = TempArena(Tracking->Arena);
-   sf::RenderWindow *Window = Editor->RenderData.Window;
    
    if (Entity->Type == Entity_Curve && Tracking->Active)
    {
@@ -2689,8 +2690,9 @@ UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Trans
                v4 Color = V4(0.0f, 1.0f, 0.0f, 0.5f);
                f32 OutlineThickness = 0.3f * Radius;
                v4 OutlineColor = DarkenColor(Color, 0.5f);
-               DrawCircle(Tracking->TrackedPoint, Radius, Color, Transform,
-                          Window, OutlineThickness, OutlineColor);
+               PushCircle(Commands,
+                          Tracking->TrackedPoint, Radius, Color, Transform,
+                          OutlineThickness, OutlineColor);
             }
          }
          else
@@ -2760,10 +2762,11 @@ UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Trans
                     Iteration < IterationCount;
                     ++Iteration)
                {
-                  Window->draw(Tracking->LineVerticesPerIteration[Iteration].Vertices,
-                               Tracking->LineVerticesPerIteration[Iteration].NumVertices,
-                               Tracking->LineVerticesPerIteration[Iteration].PrimitiveType,
-                               Transform);
+                  PushVertexArray(Commands,
+                                  Tracking->LineVerticesPerIteration[Iteration].Vertices,
+                                  Tracking->LineVerticesPerIteration[Iteration].NumVertices,
+                                  Tracking->LineVerticesPerIteration[Iteration].PrimitiveType,
+                                  Transform);
                }
                
                f32 PointSize = CurveParams->PointRadius;
@@ -2776,7 +2779,7 @@ UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Trans
                   for (u64 I = 0; I < IterationCount - Iteration; ++I)
                   {
                      local_position Point = Tracking->Intermediate.P[PointIndex];
-                     DrawCircle(Point, PointSize, PointColor, Transform, Window);
+                     PushCircle(Commands, Point, PointSize, PointColor, Transform);
                      ++PointIndex;
                   }
                }
@@ -2795,9 +2798,9 @@ UpdateAndRenderPointTracking(editor *Editor, entity *Entity, sf::Transform Trans
 }
 
 internal void
-UpdateAndRenderDegreeLowering(entity *Entity,
-                              sf::Transform Transform,
-                              sf::RenderWindow *Window)
+UpdateAndRenderDegreeLowering(render_commands *Commands,
+                              entity *Entity,
+                              sf::Transform Transform)
 {
    TimeFunction;
    
@@ -2865,10 +2868,11 @@ UpdateAndRenderDegreeLowering(entity *Entity,
       sf::Transform Model = CurveGetAnimate(Entity);
       sf::Transform MVP = Transform * Model;
       
-      Window->draw(Lowering->SavedCurveVertices,
-                   Lowering->NumSavedCurveVertices,
-                   Lowering->SavedPrimitiveType,
-                   MVP);
+      PushVertexArray(Commands,
+                      Lowering->SavedCurveVertices,
+                      Lowering->NumSavedCurveVertices,
+                      Lowering->SavedPrimitiveType,
+                      MVP);
    }
 }
 
@@ -3109,7 +3113,7 @@ RenderEntityCombo(entities *Entities, entity **InOutEntity, string Label)
 }
 
 internal void
-UpdateAndRenderCurveCombining(editor *Editor, sf::Transform Transform)
+UpdateAndRenderCurveCombining(render_commands *Commands, editor *Editor, sf::Transform Transform)
 {
    temp_arena Temp = TempArena(0);
    
@@ -3358,19 +3362,19 @@ UpdateAndRenderCurveCombining(editor *Editor, sf::Transform Transform)
       f32 TriangleSide = 10.0f * LineWidth;
       f32 TriangleHeight = TriangleSide * SqrtF32(3.0f) / 2.0f;
       world_position BaseVertex = WithPoint - TriangleHeight * LineDirection;
-      DrawLine(SourcePoint, BaseVertex, LineWidth, Color, Transform, Editor->RenderData.Window);
+      PushLine(Commands, SourcePoint, BaseVertex, LineWidth, Color, Transform);
       
       v2 LinePerpendicular = Rotate90DegreesAntiClockwise(LineDirection);
       world_position LeftVertex = BaseVertex + 0.5f * TriangleSide * LinePerpendicular;
       world_position RightVertex = BaseVertex - 0.5f * TriangleSide * LinePerpendicular;
-      DrawTriangle(LeftVertex, RightVertex, WithPoint, Color, Transform, Editor->RenderData.Window);
+      PushTriangle(Commands, LeftVertex, RightVertex, WithPoint, Color, Transform);
    }
    
    EndTemp(Temp);
 }
 
 internal void
-UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
+UpdateAndRenderEntities(render_commands *Commands, editor *Editor, f32 DeltaTime, sf::Transform VP)
 {
    TimeFunction;
    
@@ -3409,31 +3413,35 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                    Editor->Mode.Moving.Type == MovingMode_CurvePoint &&
                    Editor->Mode.Moving.Entity == Entity)
                {
-                  Window->draw(Editor->Mode.Moving.SavedCurveVertices,
-                               Editor->Mode.Moving.SavedNumCurveVertices,
-                               Editor->Mode.Moving.SavedPrimitiveType,
-                               MVP);
+                  PushVertexArray(Commands,
+                                  Editor->Mode.Moving.SavedCurveVertices,
+                                  Editor->Mode.Moving.SavedNumCurveVertices,
+                                  Editor->Mode.Moving.SavedPrimitiveType,
+                                  MVP);
                }
                
-               Window->draw(Curve->CurveVertices.Vertices,
-                            Curve->CurveVertices.NumVertices,
-                            Curve->CurveVertices.PrimitiveType,
-                            MVP);
+               PushVertexArray(Commands,
+                               Curve->CurveVertices.Vertices,
+                               Curve->CurveVertices.NumVertices,
+                               Curve->CurveVertices.PrimitiveType,
+                               MVP);
                
                if (CurveParams->PolylineEnabled)
                {
-                  Window->draw(Curve->PolylineVertices.Vertices,
-                               Curve->PolylineVertices.NumVertices,
-                               Curve->PolylineVertices.PrimitiveType,
-                               MVP);
+                  PushVertexArray(Commands,
+                                  Curve->PolylineVertices.Vertices,
+                                  Curve->PolylineVertices.NumVertices,
+                                  Curve->PolylineVertices.PrimitiveType,
+                                  MVP);
                }
                
                if (CurveParams->ConvexHullEnabled)
                {
-                  Window->draw(Curve->ConvexHullVertices.Vertices,
-                               Curve->ConvexHullVertices.NumVertices,
-                               Curve->ConvexHullVertices.PrimitiveType,
-                               MVP);
+                  PushVertexArray(Commands,
+                                  Curve->ConvexHullVertices.Vertices,
+                                  Curve->ConvexHullVertices.NumVertices,
+                                  Curve->ConvexHullVertices.PrimitiveType,
+                                  MVP);
                }
                
                if (AreCurvePointsVisible(Curve))
@@ -3451,8 +3459,8 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                      f32 BezierPointRadius = GetCurveCubicBezierPointRadius(Curve);
                      f32 HelperLineWidth = 0.2f * CurveParams->CurveWidth;
                      
-                     DrawLine(BezierPoint, CenterPoint, HelperLineWidth, CurveParams->CurveColor, MVP, Window);
-                     DrawCircle(BezierPoint, BezierPointRadius, CurveParams->PointColor, MVP, Window);
+                     PushLine(Commands, BezierPoint, CenterPoint, HelperLineWidth, CurveParams->CurveColor, MVP);
+                     PushCircle(Commands, BezierPoint, BezierPointRadius, CurveParams->PointColor, MVP);
                   }
                   
                   u64 ControlPointCount = Curve->ControlPointCount;
@@ -3462,16 +3470,17 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                        ++PointIndex)
                   {
                      point_info PointInfo = GetCurveControlPointInfo(Entity, PointIndex);
-                     DrawCircle(ControlPoints[PointIndex],
+                     PushCircle(Commands,
+                                ControlPoints[PointIndex],
                                 PointInfo.Radius,
                                 PointInfo.Color,
-                                MVP, Window,
+                                MVP,
                                 PointInfo.OutlineThickness,
                                 PointInfo.OutlineColor);
                   }
                }
                
-               UpdateAndRenderDegreeLowering(Entity, VP, Editor->RenderData.Window);
+               UpdateAndRenderDegreeLowering(Commands, Entity, VP);
                
                curve_animation_state *Animation = &Editor->CurveAnimation;
                if (Animation->Stage == AnimateCurveAnimation_Animating && Animation->FromCurveEntity == Entity)
@@ -3486,10 +3495,10 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
                curve_combining_state *Combining = &Editor->CurveCombining;
                if (Combining->SourceEntity == Entity)
                {
-                  UpdateAndRenderCurveCombining(Editor, VP);
+                  UpdateAndRenderCurveCombining(Commands, Editor, VP);
                }
                
-               UpdateAndRenderPointTracking(Editor, Entity, MVP);
+               UpdateAndRenderPointTracking(Commands, Editor, Entity, MVP);
                
                Curve->RecomputeRequested = false;
             } break;
@@ -3523,11 +3532,9 @@ UpdateAndRenderEntities(editor *Editor, f32 DeltaTime, sf::Transform VP)
 }
 
 internal void
-UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
+UpdateAndRender(render_commands *Commands, f32 DeltaTime, user_input *Input, editor *Editor)
 {
    TimeFunction;
-   
-   
    
    FrameStatsUpdate(&Editor->FrameStats, DeltaTime);
    UpdateCamera(&Editor->RenderData.Camera, Input->MouseWheelDelta, DeltaTime);
@@ -3616,7 +3623,7 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
       VP = ProjectionAnimate * ViewAnimate;
    }
    
-   UpdateAndRenderEntities(Editor, DeltaTime, VP);
+   UpdateAndRenderEntities(Commands, Editor, DeltaTime, VP);
    
    // NOTE(hbr): Render rotation indicator if rotating
    if (Editor->Mode.Type == EditorMode_Rotating)
@@ -3647,9 +3654,9 @@ UpdateAndRender(f32 DeltaTime, user_input *Input, editor *Editor)
       v4 Color = RGBA_Color(30, 56, 87, 80);
       f32 OutlineThickness = 0.1f * Radius;
       v4 OutlineColor = RGBA_Color(255, 255, 255, 24);
-      DrawCircle(RotationIndicatorPosition, Radius - OutlineThickness,
-                 Color, VP, Editor->RenderData.Window,
-                 OutlineThickness, OutlineColor);
+      PushCircle(Commands,
+                 RotationIndicatorPosition, Radius - OutlineThickness,
+                 Color, VP, OutlineThickness, OutlineColor);
    }
    
    // NOTE(hbr): Update menu bar here, because world has to already be rendered
@@ -3771,6 +3778,8 @@ main()
          Input.WindowWidth = VideoMode.width;
          Input.WindowHeight = VideoMode.height;
          
+         sfml_renderer *SFML = SFMLInit(PermamentArena, &Window);
+         
          while (Window.isOpen())
          {
             auto SFMLDeltaTime = Editor->DeltaClock.restart();
@@ -3787,16 +3796,13 @@ main()
 #endif
             HandleEvents(&Window, &Input);
             Editor->RenderData.AspectRatio = CalculateAspectRatio(Input.WindowWidth, Input.WindowHeight);
+            
+            render_commands *Commands = SFMLBeginFrame(SFML);
             Window.clear(ColorToSFMLColor(Editor->BackgroundColor));
-            UpdateAndRender(DeltaTime, &Input, Editor);
-            {
-               TimeBlock("ImGui::SFML::Render");
-               ImGui::SFML::Render(Window);
-            }
-            {
-               TimeBlock("Window.display()");
-               Window.display();
-            }
+            // TODO(hbr): Uncomment that
+            // PushClearColor(Commands, Editor->BackgroundColor);
+            UpdateAndRender(Commands, DeltaTime, &Input, Editor);
+            SFMLEndFrame(SFML, Commands);
          }
       }
       else

@@ -496,6 +496,16 @@ MakeMovingCameraMode(void)
    return Result;
 }
 
+internal vertex_array
+CopyLineVertices(arena *Arena, vertex_array Vertices)
+{
+   vertex_array Result = Vertices;
+   Result.Vertices = PushArrayNonZero(Arena, Vertices.VertexCount, vertex);
+   ArrayCopy(Result.Vertices, Vertices.Vertices, Vertices.VertexCount);
+   
+   return Result;
+}
+
 internal editor_mode
 MakeMovingCurvePointMode(entity *CurveEntity,
                          curve_point_index Index,
@@ -508,26 +518,8 @@ MakeMovingCurvePointMode(entity *CurveEntity,
    Result.Moving.MovingPointIndex = Index;
    
    ClearArena(Arena);
-   
-   // TODO(hbr): Maybe have some more civilized way of saving the vertices than this
-   curve *Curve = &CurveEntity->Curve;
-   line_vertices CurveVertices = Curve->CurveVertices;
-   sf::Vertex *SavedCurveVertices = PushArrayNonZero(Arena,
-                                                     CurveVertices.NumVertices,
-                                                     sf::Vertex);
-   MemoryCopy(SavedCurveVertices,
-              CurveVertices.Vertices,
-              CurveVertices.NumVertices * SizeOf(SavedCurveVertices[0]));
-   for (u64 CurveVertexIndex = 0;
-        CurveVertexIndex < CurveVertices.NumVertices;
-        ++CurveVertexIndex)
-   {
-      sf::Vertex *Vertex = SavedCurveVertices + CurveVertexIndex;
-      Vertex->color.a = Cast(u8)(0.2f * Vertex->color.a);
-   }
-   Result.Moving.SavedCurveVertices = SavedCurveVertices;
-   Result.Moving.SavedNumCurveVertices = CurveVertices.NumVertices;
-   Result.Moving.SavedPrimitiveType = CurveVertices.PrimitiveType;
+   curve *Curve = GetCurve(CurveEntity);
+   Result.Moving.OriginalCurveVertices = CopyLineVertices(Arena, Curve->CurveVertices);
    
    return Result;
 }
@@ -1246,18 +1238,7 @@ LowerBezierCurveDegree(entity *Entity)
          ArrayCopy(Lowering->SavedControlPointWeights, Curve->ControlPointWeights, PointCount);
          ArrayCopy(Lowering->SavedCubicBezierPoints, Curve->CubicBezierPoints, PointCount);
          
-         line_vertices CurveVertices = Curve->CurveVertices;
-         Lowering->NumSavedCurveVertices = CurveVertices.NumVertices;
-         Lowering->SavedCurveVertices = PushArrayNonZero(Lowering->Arena, CurveVertices.NumVertices, sf::Vertex);
-         Lowering->SavedPrimitiveType = CurveVertices.PrimitiveType;
-         MemoryCopy(Lowering->SavedCurveVertices, CurveVertices.Vertices, CurveVertices.NumVertices * SizeOf(Lowering->SavedCurveVertices[0]));
-         for (u64 CurveVertexIndex = 0;
-              CurveVertexIndex < CurveVertices.NumVertices;
-              ++CurveVertexIndex)
-         {
-            sf::Vertex *Vertex = Lowering->SavedCurveVertices + CurveVertexIndex;
-            Vertex->color.a = Cast(u8)(0.5f * Vertex->color.a);
-         }
+         Lowering->SavedCurveVertices = CopyLineVertices(Lowering->Arena, Curve->CurveVertices);
          
          f32 T = 0.5f;
          Lowering->LowerDegree = LowerDegree;
@@ -2720,68 +2701,63 @@ UpdateAndRenderPointTracking(render_commands *Commands, editor *Editor, entity *
                                           Curve->ControlPoints,
                                           Curve->ControlPointWeights,
                                           Curve->ControlPointCount);
-                  v4 *IterationColors = PushArrayNonZero(Tracking->Arena, Intermediate.IterationCount, v4);
-                  line_vertices *LineVerticesPerIteration = PushArray(Tracking->Arena,
-                                                                      Intermediate.IterationCount,
-                                                                      line_vertices);
-                  
+                  vertex_array *LineVerticesPerIteration = PushArray(Tracking->Arena,
+                                                                     Intermediate.IterationCount,
+                                                                     vertex_array);
                   f32 LineWidth = Curve->CurveParams.CurveWidth;
-                  v4 GradientA = RGBA_Color(255, 0, 144);
-                  v4 GradientB = RGBA_Color(155, 200, 0);
                   
-                  f32 P = 0.0f;
-                  f32 Delta_P = 1.0f / (Intermediate.IterationCount - 1);
                   u64 IterationPointsOffset = 0;
                   for (u64 Iteration = 0;
                        Iteration < Intermediate.IterationCount;
                        ++Iteration)
                   {
-                     v4 IterationColor = LerpColor(GradientA, GradientB, P);
-                     IterationColors[Iteration] = IterationColor;
-                     
                      u64 CurrentIterationPointCount = Intermediate.IterationCount - Iteration;
                      LineVerticesPerIteration[Iteration] =
-                        CalculateLineVertices(CurrentIterationPointCount,
-                                              Intermediate.P + IterationPointsOffset,
-                                              LineWidth, IterationColor,
-                                              false,
-                                              LineVerticesAllocationArena(Tracking->Arena));
-                     
-                     P += Delta_P;
+                        ComputeVerticesOfThickLine(Tracking->Arena,
+                                                   CurrentIterationPointCount,
+                                                   Intermediate.P + IterationPointsOffset,
+                                                   LineWidth,
+                                                   false);
                      IterationPointsOffset += CurrentIterationPointCount;
                   }
                   
                   Tracking->Intermediate = Intermediate;
-                  Tracking->IterationColors = IterationColors;
                   Tracking->LineVerticesPerIteration = LineVerticesPerIteration;
                   Tracking->TrackedPoint = Intermediate.P[Intermediate.TotalPointCount - 1];
                }
                
                u64 IterationCount = Tracking->Intermediate.IterationCount;
-               for (u64 Iteration = 0;
-                    Iteration < IterationCount;
-                    ++Iteration)
-               {
-                  PushVertexArray(Commands,
-                                  Tracking->LineVerticesPerIteration[Iteration].Vertices,
-                                  Tracking->LineVerticesPerIteration[Iteration].NumVertices,
-                                  Tracking->LineVerticesPerIteration[Iteration].PrimitiveType,
-                                  Transform);
-               }
+               
+               f32 P = 0.0f;
+               f32 Delta_P = 1.0f / (IterationCount - 1);
+               
+               v4 GradientA = RGBA_Color(255, 0, 144);
+               v4 GradientB = RGBA_Color(155, 200, 0);
                
                f32 PointSize = CurveParams->PointRadius;
+               
                u64 PointIndex = 0;
                for (u64 Iteration = 0;
                     Iteration < IterationCount;
                     ++Iteration)
                {
-                  v4 PointColor = Tracking->IterationColors[Iteration];
+                  v4 IterationColor = Lerp(GradientA, GradientB, P);
+                  
+                  PushVertexArray(Commands,
+                                  Tracking->LineVerticesPerIteration[Iteration].Vertices,
+                                  Tracking->LineVerticesPerIteration[Iteration].VertexCount,
+                                  Tracking->LineVerticesPerIteration[Iteration].Primitive,
+                                  IterationColor,
+                                  Transform);
+                  
                   for (u64 I = 0; I < IterationCount - Iteration; ++I)
                   {
                      local_position Point = Tracking->Intermediate.P[PointIndex];
-                     PushCircle(Commands, Point, PointSize, PointColor, Transform);
+                     PushCircle(Commands, Point, PointSize, IterationColor, Transform);
                      ++PointIndex;
                   }
+                  
+                  P += Delta_P;
                }
             }
          }
@@ -2868,11 +2844,14 @@ UpdateAndRenderDegreeLowering(render_commands *Commands,
       sf::Transform Model = CurveGetAnimate(Entity);
       sf::Transform MVP = Transform * Model;
       
+      v4 Color = Curve->CurveParams.CurveColor;
+      Color.A *= 0.5f;
+      
       PushVertexArray(Commands,
-                      Lowering->SavedCurveVertices,
-                      Lowering->NumSavedCurveVertices,
-                      Lowering->SavedPrimitiveType,
-                      MVP);
+                      Lowering->SavedCurveVertices.Vertices,
+                      Lowering->SavedCurveVertices.VertexCount,
+                      Lowering->SavedCurveVertices.Primitive,
+                      Color, MVP);
    }
 }
 
@@ -3071,13 +3050,13 @@ UpdateAnimateCurveAnimation(editor *Editor, f32 DeltaTime, sf::Transform Transfo
                
                // NOTE(hbr): If there is no recalculation we can reuse previous buffer without
                // any calculation, because there is already enough space.
-               line_vertices_allocation Allocation = (ToCurvePointsRecalculated ?
-                                                      LineVerticesAllocationArena(Animation->Arena) :
-                                                      LineVerticesAllocationNone(Animation->AnimatedCurveVertices.Vertices));
+               vertex_array_allocation Allocation = (ToCurvePointsRecalculated ?
+                                                     LineVerticesAllocationArena(Animation->Arena) :
+                                                     LineVerticesAllocationNone(Animation->AnimatedCurveVertices.Vertices));
                Animation->AnimatedCurveVertices =
-                  CalculateLineVertices(CurvePointCount, AnimatedCurvePoints,
-                                        AnimatedCurveWidth, AnimatedCurveColor,
-                                        false, Allocation);
+                  ComputeVerticesOfThickLine(CurvePointCount, AnimatedCurvePoints,
+                                             AnimatedCurveWidth, AnimatedCurveColor,
+                                             false, Allocation);
             }
             
             EndTemp(Temp);
@@ -3413,25 +3392,30 @@ UpdateAndRenderEntities(render_commands *Commands, editor *Editor, f32 DeltaTime
                    Editor->Mode.Moving.Type == MovingMode_CurvePoint &&
                    Editor->Mode.Moving.Entity == Entity)
                {
+                  v4 Color = Curve->CurveParams.CurveColor;
+                  Color.A *= 0.5f;
+                  
                   PushVertexArray(Commands,
-                                  Editor->Mode.Moving.SavedCurveVertices,
-                                  Editor->Mode.Moving.SavedNumCurveVertices,
-                                  Editor->Mode.Moving.SavedPrimitiveType,
-                                  MVP);
+                                  Editor->Mode.Moving.OriginalCurveVertices.Vertices,
+                                  Editor->Mode.Moving.OriginalCurveVertices.VertexCount,
+                                  Editor->Mode.Moving.OriginalCurveVertices.Primitive,
+                                  Color, MVP);
                }
                
                PushVertexArray(Commands,
                                Curve->CurveVertices.Vertices,
-                               Curve->CurveVertices.NumVertices,
-                               Curve->CurveVertices.PrimitiveType,
+                               Curve->CurveVertices.VertexCount,
+                               Curve->CurveVertices.Primitive,
+                               Curve->CurveParams.CurveColor,
                                MVP);
                
                if (CurveParams->PolylineEnabled)
                {
                   PushVertexArray(Commands,
                                   Curve->PolylineVertices.Vertices,
-                                  Curve->PolylineVertices.NumVertices,
-                                  Curve->PolylineVertices.PrimitiveType,
+                                  Curve->PolylineVertices.VertexCount,
+                                  Curve->PolylineVertices.Primitive,
+                                  Curve->CurveParams.PolylineColor,
                                   MVP);
                }
                
@@ -3439,8 +3423,9 @@ UpdateAndRenderEntities(render_commands *Commands, editor *Editor, f32 DeltaTime
                {
                   PushVertexArray(Commands,
                                   Curve->ConvexHullVertices.Vertices,
-                                  Curve->ConvexHullVertices.NumVertices,
-                                  Curve->ConvexHullVertices.PrimitiveType,
+                                  Curve->ConvexHullVertices.VertexCount,
+                                  Curve->ConvexHullVertices.Primitive,
+                                  Curve->CurveParams.ConvexHullColor,
                                   MVP);
                }
                
@@ -3485,10 +3470,13 @@ UpdateAndRenderEntities(render_commands *Commands, editor *Editor, f32 DeltaTime
                curve_animation_state *Animation = &Editor->CurveAnimation;
                if (Animation->Stage == AnimateCurveAnimation_Animating && Animation->FromCurveEntity == Entity)
                {
-                  Window->draw(Animation->AnimatedCurveVertices.Vertices,
-                               Animation->AnimatedCurveVertices.NumVertices,
-                               Animation->AnimatedCurveVertices.PrimitiveType,
-                               VP);
+                  // TODO(hbr): Update this color calculation. This should be interpolation between two curves' colors.
+                  v4 Color = Curve->CurveParams.CurveColor;
+                  PushVertexArray(Commands,
+                                  Animation->AnimatedCurveVertices.Vertices,
+                                  Animation->AnimatedCurveVertices.VertexCount,
+                                  Animation->AnimatedCurveVertices.Primitive,
+                                  Color, VP);
                }
                
                // TODO(hbr): Update this

@@ -123,7 +123,7 @@ struct curve_point_tracking_state
    arena *Arena;
    all_de_casteljau_intermediate_results Intermediate;
    v4 *IterationColors;
-   line_vertices *LineVerticesPerIteration;
+   vertex_array *LineVerticesPerIteration;
 };
 
 struct curve_degree_lowering_state
@@ -132,14 +132,11 @@ struct curve_degree_lowering_state
    
    arena *Arena;
    
+   // TODO(hbr): Replace Saved with Original or the other way around - I already used original somewhere
    local_position *SavedControlPoints;
    f32 *SavedControlPointWeights;
    cubic_bezier_point *SavedCubicBezierPoints;
-   
-   // TODO(hbr): Use line vertices here instead?
-   u64 NumSavedCurveVertices;
-   sf::Vertex *SavedCurveVertices;
-   sf::PrimitiveType SavedPrimitiveType;
+   vertex_array SavedCurveVertices;
    
    bezier_lower_degree LowerDegree;
    f32 MixParameter;
@@ -168,9 +165,9 @@ struct curve
    
    u64 CurvePointCount;
    local_position *CurvePoints;
-   line_vertices CurveVertices;
-   line_vertices PolylineVertices;
-   line_vertices ConvexHullVertices;
+   vertex_array CurveVertices;
+   vertex_array PolylineVertices;
+   vertex_array ConvexHullVertices;
    
    b32 RecomputeRequested;
    

@@ -359,17 +359,12 @@ ActuallyRecomputeCurve(entity *Entity)
    Curve->CurvePoints = PushArrayNonZero(Entity->Arena, CurvePointCount, local_position);
    EvaluateCurve(Curve, Curve->CurvePointCount, Curve->CurvePoints);
    
-   Curve->CurveVertices = CalculateLineVertices(Curve->CurvePointCount, Curve->CurvePoints, 
-                                                Curve->CurveParams.CurveWidth, Curve->CurveParams.CurveColor,
-                                                IsCurveLooped(Curve), LineVerticesAllocationArena(Entity->Arena));
-   Curve->PolylineVertices = CalculateLineVertices(Curve->ControlPointCount, Curve->ControlPoints,
-                                                   Curve->CurveParams.PolylineWidth, Curve->CurveParams.PolylineColor,
-                                                   false, LineVerticesAllocationArena(Entity->Arena));
+   Curve->CurveVertices = ComputeVerticesOfThickLine(Entity->Arena, Curve->CurvePointCount, Curve->CurvePoints,  Curve->CurveParams.CurveWidth, IsCurveLooped(Curve));
+   Curve->PolylineVertices = ComputeVerticesOfThickLine(Entity->Arena, Curve->ControlPointCount, Curve->ControlPoints, Curve->CurveParams.PolylineWidth, false);
+   
    local_position *ConvexHullPoints = PushArrayNonZero(Temp.Arena, Curve->ControlPointCount, local_position);
    u64 NumConvexHullPoints = CalcConvexHull(Curve->ControlPointCount, Curve->ControlPoints, ConvexHullPoints);
-   Curve->ConvexHullVertices = CalculateLineVertices(NumConvexHullPoints, ConvexHullPoints,
-                                                     Curve->CurveParams.ConvexHullWidth, Curve->CurveParams.ConvexHullColor,
-                                                     true, LineVerticesAllocationArena(Entity->Arena));
+   Curve->ConvexHullVertices = ComputeVerticesOfThickLine(Entity->Arena, NumConvexHullPoints, ConvexHullPoints, Curve->CurveParams.ConvexHullWidth, true);
    
    EndTemp(Temp);
 }

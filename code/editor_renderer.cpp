@@ -38,10 +38,30 @@ SFMLEndFrame(sfml_renderer *SFML, render_commands *Commands)
          
          case RenderCommand_VertexArray: {
             render_command_vertex_array *Array = &Command->VertexArray;
-            Window->draw(Array->Vertices,
-                         Array->VertexCount,
-                         Array->Primitive,
-                         *Command->Transform);
+            
+            sf::PrimitiveType Primitive = {};
+            switch (Array->Primitive)
+            {
+               case Primitive_Triangles: { Primitive = sf::Triangles; }break;
+               case Primitive_TriangleStrip: { Primitive = sf::TriangleStrip; }break;
+            }
+            
+            temp_arena Temp = TempArena(0);
+            sf::Vertex *SFMLVertices = PushArrayNonZero(Temp.Arena, Array->VertexCount, sf::Vertex);
+            vertex *Vertices = Array->Vertices;
+            v4 Color = Array->Color;
+            for (u64 VertexIndex = 0;
+                 VertexIndex < Array->VertexCount;
+                 ++VertexIndex)
+            {
+               sf::Vertex *V = SFMLVertices + VertexIndex;
+               V->position = V2ToVector2f(Vertices[VertexIndex].Pos);
+               V->color = ColorToSFMLColor(Color);
+            }
+            
+            Window->draw(SFMLVertices, Array->VertexCount, Primitive, *Command->Transform);
+            
+            EndTemp(Temp);
          }break;
          
          case RenderCommand_Circle: {
@@ -110,9 +130,10 @@ PushRenderCommand(render_commands *Commands, sf::Transform Transform)
 
 internal void
 PushVertexArray(render_commands *Commands,
-                sf::Vertex *Vertices,
+                vertex *Vertices,
                 u64 VertexCount,
-                sf::PrimitiveType Primitive,
+                render_primitive_type Primitive,
+                v4 Color,
                 sf::Transform Transform)
 {
    render_command *Command = PushRenderCommand(Commands, Transform);
@@ -122,6 +143,7 @@ PushVertexArray(render_commands *Commands,
    Array->Vertices = Vertices;
    Array->VertexCount = VertexCount;
    Array->Primitive = Primitive;
+   Array->Color = Color;
 }
 
 internal void
@@ -136,8 +158,8 @@ internal void
 PushCircle(render_commands *Commands,
            v2 Position, f32 Radius,
            v4 Color, sf::Transform Transform,
-           f32 OutlineThickness,
-           v4 OutlineColor)
+           f32 OutlineThickness = 0.0f,
+           v4 OutlineColor = V4(0.0f, 0.0f, 0.0f, 0.0f))
 {
    render_command *Command = PushRenderCommand(Commands, Transform);
    Command->Type = RenderCommand_Circle;

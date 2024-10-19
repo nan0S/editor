@@ -16,6 +16,8 @@
 #include "editor_ui.h"
 #include "editor_sort.h"
 
+#include "editor_renderer.h"
+
 #include "editor_entity2.h"
 
 #include "editor_adapt.h"
@@ -23,8 +25,6 @@
 #include "editor_draw.h"
 #include "editor_debug.h"
 #include "editor_input.h"
-
-#include "editor_renderer.h"
 
 /* TODO(hbr):
 Refactors:
@@ -165,7 +165,7 @@ DONE:
  all those places that convert boolean into string artificially, instead just pass boolean further
 - maybe make things that are only one just global - like input
 - change function names to DoSomethingEntity, rather than EntityDoSomething
-- get rid off line_vertices_allocation_type
+- get rid off vertex_array_allocation_type
 - remove [RecomputeCurve] from every function that modifies curve
 - rename [CurveEntity] to just [Entity] - keep things simple
 - write [CurveAppendPoint] in terms of [CurveInsertPoint]
@@ -304,9 +304,7 @@ struct editor_mode
          moving_mode_type Type;
          entity *Entity;
          curve_point_index MovingPointIndex;
-         sf::Vertex *SavedCurveVertices;
-         u64 SavedNumCurveVertices;
-         sf::PrimitiveType SavedPrimitiveType;
+         vertex_array OriginalCurveVertices;
       } Moving;
       
       struct {
@@ -347,7 +345,7 @@ struct curve_animation_state
    // of points in FromCurve in order to avoid animation artifacts.
    u64 CurvePointCount;
    v2 *ToCurvePoints;
-   line_vertices AnimatedCurveVertices;
+   vertex_array AnimatedCurveVertices;
    
    b32 IsAnimationPlaying;
    animation_type Animation;

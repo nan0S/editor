@@ -1,6 +1,24 @@
 #ifndef EDITOR_RENDERER_H
 #define EDITOR_RENDERER_H
 
+struct vertex
+{
+   v2 Pos;
+};
+
+enum render_primitive_type
+{
+   Primitive_Triangles,
+   Primitive_TriangleStrip,
+};
+
+struct vertex_array
+{
+   u64 VertexCount;
+   vertex *Vertices;
+   render_primitive_type Primitive;
+};
+
 enum render_command_type
 {
    RenderCommand_Clear,
@@ -20,9 +38,10 @@ struct render_command_clear
 
 struct render_command_vertex_array
 {
-   sf::Vertex *Vertices;
    u64 VertexCount;
-   sf::PrimitiveType Primitive;
+   vertex *Vertices;
+   render_primitive_type Primitive;
+   v4 Color;
 };
 
 struct render_command_circle
@@ -82,11 +101,5 @@ struct sfml_renderer
 internal sfml_renderer *SFMLInit(arena *Arena, sf::RenderWindow *Window);
 internal render_commands *SFMLBeginFrame(sfml_renderer *SFML);
 internal void SFMLEndFrame(sfml_renderer *SFML, render_commands *Commands);
-
-internal void PushCircle(render_commands *Commands, v2 Position, f32 Radius, v4 Color, sf::Transform Transform, f32 OutlineThickness = 0.0f, v4 OutlineColor = RGBA_Color(0, 0, 0));
-internal void PushSquare(render_commands *Commands, v2 Position, f32 Side, v4 Color, sf::Transform Transform);
-internal void PushRectangle(render_commands *Commands, v2 Position, v2 Size, rotation_2d Rotation, v4 Color, sf::Transform Transform);
-internal void PushLine(render_commands *Commands, v2 BeginPoint, v2 EndPoint, f32 LineWidth, v4 Color, sf::Transform Transform);
-internal void PushTriangle(render_commands *Commands, v2 P0, v2 P1, v2 P2, v4 Color, sf::Transform Transform);
 
 #endif //EDITOR_RENDERER_H

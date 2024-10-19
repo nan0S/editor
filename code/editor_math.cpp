@@ -310,52 +310,19 @@ CalcConvexHull(u64 PointCount, v2 *Points, v2 *OutPoints)
    return HullPointCount;
 }
 
-internal line_vertices_allocation
-LineVerticesAllocationNone(sf::Vertex *VerticesBuffer)
-{
-   line_vertices_allocation Result = {};
-   Result.Type = LineVerticesAllocation_None;
-   Result.VerticesBuffer = VerticesBuffer;
-   
-   return Result;
-}
-
-internal line_vertices_allocation
-LineVerticesAllocationArena(arena *Arena)
-{
-   line_vertices_allocation Result = {};
-   Result.Type = LineVerticesAllocation_Arena;
-   Result.Arena = Arena;
-   
-   return Result;
-}
-
 // NOTE(hbr): Trinale-strip-based, no mitter, no-spiky line version.
 // TODO(hbr): Loop logic is very ugly but works. Clean it up.
 // Might have only work because we need only loop on convex hull order points.
-internal line_vertices
-CalculateLineVertices(u64 PointCount, v2 *LinePoints,
-                      f32 Width, v4 Color, b32 Loop,
-                      line_vertices_allocation Allocation)
+internal vertex_array
+ComputeVerticesOfThickLine(arena *Arena, u64 PointCount, v2 *LinePoints, f32 Width, b32 Loop)
 {
    u64 N = PointCount;
    if (Loop) N += 2;
    
-   u64 MaxNumVertices = 0;
-   if (N >= 2) MaxNumVertices = 2*2 + 4 * N;
+   u64 MaxVertexCount = 0;
+   if (N >= 2) MaxVertexCount = 2*2 + 4 * N;
    
-   sf::Vertex *Vertices = 0;
-   u64 CapVertices = 0;
-   switch (Allocation.Type)
-   {
-      case LineVerticesAllocation_None: {
-         Vertices = Allocation.VerticesBuffer;
-      } break;
-      
-      case LineVerticesAllocation_Arena: {
-         Vertices = PushArrayNonZero(Allocation.Arena, MaxNumVertices, sf::Vertex);
-      } break;
-   }
+   vertex *Vertices = PushArrayNonZero(Arena, MaxVertexCount, vertex);
    
    u64 VertexIndex = 0;
    b32 IsLastInside = false;
@@ -369,11 +336,8 @@ CalculateLineVertices(u64 PointCount, v2 *LinePoints,
       v2 NV_Line = Rotate90DegreesAntiClockwise(V_Line);
       Normalize(&NV_Line);
       
-      Vertices[VertexIndex + 0].position = V2ToVector2f(A + 0.5f * Width * NV_Line);
-      Vertices[VertexIndex + 1].position = V2ToVector2f(A - 0.5f * Width * NV_Line);
-      
-      Vertices[VertexIndex + 0].color = ColorToSFMLColor(Color);
-      Vertices[VertexIndex + 1].color = ColorToSFMLColor(Color);
+      Vertices[VertexIndex + 0].Pos = (A + 0.5f * Width * NV_Line);
+      Vertices[VertexIndex + 1].Pos = (A - 0.5f * Width * NV_Line);
       
       VertexIndex += 2;
       
@@ -417,26 +381,20 @@ CalculateLineVertices(u64 PointCount, v2 *LinePoints,
       v2 B_Line = B - TurnedHalfWidth * NV_Line;
       v2 B_Succ = B - TurnedHalfWidth * NV_Succ;
       
-      Vertices[VertexIndex + 0].color = ColorToSFMLColor(Color);
-      Vertices[VertexIndex + 1].color = ColorToSFMLColor(Color);
-      Vertices[VertexIndex + 2].color = ColorToSFMLColor(Color);
-      
       if ((LeftTurn && IsLastInside) || (!LeftTurn && !IsLastInside))
       {
-         Vertices[VertexIndex + 0].position = V2ToVector2f(B_Line);
-         Vertices[VertexIndex + 1].position = V2ToVector2f(IntersectionPoint);
-         Vertices[VertexIndex + 2].position = V2ToVector2f(B_Succ);
+         Vertices[VertexIndex + 0].Pos = B_Line;
+         Vertices[VertexIndex + 1].Pos = IntersectionPoint;
+         Vertices[VertexIndex + 2].Pos = B_Succ;
          
          VertexIndex += 3;
       }
       else
       {
-         Vertices[VertexIndex + 0].position = V2ToVector2f(IntersectionPoint);
-         Vertices[VertexIndex + 1].position = V2ToVector2f(B_Line);
-         Vertices[VertexIndex + 2].position = V2ToVector2f(IntersectionPoint);
-         Vertices[VertexIndex + 3].position = V2ToVector2f(B_Succ);
-         
-         Vertices[VertexIndex + 3].color = ColorToSFMLColor(Color);
+         Vertices[VertexIndex + 0].Pos = IntersectionPoint;
+         Vertices[VertexIndex + 1].Pos = B_Line;
+         Vertices[VertexIndex + 2].Pos = IntersectionPoint;
+         Vertices[VertexIndex + 3].Pos = B_Succ;
          
          VertexIndex += 4;
       }
@@ -460,17 +418,14 @@ CalculateLineVertices(u64 PointCount, v2 *LinePoints,
          
          if (IsLastInside)
          {
-            Vertices[VertexIndex + 0].position = V2ToVector2f(B_Outside);
-            Vertices[VertexIndex + 1].position = V2ToVector2f(B_Inside);
+            Vertices[VertexIndex + 0].Pos = B_Outside;
+            Vertices[VertexIndex + 1].Pos = B_Inside;
          }
          else
          {
-            Vertices[VertexIndex + 0].position = V2ToVector2f(B_Inside);
-            Vertices[VertexIndex + 1].position = V2ToVector2f(B_Outside);
+            Vertices[VertexIndex + 0].Pos = B_Inside;
+            Vertices[VertexIndex + 1].Pos = B_Outside;
          }
-         
-         Vertices[VertexIndex + 0].color = ColorToSFMLColor(Color);
-         Vertices[VertexIndex + 1].color = ColorToSFMLColor(Color);
          
          VertexIndex += 2;
          
@@ -499,11 +454,10 @@ CalculateLineVertices(u64 PointCount, v2 *LinePoints,
       }
    }
    
-   line_vertices Result = {};
-   Result.NumVertices = VertexIndex;
+   vertex_array Result = {};
+   Result.VertexCount = VertexIndex;
    Result.Vertices = Vertices;
-   Result.CapVertices = CapVertices;
-   Result.PrimitiveType = sf::TriangleStrip;
+   Result.Primitive = Primitive_TriangleStrip;
    
    return Result;
 }

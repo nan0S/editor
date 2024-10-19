@@ -4,7 +4,7 @@
 #include "editor_base.cpp"
 #include "editor_os.cpp"
 
-global arena *Arena;
+global arena *GlobalArena;
 global string Code = StrLit("code");
 global string Build = StrLit("build");
 
@@ -13,7 +13,7 @@ LogF(char const *Format, ...)
 {
    va_list Args;
    va_start(Args, Format);
-   string Out = StrFV(Arena, Format, Args);
+   string Out = StrFV(GlobalArena, Format, Args);
    OutputF("[%S]\n", Out);
    va_end(Args);
 }
@@ -22,12 +22,12 @@ internal string
 CodePath(string File)
 {
    string_list PathList = {};
-   StrListPush(Arena, &PathList, StrLit(".."));
-   StrListPush(Arena, &PathList, Code);
-   StrListPush(Arena, &PathList, File);
-   string Path = PathListJoin(Arena, &PathList);
+   StrListPush(GlobalArena, &PathList, StrLit(".."));
+   StrListPush(GlobalArena, &PathList, Code);
+   StrListPush(GlobalArena, &PathList, File);
+   string Path = PathListJoin(GlobalArena, &PathList);
    
-   string FullPath = OS_FullPathFromPath(Arena, Path);
+   string FullPath = OS_FullPathFromPath(GlobalArena, Path);
    return FullPath;
 }
 
@@ -37,52 +37,52 @@ CompileProgram(b32 Debug)
    char const *Mode = (Debug ? "debug" : "release");
    
    string_list BasicCompileCmd = {};
-   StrListPush(Arena, &BasicCompileCmd, StrLit("cl"));
-   StrListPush(Arena, &BasicCompileCmd, Debug ? StrLit("/Od") : StrLit("/O2"));
-   StrListPush(Arena, &BasicCompileCmd, Debug ? StrLit("/DBUILD_DEBUG=1") : StrLit("/DBUILD_DEBUG=0"));
-   StrListPush(Arena, &BasicCompileCmd, StrLit("/Zi"));
-   StrListPush(Arena, &BasicCompileCmd, StrLit("/FS"));
-   StrListPush(Arena, &BasicCompileCmd, StrLit("/std:c++20"));
-   StrListPush(Arena, &BasicCompileCmd, StrLit("/nologo"));
-   StrListPush(Arena, &BasicCompileCmd, StrLit("/WX"));
-   StrListPush(Arena, &BasicCompileCmd, StrLit("/W4"));
-   StrListPush(Arena, &BasicCompileCmd, StrLit("/wd4201"));
-   StrListPush(Arena, &BasicCompileCmd, StrLit("/wd4996"));
-   StrListPush(Arena, &BasicCompileCmd, StrLit("/wd4100"));
-   StrListPush(Arena, &BasicCompileCmd, StrLit("/wd4505"));
-   StrListPush(Arena, &BasicCompileCmd, StrLit("/wd4244"));
-   StrListPush(Arena, &BasicCompileCmd, StrLit("/EHsc"));
-   StrListPush(Arena, &BasicCompileCmd, StrLit("/wd4189"));
-   StrListPush(Arena, &BasicCompileCmd, StrLit("/wd4310"));
-   StrListPush(Arena, &BasicCompileCmd, StrLit("/wd4456"));
-   StrListPush(Arena, &BasicCompileCmd, StrF(Arena, "/I%S", CodePath(StrLit("."))));
-   StrListPush(Arena, &BasicCompileCmd, StrF(Arena, "/I%S", CodePath(StrLit("third_party/sfml/include"))));
-   StrListPush(Arena, &BasicCompileCmd, StrF(Arena, "/I%S", CodePath(StrLit("third_party/imgui"))));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrLit("cl"));
+   StrListPush(GlobalArena, &BasicCompileCmd, Debug ? StrLit("/Od") : StrLit("/O2"));
+   StrListPush(GlobalArena, &BasicCompileCmd, Debug ? StrLit("/DBUILD_DEBUG=1") : StrLit("/DBUILD_DEBUG=0"));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/Zi"));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/FS"));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/std:c++20"));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/nologo"));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/WX"));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/W4"));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4201"));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4996"));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4100"));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4505"));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4244"));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/EHsc"));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4189"));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4310"));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4456"));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrF(GlobalArena, "/I%S", CodePath(StrLit("."))));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrF(GlobalArena, "/I%S", CodePath(StrLit("third_party/sfml/include"))));
+   StrListPush(GlobalArena, &BasicCompileCmd, StrF(GlobalArena, "/I%S", CodePath(StrLit("third_party/imgui"))));
    
-   string ImguiObj = StrF(Arena, "imgui_unity_%s.obj", Mode);
+   string ImguiObj = StrF(GlobalArena, "imgui_unity_%s.obj", Mode);
    if (!OS_FileExists(ImguiObj))
    {
-      string_list ImguiCmd = StrListCopy(Arena, &BasicCompileCmd);
-      StrListPush(Arena, &ImguiCmd, StrLit("/c"));
-      StrListPush(Arena, &ImguiCmd, CodePath(StrLit("imgui_unity.cpp")));
-      StrListPush(Arena, &ImguiCmd, StrF(Arena, "/Fo:%S", ImguiObj));
-      LogF("%s imgui build command: %S", Mode, StrListJoin(Arena, &ImguiCmd, StrLit(" ")));
+      string_list ImguiCmd = StrListCopy(GlobalArena, &BasicCompileCmd);
+      StrListPush(GlobalArena, &ImguiCmd, StrLit("/c"));
+      StrListPush(GlobalArena, &ImguiCmd, CodePath(StrLit("imgui_unity.cpp")));
+      StrListPush(GlobalArena, &ImguiCmd, StrF(GlobalArena, "/Fo:%S", ImguiObj));
+      LogF("%s imgui build command: %S", Mode, StrListJoin(GlobalArena, &ImguiCmd, StrLit(" ")));
       process Imgui = OS_LaunchProcess(ImguiCmd);
       OS_WaitForProcessToFinish(Imgui);
    }
    
    string_list MainCmd = BasicCompileCmd;
-   StrListPush(Arena, &MainCmd, CodePath(StrLit("editor.cpp")));
-   StrListPush(Arena, &MainCmd, ImguiObj);
-   StrListPush(Arena, &MainCmd, StrF(Arena, "/Fo:editor_%s.obj", Mode));
-   StrListPush(Arena, &MainCmd, StrLit("/link"));
-   StrListPush(Arena, &MainCmd, StrF(Arena, "/out:editor_%s.exe", Mode));
-   StrListPush(Arena, &MainCmd, StrF(Arena, "/LIBPATH:%S", CodePath(StrLit("third_party/sfml/lib"))));
-   StrListPush(Arena, &MainCmd, StrLit("Opengl32.lib"));
-   StrListPush(Arena, &MainCmd, StrLit("sfml-graphics.lib"));
-   StrListPush(Arena, &MainCmd, StrLit("sfml-system.lib"));
-   StrListPush(Arena, &MainCmd, StrLit("sfml-window.lib"));
-   LogF("%s build command: %S", Mode, StrListJoin(Arena, &MainCmd, StrLit(" ")));
+   StrListPush(GlobalArena, &MainCmd, CodePath(StrLit("editor.cpp")));
+   StrListPush(GlobalArena, &MainCmd, ImguiObj);
+   StrListPush(GlobalArena, &MainCmd, StrF(GlobalArena, "/Fo:editor_%s.obj", Mode));
+   StrListPush(GlobalArena, &MainCmd, StrLit("/link"));
+   StrListPush(GlobalArena, &MainCmd, StrF(GlobalArena, "/out:editor_%s.exe", Mode));
+   StrListPush(GlobalArena, &MainCmd, StrF(GlobalArena, "/LIBPATH:%S", CodePath(StrLit("third_party/sfml/lib"))));
+   StrListPush(GlobalArena, &MainCmd, StrLit("Opengl32.lib"));
+   StrListPush(GlobalArena, &MainCmd, StrLit("sfml-graphics.lib"));
+   StrListPush(GlobalArena, &MainCmd, StrLit("sfml-system.lib"));
+   StrListPush(GlobalArena, &MainCmd, StrLit("sfml-window.lib"));
+   LogF("%s build command: %S", Mode, StrListJoin(GlobalArena, &MainCmd, StrLit(" ")));
    process Build = OS_LaunchProcess(MainCmd);
    
    OS_CopyFile(CodePath(StrLit("third_party/sfml/bin/sfml-graphics-2.dll")), StrLit("sfml-graphics-2.dll"));
@@ -97,9 +97,9 @@ int main(int ArgCount, char *Argv[])
    u64 BeginTSC = ReadCPUTimer();
    
    InitThreadCtx();
-   Arena = TempArena(0).Arena;
+   GlobalArena = TempArena(0).Arena;
    
-   string ExePath = OS_FullPathFromPath(Arena, StrFromCStr(Argv[0]));
+   string ExePath = OS_FullPathFromPath(GlobalArena, StrFromCStr(Argv[0]));
    b32 Debug = false;
    b32 Release = false;
    for (u64 ArgIndex = 1;
@@ -122,7 +122,7 @@ int main(int ArgCount, char *Argv[])
    }
    
    b32 Error = false;
-   string CurDir = OS_CurrentDir(Arena);
+   string CurDir = OS_CurrentDir(GlobalArena);
    if (StrEndsWith(CurDir, Build) ||
        StrEndsWith(CurDir, Code))
    {
@@ -144,15 +144,15 @@ int main(int ArgCount, char *Argv[])
       {
          string ExePathNoExt = StrChopLastDot(ExePath);
          string BaseName = PathLastPart(ExePathNoExt);
-         string CppName = StrF(Arena, "%S.cpp", BaseName);
+         string CppName = StrF(GlobalArena, "%S.cpp", BaseName);
          string CppPath = CodePath(CppName);
          
          string_list BuildProgramDependecies = {};
-         StrListPush(Arena, &BuildProgramDependecies, CppPath);
-         StrListPush(Arena, &BuildProgramDependecies, CodePath(StrLit("editor_base.h")));
-         StrListPush(Arena, &BuildProgramDependecies, CodePath(StrLit("editor_base.cpp")));
-         StrListPush(Arena, &BuildProgramDependecies, CodePath(StrLit("editor_os.h")));
-         StrListPush(Arena, &BuildProgramDependecies, CodePath(StrLit("editor_os.cpp")));
+         StrListPush(GlobalArena, &BuildProgramDependecies, CppPath);
+         StrListPush(GlobalArena, &BuildProgramDependecies, CodePath(StrLit("editor_base.h")));
+         StrListPush(GlobalArena, &BuildProgramDependecies, CodePath(StrLit("editor_base.cpp")));
+         StrListPush(GlobalArena, &BuildProgramDependecies, CodePath(StrLit("editor_os.h")));
+         StrListPush(GlobalArena, &BuildProgramDependecies, CodePath(StrLit("editor_os.cpp")));
          
          u64 LatestModifyTime = 0;
          ListIter(DependencyFile, BuildProgramDependecies.Head, string_list_node)
@@ -166,20 +166,20 @@ int main(int ArgCount, char *Argv[])
          {
             LogF("recompiling build program itself");
             
-            string TmpName = StrF(Arena, "%S.tmp.exe", BaseName);
+            string TmpName = StrF(GlobalArena, "%S.tmp.exe", BaseName);
             string_list CompileCmd = {};
-            StrListPush(Arena, &CompileCmd, StrLit("cl"));
-            StrListPush(Arena, &CompileCmd, StrLit("/Od"));
-            StrListPush(Arena, &CompileCmd, StrLit("/Zi"));
-            StrListPush(Arena, &CompileCmd, StrLit("/nologo"));
-            StrListPush(Arena, &CompileCmd, CppPath);
-            StrListPush(Arena, &CompileCmd, StrLit("/link"));
-            StrListPush(Arena, &CompileCmd, StrF(Arena, "/out:%S", TmpName));
+            StrListPush(GlobalArena, &CompileCmd, StrLit("cl"));
+            StrListPush(GlobalArena, &CompileCmd, StrLit("/Od"));
+            StrListPush(GlobalArena, &CompileCmd, StrLit("/Zi"));
+            StrListPush(GlobalArena, &CompileCmd, StrLit("/nologo"));
+            StrListPush(GlobalArena, &CompileCmd, CppPath);
+            StrListPush(GlobalArena, &CompileCmd, StrLit("/link"));
+            StrListPush(GlobalArena, &CompileCmd, StrF(GlobalArena, "/out:%S", TmpName));
             process Compile = OS_LaunchProcess(CompileCmd);
             OS_WaitForProcessToFinish(Compile);
             
             string_list BuildCmd = {};
-            StrListPush(Arena, &BuildCmd, TmpName);
+            StrListPush(GlobalArena, &BuildCmd, TmpName);
             process Build = OS_LaunchProcess(BuildCmd);
             OS_WaitForProcessToFinish(Build);
          }

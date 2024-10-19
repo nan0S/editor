@@ -94,33 +94,6 @@ internal f32 Cross(v2 U, v2 V);
 typedef u64 hull_point_count64;
 internal hull_point_count64 CalcConvexHull(u64 PointCount, v2 *Points, v2 *OutPoints);
 
-struct line_vertices
-{
-   u64 NumVertices;
-   u64 CapVertices;
-   sf::Vertex *Vertices;
-   sf::PrimitiveType PrimitiveType;
-};
-enum line_vertices_allocation_type
-{
-   LineVerticesAllocation_None,
-   LineVerticesAllocation_Arena,
-};
-struct line_vertices_allocation
-{
-   line_vertices_allocation_type Type;
-   union {
-      sf::Vertex *VerticesBuffer;
-      line_vertices OldVertices;
-      arena *Arena;
-   };
-};
-internal line_vertices_allocation LineVerticesAllocationNone(sf::Vertex *VerticesBuffer);
-internal line_vertices_allocation LineVerticesAllocationArena(arena *Arena);
-internal line_vertices            CalculateLineVertices(u64 PointCount, v2 *LinePoints,
-                                                        f32 Width, v4 Color, b32 Loop,
-                                                        line_vertices_allocation Allocation);
-
 typedef v2 rotation_2d;
 internal rotation_2d Rotation2D(f32 X, f32 Y);
 internal rotation_2d Rotation2DZero(void);

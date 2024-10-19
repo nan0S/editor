@@ -60,13 +60,13 @@ EntitySortEntryCmp(entity_sort_entry *A, entity_sort_entry *B)
 
 // TODO(hbr): Why the fuck this is the name of this internal
 // TODO(hbr): Rewrite this internal
-internal sf::Transform
+internal render_transform
 CurveGetAnimate(entity *Curve)
 {
-   sf::Transform Result =
-      sf::Transform()
-      .translate(V2ToVector2f(Curve->Position))
-      .rotate(Rotation2DToDegrees(Curve->Rotation));
+   render_transform Result = {};
+   Result.Offset = Curve->Position;
+   Result.Rotation = Curve->Rotation;
+   Result.Scale = V2(1.0f, 1.0f);
    
    return Result;
 }

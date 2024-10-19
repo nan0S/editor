@@ -15,8 +15,6 @@ SFMLBeginFrame(sfml_renderer *SFML)
    Commands->Commands = SFML->CommandBuffer;
    Commands->MaxCommandCount = ArrayCount(SFML->CommandBuffer);
    
-   GlobalTransformCount = 0;
-   
    return Commands;
 }
 
@@ -29,6 +27,16 @@ SFMLEndFrame(sfml_renderer *SFML, render_commands *Commands)
         ++CommandIndex)
    {
       render_command *Command = Commands->Commands + CommandIndex;
+      
+      sf::Transform Transform = {};
+      {
+         render_transform *XForm = &Command->XForm;
+         Transform = Transform
+            .rotate(Rotation2DToDegrees(XForm->Rotation))
+            .scale(XForm->Scale.X, XForm->Scale.Y)
+            .translate(-V2ToVector2f(XForm->Offset));
+      }
+      
       switch (Command->Type)
       {
          case RenderCommand_Clear: {
@@ -48,18 +56,20 @@ SFMLEndFrame(sfml_renderer *SFML, render_commands *Commands)
             
             temp_arena Temp = TempArena(0);
             sf::Vertex *SFMLVertices = PushArrayNonZero(Temp.Arena, Array->VertexCount, sf::Vertex);
-            vertex *Vertices = Array->Vertices;
-            v4 Color = Array->Color;
-            for (u64 VertexIndex = 0;
-                 VertexIndex < Array->VertexCount;
-                 ++VertexIndex)
             {
-               sf::Vertex *V = SFMLVertices + VertexIndex;
-               V->position = V2ToVector2f(Vertices[VertexIndex].Pos);
-               V->color = ColorToSFMLColor(Color);
+               vertex *Vertices = Array->Vertices;
+               v4 Color = Array->Color;
+               for (u64 VertexIndex = 0;
+                    VertexIndex < Array->VertexCount;
+                    ++VertexIndex)
+               {
+                  sf::Vertex *V = SFMLVertices + VertexIndex;
+                  V->position = V2ToVector2f(Vertices[VertexIndex].Pos);
+                  V->color = ColorToSFMLColor(Color);
+               }
             }
             
-            Window->draw(SFMLVertices, Array->VertexCount, Primitive, *Command->Transform);
+            Window->draw(SFMLVertices, Array->VertexCount, Primitive, Transform);
             
             EndTemp(Temp);
          }break;
@@ -73,7 +83,7 @@ SFMLEndFrame(sfml_renderer *SFML, render_commands *Commands)
             Shape.setPosition(Circle->Pos.X, Circle->Pos.Y);
             Shape.setOutlineThickness(Circle->OutlineThickness);
             Shape.setOutlineColor(ColorToSFMLColor(Circle->OutlineColor));
-            Window->draw(Shape, *Command->Transform);
+            Window->draw(Shape, Transform);
          }break;
          
          case RenderCommand_Rectangle: {
@@ -84,7 +94,7 @@ SFMLEndFrame(sfml_renderer *SFML, render_commands *Commands)
             Shape.setOrigin(0.5f * Rect->Size.X, 0.5f * Rect->Size.Y);
             Shape.setPosition(Rect->Pos.X, Rect->Pos.Y);
             Shape.setRotation(Rotation2DToDegrees(Rect->Rotation));
-            Window->draw(Shape, *Command->Transform);
+            Window->draw(Shape, Transform);
          }break;
          
          case RenderCommand_Triangle: {
@@ -96,7 +106,7 @@ SFMLEndFrame(sfml_renderer *SFML, render_commands *Commands)
             Verts[0].color = ColorToSFMLColor(Tri->Color);
             Verts[1].color = ColorToSFMLColor(Tri->Color);
             Verts[2].color = ColorToSFMLColor(Tri->Color);
-            Window->draw(Verts, 3, sf::Triangles, *Command->Transform);
+            Window->draw(Verts, 3, sf::Triangles, Transform);
          }break;
       }
    }
@@ -113,17 +123,12 @@ SFMLEndFrame(sfml_renderer *SFML, render_commands *Commands)
 }
 
 internal render_command *
-PushRenderCommand(render_commands *Commands, sf::Transform Transform)
+PushRenderCommand(render_commands *Commands, render_transform XForm)
 {
    Assert(Commands->CommandCount < Commands->MaxCommandCount);
    render_command *Result = Commands->Commands + Commands->CommandCount;
    ++Commands->CommandCount;
-   
-   Assert(GlobalTransformCount < ArrayCount(GlobalTransformBuffer));
-   sf::Transform *XForm = GlobalTransformBuffer + GlobalTransformCount;
-   *XForm = Transform;
-   ++GlobalTransformCount;
-   Result->Transform = XForm;
+   Result->XForm = XForm;
    
    return Result;
 }
@@ -134,9 +139,9 @@ PushVertexArray(render_commands *Commands,
                 u64 VertexCount,
                 render_primitive_type Primitive,
                 v4 Color,
-                sf::Transform Transform)
+                render_transform XForm)
 {
-   render_command *Command = PushRenderCommand(Commands, Transform);
+   render_command *Command = PushRenderCommand(Commands, XForm);
    Command->Type = RenderCommand_VertexArray;
    render_command_vertex_array *Array = &Command->VertexArray;
    Array->Vertices = Vertices;
@@ -149,7 +154,7 @@ PushVertexArray(render_commands *Commands,
 internal void
 PushClearColor(render_commands *Commands, v4 Color)
 {
-   render_command *Command = PushRenderCommand(Commands, sf::Transform());
+   render_command *Command = PushRenderCommand(Commands, Identity());
    Command->Type = RenderCommand_Clear;
    Command->Clear.Color = Color;
 }
@@ -157,11 +162,11 @@ PushClearColor(render_commands *Commands, v4 Color)
 internal void
 PushCircle(render_commands *Commands,
            v2 Position, f32 Radius,
-           v4 Color, sf::Transform Transform,
+           v4 Color, render_transform XForm,
            f32 OutlineThickness = 0.0f,
            v4 OutlineColor = V4(0.0f, 0.0f, 0.0f, 0.0f))
 {
-   render_command *Command = PushRenderCommand(Commands, Transform);
+   render_command *Command = PushRenderCommand(Commands, XForm);
    Command->Type = RenderCommand_Circle;
    render_command_circle *Circle = &Command->Circle;
    Circle->Pos = Position;
@@ -174,9 +179,9 @@ PushCircle(render_commands *Commands,
 internal void
 PushRectangle(render_commands *Commands,
               v2 Position, v2 Size, rotation_2d Rotation,
-              v4 Color, sf::Transform Transform)
+              v4 Color, render_transform XForm)
 {
-   render_command *Command = PushRenderCommand(Commands, Transform);
+   render_command *Command = PushRenderCommand(Commands, XForm);
    Command->Type = RenderCommand_Rectangle;
    render_command_rectangle *Rectangle = &Command->Rectangle;
    Rectangle->Pos = Position;
@@ -186,16 +191,16 @@ PushRectangle(render_commands *Commands,
 }
 
 internal void
-PushSquare(render_commands *Commands, v2 Position, f32 Side, v4 Color, sf::Transform Transform)
+PushSquare(render_commands *Commands, v2 Position, f32 Side, v4 Color, render_transform XForm)
 {
-   PushRectangle(Commands, Position, V2(Side, Side), Rotation2DZero(), Color, Transform);
+   PushRectangle(Commands, Position, V2(Side, Side), Rotation2DZero(), Color, XForm);
 }
 
 internal void
 PushLine(render_commands *Commands,
          v2 BeginPoint, v2 EndPoint,
          f32 LineWidth, v4 Color,
-         sf::Transform Transform)
+         render_transform XForm)
 {
    v2 Position = 0.5f * (BeginPoint + EndPoint);
    v2 Line = EndPoint - BeginPoint;
@@ -204,15 +209,15 @@ PushLine(render_commands *Commands,
    // NOTE(hbr): Rotate 90 degrees clockwise, because our 0 degree rotation
    // corresponds to -90 degrees rotation in the real world
    rotation_2d Rotation = Rotate90DegreesClockwise(Rotation2DFromVector(Line));
-   PushRectangle(Commands, Position, Size, Rotation, Color, Transform);
+   PushRectangle(Commands, Position, Size, Rotation, Color, XForm);
 }
 
 internal void
 PushTriangle(render_commands *Commands,
              v2 P0, v2 P1, v2 P2,
-             v4 Color, sf::Transform Transform)
+             v4 Color, render_transform XForm)
 {
-   render_command *Command = PushRenderCommand(Commands, Transform);
+   render_command *Command = PushRenderCommand(Commands, XForm);
    Command->Type = RenderCommand_Triangle;
    render_command_triangle *Triangle = &Command->Triangle;
    Triangle->P0 = P0;

@@ -90,6 +90,7 @@ internal s32 NormSquared(v2s V);
 internal void Normalize(v2 *V);
 internal f32 Dot(v2 U, v2 V);
 internal f32 Cross(v2 U, v2 V);
+internal v2 Hadamard(v2 A, v2 B);
 
 typedef u64 hull_point_count64;
 internal hull_point_count64 CalcConvexHull(u64 PointCount, v2 *Points, v2 *OutPoints);

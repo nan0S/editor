@@ -912,7 +912,8 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action)
          switch (Moving->Type)
          {
             case MovingMode_Entity: {
-               Moving->Entity->Position += Translation;
+               // TODO(hbr): Why the fuck it is minus and not plus
+               Moving->Entity->Position -= Translation;
             } break;
             
             case MovingMode_Camera: {
@@ -2618,7 +2619,7 @@ RenderDiagnosticsWindow(editor *Editor, f32 DeltaTime)
 }
 
 internal void
-UpdateAndRenderPointTracking(render_commands *Commands, editor *Editor, entity *Entity, sf::Transform Transform)
+UpdateAndRenderPointTracking(render_commands *Commands, editor *Editor, entity *Entity, render_transform Transform)
 {
    TimeFunction;
    
@@ -2776,7 +2777,7 @@ UpdateAndRenderPointTracking(render_commands *Commands, editor *Editor, entity *
 internal void
 UpdateAndRenderDegreeLowering(render_commands *Commands,
                               entity *Entity,
-                              sf::Transform Transform)
+                              render_transform Transform)
 {
    TimeFunction;
    
@@ -2841,8 +2842,8 @@ UpdateAndRenderDegreeLowering(render_commands *Commands,
    
    if (Lowering->Active)
    {
-      sf::Transform Model = CurveGetAnimate(Entity);
-      sf::Transform MVP = Transform * Model;
+      render_transform Model = CurveGetAnimate(Entity);
+      render_transform MVP = Transform * Model;
       
       v4 Color = Curve->CurveParams.CurveColor;
       Color.A *= 0.5f;
@@ -2858,7 +2859,7 @@ UpdateAndRenderDegreeLowering(render_commands *Commands,
 #define CURVE_NAME_HIGHLIGHT_COLOR ImVec4(1.0f, 0.5, 0.0f, 1.0f)
 
 internal void
-UpdateAnimateCurveAnimation(editor *Editor, f32 DeltaTime, sf::Transform Transform)
+UpdateAnimateCurveAnimation(editor *Editor, f32 DeltaTime, render_transform Transform)
 {
 #if 0
    TimeFunction;
@@ -3092,7 +3093,7 @@ RenderEntityCombo(entities *Entities, entity **InOutEntity, string Label)
 }
 
 internal void
-UpdateAndRenderCurveCombining(render_commands *Commands, editor *Editor, sf::Transform Transform)
+UpdateAndRenderCurveCombining(render_commands *Commands, editor *Editor, render_transform Transform)
 {
    temp_arena Temp = TempArena(0);
    
@@ -3353,7 +3354,7 @@ UpdateAndRenderCurveCombining(render_commands *Commands, editor *Editor, sf::Tra
 }
 
 internal void
-UpdateAndRenderEntities(render_commands *Commands, editor *Editor, f32 DeltaTime, sf::Transform VP)
+UpdateAndRenderEntities(render_commands *Commands, editor *Editor, f32 DeltaTime, render_transform VP)
 {
    TimeFunction;
    
@@ -3385,8 +3386,8 @@ UpdateAndRenderEntities(render_commands *Commands, editor *Editor, f32 DeltaTime
                   ActuallyRecomputeCurve(Entity);
                }
                
-               sf::Transform Model = CurveGetAnimate(Entity);
-               sf::Transform MVP = VP * Model;
+               render_transform Model = CurveGetAnimate(Entity);
+               render_transform MVP = VP * Model;
                
                if (Editor->Mode.Type == EditorMode_Moving &&
                    Editor->Mode.Moving.Type == MovingMode_CurvePoint &&
@@ -3510,7 +3511,8 @@ UpdateAndRenderEntities(render_commands *Commands, editor *Editor, f32 DeltaTime
                f32 AngleRotation = Rotation2DToDegrees(Entity->Rotation);
                Sprite.setRotation(AngleRotation);
                
-               Window->draw(Sprite, VP);
+               // TODO(hbr): Uncomment that
+               //Window->draw(Sprite, VP);
             }break;
          }
       }
@@ -3592,23 +3594,21 @@ UpdateAndRender(render_commands *Commands, f32 DeltaTime, user_input *Input, edi
    RenderDiagnosticsWindow(Editor, DeltaTime);
    DebugUpdateAndRender(Editor);
    
-   // NOTE(hbr): World Space -> Clip Space
-   sf::Transform VP = sf::Transform();
+   render_transform VP;
    {
       render_data *Data = &Editor->RenderData;
-      f32 CameraRotationInDegrees = Rotation2DToDegrees(Data->Camera.Rotation);
-      // NOTE(hbr): World Space -> Camera/View Space
-      sf::Transform ViewAnimate =
-         sf::Transform()
-         .rotate(-CameraRotationInDegrees)
-         .scale(Data->Camera.Zoom, Data->Camera.Zoom)
-         .translate(-V2ToVector2f(Data->Camera.Position));
-      // NOTE(hbr): Data->Camera Space -> Clip Space
-      sf::Transform ProjectionAnimate =
-         sf::Transform()
-         .scale(1.0f / (0.5f * Data->FrustumSize * Data->AspectRatio),
-                1.0f / (0.5f * Data->FrustumSize));
-      VP = ProjectionAnimate * ViewAnimate;
+      
+      render_transform WorldToCamera = {};
+      WorldToCamera.Offset = Data->Camera.Position;
+      WorldToCamera.Rotation = Rotation2DInverse(Data->Camera.Rotation);
+      WorldToCamera.Scale = V2(Data->Camera.Zoom, Data->Camera.Zoom);
+      
+      render_transform CameraToClip = {};
+      CameraToClip.Rotation = Rotation2DZero();
+      CameraToClip.Scale = V2(1.0f / (0.5f * Data->FrustumSize * Data->AspectRatio),
+                              1.0f / (0.5f * Data->FrustumSize));
+      
+      VP = CameraToClip * WorldToCamera;
    }
    
    UpdateAndRenderEntities(Commands, Editor, DeltaTime, VP);

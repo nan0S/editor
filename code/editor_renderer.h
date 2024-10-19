@@ -28,9 +28,6 @@ enum render_command_type
    RenderCommand_Triangle,
 };
 
-global u64 GlobalTransformCount;
-global sf::Transform GlobalTransformBuffer[4096];
-
 struct render_command_clear
 {
    v4 Color;
@@ -69,6 +66,44 @@ struct render_command_triangle
    v4 Color;
 };
 
+struct render_transform
+{
+   v2 Offset;
+   rotation_2d Rotation;
+   v2 Scale;
+};
+
+internal render_transform
+operator*(render_transform A, render_transform B)
+{
+   render_transform Result = {};
+   Result.Offset = A.Offset + B.Offset;
+   Result.Rotation = CombineRotations2D(A.Rotation, B.Rotation);
+   Result.Scale = Hadamard(A.Scale, B.Scale);
+   
+   return Result;
+}
+
+internal render_transform
+Identity(void)
+{
+   render_transform Result = {};
+   Result.Rotation = Rotation2DZero();
+   Result.Scale = V2(1.0f, 1.0f);
+   
+   return Result;
+}
+
+internal v2
+Transform(render_transform *XForm, v2 Pos)
+{
+   v2 Result = Pos - XForm->Offset;
+   RotateAround(Result, V2(0.0f, 0.0f), XForm->Rotation);
+   Result = Hadamard(Result, XForm->Scale);
+   
+   return Result;
+}
+
 struct render_command
 {
    render_command_type Type;
@@ -79,7 +114,7 @@ struct render_command
       render_command_rectangle Rectangle;
       render_command_triangle Triangle;
    };
-   sf::Transform *Transform;
+   render_transform XForm;
 };
 
 struct render_commands

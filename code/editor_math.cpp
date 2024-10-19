@@ -74,6 +74,16 @@ Cross(v2 U, v2 V)
    return Result;
 }
 
+internal v2
+Hadamard(v2 A, v2 B)
+{
+   v2 Result = {};
+   Result.X = A.X * B.X;
+   Result.Y = A.Y * B.Y;
+   
+   return Result;
+}
+
 internal rotation_2d
 Rotation2D(f32 X, f32 Y)
 {

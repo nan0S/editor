@@ -1279,64 +1279,56 @@ ElevateBezierCurveDegree(entity *Entity)
    EndTemp(Temp);
 }
 
-internal void
-FocusCameraOn(editor *Editor, world_position Position, v2 Extents)
-{
-   Editor->Camera.PositionTarget = Position;
-   local f32 Margin = 0.7f;
-   f32 ZoomX = 0.5f * (1.0f - Margin) * Editor->FrustumSize * Editor->AspectRatio / Extents.X;
-   f32 ZoomY = 0.5f * (1.0f - Margin) * Editor->FrustumSize / Extents.Y;
-   Editor->Camera.ZoomTarget = Min(ZoomX, ZoomY);
-   Editor->Camera.ReachingTarget = true;
-}
-
 // TODO(hbr): Optimize this function
 internal void
 FocusCameraOnEntity(editor *Editor, entity *Entity)
 {
+   rectangle2 AABB = EmptyAABB();
+   
    switch (Entity->Type)
    {
       case Entity_Curve: {
          curve *Curve = &Entity->Curve;
-         if (Curve->ControlPointCount > 0)
+         
+         u64 PointCount = Curve->ControlPointCount;
+         local_position *Points = Curve->ControlPoints;
+         for (u64 PointIndex = 0;
+              PointIndex < PointCount;
+              ++PointIndex)
          {
-            f32 Left = INF_F32, Right = -INF_F32;
-            f32 Down = INF_F32, Top = -INF_F32;
-            for (u64 ControlPointIndex = 0;
-                 ControlPointIndex < Curve->ControlPointCount;
-                 ++ControlPointIndex)
-            {
-               world_position ControlPointWorld = LocalEntityPositionToWorld(Entity,
-                                                                             Curve->ControlPoints[ControlPointIndex]);
-               v2 ControlPointRotated = RotateAround(ControlPointWorld,
-                                                     V2(0.0f, 0.0f),
-                                                     Rotation2DInverse(Editor->Camera.Rotation));
-               
-               if (ControlPointRotated.X < Left)  Left  = ControlPointRotated.X;
-               if (ControlPointRotated.X > Right) Right = ControlPointRotated.X;
-               if (ControlPointRotated.Y < Down)  Down  = ControlPointRotated.Y;
-               if (ControlPointRotated.Y > Top)   Top   = ControlPointRotated.Y;
-            }
-            
-            world_position FocusPosition =  RotateAround(V2(0.5f * (Left + Right), 0.5f * (Down + Top)),
-                                                         V2(0.0f, 0.0f), Editor->Camera.Rotation);
-            v2 Extents = V2(0.5f * (Right - Left) + 2.0f * Curve->CurveParams.PointRadius,
-                            0.5f * (Top - Down) + 2.0f * Curve->CurveParams.PointRadius);
-            FocusCameraOn(Editor, FocusPosition, Extents);
+            world_position P = LocalEntityPositionToWorld(Entity, Points[PointIndex]);
+            // TODO(hbr): Maybe include also point size
+            AddPointAABB(&AABB, P);
          }
       } break;
       
       case Entity_Image: {
-         f32 ScaleX = Abs(Entity->Scale.X);
-         f32 ScaleY = Abs(Entity->Scale.Y);
-         if (ScaleX != 0.0f && ScaleY != 0.0f)
-         {
-            sf::Vector2u TextureSize = Entity->Image.Texture.getSize();
-            v2 Extents = V2(0.5f * GlobalImageScaleFactor * ScaleX * TextureSize.x,
-                            0.5f * GlobalImageScaleFactor * ScaleY * TextureSize.y);
-            FocusCameraOn(Editor, Entity->Position, Extents);
-         }
+         // TODO(hbr): Use LocalEntityPositionToWorld here instead
+         f32 ScaleX = Entity->Scale.X;
+         f32 ScaleY = Entity->Scale.Y;
+         
+         sf::Vector2u TextureSize = Entity->Image.Texture.getSize();
+         f32 HalfWidth = 0.5f * GlobalImageScaleFactor * ScaleX * TextureSize.x;
+         f32 HalfHeight = 0.5f * GlobalImageScaleFactor * ScaleY * TextureSize.y;
+         
+         AddPointAABB(&AABB, Entity->Position + V2( HalfWidth,  HalfHeight));
+         AddPointAABB(&AABB, Entity->Position + V2(-HalfWidth,  HalfHeight));
+         AddPointAABB(&AABB, Entity->Position + V2( HalfWidth, -HalfHeight));
+         AddPointAABB(&AABB, Entity->Position + V2(-HalfWidth, -HalfHeight));
       } break;
+   }
+   
+   if (IsNonEmpty(&AABB))
+   {
+      camera *Camera = &Editor->Camera;
+      
+      v2 TargetP = 0.5f * (AABB.Mini + AABB.Maxi);
+      Camera->PositionTarget = TargetP;
+      
+      v2 Extents = AABB.Maxi - TargetP;
+      Camera->ZoomTarget = Min(SafeDiv1(1.0f, Extents.X), SafeDiv1(1.0f, Extents.Y));
+      
+      Editor->Camera.ReachingTarget = true;
    }
 }
 
@@ -3514,16 +3506,8 @@ UpdateAndRender(render_frame *Frame, user_input *Input, editor *Editor)
    render_group *Group = &Group_;
    {
       camera *Camera = &Editor->Camera;
-      
-      sf::RenderWindow *Window = Editor->Window;
-      sf::Vector2u WindowSize = Window->getSize();
-      f32 WindowWidth = WindowSize.x;
-      f32 WindowHeight = WindowSize.y;
-      
       BeginRenderGroup(Group, Frame,
                        Camera->Position, Camera->Rotation, Camera->Zoom,
-                       Editor->FrustumSize, Editor->AspectRatio,
-                       WindowWidth, WindowHeight,
                        Editor->BackgroundColor);
    }
    Editor->RenderGroup = Group;
@@ -3694,7 +3678,6 @@ main()
             .ZoomSensitivity = 0.05f,
             .ReachingTargetSpeed = 10.0f,
          };
-         Editor->FrustumSize = 2.0f;
          
          Editor->FrameStats = MakeFrameStats();
          Editor->MovingPointArena = AllocArena();
@@ -3728,13 +3711,12 @@ main()
             .OtherSettingsHeaderCollapsed = false,
          };
          
+         // TODO(hbr): Probably remove this
          sf::Vector2i MousePosition = sf::Mouse::getPosition(Window);
          
          user_input Input = {};
          Input.MousePosition = V2S32FromVec(MousePosition);
          Input.MouseLastPosition = V2S32FromVec(MousePosition);
-         Input.WindowWidth = VideoMode.width;
-         Input.WindowHeight = VideoMode.height;
          
          sfml_renderer *SFML = SFMLInit(PermamentArena, &Window);
          
@@ -3754,7 +3736,6 @@ main()
             FrameProfilePoint(&Editor->UI_Config.ViewProfilerWindow);
 #endif
             HandleEvents(&Window, &Input);
-            Editor->AspectRatio = CalculateAspectRatio(Input.WindowWidth, Input.WindowHeight);
             
             render_frame *Frame = SFMLBeginFrame(SFML);
             UpdateAndRender(Frame, &Input, Editor);

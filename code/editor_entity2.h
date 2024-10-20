@@ -336,6 +336,7 @@ internal render_transform GetEntityModelTransform(entity *Entity)
 {
    render_transform Result = {};
    Result.Scale = Entity->Scale;
+   //Result.Scale = V2(1.0f / Entity->Scale.X, 1.0f / Entity->Scale.Y);
    Result.Offset = Entity->Position;
    Result.Rotation = Entity->Rotation;
    

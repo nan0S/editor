@@ -432,8 +432,6 @@ struct editor
    
    sf::RenderWindow *Window;
    camera Camera;
-   f32 AspectRatio;
-   f32 FrustumSize;
    
    u64 EntityCount;
    entities Entities;

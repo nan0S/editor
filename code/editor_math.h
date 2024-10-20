@@ -14,7 +14,7 @@
 #define SqrtF32(X)             sqrtf(X)
 #define Atan2F32(Y, X)         atan2f(Y, X)
 
-//~ Vectors
+//~ Basic types
 union v2
 {
    struct { f32 X, Y; };
@@ -33,6 +33,18 @@ union v4
    struct { f32 R, G, B, A; };
    f32 E[4];
 };
+
+struct rectangle2
+{
+   v2 Mini;
+   v2 Maxi;
+};
+
+typedef v2s screen_position;
+typedef v2  clip_space;
+typedef v2  camera_position;
+typedef v2  world_position;
+typedef v2  local_position;
 
 inline internal v2 V2(f32 X, f32 Y) { return { X, Y }; }
 inline internal v2  operator+ (v2 U, v2 V)   { return V2(U.X + V.X, U.Y + V.Y); }
@@ -75,11 +87,9 @@ read_only global v4 TransparentColor = V4(0.0f, 0.0f, 0.0f, 0.0f);
 #define V2S32FromVec(V) V2S32((s32)(V).x, (s32)(V).y)
 #define ColorFromVec(V) RGBA_Color((u8)(V).r, (u8)(V).g, (u8)(V).b, (u8)(V).a)
 
-typedef v2s screen_position;
-typedef v2  clip_space;
-typedef v2  camera_position;
-typedef v2  world_position;
-typedef v2  local_position;
+internal rectangle2 EmptyAABB(void);
+internal void AddPointAABB(rectangle2 *AABB, v2 P);
+internal b32 IsNonEmpty(rectangle2 *Rect);
 
 //~ Calculations, algebra
 inline internal f32 Cube(f32 X) { return X * X * X; }

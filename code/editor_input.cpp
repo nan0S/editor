@@ -54,12 +54,6 @@ HandleEvents(sf::RenderWindow *Window, user_input *UserInput)
       {
          case sf::Event::Closed: { Window->close(); } break;
          
-         case sf::Event::Resized: {
-            sf::Vector2u WindowSize = Window->getSize();
-            UserInput->WindowWidth = Event.size.width;
-            UserInput->WindowHeight = Event.size.height;
-         } break;
-         
          case sf::Event::KeyPressed: {
             key Key = KeyFromSFMLKeyCode(Event.key.code);
             

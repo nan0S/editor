@@ -59,9 +59,6 @@ struct user_input
    
    f32 MouseWheelDelta;
    
-   u64 WindowWidth;
-   u64 WindowHeight;
-   
    f32 dtForFrame;
 };
 

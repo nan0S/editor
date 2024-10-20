@@ -8,12 +8,15 @@ SFMLInit(arena *Arena, sf::RenderWindow *Window)
 }
 
 internal render_frame *
-SFMLBeginFrame(sfml_renderer *SFML)
+SFMLBeginFrame(sfml_renderer *Renderer)
 {
-   render_frame *Frame = &SFML->Frame;
+   render_frame *Frame = &Renderer->Frame;
    Frame->CommandCount = 0;
-   Frame->Commands = SFML->CommandBuffer;
-   Frame->MaxCommandCount = ArrayCount(SFML->CommandBuffer);
+   Frame->Commands = Renderer->CommandBuffer;
+   Frame->MaxCommandCount = ArrayCount(Renderer->CommandBuffer);
+   
+   sf::Vector2u WindowSize = Renderer->Window->getSize();
+   Frame->WindowDim = V2S32(WindowSize.x, WindowSize.y);
    
    return Frame;
 }
@@ -255,6 +258,7 @@ Project(render_transform *XForm, v2 Pos)
 {
    v2 Result = Pos - XForm->Offset;
    RotateAround(Result, V2(0.0f, 0.0f), Rotation2DInverse(XForm->Rotation));
+   //Result = Hadamard(Result, V2(1.0f / XForm->Scale.X, 1.0f / XForm->Scale.Y));
    Result = Hadamard(Result, XForm->Scale);
    
    return Result;
@@ -263,6 +267,7 @@ Project(render_transform *XForm, v2 Pos)
 internal v2
 Unproject(render_transform *XForm, v2 Pos)
 {
+   //v2 Result = Hadamard(Pos, XForm->Scale);
    v2 Result = Hadamard(Pos, V2(1.0f / XForm->Scale.X, 1.0f / XForm->Scale.Y));
    Result = RotateAround(Result, V2(0.0f, 0.0f), XForm->Rotation);
    Result += XForm->Offset;
@@ -273,25 +278,27 @@ Unproject(render_transform *XForm, v2 Pos)
 internal void
 BeginRenderGroup(render_group *Group, render_frame *Frame,
                  v2 CameraP, rotation_2d CameraRot, f32 CameraZoom,
-                 f32 FrustumSize, f32 AspectRatio, s32 WindowWidth, s32 WindowHeight,
                  v4 ClearColor)
 {
    Group->Frame = Frame;
    
    Group->WorldToCamera.Offset = CameraP;
    Group->WorldToCamera.Rotation = CameraRot;
+   //Group->WorldToCamera.Scale = V2(SafeDiv1(1.0f, CameraZoom), SafeDiv1(1.0f, CameraZoom));
    Group->WorldToCamera.Scale = V2(CameraZoom, CameraZoom);
    
+   v2s WindowDim = Frame->WindowDim;
+   f32 AspectRatio = Cast(f32)WindowDim.X / WindowDim.Y;
    Group->CameraToClip.Offset = V2(0.0f, 0.0f);
    Group->CameraToClip.Rotation = Rotation2DZero();
-   Group->CameraToClip.Scale = V2(1.0f / (0.5f * FrustumSize * AspectRatio),
-                                  1.0f / (0.5f * FrustumSize));
+   //Group->CameraToClip.Scale = V2(AspectRatio, 1.0f);
+   Group->CameraToClip.Scale = V2(1.0f / AspectRatio, 1.0f);
    
    Group->ClipToScreen.Offset = V2(-1.0f, 1.0f);
-   Group->ClipToScreen.Scale = 0.5f * V2(WindowWidth, -WindowHeight);
+   //Group->ClipToScreen.Scale = 0.5f * V2(1.0f / WindowDim.X, -1.0f / WindowDim.Y);
+   Group->ClipToScreen.Scale = 0.5f * V2(WindowDim.X, -WindowDim.Y);
    Group->ClipToScreen.Rotation = Rotation2DZero();
    
    Frame->ClearColor = ClearColor;
    Frame->Proj = Group->CameraToClip * Group->WorldToCamera;
-   Frame->WindowDim = V2S32(WindowWidth, WindowHeight);
 }

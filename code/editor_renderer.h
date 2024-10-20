@@ -114,7 +114,7 @@ struct render_group
    render_transform ClipToScreen;
 };
 
-internal sfml_renderer *SFMLInit(arena *Arena, sf::RenderWindow *Window);
+internal sfml_renderer *InitSFMLRenderer(arena *Arena, sf::RenderWindow *Window);
 internal render_frame *SFMLBeginFrame(sfml_renderer *SFML);
 internal void SFMLEndFrame(sfml_renderer *SFML, render_frame *Frame);
 

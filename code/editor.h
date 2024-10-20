@@ -189,6 +189,16 @@ Bugs:
 - clicking on control point doesn't do anything, but should select this curve and control point
 - splitting bezier curve doesnt fully recompute one of the curves
 - removing curve point unselects curve, dont do that
+
+Stack:
+ - add sorting to rendering - this then will allow to draw things out of order and will simplify the code a lot
+- don't always require to specify model matrix - do something like SetModel(render_transform)
+- uninline some UpdateAndRender* functions
+- get rid of sf::Sprite in editor code - move it to renderer
+- split renderer into generic renderer and sfml renderer
+- check why editor type is so fucking big - probably compress it a little
+ - remove world_position, screen_position, clip_space and camera_position
+- try to remove multiple render_transforms from render_group
 */
 
 #define WINDOW_TITLE "Parametric Curves Editor"

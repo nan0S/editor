@@ -60,6 +60,9 @@ struct user_input
    f32 MouseWheelDelta;
    
    f32 dtForFrame;
+   
+   // NOTE(hbr): Output from editor back to the main loop
+   b32 QuitRequested;
 };
 
 // TODO(hbr): Rethink how mouse inputs should be handled. In particular when I press the mouse down

@@ -26,6 +26,8 @@
 #include "editor_debug.h"
 #include "editor_input.h"
 
+#include "editor_platform.h"
+
 /* TODO(hbr):
 Refactors:
 - get rid of SFML? (f32).
@@ -425,12 +427,12 @@ struct entities
 
 struct editor
 {
-   sf::Clock DeltaClock;
+   b32 Initialized;
+   
    frame_stats FrameStats;
    
    render_group *RenderGroup;
    
-   sf::RenderWindow *Window;
    camera Camera;
    
    u64 EntityCount;

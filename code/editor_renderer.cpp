@@ -1,5 +1,5 @@
 internal sfml_renderer *
-SFMLInit(arena *Arena, sf::RenderWindow *Window)
+InitSFMLRenderer(arena *Arena, sf::RenderWindow *Window)
 {
    sfml_renderer *SFML = PushStruct(Arena, sfml_renderer);
    SFML->Window = Window;
@@ -28,20 +28,20 @@ RenderTransformToSFMLTransform(render_transform *XForm)
    sf::Transform Transform =
       sf::Transform()
       .rotate(Rotation)
-      .scale(XForm->Scale.X, XForm->Scale.Y)
-      .translate(-XForm->Offset.X, -XForm->Offset.Y);
+      .scale(1.0f / XForm->Scale.X, 1.0f / XForm->Scale.Y)
+      .translate(XForm->Offset.X, XForm->Offset.Y);
    
    return Transform;
 }
 
 internal void
-SFMLEndFrame(sfml_renderer *SFML, render_frame *Frame)
+SFMLEndFrame(sfml_renderer *Renderer, render_frame *Frame)
 {
    TimeFunction;
    
    sf::Transform Transform = RenderTransformToSFMLTransform(&Frame->Proj);
    
-   sf::RenderWindow *Window = SFML->Window;
+   sf::RenderWindow *Window = Renderer->Window;
    
    // NOTE(hbr): Set Normalized Device Coordinates View
    sf::Vector2f Size = sf::Vector2f(2.0f, -2.0f);
@@ -258,8 +258,7 @@ Project(render_transform *XForm, v2 Pos)
 {
    v2 Result = Pos - XForm->Offset;
    RotateAround(Result, V2(0.0f, 0.0f), Rotation2DInverse(XForm->Rotation));
-   //Result = Hadamard(Result, V2(1.0f / XForm->Scale.X, 1.0f / XForm->Scale.Y));
-   Result = Hadamard(Result, XForm->Scale);
+   Result = Hadamard(Result, V2(1.0f / XForm->Scale.X, 1.0f / XForm->Scale.Y));
    
    return Result;
 }
@@ -267,8 +266,7 @@ Project(render_transform *XForm, v2 Pos)
 internal v2
 Unproject(render_transform *XForm, v2 Pos)
 {
-   //v2 Result = Hadamard(Pos, XForm->Scale);
-   v2 Result = Hadamard(Pos, V2(1.0f / XForm->Scale.X, 1.0f / XForm->Scale.Y));
+   v2 Result = Hadamard(Pos, XForm->Scale);
    Result = RotateAround(Result, V2(0.0f, 0.0f), XForm->Rotation);
    Result += XForm->Offset;
    
@@ -284,19 +282,16 @@ BeginRenderGroup(render_group *Group, render_frame *Frame,
    
    Group->WorldToCamera.Offset = CameraP;
    Group->WorldToCamera.Rotation = CameraRot;
-   //Group->WorldToCamera.Scale = V2(SafeDiv1(1.0f, CameraZoom), SafeDiv1(1.0f, CameraZoom));
-   Group->WorldToCamera.Scale = V2(CameraZoom, CameraZoom);
+   Group->WorldToCamera.Scale = V2(SafeDiv1(1.0f, CameraZoom), SafeDiv1(1.0f, CameraZoom));
    
    v2s WindowDim = Frame->WindowDim;
    f32 AspectRatio = Cast(f32)WindowDim.X / WindowDim.Y;
    Group->CameraToClip.Offset = V2(0.0f, 0.0f);
    Group->CameraToClip.Rotation = Rotation2DZero();
-   //Group->CameraToClip.Scale = V2(AspectRatio, 1.0f);
-   Group->CameraToClip.Scale = V2(1.0f / AspectRatio, 1.0f);
+   Group->CameraToClip.Scale = V2(AspectRatio, 1.0f);
    
    Group->ClipToScreen.Offset = V2(-1.0f, 1.0f);
-   //Group->ClipToScreen.Scale = 0.5f * V2(1.0f / WindowDim.X, -1.0f / WindowDim.Y);
-   Group->ClipToScreen.Scale = 0.5f * V2(WindowDim.X, -WindowDim.Y);
+   Group->ClipToScreen.Scale = 2.0f * V2(1.0f / WindowDim.X, -1.0f / WindowDim.Y);
    Group->ClipToScreen.Rotation = Rotation2DZero();
    
    Frame->ClearColor = ClearColor;

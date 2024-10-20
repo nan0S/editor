@@ -332,11 +332,11 @@ internal void UnselectControlPoint(curve *Curve);
 internal sorted_entries SortEntities(arena *Arena, entity_array Entities);
 
 // TODO(hbr): Temporary solution
-internal render_transform GetEntityModelTransform(entity *Entity)
+internal render_transform
+GetEntityModelTransform(entity *Entity)
 {
    render_transform Result = {};
    Result.Scale = Entity->Scale;
-   //Result.Scale = V2(1.0f / Entity->Scale.X, 1.0f / Entity->Scale.Y);
    Result.Offset = Entity->Position;
    Result.Rotation = Entity->Rotation;
    

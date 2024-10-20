@@ -115,7 +115,7 @@ struct render_group
 };
 
 internal sfml_renderer *InitSFMLRenderer(arena *Arena, sf::RenderWindow *Window);
-internal render_frame *SFMLBeginFrame(sfml_renderer *SFML);
-internal void SFMLEndFrame(sfml_renderer *SFML, render_frame *Frame);
+internal render_frame *SFMLBeginFrame(sfml_renderer *Renderer);
+internal void SFMLEndFrame(sfml_renderer *Renderer, render_frame *Frame);
 
 #endif //EDITOR_RENDERER_H

@@ -895,8 +895,7 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action, render_group *Grou
          switch (Moving->Type)
          {
             case MovingMode_Entity: {
-               // TODO(hbr): Why the fuck it is minus and not plus
-               Moving->Entity->Position -= Translation;
+               Moving->Entity->Position += Translation;
             } break;
             
             case MovingMode_Camera: {
@@ -1815,17 +1814,17 @@ RenderSelectedEntityUI(editor *Editor)
 }
 
 internal void
-UpdateAndRenderNotifications(editor *Editor, user_input *Input)
+UpdateAndRenderNotifications(editor *Editor, user_input *Input, render_group *Group)
 {
    temp_arena Temp = TempArena(0);
    
    UI_Label(StrLit("Notifications"))
    {
-      sf::Vector2u WindowSize = Editor->Window->getSize();
-      f32 Padding = 0.01f * WindowSize.x;
-      f32 TargetPosY = WindowSize.y - Padding;
+      v2s WindowDim = Group->Frame->WindowDim;
+      f32 Padding = 0.01f * WindowDim.X;
+      f32 TargetPosY = WindowDim.Y - Padding;
       
-      f32 WindowWidth = 0.1f * WindowSize.x;
+      f32 WindowWidth = 0.1f * WindowDim.X;
       ImVec2 WindowMinSize = ImVec2(WindowWidth, 0.0f);
       ImVec2 WindowMaxSize = ImVec2(WindowWidth, FLT_MAX);
       
@@ -1884,7 +1883,7 @@ UpdateAndRenderNotifications(editor *Editor, user_input *Input)
          }
          Notification->ScreenPosY = NextPosY;
          
-         ImVec2 WindowPosition = ImVec2(WindowSize.x - Padding, NextPosY);
+         ImVec2 WindowPosition = ImVec2(WindowDim.X - Padding, NextPosY);
          ImGui::SetNextWindowPos(WindowPosition, ImGuiCond_Always, ImVec2(1.0f, 1.0f));
          ImGui::SetNextWindowSizeConstraints(WindowMinSize, WindowMaxSize);
          
@@ -2082,7 +2081,7 @@ LoadTextureFromFile(string FilePath)
 }
 
 internal void
-UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
+UpdateAndRenderMenuBar(editor *Editor, user_input *Input, render_group *Group)
 {
    b32 NewProject    = false;
    b32 OpenProject   = false;
@@ -2100,10 +2099,10 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
    
    local ImGuiWindowFlags FileDialogWindowFlags = ImGuiWindowFlags_NoCollapse;
    
-   sf::Vector2u WindowSize = Editor->Window->getSize();
-   ImVec2 HalfWindowSize = ImVec2(0.5f * WindowSize.x, 0.5f * WindowSize.y);
-   ImVec2 FileDialogMinSize = HalfWindowSize;
-   ImVec2 FileDialogMaxSize = ImVec2(Cast(f32)WindowSize.x, Cast(f32)WindowSize.y);
+   v2s WindowDim = Group->Frame->WindowDim;
+   ImVec2 HalfWindowDim = ImVec2(0.5f * WindowDim.X, 0.5f * WindowDim.Y);
+   ImVec2 FileDialogMinSize = HalfWindowDim;
+   ImVec2 FileDialogMaxSize = ImVec2(Cast(f32)WindowDim.X, Cast(f32)WindowDim.Y);
    
    auto FileDialog = ImGuiFileDialog::Instance();
    
@@ -2224,7 +2223,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
    // NOTE(hbr): Open "Are you sure you want to exit?" popup
    {   
       // NOTE(hbr): Center window.
-      ImGui::SetNextWindowPos(HalfWindowSize, ImGuiCond_Always, ImVec2(0.5f,0.5f));
+      ImGui::SetNextWindowPos(HalfWindowDim, ImGuiCond_Always, ImVec2(0.5f,0.5f));
       if (UI_BeginPopupModal(ConfirmCloseProject))
       {
          UI_TextF("You are about to discard current project. Save it?");
@@ -2413,7 +2412,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
       
       case ActionToDo_Quit: {
          Assert(Editor->ActionWaitingToBeDone == ActionToDo_Nothing);
-         Editor->Window->close();
+         Input->QuitRequested = true;
       } break;
    }
    
@@ -3335,7 +3334,6 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
    TimeFunction;
    
    temp_arena Temp = TempArena(0);
-   sf::RenderWindow *Window = Editor->Window;
    
    entity_array EntityArray = {};
    EntityArray.Entities = Editor->Entities.Entities;
@@ -3496,10 +3494,81 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
    EndTemp(Temp);
 }
 
-
 internal void
-UpdateAndRender(render_frame *Frame, user_input *Input, editor *Editor)
+UpdateAndRenderEditor(editor_memory *Memory, user_input *Input, render_frame *Frame)
 {
+   TimeFunction;
+   
+   Assert(Memory->PermamentMemorySize >= SizeOf(editor));
+   editor *Editor = Cast(editor *)Memory->PermamentMemory;
+   if (!Editor->Initialized)
+   {
+      Editor->BackgroundColor = Editor->DefaultBackgroundColor = RGBA_Color(21, 21, 21);
+      Editor->CollisionToleranceClipSpace = Editor->DefaultCollisionToleranceClipSpace = 0.02f;
+      f32 CurveWidth = 0.009f;
+      v4 PolylineColor = RGBA_Color(16, 31, 31, 200);
+      Editor->CurveDefaultParams = {
+         .CurveColor = RGBA_Color(21, 69, 98),
+         .CurveWidth = CurveWidth,
+         .PointColor = RGBA_Color(0, 138, 138, 148),
+         .PointRadius = 0.014f,
+         .PolylineColor = PolylineColor,
+         .PolylineWidth = CurveWidth,
+         .ConvexHullColor = PolylineColor,
+         .ConvexHullWidth = CurveWidth,
+         .CurvePointCountPerSegment = 50,
+      };
+      
+      Editor->Camera = {
+         .Position = V2(0.0f, 0.0f),
+         .Rotation = Rotation2DZero(),
+         .Zoom = 1.0f,
+         .ZoomSensitivity = 0.05f,
+         .ReachingTargetSpeed = 10.0f,
+      };
+      
+      Editor->FrameStats = MakeFrameStats();
+      Editor->MovingPointArena = AllocArena();
+      Editor->MovingPointArena = AllocArena();
+      Editor->CurveAnimation.Arena = AllocArena();
+      Editor->CurveAnimation.AnimationSpeed = 1.0f;
+      
+      entities *Entities = &Editor->Entities;
+      for (u64 EntityIndex = 0;
+           EntityIndex < ArrayCount(Editor->Entities.Entities);
+           ++EntityIndex)
+      {
+         entity *Entity = Entities->Entities + EntityIndex;
+         Entity->Arena = AllocArena();
+         Entity->Curve.PointTracking.Arena = AllocArena();
+         Entity->Curve.DegreeLowering.Arena = AllocArena();
+         // NOTE(hbr): Ugly C++ thing we have to do because of constructors/destructors.
+         new (&Entity->Image.Texture) sf::Texture();
+      }
+      
+      Editor->UI_Config = {
+         .ViewSelectedEntityWindow = true,
+         .ViewListOfEntitiesWindow = true,
+         .ViewParametersWindow = false,
+         .ViewDiagnosticsWindow = false,
+         .ViewProfilerWindow = true,
+         .ViewDebugWindow = true,
+         .DefaultCurveHeaderCollapsed = false,
+         .RotationIndicatorHeaderCollapsed = false,
+         .BezierSplitPointHeaderCollapsed = false,
+         .OtherSettingsHeaderCollapsed = false,
+      };
+      
+      Editor->Initialized = true;
+   }
+   
+   // NOTE(hbr): Beginning profiling frame is inside the loop, because we have only
+   // space for one frame and rendering has to be done between ImGui::SFML::Update
+   // and ImGui::SFML::Render calls
+#if EDITOR_PROFILER
+   FrameProfilePoint(&Editor->UI_Config.ViewProfilerWindow);
+#endif
+   
    TimeFunction;
    
    render_group Group_ = {};
@@ -3514,7 +3583,7 @@ UpdateAndRender(render_frame *Frame, user_input *Input, editor *Editor)
    
    FrameStatsUpdate(&Editor->FrameStats, Input->dtForFrame);
    UpdateCamera(&Editor->Camera, Input);
-   UpdateAndRenderNotifications(Editor, Input);
+   UpdateAndRenderNotifications(Editor, Input, Group);
    
    {
       TimeBlock("editor state update");
@@ -3617,14 +3686,7 @@ UpdateAndRender(render_frame *Frame, user_input *Input, editor *Editor)
    // NOTE(hbr): Update menu bar here, because world has to already be rendered
    // and UI not, because we might save our project into image file and we
    // don't want to include UI render into our image.
-   UpdateAndRenderMenuBar(Editor, Input);
-}
-
-internal f32
-CalculateAspectRatio(u64 Width, u64 Height)
-{
-   f32 AspectRatio = Cast(f32)Width / Height;
-   return AspectRatio;
+   UpdateAndRenderMenuBar(Editor, Input, Group);
 }
 
 int
@@ -3639,7 +3701,8 @@ main()
    sf::VideoMode VideoMode = sf::VideoMode::getDesktopMode();
    sf::ContextSettings ContextSettings = sf::ContextSettings();
    ContextSettings.antialiasingLevel = 4;
-   sf::RenderWindow Window(VideoMode, WINDOW_TITLE, sf::Style::Default, ContextSettings);
+   sf::RenderWindow Window_(VideoMode, WINDOW_TITLE, sf::Style::Default, ContextSettings);
+   sf::RenderWindow *Window = &Window_;
    
 #if 0
    //#if not(BUILD_DEBUG)
@@ -3647,99 +3710,49 @@ main()
    //#endif
 #endif
    
-   if (Window.isOpen())
+   if (Window->isOpen())
    {
-      bool ImGuiInitSuccess = ImGui::SFML::Init(Window, true);
+      bool ImGuiInitSuccess = ImGui::SFML::Init(*Window, true);
       if (ImGuiInitSuccess)
       {
-         editor *Editor = PushStruct(PermamentArena, editor);
+         sfml_renderer *Renderer = InitSFMLRenderer(PermamentArena, Window);
          
-         Editor->BackgroundColor = Editor->DefaultBackgroundColor = RGBA_Color(21, 21, 21);
-         Editor->CollisionToleranceClipSpace = Editor->DefaultCollisionToleranceClipSpace = 0.02f;
-         f32 CurveWidth = 0.009f;
-         v4 PolylineColor = RGBA_Color(16, 31, 31, 200);
-         Editor->CurveDefaultParams = {
-            .CurveColor = RGBA_Color(21, 69, 98),
-            .CurveWidth = CurveWidth,
-            .PointColor = RGBA_Color(0, 138, 138, 148),
-            .PointRadius = 0.014f,
-            .PolylineColor = PolylineColor,
-            .PolylineWidth = CurveWidth,
-            .ConvexHullColor = PolylineColor,
-            .ConvexHullWidth = CurveWidth,
-            .CurvePointCountPerSegment = 50,
-         };
+         user_input Input_ = {};
+         user_input *Input = &Input_;
+         sf::Clock Clock;
          
-         Editor->Window = &Window;
-         Editor->Camera = {
-            .Position = V2(0.0f, 0.0f),
-            .Rotation = Rotation2DZero(),
-            .Zoom = 1.0f,
-            .ZoomSensitivity = 0.05f,
-            .ReachingTargetSpeed = 10.0f,
-         };
+         editor_memory Memory_ = {};
+         editor_memory *Memory = &Memory_;
+         Memory->PermamentMemorySize = Megabytes(128);
+         Memory->PermamentMemory = PushSize(PermamentArena, Memory->PermamentMemorySize);
          
-         Editor->FrameStats = MakeFrameStats();
-         Editor->MovingPointArena = AllocArena();
-         Editor->MovingPointArena = AllocArena();
-         Editor->CurveAnimation.Arena = AllocArena();
-         Editor->CurveAnimation.AnimationSpeed = 1.0f;
-         
-         entities *Entities = &Editor->Entities;
-         for (u64 EntityIndex = 0;
-              EntityIndex < ArrayCount(Editor->Entities.Entities);
-              ++EntityIndex)
+         b32 Running = true;
+         while (Running)
          {
-            entity *Entity = Entities->Entities + EntityIndex;
-            Entity->Arena = AllocArena();
-            Entity->Curve.PointTracking.Arena = AllocArena();
-            Entity->Curve.DegreeLowering.Arena = AllocArena();
-            // NOTE(hbr): Ugly C++ thing we have to do because of constructors/destructors.
-            new (&Entity->Image.Texture) sf::Texture();
-         }
-         
-         Editor->UI_Config = {
-            .ViewSelectedEntityWindow = true,
-            .ViewListOfEntitiesWindow = true,
-            .ViewParametersWindow = false,
-            .ViewDiagnosticsWindow = false,
-            .ViewProfilerWindow = true,
-            .ViewDebugWindow = true,
-            .DefaultCurveHeaderCollapsed = false,
-            .RotationIndicatorHeaderCollapsed = false,
-            .BezierSplitPointHeaderCollapsed = false,
-            .OtherSettingsHeaderCollapsed = false,
-         };
-         
-         // TODO(hbr): Probably remove this
-         sf::Vector2i MousePosition = sf::Mouse::getPosition(Window);
-         
-         user_input Input = {};
-         Input.MousePosition = V2S32FromVec(MousePosition);
-         Input.MouseLastPosition = V2S32FromVec(MousePosition);
-         
-         sfml_renderer *SFML = SFMLInit(PermamentArena, &Window);
-         
-         while (Window.isOpen())
-         {
-            auto SFMLDeltaTime = Editor->DeltaClock.restart();
-            Input.dtForFrame = SFMLDeltaTime.asSeconds();
-            
+            if (!Window->isOpen())
             {
-               TimeBlock("ImGui::SFML::Update");
-               ImGui::SFML::Update(Window, SFMLDeltaTime);
+               Running = false;
             }
-            // NOTE(hbr): Beginning profiling frame is inside the loop, because we have only
-            // space for one frame and rendering has to be done between ImGui::SFML::Update
-            // and ImGui::SFML::Render calls
-#if EDITOR_PROFILER
-            FrameProfilePoint(&Editor->UI_Config.ViewProfilerWindow);
-#endif
-            HandleEvents(&Window, &Input);
-            
-            render_frame *Frame = SFMLBeginFrame(SFML);
-            UpdateAndRender(Frame, &Input, Editor);
-            SFMLEndFrame(SFML, Frame);
+            else
+            {
+               auto SFMLDeltaTime = Clock.restart();
+               Input->dtForFrame = SFMLDeltaTime.asSeconds();
+               {
+                  TimeBlock("ImGui::SFML::Update");
+                  ImGui::SFML::Update(*Window, SFMLDeltaTime);
+               }
+               
+               HandleEvents(Window, Input);
+               
+               render_frame *Frame = SFMLBeginFrame(Renderer);
+               UpdateAndRenderEditor(Memory, Input, Frame);
+               SFMLEndFrame(Renderer, Frame);
+               
+               if (Input->QuitRequested)
+               {
+                  Running = false;
+               }
+            }
          }
       }
       else

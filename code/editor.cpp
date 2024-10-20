@@ -23,17 +23,17 @@ SetCameraZoom(camera *Camera, f32 Zoom)
 }
 
 internal void
-UpdateCamera(camera *Camera, f32 MouseWheelDelta, f32 DeltaTime)
+UpdateCamera(camera *Camera, user_input *Input)
 {
-   if (MouseWheelDelta != 0.0f)
+   if (Input->MouseWheelDelta != 0.0f)
    {
-      f32 ZoomDelta  = Camera->Zoom * Camera->ZoomSensitivity * MouseWheelDelta;
+      f32 ZoomDelta  = Camera->Zoom * Camera->ZoomSensitivity * Input->MouseWheelDelta;
       SetCameraZoom(Camera, Camera->Zoom + ZoomDelta);
    }
    
    if (Camera->ReachingTarget)
    {
-      f32 T = 1.0f - PowF32(2.0f, -Camera->ReachingTargetSpeed * DeltaTime);
+      f32 T = 1.0f - PowF32(2.0f, -Camera->ReachingTargetSpeed * Input->dtForFrame);
       Camera->Position = Lerp(Camera->Position, Camera->PositionTarget, T);
       Camera->Zoom = Lerp(Camera->Zoom, Camera->ZoomTarget, T);
       
@@ -60,60 +60,47 @@ RotateCamera(camera *Camera, rotation_2d Rotation)
    Camera->ReachingTarget = false;
 }
 
+
 internal world_position
-CameraToWorldSpace(camera_position Position, render_data *Data)
+CameraToWorldSpace(camera_position Position, render_group *Group)
 {
-   v2 Rotated = RotateAround(Position, V2(0.0f, 0.0f), Data->Camera.Rotation);
-   v2 Scaled = Rotated / Data->Camera.Zoom;
-   v2 Translated = Scaled + Data->Camera.Position;
-   
-   world_position WorldPosition = Translated;
-   return WorldPosition;
+   world_position Result = Unproject(&Group->WorldToCamera, Position);
+   return Result;
 }
 
 internal camera_position
-WorldToCameraSpace(world_position Position, render_data *Data)
+WorldToCameraSpace(world_position Position, render_group *Group)
 {
-   v2 Translated = Position - Data->Camera.Position;
-   v2 Scaled = Data->Camera.Zoom * Translated;
-   v2 Rotated = RotateAround(Scaled,
-                             V2(0.0f, 0.0f),
-                             Rotation2DInverse(Data->Camera.Rotation));
-   
-   camera_position CameraPosition = Rotated;
-   return CameraPosition;
+   camera_position Result = Project(&Group->WorldToCamera, Position);
+   return Result;
 }
 
 internal camera_position
-ScreenToCameraSpace(screen_position Position, render_data *Data)
+ScreenToCameraSpace(screen_position Position, render_group *Group)
 {
-   v2 ClipPosition = V2FromVec(Data->Window->mapPixelToCoords(V2S32ToVector2i(Position)));
-   
-   f32 FrustumExtent = 0.5f * Data->FrustumSize;
-   f32 CameraPositionX = ClipPosition.X * Data->AspectRatio * FrustumExtent;
-   f32 CameraPositionY = ClipPosition.Y * FrustumExtent;
-   
-   camera_position CameraPosition = V2(CameraPositionX, CameraPositionY);
-   return CameraPosition;
+   v2 Clip = Unproject(&Group->ClipToScreen, V2(Position.X, Position.Y));
+   camera_position Result = Unproject(&Group->CameraToClip, Clip);
+   return Result;
 }
 
 internal world_position
-ScreenToWorldSpace(screen_position Position, render_data *Data)
+ScreenToWorldSpace(screen_position Position, render_group *Group)
 {
-   camera_position CameraPosition = ScreenToCameraSpace(Position, Data);
-   world_position WorldPosition = CameraToWorldSpace(CameraPosition, Data);
+   camera_position CameraPosition = ScreenToCameraSpace(Position, Group);
+   world_position WorldPosition = CameraToWorldSpace(CameraPosition, Group);
    
    return WorldPosition;
 }
 
 // NOTE(hbr): Distance in space [-AspectRatio, AspectRatio] x [-1, 1]
 internal f32
-ClipSpaceLengthToWorldSpace(f32 ClipSpaceDistance, render_data *Data)
+ClipSpaceLengthToWorldSpace(f32 ClipSpaceDistance, render_group *Group)
 {
-   f32 CameraSpaceDistance = ClipSpaceDistance * 0.5f * Data->FrustumSize;
-   f32 WorldSpaceDistance = CameraSpaceDistance / Data->Camera.Zoom;
+   camera_position Camera = Unproject(&Group->CameraToClip, V2(ClipSpaceDistance, 0.0f));
+   world_position World = CameraToWorldSpace(Camera, Group);
+   f32 Result = Norm(World);
    
-   return WorldSpaceDistance;
+   return Result;
 }
 
 internal collision
@@ -413,6 +400,7 @@ AddNotificationF(editor *Editor, notification_type Type, char const *Format, ...
 internal void
 EditorSetProjectPath(editor *Editor, b32 Empty, string ProjectPath)
 {
+#if 0
    Editor->Empty = Empty;
    ClearArena(Editor->ProjectPathArena);
    Editor->ProjectPath = StrCopy(Editor->ProjectPathArena, ProjectPath);
@@ -427,14 +415,14 @@ EditorSetProjectPath(editor *Editor, b32 Empty, string ProjectPath)
    }
    Editor->RenderData.Window->setTitle(WindowTitle.Data);
    EndTemp(Temp);
+#endif
 }
 
 internal b32
-ScreenPointsAreClose(screen_position A, screen_position B,
-                     render_data * CoordinateSystemData)
+ScreenPointsAreClose(screen_position A, screen_position B, render_group *Group)
 {
-   camera_position C = ScreenToCameraSpace(A, CoordinateSystemData);
-   camera_position D = ScreenToCameraSpace(B, CoordinateSystemData);
+   camera_position C = ScreenToCameraSpace(A, Group);
+   camera_position D = ScreenToCameraSpace(B, Group);
    
    local f32 CameraSpaceEpsilon = 0.01f;
    b32 Result = NormSquared(C - D) <= Square(CameraSpaceEpsilon);
@@ -451,13 +439,12 @@ JustReleasedButton(button_state *ButtonState)
 }
 
 internal b32
-ClickedWithButton(button_state *ButtonState,
-                  render_data * CoordinateSystemData)
+ClickedWithButton(button_state *ButtonState, render_group *Group)
 {
    b32 Result = ButtonState->WasPressed && !ButtonState->Pressed &&
       ScreenPointsAreClose(ButtonState->PressPosition,
                            ButtonState->ReleasePosition,
-                           CoordinateSystemData);
+                           Group);
    
    return Result;
 }
@@ -465,12 +452,12 @@ ClickedWithButton(button_state *ButtonState,
 internal b32
 DraggedWithButton(button_state *ButtonState,
                   v2s MousePosition,
-                  render_data * CoordinateSystemData)
+                  render_group *Group)
 {
    b32 Result = ButtonState->Pressed &&
       !ScreenPointsAreClose(ButtonState->PressPosition,
                             MousePosition,
-                            CoordinateSystemData);
+                            Group);
    
    return Result;
 }
@@ -614,26 +601,25 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
 }
 
 internal void
-ExecuteUserActionNormalMode(editor *Editor, user_action Action)
+ExecuteUserActionNormalMode(editor *Editor, user_action Action, render_group *Group, user_input *Input)
 {
    temp_arena Temp = TempArena(0);
    switch (Action.Type)
    {
       case UserAction_ButtonClicked: {
-         world_position ClickPosition = ScreenToWorldSpace(Action.Click.ClickPosition, &Editor->RenderData);
+         world_position ClickPosition = ScreenToWorldSpace(Action.Click.ClickPosition, Group);
          switch (Action.Click.Button)
          {
             case Button_Left: {
                collision Collision = {};
-               if (Action.Input->Keys[Key_LeftShift].Pressed)
+               if (Input->Keys[Key_LeftShift].Pressed)
                {
                   // NOTE(hbr): Force no collision when shift if pressed, so that user can
                   // add control point wherever he wants
                }
                else
                {
-                  f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->CollisionToleranceClipSpace,
-                                                                       &Editor->RenderData);
+                  f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->CollisionToleranceClipSpace, Group);
                   Collision = CheckCollisionWith(&Editor->Entities, ClickPosition, CollisionTolerance,
                                                  Collision_CurvePoint | Collision_CurveLine);
                }
@@ -784,8 +770,7 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
             } break;
             
             case Button_Right: {
-               f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->CollisionToleranceClipSpace,
-                                                                    &Editor->RenderData);
+               f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(Editor->CollisionToleranceClipSpace, Group);
                collision Collision = CheckCollisionWith(&Editor->Entities,
                                                         ClickPosition,
                                                         CollisionTolerance,
@@ -833,15 +818,13 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
       case UserAction_ButtonDrag: {
          button DragButton = Action.Drag.Button;
          screen_position DragFromScreenPosition = Action.Drag.DragFromPosition;
-         world_position DragFromWorldPosition = ScreenToWorldSpace(DragFromScreenPosition,
-                                                                   &Editor->RenderData);
+         world_position DragFromWorldPosition = ScreenToWorldSpace(DragFromScreenPosition, Group);
          
          switch (DragButton)
          {
             case Button_Left: {
                f32 CollisionTolerance =
-                  ClipSpaceLengthToWorldSpace(Editor->CollisionToleranceClipSpace,
-                                              &Editor->RenderData);
+                  ClipSpaceLengthToWorldSpace(Editor->CollisionToleranceClipSpace, Group);
                
                collision Collision = CheckCollisionWith(&Editor->Entities,
                                                         DragFromWorldPosition,
@@ -899,14 +882,14 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action)
 }
 
 internal void
-ExecuteUserActionMoveMode(editor *Editor, user_action Action)
+ExecuteUserActionMoveMode(editor *Editor, user_action Action, render_group *Group, user_input *Input)
 {
    auto *Moving = &Editor->Mode.Moving;
    switch (Action.Type)
    {
       case UserAction_MouseMove: {
-         world_position From = ScreenToWorldSpace(Action.MouseMove.FromPosition, &Editor->RenderData);
-         world_position To = ScreenToWorldSpace(Action.MouseMove.ToPosition, &Editor->RenderData);
+         world_position From = ScreenToWorldSpace(Action.MouseMove.FromPosition, Group);
+         world_position To = ScreenToWorldSpace(Action.MouseMove.ToPosition, Group);
          v2 Translation = To - From;
          
          switch (Moving->Type)
@@ -917,16 +900,16 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action)
             } break;
             
             case MovingMode_Camera: {
-               MoveCamera(&Editor->RenderData.Camera, -Translation);
+               MoveCamera(&Editor->Camera, -Translation);
             } break;
             
             case MovingMode_CurvePoint: {
                translate_curve_point_flags Flags = 0;
-               if (IsKeyPressed(Action.Input, Key_LeftShift))
+               if (IsKeyPressed(Input, Key_LeftShift))
                {
                   Flags |= TranslateCurvePoint_MatchBezierTwinDirection;
                }
-               if (IsKeyPressed(Action.Input, Key_LeftCtrl))
+               if (IsKeyPressed(Input, Key_LeftCtrl))
                {
                   Flags |= TranslateCurvePoint_MatchBezierTwinLength;
                }
@@ -1052,13 +1035,13 @@ CalculateRotationIfStable(screen_position From,
 {
    stable_rotation Result = {};
    
-   render_data *RenderData = &Editor->RenderData;
+   render_group *Group = Editor->RenderGroup;
    
-   world_position FromWorld = ScreenToWorldSpace(From, RenderData);
-   world_position ToWorld = ScreenToWorldSpace(To, RenderData);
-   world_position CenterWorld = CameraToWorldSpace(RotationCenterCamera, RenderData);
+   world_position FromWorld = ScreenToWorldSpace(From, Group);
+   world_position ToWorld = ScreenToWorldSpace(To, Group);
+   world_position CenterWorld = CameraToWorldSpace(RotationCenterCamera, Group);
    
-   f32 DeadDistance = ClipSpaceLengthToWorldSpace(ROTATION_INDICATOR_RADIUS_CLIP_SPACE, RenderData);
+   f32 DeadDistance = ClipSpaceLengthToWorldSpace(ROTATION_INDICATOR_RADIUS_CLIP_SPACE, Group);
    
    if (NormSquared(FromWorld - CenterWorld) >= Square(DeadDistance) &&
        NormSquared(ToWorld   - CenterWorld) >= Square(DeadDistance))
@@ -1072,7 +1055,7 @@ CalculateRotationIfStable(screen_position From,
 }
 
 internal void
-ExecuteUserActionRotateMode(editor *Editor, user_action Action)
+ExecuteUserActionRotateMode(editor *Editor, user_action Action, render_group *Group, user_input *Input)
 {
    switch (Action.Type)
    {
@@ -1086,17 +1069,16 @@ ExecuteUserActionRotateMode(editor *Editor, user_action Action)
             switch (Entity->Type)
             {
                case Entity_Curve: {
-                  RotationCenter = ScreenToCameraSpace(Editor->Mode.Rotating.RotationCenter,
-                                                       &Editor->RenderData);
+                  RotationCenter = ScreenToCameraSpace(Editor->Mode.Rotating.RotationCenter, Group);
                } break;
                case Entity_Image: {
-                  RotationCenter = WorldToCameraSpace(Entity->Position, &Editor->RenderData);
+                  RotationCenter = WorldToCameraSpace(Entity->Position, Group);
                } break;
             }
          }
          else
          {
-            RotationCenter = WorldToCameraSpace(Editor->RenderData.Camera.Position, &Editor->RenderData);
+            RotationCenter = WorldToCameraSpace(Editor->Camera.Position, Group);
          }
          
          stable_rotation StableRotation =
@@ -1127,7 +1109,7 @@ ExecuteUserActionRotateMode(editor *Editor, user_action Action)
             else
             {
                rotation_2d InverseRotation = Rotation2DInverse(StableRotation.Rotation);
-               RotateCamera(&Editor->RenderData.Camera, InverseRotation);
+               RotateCamera(&Editor->Camera, InverseRotation);
             }
          }
       } break;
@@ -1146,13 +1128,13 @@ ExecuteUserActionRotateMode(editor *Editor, user_action Action)
 }
 
 internal void
-ExecuteUserAction(editor *Editor, user_action Action)
+ExecuteUserAction(editor *Editor, user_action Action, render_group *Group, user_input *Input)
 {
    switch (Editor->Mode.Type)
    {
-      case EditorMode_Normal:   { ExecuteUserActionNormalMode(Editor, Action); } break;
-      case EditorMode_Moving:   { ExecuteUserActionMoveMode(Editor, Action); } break;
-      case EditorMode_Rotating: { ExecuteUserActionRotateMode(Editor, Action); } break;
+      case EditorMode_Normal:   { ExecuteUserActionNormalMode(Editor, Action, Group, Input); } break;
+      case EditorMode_Moving:   { ExecuteUserActionMoveMode(Editor, Action, Group, Input); } break;
+      case EditorMode_Rotating: { ExecuteUserActionRotateMode(Editor, Action, Group, Input); } break;
    }
 }
 
@@ -1167,7 +1149,7 @@ DuplicateEntity(entity *Entity, editor *Editor)
    SetEntityName(Copy, CopyName);
    
    SelectEntity(Editor, Copy);
-   f32 SlightTranslationX = ClipSpaceLengthToWorldSpace(0.2f, &Editor->RenderData);
+   f32 SlightTranslationX = ClipSpaceLengthToWorldSpace(0.2f, Editor->RenderGroup);
    v2 SlightTranslation = V2(SlightTranslationX, 0.0f);
    Copy->Position += SlightTranslation;
    
@@ -1300,12 +1282,12 @@ ElevateBezierCurveDegree(entity *Entity)
 internal void
 FocusCameraOn(editor *Editor, world_position Position, v2 Extents)
 {
-   Editor->RenderData.Camera.PositionTarget = Position;
+   Editor->Camera.PositionTarget = Position;
    local f32 Margin = 0.7f;
-   f32 ZoomX = 0.5f * (1.0f - Margin) * Editor->RenderData.FrustumSize * Editor->RenderData.AspectRatio / Extents.X;
-   f32 ZoomY = 0.5f * (1.0f - Margin) * Editor->RenderData.FrustumSize / Extents.Y;
-   Editor->RenderData.Camera.ZoomTarget = Min(ZoomX, ZoomY);
-   Editor->RenderData.Camera.ReachingTarget = true;
+   f32 ZoomX = 0.5f * (1.0f - Margin) * Editor->FrustumSize * Editor->AspectRatio / Extents.X;
+   f32 ZoomY = 0.5f * (1.0f - Margin) * Editor->FrustumSize / Extents.Y;
+   Editor->Camera.ZoomTarget = Min(ZoomX, ZoomY);
+   Editor->Camera.ReachingTarget = true;
 }
 
 // TODO(hbr): Optimize this function
@@ -1328,7 +1310,7 @@ FocusCameraOnEntity(editor *Editor, entity *Entity)
                                                                              Curve->ControlPoints[ControlPointIndex]);
                v2 ControlPointRotated = RotateAround(ControlPointWorld,
                                                      V2(0.0f, 0.0f),
-                                                     Rotation2DInverse(Editor->RenderData.Camera.Rotation));
+                                                     Rotation2DInverse(Editor->Camera.Rotation));
                
                if (ControlPointRotated.X < Left)  Left  = ControlPointRotated.X;
                if (ControlPointRotated.X > Right) Right = ControlPointRotated.X;
@@ -1337,7 +1319,7 @@ FocusCameraOnEntity(editor *Editor, entity *Entity)
             }
             
             world_position FocusPosition =  RotateAround(V2(0.5f * (Left + Right), 0.5f * (Down + Top)),
-                                                         V2(0.0f, 0.0f), Editor->RenderData.Camera.Rotation);
+                                                         V2(0.0f, 0.0f), Editor->Camera.Rotation);
             v2 Extents = V2(0.5f * (Right - Left) + 2.0f * Curve->CurveParams.PointRadius,
                             0.5f * (Top - Down) + 2.0f * Curve->CurveParams.PointRadius);
             FocusCameraOn(Editor, FocusPosition, Extents);
@@ -1841,13 +1823,13 @@ RenderSelectedEntityUI(editor *Editor)
 }
 
 internal void
-UpdateAndRenderNotifications(editor *Editor, f32 DeltaTime)
+UpdateAndRenderNotifications(editor *Editor, user_input *Input)
 {
    temp_arena Temp = TempArena(0);
    
    UI_Label(StrLit("Notifications"))
    {
-      sf::Vector2u WindowSize = Editor->RenderData.Window->getSize();
+      sf::Vector2u WindowSize = Editor->Window->getSize();
       f32 Padding = 0.01f * WindowSize.x;
       f32 TargetPosY = WindowSize.y - Padding;
       
@@ -1862,7 +1844,7 @@ UpdateAndRenderNotifications(editor *Editor, f32 DeltaTime)
            ++NotificationIndex)
       {
          notification *Notification = Editor->Notifications + NotificationIndex;
-         Notification->LifeTime += DeltaTime;
+         Notification->LifeTime += Input->dtForFrame;
          
          enum notification_life_time {
             NotificationLifeTime_In,
@@ -1903,7 +1885,7 @@ UpdateAndRenderNotifications(editor *Editor, f32 DeltaTime)
          
          f32 CurrentPosY = Notification->ScreenPosY;
          local f32 MoveSpeed = 20.0f;
-         f32 NextPosY = Lerp(CurrentPosY, TargetPosY, 1.0f - PowF32(2.0f, -MoveSpeed * DeltaTime));
+         f32 NextPosY = Lerp(CurrentPosY, TargetPosY, 1.0f - PowF32(2.0f, -MoveSpeed * Input->dtForFrame));
          if (ApproxEq32(TargetPosY, NextPosY))
          {
             NextPosY = TargetPosY;
@@ -2126,7 +2108,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
    
    local ImGuiWindowFlags FileDialogWindowFlags = ImGuiWindowFlags_NoCollapse;
    
-   sf::Vector2u WindowSize = Editor->RenderData.Window->getSize();
+   sf::Vector2u WindowSize = Editor->Window->getSize();
    ImVec2 HalfWindowSize = ImVec2(0.5f * WindowSize.x, 0.5f * WindowSize.y);
    ImVec2 FileDialogMinSize = HalfWindowSize;
    ImVec2 FileDialogMaxSize = ImVec2(Cast(f32)WindowSize.x, Cast(f32)WindowSize.y);
@@ -2155,7 +2137,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
          UI_MenuItemF(&Config->ViewDebugWindow,          0, "Debug");
          if (UI_BeginMenuF("Camera"))
          {
-            camera *Camera = &Editor->RenderData.Camera;
+            camera *Camera = &Editor->Camera;
             if (UI_MenuItemF(0, 0, "Reset Position"))
             {
                MoveCamera(Camera, -Camera->Position);
@@ -2439,7 +2421,7 @@ UpdateAndRenderMenuBar(editor *Editor, user_input *Input)
       
       case ActionToDo_Quit: {
          Assert(Editor->ActionWaitingToBeDone == ActionToDo_Nothing);
-         Editor->RenderData.Window->close();
+         Editor->Window->close();
       } break;
    }
    
@@ -2600,7 +2582,7 @@ RenderSettingsWindow(editor *Editor)
 }
 
 internal void
-RenderDiagnosticsWindow(editor *Editor, f32 DeltaTime)
+RenderDiagnosticsWindow(editor *Editor, user_input *Input)
 {
    ui_config *Config = &Editor->UI_Config;
    if (Config->ViewDiagnosticsWindow)
@@ -2608,7 +2590,7 @@ RenderDiagnosticsWindow(editor *Editor, f32 DeltaTime)
       if (UI_BeginWindowF(&Config->ViewDiagnosticsWindow, "Diagnostics"))
       {
          frame_stats *Stats = &Editor->FrameStats;
-         UI_TextF("%20s: %.2f ms", "Frame time", 1000.0f * DeltaTime);
+         UI_TextF("%20s: %.2f ms", "Frame time", 1000.0f * Input->dtForFrame);
          UI_TextF("%20s: %.0f", "FPS", Stats->FPS);
          UI_TextF("%20s: %.2f ms", "Min frame time", 1000.0f * Stats->MinFrameTime);
          UI_TextF("%20s: %.2f ms", "Max frame time", 1000.0f * Stats->MaxFrameTime);
@@ -2619,7 +2601,7 @@ RenderDiagnosticsWindow(editor *Editor, f32 DeltaTime)
 }
 
 internal void
-UpdateAndRenderPointTracking(render_commands *Commands, editor *Editor, entity *Entity, render_transform Transform)
+UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity)
 {
    TimeFunction;
    
@@ -2668,12 +2650,15 @@ UpdateAndRenderPointTracking(render_commands *Commands, editor *Editor, entity *
                                                                        Curve->ControlPointCount);
                }
                
+               render_transform ModelXForm = GetEntityModelTransform(Entity);
+               
                f32 Radius = GetCurveTrackedPointRadius(Curve);
                v4 Color = V4(0.0f, 1.0f, 0.0f, 0.5f);
                f32 OutlineThickness = 0.3f * Radius;
                v4 OutlineColor = DarkenColor(Color, 0.5f);
-               PushCircle(Commands,
-                          Tracking->TrackedPoint, Radius, Color, Transform,
+               PushCircle(Group,
+                          Tracking->TrackedPoint, Radius, Color,
+                          ModelXForm,
                           OutlineThickness, OutlineColor);
             }
          }
@@ -2737,6 +2722,8 @@ UpdateAndRenderPointTracking(render_commands *Commands, editor *Editor, entity *
                
                f32 PointSize = CurveParams->PointRadius;
                
+               render_transform ModelXForm = GetEntityModelTransform(Entity);
+               
                u64 PointIndex = 0;
                for (u64 Iteration = 0;
                     Iteration < IterationCount;
@@ -2744,17 +2731,17 @@ UpdateAndRenderPointTracking(render_commands *Commands, editor *Editor, entity *
                {
                   v4 IterationColor = Lerp(GradientA, GradientB, P);
                   
-                  PushVertexArray(Commands,
+                  PushVertexArray(Group,
                                   Tracking->LineVerticesPerIteration[Iteration].Vertices,
                                   Tracking->LineVerticesPerIteration[Iteration].VertexCount,
                                   Tracking->LineVerticesPerIteration[Iteration].Primitive,
                                   IterationColor,
-                                  Transform);
+                                  ModelXForm);
                   
                   for (u64 I = 0; I < IterationCount - Iteration; ++I)
                   {
                      local_position Point = Tracking->Intermediate.P[PointIndex];
-                     PushCircle(Commands, Point, PointSize, IterationColor, Transform);
+                     PushCircle(Group, Point, PointSize, IterationColor, ModelXForm);
                      ++PointIndex;
                   }
                   
@@ -2775,9 +2762,7 @@ UpdateAndRenderPointTracking(render_commands *Commands, editor *Editor, entity *
 }
 
 internal void
-UpdateAndRenderDegreeLowering(render_commands *Commands,
-                              entity *Entity,
-                              render_transform Transform)
+UpdateAndRenderDegreeLowering(render_group *Group, entity *Entity)
 {
    TimeFunction;
    
@@ -2843,23 +2828,22 @@ UpdateAndRenderDegreeLowering(render_commands *Commands,
    if (Lowering->Active)
    {
       render_transform Model = CurveGetAnimate(Entity);
-      render_transform MVP = Transform * Model;
       
       v4 Color = Curve->CurveParams.CurveColor;
       Color.A *= 0.5f;
       
-      PushVertexArray(Commands,
+      PushVertexArray(Group,
                       Lowering->SavedCurveVertices.Vertices,
                       Lowering->SavedCurveVertices.VertexCount,
                       Lowering->SavedCurveVertices.Primitive,
-                      Color, MVP);
+                      Color, Model);
    }
 }
 
 #define CURVE_NAME_HIGHLIGHT_COLOR ImVec4(1.0f, 0.5, 0.0f, 1.0f)
 
 internal void
-UpdateAnimateCurveAnimation(editor *Editor, f32 DeltaTime, render_transform Transform)
+UpdateAnimateCurveAnimation(editor *Editor, user_input *Input, render_group *Group)
 {
 #if 0
    TimeFunction;
@@ -3093,7 +3077,7 @@ RenderEntityCombo(entities *Entities, entity **InOutEntity, string Label)
 }
 
 internal void
-UpdateAndRenderCurveCombining(render_commands *Commands, editor *Editor, render_transform Transform)
+UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
 {
    temp_arena Temp = TempArena(0);
    
@@ -3342,31 +3326,31 @@ UpdateAndRenderCurveCombining(render_commands *Commands, editor *Editor, render_
       f32 TriangleSide = 10.0f * LineWidth;
       f32 TriangleHeight = TriangleSide * SqrtF32(3.0f) / 2.0f;
       world_position BaseVertex = WithPoint - TriangleHeight * LineDirection;
-      PushLine(Commands, SourcePoint, BaseVertex, LineWidth, Color, Transform);
+      PushLine(Group, SourcePoint, BaseVertex, LineWidth, Color, Identity());
       
       v2 LinePerpendicular = Rotate90DegreesAntiClockwise(LineDirection);
       world_position LeftVertex = BaseVertex + 0.5f * TriangleSide * LinePerpendicular;
       world_position RightVertex = BaseVertex - 0.5f * TriangleSide * LinePerpendicular;
-      PushTriangle(Commands, LeftVertex, RightVertex, WithPoint, Color, Transform);
+      PushTriangle(Group, LeftVertex, RightVertex, WithPoint, Color, Identity());
    }
    
    EndTemp(Temp);
 }
 
 internal void
-UpdateAndRenderEntities(render_commands *Commands, editor *Editor, f32 DeltaTime, render_transform VP)
+UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
 {
    TimeFunction;
    
    temp_arena Temp = TempArena(0);
-   sf::RenderWindow *Window = Editor->RenderData.Window;
+   sf::RenderWindow *Window = Editor->Window;
    
    entity_array EntityArray = {};
    EntityArray.Entities = Editor->Entities.Entities;
    EntityArray.Count = MAX_ENTITY_COUNT;
    sorted_entries Sorted = SortEntities(Temp.Arena, EntityArray);
    
-   UpdateAnimateCurveAnimation(Editor, DeltaTime, VP);
+   UpdateAnimateCurveAnimation(Editor, Input, Group);
    
    for (u64 EntryIndex = 0;
         EntryIndex < Sorted.Count;
@@ -3387,7 +3371,6 @@ UpdateAndRenderEntities(render_commands *Commands, editor *Editor, f32 DeltaTime
                }
                
                render_transform Model = CurveGetAnimate(Entity);
-               render_transform MVP = VP * Model;
                
                if (Editor->Mode.Type == EditorMode_Moving &&
                    Editor->Mode.Moving.Type == MovingMode_CurvePoint &&
@@ -3396,38 +3379,38 @@ UpdateAndRenderEntities(render_commands *Commands, editor *Editor, f32 DeltaTime
                   v4 Color = Curve->CurveParams.CurveColor;
                   Color.A *= 0.5f;
                   
-                  PushVertexArray(Commands,
+                  PushVertexArray(Group,
                                   Editor->Mode.Moving.OriginalCurveVertices.Vertices,
                                   Editor->Mode.Moving.OriginalCurveVertices.VertexCount,
                                   Editor->Mode.Moving.OriginalCurveVertices.Primitive,
-                                  Color, MVP);
+                                  Color, Model);
                }
                
-               PushVertexArray(Commands,
+               PushVertexArray(Group,
                                Curve->CurveVertices.Vertices,
                                Curve->CurveVertices.VertexCount,
                                Curve->CurveVertices.Primitive,
                                Curve->CurveParams.CurveColor,
-                               MVP);
+                               Model);
                
                if (CurveParams->PolylineEnabled)
                {
-                  PushVertexArray(Commands,
+                  PushVertexArray(Group,
                                   Curve->PolylineVertices.Vertices,
                                   Curve->PolylineVertices.VertexCount,
                                   Curve->PolylineVertices.Primitive,
                                   Curve->CurveParams.PolylineColor,
-                                  MVP);
+                                  Model);
                }
                
                if (CurveParams->ConvexHullEnabled)
                {
-                  PushVertexArray(Commands,
+                  PushVertexArray(Group,
                                   Curve->ConvexHullVertices.Vertices,
                                   Curve->ConvexHullVertices.VertexCount,
                                   Curve->ConvexHullVertices.Primitive,
                                   Curve->CurveParams.ConvexHullColor,
-                                  MVP);
+                                  Model);
                }
                
                if (AreCurvePointsVisible(Curve))
@@ -3445,8 +3428,8 @@ UpdateAndRenderEntities(render_commands *Commands, editor *Editor, f32 DeltaTime
                      f32 BezierPointRadius = GetCurveCubicBezierPointRadius(Curve);
                      f32 HelperLineWidth = 0.2f * CurveParams->CurveWidth;
                      
-                     PushLine(Commands, BezierPoint, CenterPoint, HelperLineWidth, CurveParams->CurveColor, MVP);
-                     PushCircle(Commands, BezierPoint, BezierPointRadius, CurveParams->PointColor, MVP);
+                     PushLine(Group, BezierPoint, CenterPoint, HelperLineWidth, CurveParams->CurveColor, Model);
+                     PushCircle(Group, BezierPoint, BezierPointRadius, CurveParams->PointColor, Model);
                   }
                   
                   u64 ControlPointCount = Curve->ControlPointCount;
@@ -3456,38 +3439,38 @@ UpdateAndRenderEntities(render_commands *Commands, editor *Editor, f32 DeltaTime
                        ++PointIndex)
                   {
                      point_info PointInfo = GetCurveControlPointInfo(Entity, PointIndex);
-                     PushCircle(Commands,
+                     PushCircle(Group,
                                 ControlPoints[PointIndex],
                                 PointInfo.Radius,
                                 PointInfo.Color,
-                                MVP,
+                                Model,
                                 PointInfo.OutlineThickness,
                                 PointInfo.OutlineColor);
                   }
                }
                
-               UpdateAndRenderDegreeLowering(Commands, Entity, VP);
+               UpdateAndRenderDegreeLowering(Group, Entity);
                
                curve_animation_state *Animation = &Editor->CurveAnimation;
                if (Animation->Stage == AnimateCurveAnimation_Animating && Animation->FromCurveEntity == Entity)
                {
                   // TODO(hbr): Update this color calculation. This should be interpolation between two curves' colors.
                   v4 Color = Curve->CurveParams.CurveColor;
-                  PushVertexArray(Commands,
+                  PushVertexArray(Group,
                                   Animation->AnimatedCurveVertices.Vertices,
                                   Animation->AnimatedCurveVertices.VertexCount,
                                   Animation->AnimatedCurveVertices.Primitive,
-                                  Color, VP);
+                                  Color, Identity());
                }
                
                // TODO(hbr): Update this
                curve_combining_state *Combining = &Editor->CurveCombining;
                if (Combining->SourceEntity == Entity)
                {
-                  UpdateAndRenderCurveCombining(Commands, Editor, VP);
+                  UpdateAndRenderCurveCombining(Group, Editor);
                }
                
-               UpdateAndRenderPointTracking(Commands, Editor, Entity, MVP);
+               UpdateAndRenderPointTracking(Group, Editor, Entity);
                
                Curve->RecomputeRequested = false;
             } break;
@@ -3521,20 +3504,37 @@ UpdateAndRenderEntities(render_commands *Commands, editor *Editor, f32 DeltaTime
    EndTemp(Temp);
 }
 
+
 internal void
-UpdateAndRender(render_commands *Commands, f32 DeltaTime, user_input *Input, editor *Editor)
+UpdateAndRender(render_frame *Frame, user_input *Input, editor *Editor)
 {
    TimeFunction;
    
-   FrameStatsUpdate(&Editor->FrameStats, DeltaTime);
-   UpdateCamera(&Editor->RenderData.Camera, Input->MouseWheelDelta, DeltaTime);
-   UpdateAndRenderNotifications(Editor, DeltaTime);
+   render_group Group_ = {};
+   render_group *Group = &Group_;
+   {
+      camera *Camera = &Editor->Camera;
+      
+      sf::RenderWindow *Window = Editor->Window;
+      sf::Vector2u WindowSize = Window->getSize();
+      f32 WindowWidth = WindowSize.x;
+      f32 WindowHeight = WindowSize.y;
+      
+      BeginRenderGroup(Group, Frame,
+                       Camera->Position, Camera->Rotation, Camera->Zoom,
+                       Editor->FrustumSize, Editor->AspectRatio,
+                       WindowWidth, WindowHeight,
+                       Editor->BackgroundColor);
+   }
+   Editor->RenderGroup = Group;
+   
+   FrameStatsUpdate(&Editor->FrameStats, Input->dtForFrame);
+   UpdateCamera(&Editor->Camera, Input);
+   UpdateAndRenderNotifications(Editor, Input);
    
    {
       TimeBlock("editor state update");
       
-      user_action Action = {};
-      Action.Input = Input;
       for (u64 ButtonIndex = 0;
            ButtonIndex < Button_Count;
            ++ButtonIndex)
@@ -3542,14 +3542,15 @@ UpdateAndRender(render_commands *Commands, f32 DeltaTime, user_input *Input, edi
          button Button = Cast(button)ButtonIndex;
          button_state *ButtonState = &Input->Buttons[ButtonIndex];
          
-         if (ClickedWithButton(ButtonState, &Editor->RenderData))
+         user_action Action = {};
+         if (ClickedWithButton(ButtonState, Group))
          {
             Action.Type = UserAction_ButtonClicked;
             Action.Click.Button = Button;
             // TODO(hbr): I know, I know. But should it be ReleasePosition???
             Action.Click.ClickPosition = ButtonState->ReleasePosition;
          }
-         else if (DraggedWithButton(ButtonState, Input->MousePosition, &Editor->RenderData))
+         else if (DraggedWithButton(ButtonState, Input->MousePosition, Group))
          {
             Action.Type = UserAction_ButtonDrag;
             Action.Drag.Button = Button;
@@ -3563,17 +3564,18 @@ UpdateAndRender(render_commands *Commands, f32 DeltaTime, user_input *Input, edi
          }
          if (Action.Type != UserAction_None)
          {
-            ExecuteUserAction(Editor, Action);
+            ExecuteUserAction(Editor, Action, Group, Input);
          }
       }
       
       if (Input->MouseLastPosition != Input->MousePosition ||
           Editor->Mode.Type != EditorMode_Normal)
       {
+         user_action Action = {};
          Action.Type = UserAction_MouseMove;
          Action.MouseMove.FromPosition = Input->MouseLastPosition;
          Action.MouseMove.ToPosition = Input->MousePosition;
-         ExecuteUserAction(Editor, Action);
+         ExecuteUserAction(Editor, Action, Group, Input);
       }
    }
    
@@ -3591,27 +3593,9 @@ UpdateAndRender(render_commands *Commands, f32 DeltaTime, user_input *Input, edi
    RenderSelectedEntityUI(Editor);
    RenderListOfEntitiesWindow(Editor);
    RenderSettingsWindow(Editor);
-   RenderDiagnosticsWindow(Editor, DeltaTime);
+   RenderDiagnosticsWindow(Editor, Input);
    DebugUpdateAndRender(Editor);
-   
-   render_transform VP;
-   {
-      render_data *Data = &Editor->RenderData;
-      
-      render_transform WorldToCamera = {};
-      WorldToCamera.Offset = Data->Camera.Position;
-      WorldToCamera.Rotation = Rotation2DInverse(Data->Camera.Rotation);
-      WorldToCamera.Scale = V2(Data->Camera.Zoom, Data->Camera.Zoom);
-      
-      render_transform CameraToClip = {};
-      CameraToClip.Rotation = Rotation2DZero();
-      CameraToClip.Scale = V2(1.0f / (0.5f * Data->FrustumSize * Data->AspectRatio),
-                              1.0f / (0.5f * Data->FrustumSize));
-      
-      VP = CameraToClip * WorldToCamera;
-   }
-   
-   UpdateAndRenderEntities(Commands, Editor, DeltaTime, VP);
+   UpdateAndRenderEntities(Group, Editor, Input);
    
    // NOTE(hbr): Render rotation indicator if rotating
    if (Editor->Mode.Type == EditorMode_Rotating)
@@ -3624,8 +3608,7 @@ UpdateAndRender(render_commands *Commands, f32 DeltaTime, user_input *Input, edi
          switch (Entity->Type)
          {
             case Entity_Curve: {
-               RotationIndicatorPosition = ScreenToWorldSpace(Editor->Mode.Rotating.RotationCenter,
-                                                              &Editor->RenderData);
+               RotationIndicatorPosition = ScreenToWorldSpace(Editor->Mode.Rotating.RotationCenter, Group);
             } break;
             
             case Entity_Image: {
@@ -3635,32 +3618,22 @@ UpdateAndRender(render_commands *Commands, f32 DeltaTime, user_input *Input, edi
       }
       else
       {
-         RotationIndicatorPosition = Editor->RenderData.Camera.Position;
+         RotationIndicatorPosition = Editor->Camera.Position;
       }
       
-      f32 Radius = ClipSpaceLengthToWorldSpace(ROTATION_INDICATOR_RADIUS_CLIP_SPACE, &Editor->RenderData);
+      f32 Radius = ClipSpaceLengthToWorldSpace(ROTATION_INDICATOR_RADIUS_CLIP_SPACE, Group);
       v4 Color = RGBA_Color(30, 56, 87, 80);
       f32 OutlineThickness = 0.1f * Radius;
       v4 OutlineColor = RGBA_Color(255, 255, 255, 24);
-      PushCircle(Commands,
+      PushCircle(Group,
                  RotationIndicatorPosition, Radius - OutlineThickness,
-                 Color, VP, OutlineThickness, OutlineColor);
+                 Color, Identity(), OutlineThickness, OutlineColor);
    }
    
    // NOTE(hbr): Update menu bar here, because world has to already be rendered
    // and UI not, because we might save our project into image file and we
    // don't want to include UI render into our image.
    UpdateAndRenderMenuBar(Editor, Input);
-}
-
-internal void
-SetNormalizedDeviceCoordinatesView(sf::RenderWindow *Window)
-{
-   sf::Vector2f Size = sf::Vector2f(2.0f, -2.0f);
-   sf::Vector2f Center = sf::Vector2f(0.0f, 0.0f);
-   sf::View View = sf::View(Center, Size);
-   
-   Window->setView(View);
 }
 
 internal f32
@@ -3683,8 +3656,6 @@ main()
    sf::ContextSettings ContextSettings = sf::ContextSettings();
    ContextSettings.antialiasingLevel = 4;
    sf::RenderWindow Window(VideoMode, WINDOW_TITLE, sf::Style::Default, ContextSettings);
-   
-   SetNormalizedDeviceCoordinatesView(&Window);
    
 #if 0
    //#if not(BUILD_DEBUG)
@@ -3715,17 +3686,16 @@ main()
             .CurvePointCountPerSegment = 50,
          };
          
-         Editor->RenderData = {
-            .Window = &Window,
-            .Camera = {
-               .Position = V2(0.0f, 0.0f),
-               .Rotation = Rotation2DZero(),
-               .Zoom = 1.0f,
-               .ZoomSensitivity = 0.05f,
-               .ReachingTargetSpeed = 10.0f,
-            },
-            .FrustumSize = 2.0f,
+         Editor->Window = &Window;
+         Editor->Camera = {
+            .Position = V2(0.0f, 0.0f),
+            .Rotation = Rotation2DZero(),
+            .Zoom = 1.0f,
+            .ZoomSensitivity = 0.05f,
+            .ReachingTargetSpeed = 10.0f,
          };
+         Editor->FrustumSize = 2.0f;
+         
          Editor->FrameStats = MakeFrameStats();
          Editor->MovingPointArena = AllocArena();
          Editor->MovingPointArena = AllocArena();
@@ -3771,7 +3741,8 @@ main()
          while (Window.isOpen())
          {
             auto SFMLDeltaTime = Editor->DeltaClock.restart();
-            f32 DeltaTime = SFMLDeltaTime.asSeconds();
+            Input.dtForFrame = SFMLDeltaTime.asSeconds();
+            
             {
                TimeBlock("ImGui::SFML::Update");
                ImGui::SFML::Update(Window, SFMLDeltaTime);
@@ -3783,14 +3754,11 @@ main()
             FrameProfilePoint(&Editor->UI_Config.ViewProfilerWindow);
 #endif
             HandleEvents(&Window, &Input);
-            Editor->RenderData.AspectRatio = CalculateAspectRatio(Input.WindowWidth, Input.WindowHeight);
+            Editor->AspectRatio = CalculateAspectRatio(Input.WindowWidth, Input.WindowHeight);
             
-            render_commands *Commands = SFMLBeginFrame(SFML);
-            Window.clear(ColorToSFMLColor(Editor->BackgroundColor));
-            // TODO(hbr): Uncomment that
-            // PushClearColor(Commands, Editor->BackgroundColor);
-            UpdateAndRender(Commands, DeltaTime, &Input, Editor);
-            SFMLEndFrame(SFML, Commands);
+            render_frame *Frame = SFMLBeginFrame(SFML);
+            UpdateAndRender(Frame, &Input, Editor);
+            SFMLEndFrame(SFML, Frame);
          }
       }
       else

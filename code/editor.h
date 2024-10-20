@@ -275,7 +275,6 @@ struct user_action
          screen_position ToPosition;
       } MouseMove;
    };
-   user_input *Input;
 };
 
 enum editor_mode_type
@@ -418,14 +417,6 @@ struct ui_config
    b32 OtherSettingsHeaderCollapsed;
 };
 
-struct render_data
-{
-   sf::RenderWindow *Window;
-   camera Camera;
-   f32 AspectRatio;
-   f32 FrustumSize;
-};
-
 struct entities
 {
 #define MAX_ENTITY_COUNT 1024
@@ -436,7 +427,13 @@ struct editor
 {
    sf::Clock DeltaClock;
    frame_stats FrameStats;
-   render_data RenderData;
+   
+   render_group *RenderGroup;
+   
+   sf::RenderWindow *Window;
+   camera Camera;
+   f32 AspectRatio;
+   f32 FrustumSize;
    
    u64 EntityCount;
    entities Entities;

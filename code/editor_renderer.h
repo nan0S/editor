@@ -19,9 +19,15 @@ struct vertex_array
    render_primitive_type Primitive;
 };
 
+struct render_transform
+{
+   v2 Offset;
+   rotation_2d Rotation;
+   v2 Scale;
+};
+
 enum render_command_type
 {
-   RenderCommand_Clear,
    RenderCommand_VertexArray,
    RenderCommand_Circle,
    RenderCommand_Rectangle,
@@ -39,6 +45,7 @@ struct render_command_vertex_array
    vertex *Vertices;
    render_primitive_type Primitive;
    v4 Color;
+   render_transform ModelXForm;
 };
 
 struct render_command_circle
@@ -66,75 +73,49 @@ struct render_command_triangle
    v4 Color;
 };
 
-struct render_transform
-{
-   v2 Offset;
-   rotation_2d Rotation;
-   v2 Scale;
-};
-
-internal render_transform
-operator*(render_transform A, render_transform B)
-{
-   render_transform Result = {};
-   Result.Offset = A.Offset + B.Offset;
-   Result.Rotation = CombineRotations2D(A.Rotation, B.Rotation);
-   Result.Scale = Hadamard(A.Scale, B.Scale);
-   
-   return Result;
-}
-
-internal render_transform
-Identity(void)
-{
-   render_transform Result = {};
-   Result.Rotation = Rotation2DZero();
-   Result.Scale = V2(1.0f, 1.0f);
-   
-   return Result;
-}
-
-internal v2
-Transform(render_transform *XForm, v2 Pos)
-{
-   v2 Result = Pos - XForm->Offset;
-   RotateAround(Result, V2(0.0f, 0.0f), XForm->Rotation);
-   Result = Hadamard(Result, XForm->Scale);
-   
-   return Result;
-}
-
 struct render_command
 {
    render_command_type Type;
    union {
       render_command_vertex_array VertexArray;
-      render_command_clear Clear;
       render_command_circle Circle;
       render_command_rectangle Rectangle;
       render_command_triangle Triangle;
    };
-   render_transform XForm;
 };
 
-struct render_commands
+struct render_frame
 {
    u64 CommandCount;
    render_command *Commands;
    u64 MaxCommandCount;
+   
+   v2s WindowDim;
+   
+   render_transform Proj;
+   v4 ClearColor;
 };
 
 struct sfml_renderer
 {
-   render_commands Commands;
+   render_frame Frame;
    
    sf::RenderWindow *Window;
    
    render_command CommandBuffer[4096];
 };
 
+struct render_group
+{
+   render_frame *Frame;
+   
+   render_transform WorldToCamera;
+   render_transform CameraToClip;
+   render_transform ClipToScreen;
+};
+
 internal sfml_renderer *SFMLInit(arena *Arena, sf::RenderWindow *Window);
-internal render_commands *SFMLBeginFrame(sfml_renderer *SFML);
-internal void SFMLEndFrame(sfml_renderer *SFML, render_commands *Commands);
+internal render_frame *SFMLBeginFrame(sfml_renderer *SFML);
+internal void SFMLEndFrame(sfml_renderer *SFML, render_frame *Frame);
 
 #endif //EDITOR_RENDERER_H

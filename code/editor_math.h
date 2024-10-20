@@ -76,6 +76,7 @@ read_only global v4 TransparentColor = V4(0.0f, 0.0f, 0.0f, 0.0f);
 #define ColorFromVec(V) RGBA_Color((u8)(V).r, (u8)(V).g, (u8)(V).b, (u8)(V).a)
 
 typedef v2s screen_position;
+typedef v2  clip_space;
 typedef v2  camera_position;
 typedef v2  world_position;
 typedef v2  local_position;

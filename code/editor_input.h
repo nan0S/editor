@@ -61,6 +61,8 @@ struct user_input
    
    u64 WindowWidth;
    u64 WindowHeight;
+   
+   f32 dtForFrame;
 };
 
 // TODO(hbr): Rethink how mouse inputs should be handled. In particular when I press the mouse down

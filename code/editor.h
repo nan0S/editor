@@ -441,6 +441,7 @@ struct editor
    
    frame_stats FrameStats;
    
+   // TODO(hbr): Remove this from the state
    render_group *RenderGroup;
    
    camera Camera;

@@ -16,6 +16,12 @@
 #include "editor_renderer.cpp"
 
 internal void
+SetEntityModelTransform(render_group *Group, entity *Entity)
+{
+   SetModelTransform(Group, GetEntityModelTransform(Entity), Entity->SortingLayer);
+}
+
+internal void
 SetCameraZoom(camera *Camera, f32 Zoom)
 {
    Camera->Zoom = Zoom;
@@ -56,10 +62,9 @@ MoveCamera(camera *Camera, v2 Translation)
 internal void
 RotateCamera(camera *Camera, rotation_2d Rotation)
 {
-   Camera->Rotation = CombineRotations2D(Camera->Rotation, Rotation);
+   Camera->Rotation = CombineRotations2D(Camera->Rotation, Rotation2DInverse(Rotation));
    Camera->ReachingTarget = false;
 }
-
 
 internal world_position
 CameraToWorldSpace(camera_position Position, render_group *Group)
@@ -92,14 +97,19 @@ ScreenToWorldSpace(screen_position Position, render_group *Group)
    return WorldPosition;
 }
 
+internal v2
+ClipToWorldSpace(v2 Clip, render_group *Group)
+{
+   v2 Camera = Unproject(&Group->CameraToClip, Clip);
+   v2 World = CameraToWorldSpace(Camera, Group);
+   return World;
+}
+
 // NOTE(hbr): Distance in space [-AspectRatio, AspectRatio] x [-1, 1]
 internal f32
 ClipSpaceLengthToWorldSpace(f32 ClipSpaceDistance, render_group *Group)
 {
-   camera_position Camera = Unproject(&Group->CameraToClip, V2(ClipSpaceDistance, 0.0f));
-   world_position World = CameraToWorldSpace(Camera, Group);
-   f32 Result = Norm(World);
-   
+   f32 Result = UnprojectLength(&Group->WorldToCamera, V2(ClipSpaceDistance, 0)).X;
    return Result;
 }
 
@@ -1019,96 +1029,59 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action, render_group *Grou
    }
 }
 
-struct stable_rotation
-{
-   b32 IsStable;
-   rotation_2d Rotation;
-   world_position RotationCenter;
-};
-#define ROTATION_INDICATOR_RADIUS_CLIP_SPACE 0.06f
-internal stable_rotation
-CalculateRotationIfStable(screen_position From,
-                          screen_position To,
-                          camera_position RotationCenterCamera,
-                          editor *Editor)
-{
-   stable_rotation Result = {};
-   
-   render_group *Group = Editor->RenderGroup;
-   
-   world_position FromWorld = ScreenToWorldSpace(From, Group);
-   world_position ToWorld = ScreenToWorldSpace(To, Group);
-   world_position CenterWorld = CameraToWorldSpace(RotationCenterCamera, Group);
-   
-   f32 DeadDistance = ClipSpaceLengthToWorldSpace(ROTATION_INDICATOR_RADIUS_CLIP_SPACE, Group);
-   
-   if (NormSquared(FromWorld - CenterWorld) >= Square(DeadDistance) &&
-       NormSquared(ToWorld   - CenterWorld) >= Square(DeadDistance))
-   {
-      Result.IsStable = true;
-      Result.RotationCenter = CenterWorld;
-      Result.Rotation = Rotation2DFromMovementAroundPoint(FromWorld, ToWorld, CenterWorld);
-   }
-   
-   return Result;
-}
+#define ROTATION_INDICATOR_RADIUS_CLIP_SPACE 0.1f
 
 internal void
 ExecuteUserActionRotateMode(editor *Editor, user_action Action, render_group *Group, user_input *Input)
 {
+   auto *Rotating = &Editor->Mode.Rotating;
    switch (Action.Type)
    {
       case UserAction_MouseMove: {
-         entity *Entity = Editor->Mode.Rotating.Entity;
+         entity *Entity = Rotating->Entity;
          
-         // TODO(hbr): Merge cases below
-         camera_position RotationCenter = {};
+         world_position RotationCenter;
          if (Entity)
          {
-            switch (Entity->Type)
+            if (Entity->Type == Entity_Curve)
             {
-               case Entity_Curve: {
-                  RotationCenter = ScreenToCameraSpace(Editor->Mode.Rotating.RotationCenter, Group);
-               } break;
-               case Entity_Image: {
-                  RotationCenter = WorldToCameraSpace(Entity->Position, Group);
-               } break;
+               curve *Curve = &Entity->Curve;
+               local_position Sum = {};
+               for (u64 PointIndex = 0;
+                    PointIndex < Curve->ControlPointCount;
+                    ++PointIndex)
+               {
+                  Sum += Curve->ControlPoints[PointIndex];
+               }
+               Sum.X = SafeDiv0(Sum.X, Curve->ControlPointCount);
+               Sum.Y = SafeDiv0(Sum.Y, Curve->ControlPointCount);
+               RotationCenter = LocalEntityPositionToWorld(Entity, Sum);
+            }
+            else
+            {
+               RotationCenter = Entity->Position;
             }
          }
          else
          {
-            RotationCenter = WorldToCameraSpace(Editor->Camera.Position, Group);
+            RotationCenter = Editor->Camera.Position;
          }
          
-         stable_rotation StableRotation =
-            CalculateRotationIfStable(Action.MouseMove.FromPosition,
-                                      Action.MouseMove.ToPosition,
-                                      RotationCenter,
-                                      Editor);
-         
-         if (StableRotation.IsStable)
+         world_position From = ScreenToWorldSpace(Action.MouseMove.FromPosition, Group);
+         world_position To = ScreenToWorldSpace(Action.MouseMove.ToPosition, Group);
+         // NOTE(hbr): Only rotate when rotation is "stable"
+         f32 DeadDistance = ClipSpaceLengthToWorldSpace(ROTATION_INDICATOR_RADIUS_CLIP_SPACE, Group);
+         if (NormSquared(From - RotationCenter) >= Square(DeadDistance) &&
+             NormSquared(To   - RotationCenter) >= Square(DeadDistance))
          {
+            rotation_2d Rotation = Rotation2DFromMovementAroundPoint(From, To, RotationCenter);
             if (Entity)
             {
-               switch (Entity->Type)
-               {
-                  // TODO(hbr): Merging case [Entity_Curve] with [Entity_Image] is possible (and necessary xd) for sure.
-                  case Entity_Curve: {
-                     CurveRotateAround(Entity,
-                                       StableRotation.RotationCenter,
-                                       StableRotation.Rotation);
-                  } break;
-                  
-                  case Entity_Image: {
-                     rotation_2d NewRotation = CombineRotations2D(Entity->Rotation, StableRotation.Rotation);
-                     Entity->Rotation = NewRotation;
-                  } break;
-               }
+               RotateEntityAround(Entity, Rotation, RotationCenter);
             }
             else
             {
-               rotation_2d InverseRotation = Rotation2DInverse(StableRotation.Rotation);
-               RotateCamera(&Editor->Camera, InverseRotation);
+               RotateCamera(&Editor->Camera, Rotation);
             }
          }
       } break;
@@ -2641,15 +2614,12 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
                                                                        Curve->ControlPointCount);
                }
                
-               render_transform ModelXForm = GetEntityModelTransform(Entity);
-               
                f32 Radius = GetCurveTrackedPointRadius(Curve);
                v4 Color = V4(0.0f, 1.0f, 0.0f, 0.5f);
                f32 OutlineThickness = 0.3f * Radius;
                v4 OutlineColor = DarkenColor(Color, 0.5f);
                PushCircle(Group,
                           Tracking->TrackedPoint, Radius, Color,
-                          ModelXForm,
                           OutlineThickness, OutlineColor);
             }
          }
@@ -2713,7 +2683,7 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
                
                f32 PointSize = CurveParams->PointRadius;
                
-               render_transform ModelXForm = GetEntityModelTransform(Entity);
+               transform ModelXForm = GetEntityModelTransform(Entity);
                
                u64 PointIndex = 0;
                for (u64 Iteration = 0;
@@ -2726,13 +2696,12 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
                                   Tracking->LineVerticesPerIteration[Iteration].Vertices,
                                   Tracking->LineVerticesPerIteration[Iteration].VertexCount,
                                   Tracking->LineVerticesPerIteration[Iteration].Primitive,
-                                  IterationColor,
-                                  ModelXForm);
+                                  IterationColor);
                   
                   for (u64 I = 0; I < IterationCount - Iteration; ++I)
                   {
                      local_position Point = Tracking->Intermediate.P[PointIndex];
-                     PushCircle(Group, Point, PointSize, IterationColor, ModelXForm);
+                     PushCircle(Group, Point, PointSize, IterationColor);
                      ++PointIndex;
                   }
                   
@@ -2818,7 +2787,7 @@ UpdateAndRenderDegreeLowering(render_group *Group, entity *Entity)
    
    if (Lowering->Active)
    {
-      render_transform Model = CurveGetAnimate(Entity);
+      SetEntityModelTransform(Group, Entity);;
       
       v4 Color = Curve->CurveParams.CurveColor;
       Color.A *= 0.5f;
@@ -2827,7 +2796,9 @@ UpdateAndRenderDegreeLowering(render_group *Group, entity *Entity)
                       Lowering->SavedCurveVertices.Vertices,
                       Lowering->SavedCurveVertices.VertexCount,
                       Lowering->SavedCurveVertices.Primitive,
-                      Color, Model);
+                      Color);
+      
+      ResetModelTransform(Group);
    }
 }
 
@@ -3317,12 +3288,12 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
       f32 TriangleSide = 10.0f * LineWidth;
       f32 TriangleHeight = TriangleSide * SqrtF32(3.0f) / 2.0f;
       world_position BaseVertex = WithPoint - TriangleHeight * LineDirection;
-      PushLine(Group, SourcePoint, BaseVertex, LineWidth, Color, Identity());
+      PushLine(Group, SourcePoint, BaseVertex, LineWidth, Color);
       
       v2 LinePerpendicular = Rotate90DegreesAntiClockwise(LineDirection);
       world_position LeftVertex = BaseVertex + 0.5f * TriangleSide * LinePerpendicular;
       world_position RightVertex = BaseVertex - 0.5f * TriangleSide * LinePerpendicular;
-      PushTriangle(Group, LeftVertex, RightVertex, WithPoint, Color, Identity());
+      PushTriangle(Group, LeftVertex, RightVertex, WithPoint, Color);
    }
    
    EndTemp(Temp);
@@ -3349,6 +3320,8 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
       entity *Entity = EntityArray.Entities + Sorted.Entries[EntryIndex].Index;
       if (IsEntityVisible(Entity))
       {
+         SetEntityModelTransform(Group, Entity);
+         
          switch (Entity->Type)
          {
             case Entity_Curve: {
@@ -3359,8 +3332,6 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
                {
                   ActuallyRecomputeCurve(Entity);
                }
-               
-               render_transform Model = CurveGetAnimate(Entity);
                
                if (Editor->Mode.Type == EditorMode_Moving &&
                    Editor->Mode.Moving.Type == MovingMode_CurvePoint &&
@@ -3373,15 +3344,14 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
                                   Editor->Mode.Moving.OriginalCurveVertices.Vertices,
                                   Editor->Mode.Moving.OriginalCurveVertices.VertexCount,
                                   Editor->Mode.Moving.OriginalCurveVertices.Primitive,
-                                  Color, Model);
+                                  Color);
                }
                
                PushVertexArray(Group,
                                Curve->CurveVertices.Vertices,
                                Curve->CurveVertices.VertexCount,
                                Curve->CurveVertices.Primitive,
-                               Curve->CurveParams.CurveColor,
-                               Model);
+                               Curve->CurveParams.CurveColor);
                
                if (CurveParams->PolylineEnabled)
                {
@@ -3389,8 +3359,7 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
                                   Curve->PolylineVertices.Vertices,
                                   Curve->PolylineVertices.VertexCount,
                                   Curve->PolylineVertices.Primitive,
-                                  Curve->CurveParams.PolylineColor,
-                                  Model);
+                                  Curve->CurveParams.PolylineColor);
                }
                
                if (CurveParams->ConvexHullEnabled)
@@ -3399,8 +3368,7 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
                                   Curve->ConvexHullVertices.Vertices,
                                   Curve->ConvexHullVertices.VertexCount,
                                   Curve->ConvexHullVertices.Primitive,
-                                  Curve->CurveParams.ConvexHullColor,
-                                  Model);
+                                  Curve->CurveParams.ConvexHullColor);
                }
                
                if (AreCurvePointsVisible(Curve))
@@ -3418,8 +3386,8 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
                      f32 BezierPointRadius = GetCurveCubicBezierPointRadius(Curve);
                      f32 HelperLineWidth = 0.2f * CurveParams->CurveWidth;
                      
-                     PushLine(Group, BezierPoint, CenterPoint, HelperLineWidth, CurveParams->CurveColor, Model);
-                     PushCircle(Group, BezierPoint, BezierPointRadius, CurveParams->PointColor, Model);
+                     PushLine(Group, BezierPoint, CenterPoint, HelperLineWidth, CurveParams->CurveColor);
+                     PushCircle(Group, BezierPoint, BezierPointRadius, CurveParams->PointColor);
                   }
                   
                   u64 ControlPointCount = Curve->ControlPointCount;
@@ -3433,7 +3401,6 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
                                 ControlPoints[PointIndex],
                                 PointInfo.Radius,
                                 PointInfo.Color,
-                                Model,
                                 PointInfo.OutlineThickness,
                                 PointInfo.OutlineColor);
                   }
@@ -3450,7 +3417,7 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
                                   Animation->AnimatedCurveVertices.Vertices,
                                   Animation->AnimatedCurveVertices.VertexCount,
                                   Animation->AnimatedCurveVertices.Primitive,
-                                  Color, Identity());
+                                  Color);
                }
                
                // TODO(hbr): Update this
@@ -3488,6 +3455,8 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
                //Window->draw(Sprite, VP);
             }break;
          }
+         
+         ResetModelTransform(Group);
       }
    }
    
@@ -3569,16 +3538,11 @@ UpdateAndRenderEditor(editor_memory *Memory, user_input *Input, render_frame *Fr
    FrameProfilePoint(&Editor->UI_Config.ViewProfilerWindow);
 #endif
    
-   TimeFunction;
-   
-   render_group Group_ = {};
+   camera *Camera = &Editor->Camera;
+   render_group Group_ =  BeginRenderGroup(Frame,
+                                           Camera->Position, Camera->Rotation, Camera->Zoom,
+                                           Editor->BackgroundColor);
    render_group *Group = &Group_;
-   {
-      camera *Camera = &Editor->Camera;
-      BeginRenderGroup(Group, Frame,
-                       Camera->Position, Camera->Rotation, Camera->Zoom,
-                       Editor->BackgroundColor);
-   }
    Editor->RenderGroup = Group;
    
    FrameStatsUpdate(&Editor->FrameStats, Input->dtForFrame);
@@ -3621,8 +3585,8 @@ UpdateAndRenderEditor(editor_memory *Memory, user_input *Input, render_frame *Fr
          }
       }
       
-      if (Input->MouseLastPosition != Input->MousePosition ||
-          Editor->Mode.Type != EditorMode_Normal)
+      if ((Input->MouseLastPosition != Input->MousePosition) ||
+          (Editor->Mode.Type != EditorMode_Normal))
       {
          user_action Action = {};
          Action.Type = UserAction_MouseMove;
@@ -3674,13 +3638,15 @@ UpdateAndRenderEditor(editor_memory *Memory, user_input *Input, render_frame *Fr
          RotationIndicatorPosition = Editor->Camera.Position;
       }
       
+      ResetModelTransform(Group);
+      
       f32 Radius = ClipSpaceLengthToWorldSpace(ROTATION_INDICATOR_RADIUS_CLIP_SPACE, Group);
       v4 Color = RGBA_Color(30, 56, 87, 80);
       f32 OutlineThickness = 0.1f * Radius;
       v4 OutlineColor = RGBA_Color(255, 255, 255, 24);
       PushCircle(Group,
                  RotationIndicatorPosition, Radius - OutlineThickness,
-                 Color, Identity(), OutlineThickness, OutlineColor);
+                 Color, OutlineThickness, OutlineColor);
    }
    
    // NOTE(hbr): Update menu bar here, because world has to already be rendered

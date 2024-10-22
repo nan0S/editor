@@ -25,7 +25,6 @@ GetImage(entity *Entity)
 internal void
 CurveRotateAround(entity *CurveEntity, world_position Center, rotation_2d Rotation)
 {
-   CurveEntity->Position = RotateAround(CurveEntity->Position, Center, Rotation);
    CurveEntity->Rotation = CombineRotations2D(CurveEntity->Rotation, Rotation);
 }
 
@@ -54,19 +53,6 @@ EntitySortEntryCmp(entity_sort_entry *A, entity_sort_entry *B)
    {
       Result = Cmp1;
    }
-   
-   return Result;
-}
-
-// TODO(hbr): Why the fuck this is the name of this internal
-// TODO(hbr): Rewrite this internal
-internal render_transform
-CurveGetAnimate(entity *Curve)
-{
-   render_transform Result = {};
-   Result.Offset = Curve->Position;
-   Result.Rotation = Curve->Rotation;
-   Result.Scale = V2(1.0f, 1.0f);
    
    return Result;
 }

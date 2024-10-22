@@ -19,11 +19,17 @@ struct vertex_array
    render_primitive_type Primitive;
 };
 
-struct render_transform
+struct transform
 {
    v2 Offset;
    rotation_2d Rotation;
    v2 Scale;
+};
+
+struct render_transform
+{
+   transform Forward;
+   transform Inverse;
 };
 
 enum render_command_type
@@ -45,7 +51,7 @@ struct render_command_vertex_array
    vertex *Vertices;
    render_primitive_type Primitive;
    v4 Color;
-   render_transform ModelXForm;
+   transform ModelXForm;
 };
 
 struct render_command_circle
@@ -92,7 +98,7 @@ struct render_frame
    
    v2s WindowDim;
    
-   render_transform Proj;
+   transform Proj;
    v4 ClearColor;
 };
 
@@ -112,6 +118,9 @@ struct render_group
    render_transform WorldToCamera;
    render_transform CameraToClip;
    render_transform ClipToScreen;
+   
+   transform ModelXForm;
+   f32 ZOffset;
 };
 
 internal sfml_renderer *InitSFMLRenderer(arena *Arena, sf::RenderWindow *Window);

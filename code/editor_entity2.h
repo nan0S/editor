@@ -331,11 +331,13 @@ internal void UnselectControlPoint(curve *Curve);
 
 internal sorted_entries SortEntities(arena *Arena, entity_array Entities);
 
+internal void RotateEntityAround(entity *Entity, rotation_2d Rotate, world_position Around);
+
 // TODO(hbr): Temporary solution
-internal render_transform
+internal transform
 GetEntityModelTransform(entity *Entity)
 {
-   render_transform Result = {};
+   transform Result = {};
    Result.Scale = Entity->Scale;
    Result.Offset = Entity->Position;
    Result.Rotation = Entity->Rotation;

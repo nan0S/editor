@@ -352,7 +352,7 @@ MemoryMove((Array) + ((At)+(ShiftCount)), \
       ShiftRightArray(B, N, At, 1);
 #undef ShiftRightArray
       
-      P[At] = WorldToLocalEntityPosition(Entity, PointWorld);;
+      P[At] = WorldToLocalEntityPosition(Entity, PointWorld);
       W[At] = 1.0f;
       
       // NOTE(hbr): Cubic bezier point calculation is not really defined
@@ -377,4 +377,11 @@ MemoryMove((Array) + ((At)+(ShiftCount)), \
    }
    
    RecomputeCurve(Entity);
+}
+
+internal void
+RotateEntityAround(entity *Entity, rotation_2d Rotate, world_position Around)
+{
+   Entity->Position = RotateAround(Entity->Position, Around, Rotate);
+   Entity->Rotation = CombineRotations2D(Entity->Rotation, Rotate);
 }

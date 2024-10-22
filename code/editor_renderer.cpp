@@ -21,17 +21,69 @@ SFMLBeginFrame(sfml_renderer *Renderer)
    return Frame;
 }
 
-internal sf::Transform
-RenderTransformToSFMLTransform(render_transform *XForm)
+internal v2
+Transform(transform A, v2 P)
 {
-   f32 Rotation = Rotation2DToDegrees(Rotation2DInverse(XForm->Rotation));
-   sf::Transform Transform =
-      sf::Transform()
-      .rotate(Rotation)
-      .scale(1.0f / XForm->Scale.X, 1.0f / XForm->Scale.Y)
-      .translate(XForm->Offset.X, XForm->Offset.Y);
+   v2 Result = Hadamard(P, A.Scale);
+   Result = RotateAround(Result, V2(0, 0), A.Rotation);
+   Result = Result + A.Offset;
    
-   return Transform;
+   return Result;
+}
+
+internal v2
+TransformLength(transform A, v2 Length)
+{
+   v2 Result = Hadamard(Length, A.Scale);
+   return Result;
+}
+
+internal v2
+ProjectLength(render_transform *XForm, v2 Length)
+{
+   v2 Result = TransformLength(XForm->Forward, Length);
+   return Result;
+}
+
+internal v2
+UnprojectLength(render_transform *XForm, v2 Length)
+{
+   v2 Result = TransformLength(XForm->Inverse, Length);
+   return Result;
+}
+
+internal v2
+Project(render_transform *XForm, v2 P)
+{
+   v2 Result = Transform(XForm->Forward, P);
+   return Result;
+}
+
+internal v2
+Unproject(render_transform *XForm, v2 P)
+{
+   v2 Result = Transform(XForm->Inverse, P);
+   return Result;
+}
+
+internal sf::Transform
+RenderTransformToSFMLTransform(transform A)
+{
+   sf::Transform Result = {};
+#if 0
+   Result= sf::Transform()
+      .scale(1.0f / XForm->Scale.X, 1.0f / XForm->Scale.Y)
+      .rotate(Rotation2DToDegrees(Rotation2DInverse(XForm->Rotation)))
+      .translate(-XForm->Offset.X, -XForm->Offset.Y);
+#endif
+   Result = sf::Transform()
+      
+      
+      .translate(A.Offset.X, A.Offset.Y)
+      .scale(A.Scale.X, A.Scale.Y)
+      .rotate(Rotation2DToDegrees(A.Rotation));
+   
+   return Result;
 }
 
 internal void
@@ -39,7 +91,7 @@ SFMLEndFrame(sfml_renderer *Renderer, render_frame *Frame)
 {
    TimeFunction;
    
-   sf::Transform Transform = RenderTransformToSFMLTransform(&Frame->Proj);
+   sf::Transform Transform = RenderTransformToSFMLTransform(Frame->Proj);
    
    sf::RenderWindow *Window = Renderer->Window;
    
@@ -84,7 +136,7 @@ SFMLEndFrame(sfml_renderer *Renderer, render_frame *Frame)
                }
             }
             
-            sf::Transform Model = RenderTransformToSFMLTransform(&Array->ModelXForm);
+            sf::Transform Model = RenderTransformToSFMLTransform(Array->ModelXForm);
             sf::Transform MVP = Transform * Model;
             
             Window->draw(SFMLVertices, Array->VertexCount, Primitive, MVP);
@@ -150,8 +202,7 @@ PushVertexArray(render_group *Group,
                 vertex *Vertices,
                 u64 VertexCount,
                 render_primitive_type Primitive,
-                v4 Color,
-                render_transform ModelXForm)
+                v4 Color)
 {
    render_command *Command = PushRenderCommand(Group, RenderCommand_VertexArray);
    
@@ -160,21 +211,20 @@ PushVertexArray(render_group *Group,
    Array->VertexCount = VertexCount;
    Array->Primitive = Primitive;
    Array->Color = Color;
-   Array->ModelXForm = ModelXForm;
+   Array->ModelXForm = Group->ModelXForm;
 }
 
 internal void
 PushCircle(render_group *Group,
            v2 Position, f32 Radius, v4 Color,
-           render_transform XForm,
            f32 OutlineThickness = 0.0f,
            v4 OutlineColor = V4(0.0f, 0.0f, 0.0f, 0.0f))
 {
    render_command *Command = PushRenderCommand(Group, RenderCommand_Circle);
    
    render_command_circle *Circle = &Command->Circle;
-   Circle->Pos = Position;
-   Circle->Radius = Radius;
+   Circle->Pos = Transform(Group->ModelXForm, Position);
+   Circle->Radius = TransformLength(Group->ModelXForm, V2(Radius, 0)).X;
    Circle->Color = Color;
    Circle->OutlineThickness = OutlineThickness;
    Circle->OutlineColor = OutlineColor;
@@ -183,28 +233,27 @@ PushCircle(render_group *Group,
 internal void
 PushRectangle(render_group *Group,
               v2 Position, v2 Size, rotation_2d Rotation,
-              v4 Color, render_transform XForm)
+              v4 Color)
 {
    render_command *Command = PushRenderCommand(Group, RenderCommand_Rectangle);
    
    render_command_rectangle *Rectangle = &Command->Rectangle;
-   Rectangle->Pos = Position;
-   Rectangle->Size = Size;
+   Rectangle->Pos = Transform(Group->ModelXForm, Position);
+   Rectangle->Size = TransformLength(Group->ModelXForm, Size);
    Rectangle->Rotation = Rotation;
    Rectangle->Color = Color;
 }
 
 internal void
-PushSquare(render_group *Group, v2 Position, f32 Side, v4 Color, render_transform XForm)
+PushSquare(render_group *Group, v2 Position, f32 Side, v4 Color)
 {
-   PushRectangle(Group, Position, V2(Side, Side), Rotation2DZero(), Color, XForm);
+   PushRectangle(Group, Position, V2(Side, Side), Rotation2DZero(), Color);
 }
 
 internal void
 PushLine(render_group *Group,
          v2 BeginPoint, v2 EndPoint,
-         f32 LineWidth, v4 Color,
-         render_transform XForm)
+         f32 LineWidth, v4 Color)
 {
    v2 Position = 0.5f * (BeginPoint + EndPoint);
    v2 Line = EndPoint - BeginPoint;
@@ -213,87 +262,113 @@ PushLine(render_group *Group,
    // NOTE(hbr): Rotate 90 degrees clockwise, because our 0 degree rotation
    // corresponds to -90 degrees rotation in the real world
    rotation_2d Rotation = Rotate90DegreesClockwise(Rotation2DFromVector(Line));
-   PushRectangle(Group, Position, Size, Rotation, Color, XForm);
+   PushRectangle(Group, Position, Size, Rotation, Color);
 }
 
 internal void
 PushTriangle(render_group *Group,
              v2 P0, v2 P1, v2 P2,
-             v4 Color,
-             render_transform XForm)
+             v4 Color)
 {
    render_command *Command = PushRenderCommand(Group, RenderCommand_Triangle);
    
    render_command_triangle *Triangle = &Command->Triangle;
-   Triangle->P0 = P0;
-   Triangle->P1 = P1;
-   Triangle->P2 = P2;
+   Triangle->P0 = Transform(Group->ModelXForm, P0);
+   Triangle->P1 = Transform(Group->ModelXForm, P1);
+   Triangle->P2 = Transform(Group->ModelXForm, P2);
    Triangle->Color = Color;
 }
 
 // TODO(hbr): Probably move to math
-internal render_transform
-operator*(render_transform A, render_transform B)
+internal transform
+operator*(transform T2, transform T1)
 {
-   render_transform Result = {};
-   Result.Offset = A.Offset + B.Offset;
-   Result.Rotation = CombineRotations2D(A.Rotation, B.Rotation);
-   Result.Scale = Hadamard(A.Scale, B.Scale);
+   transform Result = {};
+   Result.Scale = Hadamard(T2.Scale, T1.Scale);
+   Result.Rotation = CombineRotations2D(T2.Rotation, T1.Rotation);
+   Result.Offset = RotateAround(Hadamard(T2.Scale, T1.Offset), V2(0, 0), T2.Rotation) + T2.Offset;
    
    return Result;
 }
 
-internal render_transform
+internal transform
 Identity(void)
 {
-   render_transform Result = {};
+   transform Result = {};
    Result.Rotation = Rotation2DZero();
    Result.Scale = V2(1.0f, 1.0f);
    
    return Result;
 }
 
-internal v2
-Project(render_transform *XForm, v2 Pos)
+internal render_transform
+MakeRenderTransform(v2 P, rotation_2d Rotation, v2 Scale)
 {
-   v2 Result = Pos - XForm->Offset;
-   RotateAround(Result, V2(0.0f, 0.0f), Rotation2DInverse(XForm->Rotation));
-   Result = Hadamard(Result, V2(1.0f / XForm->Scale.X, 1.0f / XForm->Scale.Y));
+   render_transform Result = {};
+   
+   transform A = {};
+   A.Scale = V2(1.0f / Scale.X, 1.0f / Scale.Y);
+   A.Rotation = Rotation2DInverse(Rotation);
+   A.Offset = -RotateAround(P, V2(0, 0), A.Rotation);
+   
+   transform B = {};
+   B.Scale = Scale;
+   B.Rotation = Rotation;
+   B.Offset = P;
+   
+   Result.Forward = A;
+   Result.Inverse = B;
    
    return Result;
 }
 
-internal v2
-Unproject(render_transform *XForm, v2 Pos)
+struct m3x3
 {
-   v2 Result = Hadamard(Pos, XForm->Scale);
-   Result = RotateAround(Result, V2(0.0f, 0.0f), XForm->Rotation);
-   Result += XForm->Offset;
+   f32 M[3][3];
+};
+
+struct m3x3_inv
+{
+   m3x3 Forward;
+   m3x3 Inverse;
+};
+
+internal render_group
+BeginRenderGroup(render_frame *Frame,
+                 v2 CameraP, rotation_2d CameraRot, f32 CameraZoom,
+                 v4 ClearColor)
+{
+   render_group Result = {};
+   
+   Result.Frame = Frame;
+   
+   v2s WindowDim = Frame->WindowDim;
+   f32 AspectRatio = Cast(f32)WindowDim.X / WindowDim.Y;
+   
+   Result.WorldToCamera = MakeRenderTransform(CameraP, CameraRot, V2(1.0f / CameraZoom, 1.0f / CameraZoom));
+   Result.CameraToClip = MakeRenderTransform(V2(0, 0), Rotation2DZero(), V2(AspectRatio, 1.0f));
+   Result.ClipToScreen = MakeRenderTransform(-V2(1.0f, -1.0f),
+                                             Rotation2DZero(),
+                                             2.0f * V2(1.0f / WindowDim.X, -1.0f / WindowDim.Y));
+   
+   Frame->ClearColor = ClearColor;
+   Frame->Proj = Result.CameraToClip.Forward * Result.WorldToCamera.Forward;
+   
+   Result.ModelXForm = Identity();
    
    return Result;
 }
 
 internal void
-BeginRenderGroup(render_group *Group, render_frame *Frame,
-                 v2 CameraP, rotation_2d CameraRot, f32 CameraZoom,
-                 v4 ClearColor)
+SetModelTransform(render_group *Group, transform Model, f32 ZOffset)
 {
-   Group->Frame = Frame;
-   
-   Group->WorldToCamera.Offset = CameraP;
-   Group->WorldToCamera.Rotation = CameraRot;
-   Group->WorldToCamera.Scale = V2(SafeDiv1(1.0f, CameraZoom), SafeDiv1(1.0f, CameraZoom));
-   
-   v2s WindowDim = Frame->WindowDim;
-   f32 AspectRatio = Cast(f32)WindowDim.X / WindowDim.Y;
-   Group->CameraToClip.Offset = V2(0.0f, 0.0f);
-   Group->CameraToClip.Rotation = Rotation2DZero();
-   Group->CameraToClip.Scale = V2(AspectRatio, 1.0f);
-   
-   Group->ClipToScreen.Offset = V2(-1.0f, 1.0f);
-   Group->ClipToScreen.Scale = 2.0f * V2(1.0f / WindowDim.X, -1.0f / WindowDim.Y);
-   Group->ClipToScreen.Rotation = Rotation2DZero();
-   
-   Frame->ClearColor = ClearColor;
-   Frame->Proj = Group->CameraToClip * Group->WorldToCamera;
+   Group->ModelXForm = Model;
+   Group->ZOffset = ZOffset;
+}
+
+internal void
+ResetModelTransform(render_group *Group)
+{
+   Group->ModelXForm = Identity();
+   Group->ZOffset = 0.0f;
 }

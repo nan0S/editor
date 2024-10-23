@@ -24,7 +24,6 @@
 #include "editor_entity2.h"
 #include "editor_adapt.h"
 #include "editor_entity.h"
-#include "editor_debug.h"
 #include "editor.h"
 
 #include "editor_profiler.cpp"
@@ -32,7 +31,6 @@
 #include "editor_renderer.cpp"
 #include "editor_ui.cpp"
 #include "editor_entity.cpp"
-#include "editor_debug.cpp"
 #include "editor_entity2.cpp"
 
 #include "editor_sfml_renderer.h"

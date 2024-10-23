@@ -322,10 +322,8 @@ internal void TranslateCurvePoint(entity *Entity, curve_point_index Index, v2 Tr
 internal void RemoveControlPoint(entity *Entity, u64 Index);
 internal control_point_index AppendControlPoint(entity *Entity, world_position Point);
 internal void InsertControlPoint(entity *Entity, world_position PointWorld, u64 At);
-
 internal void SelectControlPoint(curve *Curve, control_point_index Index);
 internal void SelectControlPointFromCurvePointIndex(curve *Curve, curve_point_index Index);
-
 internal b32 IsControlPointSelected(curve *Curve);
 internal void UnselectControlPoint(curve *Curve);
 

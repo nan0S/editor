@@ -68,6 +68,7 @@ TODOs:
 - do a pass over internals that are called just 1 time and maybe inline them
 - remove Bezier_Normal - just replace with Weighted
 - Focus on curve is weird for larger curves - investigate that
+- hide UI with Tab
 
 DONE:
 - replace printf
@@ -189,11 +190,6 @@ PROJECT_FILE_EXTENSION_SELECTION "{" SAVED_PROJECT_FILE_EXTENSION "}" \
 // TODO(hbr): Do something with this variable. Don't want to load project on different monitor
 // and images to be different size.
 global f32 GlobalImageScaleFactor         = 1.0f / 1920.0f;
-
-struct editor_params
-{
-   
-};
 
 struct camera
 {
@@ -390,6 +386,7 @@ struct notification
 // NOTE(hbr): Not sure if this is the best name
 struct ui_config
 {
+   // TODO(hbr): Revise some of those fields. A lot of them are not used anymore
    b32 ViewSelectedEntityWindow;
    b32 ViewListOfEntitiesWindow;
    b32 ViewParametersWindow;
@@ -422,6 +419,21 @@ struct entities
 {
 #define MAX_ENTITY_COUNT 1024
    entity Entities[MAX_ENTITY_COUNT];
+};
+
+struct frame_stats
+{
+   struct {
+      u64 FrameCount;
+      f32 MinFrameTime;
+      f32 MaxFrameTime;
+      f32 SumFrameTime;
+   } Calculation;
+   
+   f32 FPS;
+   f32 MinFrameTime;
+   f32 MaxFrameTime;
+   f32 AvgFrameTime;
 };
 
 struct editor
@@ -460,8 +472,6 @@ struct editor
    
    u64 NotificationCount;
    notification Notifications[32];
-   
-   b32 HideUI;
 };
 
 EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender);

@@ -45,7 +45,7 @@ MoveCamera(camera *Camera, v2 Translation)
 internal void
 RotateCamera(camera *Camera, rotation_2d Rotation)
 {
-   Camera->Rotation = CombineRotations2D(Camera->Rotation, Rotation2DInverse(Rotation));
+   Camera->Rotation = CombineRotations2D(Camera->Rotation, Rotation);
    Camera->ReachingTarget = false;
 }
 
@@ -1064,7 +1064,7 @@ ExecuteUserActionRotateMode(editor *Editor, user_action Action, render_group *Gr
             }
             else
             {
-               RotateCamera(&Editor->Camera, Rotation);
+               RotateCamera(&Editor->Camera, Rotation2DInverse(Rotation));
             }
          }
       } break;
@@ -2044,14 +2044,12 @@ UpdateAndRenderMenuBar(editor *Editor, editor_input *Input, render_group *Group)
    b32 Quit          = false;
    b32 SaveProject   = false;
    b32 SaveProjectAs = false;
-   b32 LoadImage     = false;
+   b32 Import        = false;
    
    local char const *SaveAsLabel = "SaveAsWindow";
    local char const *SaveAsTitle = "Save As";
    local char const *OpenNewProjectLabel = "OpenNewProject";
    local char const *OpenNewProjectTitle = "Open";
-   local char const *LoadImageLabel = "LoadImage";
-   local char const *LoadImageTitle = "Load Image";
    
    local ImGuiWindowFlags FileDialogWindowFlags = ImGuiWindowFlags_NoCollapse;
    
@@ -2064,24 +2062,27 @@ UpdateAndRenderMenuBar(editor *Editor, editor_input *Input, render_group *Group)
    
    if (UI_BeginMainMenuBar())
    {
-      if (UI_BeginMenuF("Project"))
+      if (UI_BeginMenuF("File"))
       {
-         NewProject    = UI_MenuItemF(0, 0, "Ctrl+N",       "New");
-         OpenProject   = UI_MenuItemF(0, 0, "Ctrl+O",       "Open");
-         SaveProject   = UI_MenuItemF(0, 0, "Ctrl+S",       "Save");
-         SaveProjectAs = UI_MenuItemF(0, 0, "Shift+Ctrl+S", "Save As");
-         Quit          = UI_MenuItemF(0, 0, "Q/Escape",     "Quit");
+         NewProject    = UI_MenuItemF(0, "Ctrl+N",       "New");
+         Import        = UI_MenuItemF(0, 0,              "Import");
+         OpenProject   = UI_MenuItemF(0, "Ctrl+O",       "Open");
+         SaveProject   = UI_MenuItemF(0, "Ctrl+S",       "Save");
+         SaveProjectAs = UI_MenuItemF(0, "Shift+Ctrl+S", "Save As");
+         Quit          = UI_MenuItemF(0, "Q/Escape",     "Quit");
          UI_EndMenu();
       }
-      LoadImage = UI_MenuItemF(0, 0, "Load Image");
+      
       if (UI_BeginMenuF("View"))
       {
          ui_config *Config = &Editor->UI_Config;
-         UI_MenuItemF(&Config->ViewListOfEntitiesWindow, 0, "List of Entities");
-         UI_MenuItemF(&Config->ViewSelectedEntityWindow, 0, "Selected Entity");
-         UI_MenuItemF(&Config->ViewParametersWindow,     0, "Parameters");
-         UI_MenuItemF(&Config->ViewProfilerWindow,       0, "Profiler");
-         UI_MenuItemF(&Config->ViewDebugWindow,          0, "Debug");
+         UI_MenuItemF(&Config->ViewListOfEntitiesWindow, 0, "Entity List");
+         UI_MenuItemF(&Config->ViewSelectedEntityWindow, 0, "Selected Enstity");
+         UI_EndMenu();
+      }
+      
+      if (UI_BeginMenuF("Settings"))
+      {
          if (UI_BeginMenuF("Camera"))
          {
             camera *Camera = &Editor->Camera;
@@ -2099,14 +2100,20 @@ UpdateAndRenderMenuBar(editor *Editor, editor_input *Input, render_group *Group)
             }
             UI_EndMenu();
          }
-         UI_MenuItemF(&Config->ViewDiagnosticsWindow, 0, "Diagnostics");
+         UI_ColorPickerF(&Editor->BackgroundColor, "Background Color");
+         if (ResetCtxMenu("BackgroundColorReset"))
+         {
+            Editor->BackgroundColor = Editor->DefaultBackgroundColor;
+         }
          UI_EndMenu();
       }
+      
       // TODO(hbr): Complete help menu
       if (UI_BeginMenuF("Help"))
       {
          UI_EndMenu();
       }
+      
       UI_EndMainMenuBar();
    }
    
@@ -2168,12 +2175,14 @@ UpdateAndRenderMenuBar(editor *Editor, editor_input *Input, render_group *Group)
                             ".");
    }
    
+#if 0
    if (LoadImage)
    {
       FileDialog->OpenModal(LoadImageLabel, LoadImageTitle,
                             "Image Files (*.jpg *.png){.jpg,.png}",
                             ".");
    }
+#endif
    
    action_to_do ActionToDo = ActionToDo_Nothing;
    // NOTE(hbr): Open "Are you sure you want to exit?" popup
@@ -2496,30 +2505,6 @@ UpdateAndRenderMenuBar(editor *Editor, editor_input *Input, render_group *Group)
       FileDialog->Close();
    }
 #endif
-}
-
-internal void
-RenderSettingsWindow(editor *Editor)
-{
-   ui_config *Config = &Editor->UI_Config;
-   if (Config->ViewParametersWindow)
-   {
-      if (UI_BeginWindowF(&Config->ViewParametersWindow, "Editor Settings"))
-      {
-         if (UI_CollapsingHeaderF("Other Settings"))
-         {
-            DeferBlock(UI_PushLabelF("OtherSettings"), UI_PopId())
-            {
-               UI_ColorPickerF(&Editor->BackgroundColor, "Background Color");
-               if (ResetCtxMenu("BackgroundColorReset"))
-               {
-                  Editor->BackgroundColor = Editor->DefaultBackgroundColor;
-               }
-            }
-         }
-      }
-      UI_EndWindow();
-   }
 }
 
 internal void
@@ -3451,6 +3436,66 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, editor_input *Input
    EndTemp(Temp);
 }
 
+internal frame_stats
+MakeFrameStats(void)
+{
+   frame_stats Result = {};
+   Result.Calculation.MinFrameTime = INF_F32;
+   Result.Calculation.MaxFrameTime = -INF_F32;
+   
+   return Result;
+}
+
+internal void
+FrameStatsUpdate(frame_stats *Stats, f32 FrameTime)
+{
+   Stats->Calculation.FrameCount += 1;
+   Stats->Calculation.SumFrameTime += FrameTime;
+   Stats->Calculation.MinFrameTime = Min(Stats->Calculation.MinFrameTime, FrameTime);
+   Stats->Calculation.MaxFrameTime = Max(Stats->Calculation.MaxFrameTime, FrameTime);
+   
+   if (Stats->Calculation.SumFrameTime >= 1.0f)
+   {
+      Stats->FPS = Stats->Calculation.FrameCount / Stats->Calculation.SumFrameTime;
+      Stats->MinFrameTime = Stats->Calculation.MinFrameTime;
+      Stats->MaxFrameTime = Stats->Calculation.MaxFrameTime;
+      Stats->AvgFrameTime = Stats->Calculation.SumFrameTime / Stats->Calculation.FrameCount;
+      
+      Stats->Calculation.FrameCount = 0;
+      Stats->Calculation.MinFrameTime = INF_F32;
+      Stats->Calculation.MaxFrameTime = -INF_F32;
+      Stats->Calculation.SumFrameTime = 0.0f;
+   }
+}
+
+internal void
+DebugUpdateAndRender(editor *Editor)
+{
+   ui_config *UI = &Editor->UI_Config;
+   if (UI->ViewDebugWindow)
+   {
+      DeferBlock(UI_BeginWindowF(&UI->ViewDebugWindow, "Debug"), UI_EndWindow())
+      {
+         ImGui::Text("Number of entities = %lu", Editor->EntityCount);
+         
+         if (Editor->SelectedEntity && Editor->SelectedEntity->Type == Entity_Curve)
+         {
+            curve *Curve = &Editor->SelectedEntity->Curve;
+            ImGui::Text("Number of control points = %lu", Curve->ControlPointCount);
+            ImGui::Text("Number of curve points = %lu", Curve->CurvePointCount);
+         }
+         
+         ImGui::Text("Min Frame Time = %.3fms", 1000.0f * Editor->FrameStats.MinFrameTime);
+         ImGui::Text("Max Frame Time = %.3fms", 1000.0f * Editor->FrameStats.MaxFrameTime);
+         ImGui::Text("Average Frame Time = %.3fms", 1000.0f * Editor->FrameStats.AvgFrameTime);
+      }
+   }
+   
+#if BUILD_DEBUG
+   ImGui::ShowDemoWindow();
+#endif
+}
+
 EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 {
    TimeFunction;
@@ -3536,7 +3581,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    UpdateCamera(&Editor->Camera, Input);
    UpdateAndRenderNotifications(Editor, Input, Group);
    
-   { 
+   {
       TimeBlock("editor state update");
       
       for (u64 ButtonIndex = 0;
@@ -3589,14 +3634,8 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
       AddNotificationF(Editor, Notification_Error, "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.");
    }
    
-   if (KeyPressed(Input, Key_Tab, 0))
-   {
-      Editor->HideUI = !Editor->HideUI;
-   }
-   
    RenderSelectedEntityUI(Editor);
    RenderListOfEntitiesWindow(Editor);
-   RenderSettingsWindow(Editor);
    RenderDiagnosticsWindow(Editor, Input);
    DebugUpdateAndRender(Editor);
    UpdateAndRenderEntities(Group, Editor, Input);
@@ -3642,6 +3681,13 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    // and UI not, because we might save our project into image file and we
    // don't want to include UI render into our image.
    UpdateAndRenderMenuBar(Editor, Input, Group);
+   
+#if  0
+   UI_MenuItemF(&Config->ViewProfilerWindow,     0, "Profiler");
+   UI_MenuItemF(&Config->ViewDebugWindow,        0, "Debug");
+   UI_MenuItemF(&Config->ViewDiagnosticsWindow,  0, "Diagnostics");
+#endif
+   
 }
 
 // NOTE(hbr): Specifically after every file is included. Works in Unity build only.

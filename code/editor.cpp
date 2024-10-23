@@ -2532,12 +2532,6 @@ RenderSettingsWindow(editor *Editor)
                {
                   Editor->BackgroundColor = Editor->DefaultBackgroundColor;
                }
-               
-               UI_DragFloatF(&Editor->CollisionToleranceClipSpace, 0.0f, 1.0f, 0, "Collision Tolerance");
-               if (ResetCtxMenu("CollisionToleranceReset"))
-               {
-                  Editor->CollisionToleranceClipSpace = Editor->DefaultCollisionToleranceClipSpace;
-               }
             }
          }
       }
@@ -2620,6 +2614,7 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
                v4 OutlineColor = DarkenColor(Color, 0.5f);
                PushCircle(Group,
                           Tracking->TrackedPoint, Radius, Color,
+                          GetCurvePartZOffset(CurvePart_Special),
                           OutlineThickness, OutlineColor);
             }
          }
@@ -2696,12 +2691,12 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
                                   Tracking->LineVerticesPerIteration[Iteration].Vertices,
                                   Tracking->LineVerticesPerIteration[Iteration].VertexCount,
                                   Tracking->LineVerticesPerIteration[Iteration].Primitive,
-                                  IterationColor);
+                                  IterationColor, GetCurvePartZOffset(CurvePart_Special));
                   
                   for (u64 I = 0; I < IterationCount - Iteration; ++I)
                   {
                      local_position Point = Tracking->Intermediate.P[PointIndex];
-                     PushCircle(Group, Point, PointSize, IterationColor);
+                     PushCircle(Group, Point, PointSize, IterationColor, GetCurvePartZOffset(CurvePart_Special));
                      ++PointIndex;
                   }
                   
@@ -2796,7 +2791,8 @@ UpdateAndRenderDegreeLowering(render_group *Group, entity *Entity)
                       Lowering->SavedCurveVertices.Vertices,
                       Lowering->SavedCurveVertices.VertexCount,
                       Lowering->SavedCurveVertices.Primitive,
-                      Color);
+                      Color,
+                      GetCurvePartZOffset(CurvePart_LineShadow));
       
       ResetModelTransform(Group);
    }
@@ -3288,12 +3284,12 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
       f32 TriangleSide = 10.0f * LineWidth;
       f32 TriangleHeight = TriangleSide * SqrtF32(3.0f) / 2.0f;
       world_position BaseVertex = WithPoint - TriangleHeight * LineDirection;
-      PushLine(Group, SourcePoint, BaseVertex, LineWidth, Color);
+      PushLine(Group, SourcePoint, BaseVertex, LineWidth, Color, GetCurvePartZOffset(CurvePart_Special));
       
       v2 LinePerpendicular = Rotate90DegreesAntiClockwise(LineDirection);
       world_position LeftVertex = BaseVertex + 0.5f * TriangleSide * LinePerpendicular;
       world_position RightVertex = BaseVertex - 0.5f * TriangleSide * LinePerpendicular;
-      PushTriangle(Group, LeftVertex, RightVertex, WithPoint, Color);
+      PushTriangle(Group, LeftVertex, RightVertex, WithPoint, Color, GetCurvePartZOffset(CurvePart_Special));
    }
    
    EndTemp(Temp);
@@ -3321,6 +3317,7 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
       if (IsEntityVisible(Entity))
       {
          SetEntityModelTransform(Group, Entity);
+         f32 BaseZOffset = Cast(f32)Entity->SortingLayer;
          
          switch (Entity->Type)
          {
@@ -3339,19 +3336,20 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
                {
                   v4 Color = Curve->CurveParams.CurveColor;
                   Color.A *= 0.5f;
-                  
                   PushVertexArray(Group,
                                   Editor->Mode.Moving.OriginalCurveVertices.Vertices,
                                   Editor->Mode.Moving.OriginalCurveVertices.VertexCount,
                                   Editor->Mode.Moving.OriginalCurveVertices.Primitive,
-                                  Color);
+                                  Color,
+                                  GetCurvePartZOffset(CurvePart_LineShadow));
                }
                
                PushVertexArray(Group,
                                Curve->CurveVertices.Vertices,
                                Curve->CurveVertices.VertexCount,
                                Curve->CurveVertices.Primitive,
-                               Curve->CurveParams.CurveColor);
+                               Curve->CurveParams.CurveColor,
+                               GetCurvePartZOffset(CurvePart_Line));
                
                if (CurveParams->PolylineEnabled)
                {
@@ -3359,7 +3357,8 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
                                   Curve->PolylineVertices.Vertices,
                                   Curve->PolylineVertices.VertexCount,
                                   Curve->PolylineVertices.Primitive,
-                                  Curve->CurveParams.PolylineColor);
+                                  Curve->CurveParams.PolylineColor,
+                                  GetCurvePartZOffset(CurvePart_Special));
                }
                
                if (CurveParams->ConvexHullEnabled)
@@ -3368,7 +3367,8 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
                                   Curve->ConvexHullVertices.Vertices,
                                   Curve->ConvexHullVertices.VertexCount,
                                   Curve->ConvexHullVertices.Primitive,
-                                  Curve->CurveParams.ConvexHullColor);
+                                  Curve->CurveParams.ConvexHullColor,
+                                  GetCurvePartZOffset(CurvePart_Special));
                }
                
                if (AreCurvePointsVisible(Curve))
@@ -3386,8 +3386,10 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
                      f32 BezierPointRadius = GetCurveCubicBezierPointRadius(Curve);
                      f32 HelperLineWidth = 0.2f * CurveParams->CurveWidth;
                      
-                     PushLine(Group, BezierPoint, CenterPoint, HelperLineWidth, CurveParams->CurveColor);
-                     PushCircle(Group, BezierPoint, BezierPointRadius, CurveParams->PointColor);
+                     PushLine(Group, BezierPoint, CenterPoint, HelperLineWidth, CurveParams->CurveColor,
+                              GetCurvePartZOffset(CurvePart_Line));
+                     PushCircle(Group, BezierPoint, BezierPointRadius, CurveParams->PointColor,
+                                GetCurvePartZOffset(CurvePart_ControlPoint));
                   }
                   
                   u64 ControlPointCount = Curve->ControlPointCount;
@@ -3401,6 +3403,7 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
                                 ControlPoints[PointIndex],
                                 PointInfo.Radius,
                                 PointInfo.Color,
+                                GetCurvePartZOffset(CurvePart_ControlPoint),
                                 PointInfo.OutlineThickness,
                                 PointInfo.OutlineColor);
                   }
@@ -3412,12 +3415,14 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
                if (Animation->Stage == AnimateCurveAnimation_Animating && Animation->FromCurveEntity == Entity)
                {
                   // TODO(hbr): Update this color calculation. This should be interpolation between two curves' colors.
+                  // TODO(hbr): Not only colors but also z offset
                   v4 Color = Curve->CurveParams.CurveColor;
                   PushVertexArray(Group,
                                   Animation->AnimatedCurveVertices.Vertices,
                                   Animation->AnimatedCurveVertices.VertexCount,
                                   Animation->AnimatedCurveVertices.Primitive,
-                                  Color);
+                                  Color,
+                                  GetCurvePartZOffset(CurvePart_Line));
                }
                
                // TODO(hbr): Update this
@@ -3473,7 +3478,7 @@ UpdateAndRenderEditor(editor_memory *Memory, user_input *Input, render_frame *Fr
    if (!Editor->Initialized)
    {
       Editor->BackgroundColor = Editor->DefaultBackgroundColor = RGBA_Color(21, 21, 21);
-      Editor->CollisionToleranceClipSpace = Editor->DefaultCollisionToleranceClipSpace = 0.02f;
+      Editor->CollisionToleranceClipSpace = 0.02f;
       f32 CurveWidth = 0.009f;
       v4 PolylineColor = RGBA_Color(16, 31, 31, 200);
       Editor->CurveDefaultParams = {
@@ -3549,7 +3554,7 @@ UpdateAndRenderEditor(editor_memory *Memory, user_input *Input, render_frame *Fr
    UpdateCamera(&Editor->Camera, Input);
    UpdateAndRenderNotifications(Editor, Input, Group);
    
-   {
+   { 
       TimeBlock("editor state update");
       
       for (u64 ButtonIndex = 0;
@@ -3645,8 +3650,10 @@ UpdateAndRenderEditor(editor_memory *Memory, user_input *Input, render_frame *Fr
       f32 OutlineThickness = 0.1f * Radius;
       v4 OutlineColor = RGBA_Color(255, 255, 255, 24);
       PushCircle(Group,
-                 RotationIndicatorPosition, Radius - OutlineThickness,
-                 Color, OutlineThickness, OutlineColor);
+                 RotationIndicatorPosition,
+                 Radius - OutlineThickness,
+                 Color, 0.0f,
+                 OutlineThickness, OutlineColor);
    }
    
    // NOTE(hbr): Update menu bar here, because world has to already be rendered

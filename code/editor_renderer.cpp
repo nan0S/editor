@@ -69,21 +69,18 @@ Unproject(render_transform *XForm, v2 P)
 internal sf::Transform
 RenderTransformToSFMLTransform(transform A)
 {
-   sf::Transform Result = {};
-#if 0
-   Result= sf::Transform()
-      .scale(1.0f / XForm->Scale.X, 1.0f / XForm->Scale.Y)
-      .rotate(Rotation2DToDegrees(Rotation2DInverse(XForm->Rotation)))
-      .translate(-XForm->Offset.X, -XForm->Offset.Y);
-#endif
-   Result = sf::Transform()
-      
-      
+   sf::Transform Result = sf::Transform()
       .translate(A.Offset.X, A.Offset.Y)
       .scale(A.Scale.X, A.Scale.Y)
       .rotate(Rotation2DToDegrees(A.Rotation));
    
    return Result;
+}
+
+internal int
+RenderCommandCmp(render_command *A, render_command *B)
+{
+   return IntCmp(A->ZOffset, B->ZOffset);
 }
 
 internal void
@@ -102,6 +99,8 @@ SFMLEndFrame(sfml_renderer *Renderer, render_frame *Frame)
    Window->setView(View);
    
    Window->clear(ColorToSFMLColor(Frame->ClearColor));
+   
+   QuickSort(Frame->Commands, Frame->CommandCount, render_command, RenderCommandCmp);
    
    for (u64 CommandIndex = 0;
         CommandIndex < Frame->CommandCount;
@@ -186,13 +185,14 @@ SFMLEndFrame(sfml_renderer *Renderer, render_frame *Frame)
 }
 
 internal render_command *
-PushRenderCommand(render_group *Group, render_command_type Type)
+PushRenderCommand(render_group *Group, render_command_type Type, f32 ZOffset)
 {
    render_frame *Frame = Group->Frame;
    Assert(Frame->CommandCount < Frame->MaxCommandCount);
    render_command *Result = Frame->Commands + Frame->CommandCount;
    ++Frame->CommandCount;
    Result->Type = Type;
+   Result->ZOffset = Group->ZOffset + ZOffset;
    
    return Result;
 }
@@ -202,9 +202,10 @@ PushVertexArray(render_group *Group,
                 vertex *Vertices,
                 u64 VertexCount,
                 render_primitive_type Primitive,
-                v4 Color)
+                v4 Color,
+                f32 ZOffset)
 {
-   render_command *Command = PushRenderCommand(Group, RenderCommand_VertexArray);
+   render_command *Command = PushRenderCommand(Group, RenderCommand_VertexArray, ZOffset);
    
    render_command_vertex_array *Array = &Command->VertexArray;
    Array->Vertices = Vertices;
@@ -217,10 +218,11 @@ PushVertexArray(render_group *Group,
 internal void
 PushCircle(render_group *Group,
            v2 Position, f32 Radius, v4 Color,
-           f32 OutlineThickness = 0.0f,
-           v4 OutlineColor = V4(0.0f, 0.0f, 0.0f, 0.0f))
+           f32 ZOffset,
+           f32 OutlineThickness = 0,
+           v4 OutlineColor = V4(0, 0, 0, 0))
 {
-   render_command *Command = PushRenderCommand(Group, RenderCommand_Circle);
+   render_command *Command = PushRenderCommand(Group, RenderCommand_Circle, ZOffset);
    
    render_command_circle *Circle = &Command->Circle;
    Circle->Pos = Transform(Group->ModelXForm, Position);
@@ -233,9 +235,9 @@ PushCircle(render_group *Group,
 internal void
 PushRectangle(render_group *Group,
               v2 Position, v2 Size, rotation_2d Rotation,
-              v4 Color)
+              v4 Color, f32 ZOffset)
 {
-   render_command *Command = PushRenderCommand(Group, RenderCommand_Rectangle);
+   render_command *Command = PushRenderCommand(Group, RenderCommand_Rectangle, ZOffset);
    
    render_command_rectangle *Rectangle = &Command->Rectangle;
    Rectangle->Pos = Transform(Group->ModelXForm, Position);
@@ -245,15 +247,16 @@ PushRectangle(render_group *Group,
 }
 
 internal void
-PushSquare(render_group *Group, v2 Position, f32 Side, v4 Color)
+PushSquare(render_group *Group, v2 Position, f32 Side, v4 Color, f32 ZOffset)
 {
-   PushRectangle(Group, Position, V2(Side, Side), Rotation2DZero(), Color);
+   PushRectangle(Group, Position, V2(Side, Side), Rotation2DZero(), Color,  ZOffset);
 }
 
 internal void
 PushLine(render_group *Group,
          v2 BeginPoint, v2 EndPoint,
-         f32 LineWidth, v4 Color)
+         f32 LineWidth, v4 Color,
+         f32 ZOffset)
 {
    v2 Position = 0.5f * (BeginPoint + EndPoint);
    v2 Line = EndPoint - BeginPoint;
@@ -262,15 +265,15 @@ PushLine(render_group *Group,
    // NOTE(hbr): Rotate 90 degrees clockwise, because our 0 degree rotation
    // corresponds to -90 degrees rotation in the real world
    rotation_2d Rotation = Rotate90DegreesClockwise(Rotation2DFromVector(Line));
-   PushRectangle(Group, Position, Size, Rotation, Color);
+   PushRectangle(Group, Position, Size, Rotation, Color, ZOffset);
 }
 
 internal void
 PushTriangle(render_group *Group,
              v2 P0, v2 P1, v2 P2,
-             v4 Color)
+             v4 Color, f32 ZOffset)
 {
-   render_command *Command = PushRenderCommand(Group, RenderCommand_Triangle);
+   render_command *Command = PushRenderCommand(Group, RenderCommand_Triangle, ZOffset);
    
    render_command_triangle *Triangle = &Command->Triangle;
    Triangle->P0 = Transform(Group->ModelXForm, P0);
@@ -321,17 +324,6 @@ MakeRenderTransform(v2 P, rotation_2d Rotation, v2 Scale)
    
    return Result;
 }
-
-struct m3x3
-{
-   f32 M[3][3];
-};
-
-struct m3x3_inv
-{
-   m3x3 Forward;
-   m3x3 Inverse;
-};
 
 internal render_group
 BeginRenderGroup(render_frame *Frame,

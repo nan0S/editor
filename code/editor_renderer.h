@@ -88,6 +88,7 @@ struct render_command
       render_command_rectangle Rectangle;
       render_command_triangle Triangle;
    };
+   f32 ZOffset;
 };
 
 struct render_frame

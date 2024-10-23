@@ -181,6 +181,7 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define Idx(Row, Col, NCols) ((Row)*(NCols) + (Col))
 #define ApproxEq32(X, Y) (Abs(X - Y) <= EPS_F32)
 #define ApproxEq64(X, Y) (Abs(X - Y) <= EPS_F64)
+// TODO(hbr): Rename to just Cmp
 #define IntCmp(X, Y) (((X) < (Y)) ? -1 : (((X) == (Y)) ? 0 : 1))
 #define Swap(A, B, Type) do { Type NameConcat(Temp, __LINE__) = (A); (A) = (B); (B) = NameConcat(Temp, __LINE__); } while (0)
 #define AlignPow2(Align, Pow2) (((Align)+((Pow2)-1)) & (~((Pow2)-1)))

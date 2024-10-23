@@ -429,6 +429,22 @@ struct ui_config
    b32 OtherSettingsHeaderCollapsed;
 };
 
+enum curve_part
+{
+   CurvePart_LineShadow,
+   CurvePart_Line,
+   CurvePart_ControlPoint,
+   CurvePart_Special,
+   
+   CurvePart_Count,
+};
+internal f32
+GetCurvePartZOffset(curve_part Part)
+{
+   f32 Result = Cast(f32)Part / Cast(f32)CurvePart_Count;
+   return Result;
+}
+
 struct entities
 {
 #define MAX_ENTITY_COUNT 1024
@@ -456,7 +472,6 @@ struct editor
    
    v4 DefaultBackgroundColor;
    v4 BackgroundColor;
-   f32 DefaultCollisionToleranceClipSpace;
    f32 CollisionToleranceClipSpace;
    curve_params CurveDefaultParams;
    

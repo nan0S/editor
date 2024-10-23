@@ -19,13 +19,6 @@ struct vertex_array
    render_primitive_type Primitive;
 };
 
-struct transform
-{
-   v2 Offset;
-   rotation_2d Rotation;
-   v2 Scale;
-};
-
 struct render_transform
 {
    transform Forward;
@@ -103,15 +96,6 @@ struct render_frame
    v4 ClearColor;
 };
 
-struct sfml_renderer
-{
-   render_frame Frame;
-   
-   sf::RenderWindow *Window;
-   
-   render_command CommandBuffer[4096];
-};
-
 struct render_group
 {
    render_frame *Frame;
@@ -123,9 +107,5 @@ struct render_group
    transform ModelXForm;
    f32 ZOffset;
 };
-
-internal sfml_renderer *InitSFMLRenderer(arena *Arena, sf::RenderWindow *Window);
-internal render_frame *SFMLBeginFrame(sfml_renderer *Renderer);
-internal void SFMLEndFrame(sfml_renderer *Renderer, render_frame *Frame);
 
 #endif //EDITOR_RENDERER_H

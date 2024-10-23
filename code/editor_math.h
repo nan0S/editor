@@ -91,7 +91,7 @@ internal rectangle2 EmptyAABB(void);
 internal void AddPointAABB(rectangle2 *AABB, v2 P);
 internal b32 IsNonEmpty(rectangle2 *Rect);
 
-//~ Calculations, algebra
+//~ Calculations, linear algebra
 inline internal f32 Cube(f32 X) { return X * X * X; }
 inline internal f32 Square(f32 X) { return X * X; }
 
@@ -120,6 +120,16 @@ internal rotation_2d Rotate90DegreesClockwise(rotation_2d Rotation);
 internal rotation_2d Rotation2DFromMovementAroundPoint(v2 From, v2 To, v2 Center);
 internal v2          RotateAround(v2 Point, v2 Center, rotation_2d Rotation);
 internal rotation_2d CombineRotations2D(rotation_2d RotationA, rotation_2d RotationB);
+
+struct transform
+{
+   v2 Offset;
+   rotation_2d Rotation;
+   v2 Scale;
+};
+
+inline internal transform operator*(transform T2, transform T1);
+internal transform Identity(void);
 
 //~ Interpolation
 internal void EquidistantPoints(f32 *Ti, u64 N);

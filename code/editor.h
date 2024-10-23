@@ -17,6 +17,7 @@
 #include "editor_sort.h"
 
 #include "editor_renderer.h"
+#include "editor_sfml_renderer.h"
 
 #include "editor_entity2.h"
 

@@ -14,6 +14,7 @@
 #include "editor_entity2.cpp"
 
 #include "editor_renderer.cpp"
+#include "editor_sfml_renderer.cpp"
 
 internal void
 SetEntityModelTransform(render_group *Group, entity *Entity)
@@ -3661,6 +3662,8 @@ UpdateAndRenderEditor(editor_memory *Memory, user_input *Input, render_frame *Fr
    // don't want to include UI render into our image.
    UpdateAndRenderMenuBar(Editor, Input, Group);
 }
+
+
 
 int
 main()

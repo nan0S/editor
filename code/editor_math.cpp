@@ -1498,3 +1498,41 @@ IsNonEmpty(rectangle2 *Rect)
                  (Rect->Mini.Y <= Rect->Maxi.Y));
    return Result;
 }
+
+internal v2
+Transform(transform A, v2 P)
+{
+   v2 Result = Hadamard(P, A.Scale);
+   Result = RotateAround(Result, V2(0, 0), A.Rotation);
+   Result = Result + A.Offset;
+   
+   return Result;
+}
+
+internal v2
+TransformLength(transform A, v2 Length)
+{
+   v2 Result = Hadamard(Length, A.Scale);
+   return Result;
+}
+
+internal transform
+operator*(transform T2, transform T1)
+{
+   transform Result = {};
+   Result.Scale = Hadamard(T2.Scale, T1.Scale);
+   Result.Rotation = CombineRotations2D(T2.Rotation, T1.Rotation);
+   Result.Offset = RotateAround(Hadamard(T2.Scale, T1.Offset), V2(0, 0), T2.Rotation) + T2.Offset;
+   
+   return Result;
+}
+
+internal transform
+Identity(void)
+{
+   transform Result = {};
+   Result.Rotation = Rotation2DZero();
+   Result.Scale = V2(1.0f, 1.0f);
+   
+   return Result;
+}

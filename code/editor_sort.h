@@ -17,7 +17,7 @@ struct sorted_entries
 inline internal int
 SortEntryCmp(sort_entry *A, sort_entry *B)
 {
-   int Result = IntCmp(A->SortKey, B->SortKey);
+   int Result = Cmp(A->SortKey, B->SortKey);
    return Result;
 }
 

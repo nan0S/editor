@@ -1,6 +1,8 @@
 #ifndef EDITOR_MATH_H
 #define EDITOR_MATH_H
 
+#include <math.h>
+
 #define Pi32 3.14159265359f
 #define DegToRad32 (Pi32 / 180.0f)
 #define RadToDeg32 (180.0f / Pi32)
@@ -15,25 +17,6 @@
 #define Atan2F32(Y, X)         atan2f(Y, X)
 
 //~ Basic types
-union v2
-{
-   struct { f32 X, Y; };
-   f32 E[2];
-};
-
-union v2s
-{
-   struct { s32 X, Y; };
-   s32 E[2];
-};
-
-union v4
-{
-   struct { f32 X, Y, Z, W; };
-   struct { f32 R, G, B, A; };
-   f32 E[4];
-};
-
 struct rectangle2
 {
    v2 Mini;
@@ -106,7 +89,6 @@ internal v2 Hadamard(v2 A, v2 B);
 typedef u64 hull_point_count64;
 internal hull_point_count64 CalcConvexHull(u64 PointCount, v2 *Points, v2 *OutPoints);
 
-typedef v2 rotation_2d;
 internal rotation_2d Rotation2D(f32 X, f32 Y);
 internal rotation_2d Rotation2DZero(void);
 internal rotation_2d Rotation2DFromVector(v2 Vector);
@@ -121,15 +103,12 @@ internal rotation_2d Rotation2DFromMovementAroundPoint(v2 From, v2 To, v2 Center
 internal v2          RotateAround(v2 Point, v2 Center, rotation_2d Rotation);
 internal rotation_2d CombineRotations2D(rotation_2d RotationA, rotation_2d RotationB);
 
-struct transform
-{
-   v2 Offset;
-   rotation_2d Rotation;
-   v2 Scale;
-};
-
 inline internal transform operator*(transform T2, transform T1);
 internal transform Identity(void);
+internal v2 ProjectLength(transform_inv *XForm, v2 Length);
+internal v2 UnprojectLength(transform_inv *XForm, v2 Length);
+internal v2 Project(transform_inv *XForm, v2 P);
+internal v2 Unproject(transform_inv *XForm, v2 P);
 
 //~ Interpolation
 internal void EquidistantPoints(f32 *Ti, u64 N);

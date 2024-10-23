@@ -19,12 +19,6 @@ struct vertex_array
    render_primitive_type Primitive;
 };
 
-struct render_transform
-{
-   transform Forward;
-   transform Inverse;
-};
-
 enum render_command_type
 {
    RenderCommand_VertexArray,
@@ -100,9 +94,9 @@ struct render_group
 {
    render_frame *Frame;
    
-   render_transform WorldToCamera;
-   render_transform CameraToClip;
-   render_transform ClipToScreen;
+   transform_inv WorldToCamera;
+   transform_inv CameraToClip;
+   transform_inv ClipToScreen;
    
    transform ModelXForm;
    f32 ZOffset;

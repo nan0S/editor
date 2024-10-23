@@ -1,21 +1,3 @@
-#include "editor.h"
-
-#include "editor_base.cpp"
-#include "editor_os.cpp"
-#include "editor_profiler.cpp"
-#include "editor_math.cpp"
-#include "editor_ui.cpp"
-
-#include "editor_input.cpp"
-#include "editor_entity.cpp"
-#include "editor_debug.cpp"
-#include "editor_draw.cpp"
-
-#include "editor_entity2.cpp"
-
-#include "editor_renderer.cpp"
-#include "editor_sfml_renderer.cpp"
-
 internal void
 SetEntityModelTransform(render_group *Group, entity *Entity)
 {
@@ -30,7 +12,7 @@ SetCameraZoom(camera *Camera, f32 Zoom)
 }
 
 internal void
-UpdateCamera(camera *Camera, user_input *Input)
+UpdateCamera(camera *Camera, editor_input *Input)
 {
    if (Input->MouseWheelDelta != 0.0f)
    {
@@ -612,7 +594,7 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
 }
 
 internal void
-ExecuteUserActionNormalMode(editor *Editor, user_action Action, render_group *Group, user_input *Input)
+ExecuteUserActionNormalMode(editor *Editor, user_action Action, render_group *Group, editor_input *Input)
 {
    temp_arena Temp = TempArena(0);
    switch (Action.Type)
@@ -893,7 +875,7 @@ ExecuteUserActionNormalMode(editor *Editor, user_action Action, render_group *Gr
 }
 
 internal void
-ExecuteUserActionMoveMode(editor *Editor, user_action Action, render_group *Group, user_input *Input)
+ExecuteUserActionMoveMode(editor *Editor, user_action Action, render_group *Group, editor_input *Input)
 {
    auto *Moving = &Editor->Mode.Moving;
    switch (Action.Type)
@@ -1033,7 +1015,7 @@ ExecuteUserActionMoveMode(editor *Editor, user_action Action, render_group *Grou
 #define ROTATION_INDICATOR_RADIUS_CLIP_SPACE 0.1f
 
 internal void
-ExecuteUserActionRotateMode(editor *Editor, user_action Action, render_group *Group, user_input *Input)
+ExecuteUserActionRotateMode(editor *Editor, user_action Action, render_group *Group, editor_input *Input)
 {
    auto *Rotating = &Editor->Mode.Rotating;
    switch (Action.Type)
@@ -1101,7 +1083,7 @@ ExecuteUserActionRotateMode(editor *Editor, user_action Action, render_group *Gr
 }
 
 internal void
-ExecuteUserAction(editor *Editor, user_action Action, render_group *Group, user_input *Input)
+ExecuteUserAction(editor *Editor, user_action Action, render_group *Group, editor_input *Input)
 {
    switch (Editor->Mode.Type)
    {
@@ -1788,7 +1770,7 @@ RenderSelectedEntityUI(editor *Editor)
 }
 
 internal void
-UpdateAndRenderNotifications(editor *Editor, user_input *Input, render_group *Group)
+UpdateAndRenderNotifications(editor *Editor, editor_input *Input, render_group *Group)
 {
    temp_arena Temp = TempArena(0);
    
@@ -2055,7 +2037,7 @@ LoadTextureFromFile(string FilePath)
 }
 
 internal void
-UpdateAndRenderMenuBar(editor *Editor, user_input *Input, render_group *Group)
+UpdateAndRenderMenuBar(editor *Editor, editor_input *Input, render_group *Group)
 {
    b32 NewProject    = false;
    b32 OpenProject   = false;
@@ -2541,7 +2523,7 @@ RenderSettingsWindow(editor *Editor)
 }
 
 internal void
-RenderDiagnosticsWindow(editor *Editor, user_input *Input)
+RenderDiagnosticsWindow(editor *Editor, editor_input *Input)
 {
    ui_config *Config = &Editor->UI_Config;
    if (Config->ViewDiagnosticsWindow)
@@ -2802,7 +2784,7 @@ UpdateAndRenderDegreeLowering(render_group *Group, entity *Entity)
 #define CURVE_NAME_HIGHLIGHT_COLOR ImVec4(1.0f, 0.5, 0.0f, 1.0f)
 
 internal void
-UpdateAnimateCurveAnimation(editor *Editor, user_input *Input, render_group *Group)
+UpdateAnimateCurveAnimation(editor *Editor, editor_input *Input, render_group *Group)
 {
 #if 0
    TimeFunction;
@@ -3297,7 +3279,7 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
 }
 
 internal void
-UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
+UpdateAndRenderEntities(render_group *Group, editor *Editor, editor_input *Input)
 {
    TimeFunction;
    
@@ -3469,8 +3451,7 @@ UpdateAndRenderEntities(render_group *Group, editor *Editor, user_input *Input)
    EndTemp(Temp);
 }
 
-internal void
-UpdateAndRenderEditor(editor_memory *Memory, user_input *Input, render_frame *Frame)
+EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 {
    TimeFunction;
    
@@ -3661,87 +3642,6 @@ UpdateAndRenderEditor(editor_memory *Memory, user_input *Input, render_frame *Fr
    // and UI not, because we might save our project into image file and we
    // don't want to include UI render into our image.
    UpdateAndRenderMenuBar(Editor, Input, Group);
-}
-
-
-
-int
-main()
-{
-   InitThreadCtx();
-   InitOS();
-   InitProfiler();
-   
-   arena *PermamentArena = AllocArena();
-   
-   sf::VideoMode VideoMode = sf::VideoMode::getDesktopMode();
-   sf::ContextSettings ContextSettings = sf::ContextSettings();
-   ContextSettings.antialiasingLevel = 4;
-   sf::RenderWindow Window_(VideoMode, WINDOW_TITLE, sf::Style::Default, ContextSettings);
-   sf::RenderWindow *Window = &Window_;
-   
-#if 0
-   //#if not(BUILD_DEBUG)
-   Window.setFramerateLimit(60);
-   //#endif
-#endif
-   
-   if (Window->isOpen())
-   {
-      bool ImGuiInitSuccess = ImGui::SFML::Init(*Window, true);
-      if (ImGuiInitSuccess)
-      {
-         sfml_renderer *Renderer = InitSFMLRenderer(PermamentArena, Window);
-         
-         user_input Input_ = {};
-         user_input *Input = &Input_;
-         sf::Clock Clock;
-         
-         editor_memory Memory_ = {};
-         editor_memory *Memory = &Memory_;
-         Memory->PermamentMemorySize = Megabytes(128);
-         Memory->PermamentMemory = PushSize(PermamentArena, Memory->PermamentMemorySize);
-         
-         b32 Running = true;
-         while (Running)
-         {
-            if (!Window->isOpen())
-            {
-               Running = false;
-            }
-            else
-            {
-               auto SFMLDeltaTime = Clock.restart();
-               Input->dtForFrame = SFMLDeltaTime.asSeconds();
-               {
-                  TimeBlock("ImGui::SFML::Update");
-                  ImGui::SFML::Update(*Window, SFMLDeltaTime);
-               }
-               
-               HandleEvents(Window, Input);
-               
-               render_frame *Frame = SFMLBeginFrame(Renderer);
-               UpdateAndRenderEditor(Memory, Input, Frame);
-               SFMLEndFrame(Renderer, Frame);
-               
-               if (Input->QuitRequested)
-               {
-                  Running = false;
-               }
-            }
-         }
-      }
-      else
-      {
-         OutputError("failed to initialize ImGui");
-      }
-   }
-   else
-   {
-      OutputError("failed to open window");
-   }
-   
-   return 0;
 }
 
 // NOTE(hbr): Specifically after every file is included. Works in Unity build only.

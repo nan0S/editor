@@ -1,7 +1,11 @@
 #include "editor_base.h"
+#include "editor_memory.h"
+#include "editor_string.h"
 #include "editor_os.h"
 
 #include "editor_base.cpp"
+#include "editor_memory.cpp"
+#include "editor_string.cpp"
 #include "editor_os.cpp"
 
 global arena *GlobalArena;
@@ -72,7 +76,7 @@ CompileProgram(b32 Debug)
    }
    
    string_list MainCmd = BasicCompileCmd;
-   StrListPush(GlobalArena, &MainCmd, CodePath(StrLit("editor.cpp")));
+   StrListPush(GlobalArena, &MainCmd, CodePath(StrLit("sfml_editor.cpp")));
    StrListPush(GlobalArena, &MainCmd, ImguiObj);
    StrListPush(GlobalArena, &MainCmd, StrF(GlobalArena, "/Fo:editor_%s.obj", Mode));
    StrListPush(GlobalArena, &MainCmd, StrLit("/link"));
@@ -151,6 +155,10 @@ int main(int ArgCount, char *Argv[])
          StrListPush(GlobalArena, &BuildProgramDependecies, CppPath);
          StrListPush(GlobalArena, &BuildProgramDependecies, CodePath(StrLit("editor_base.h")));
          StrListPush(GlobalArena, &BuildProgramDependecies, CodePath(StrLit("editor_base.cpp")));
+         StrListPush(GlobalArena, &BuildProgramDependecies, CodePath(StrLit("editor_memory.h")));
+         StrListPush(GlobalArena, &BuildProgramDependecies, CodePath(StrLit("editor_memory.cpp")));
+         StrListPush(GlobalArena, &BuildProgramDependecies, CodePath(StrLit("editor_string.h")));
+         StrListPush(GlobalArena, &BuildProgramDependecies, CodePath(StrLit("editor_string.cpp")));
          StrListPush(GlobalArena, &BuildProgramDependecies, CodePath(StrLit("editor_os.h")));
          StrListPush(GlobalArena, &BuildProgramDependecies, CodePath(StrLit("editor_os.cpp")));
          

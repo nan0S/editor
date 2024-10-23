@@ -1536,3 +1536,31 @@ Identity(void)
    
    return Result;
 }
+
+internal v2
+ProjectLength(transform_inv *XForm, v2 Length)
+{
+   v2 Result = TransformLength(XForm->Forward, Length);
+   return Result;
+}
+
+internal v2
+UnprojectLength(transform_inv *XForm, v2 Length)
+{
+   v2 Result = TransformLength(XForm->Inverse, Length);
+   return Result;
+}
+
+internal v2
+Project(transform_inv *XForm, v2 P)
+{
+   v2 Result = Transform(XForm->Forward, P);
+   return Result;
+}
+
+internal v2
+Unproject(transform_inv *XForm, v2 P)
+{
+   v2 Result = Transform(XForm->Inverse, P);
+   return Result;
+}

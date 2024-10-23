@@ -1,35 +1,7 @@
-internal v2
-ProjectLength(render_transform *XForm, v2 Length)
-{
-   v2 Result = TransformLength(XForm->Forward, Length);
-   return Result;
-}
-
-internal v2
-UnprojectLength(render_transform *XForm, v2 Length)
-{
-   v2 Result = TransformLength(XForm->Inverse, Length);
-   return Result;
-}
-
-internal v2
-Project(render_transform *XForm, v2 P)
-{
-   v2 Result = Transform(XForm->Forward, P);
-   return Result;
-}
-
-internal v2
-Unproject(render_transform *XForm, v2 P)
-{
-   v2 Result = Transform(XForm->Inverse, P);
-   return Result;
-}
-
 internal int
 RenderCommandCmp(render_command *A, render_command *B)
 {
-   return IntCmp(A->ZOffset, B->ZOffset);
+   return Cmp(A->ZOffset, B->ZOffset);
 }
 
 internal render_command *
@@ -130,10 +102,10 @@ PushTriangle(render_group *Group,
    Triangle->Color = Color;
 }
 
-internal render_transform
+internal transform_inv
 MakeRenderTransform(v2 P, rotation_2d Rotation, v2 Scale)
 {
-   render_transform Result = {};
+   transform_inv Result = {};
    
    transform A = {};
    A.Scale = V2(1.0f / Scale.X, 1.0f / Scale.Y);

@@ -1,34 +1,6 @@
 #ifndef EDITOR_H
 #define EDITOR_H
 
-// TODO(hbr): what the fuck is this
-#pragma warning(1 : 4062)
-
-#include "third_party/sfml/include/SFML/Graphics.hpp"
-#include "imgui_inc.h"
-
-#define EDITOR_PROFILER 1
-
-#include "editor_base.h"
-#include "editor_os.h"
-#include "editor_profiler.h"
-#include "editor_math.h"
-#include "editor_ui.h"
-#include "editor_sort.h"
-
-#include "editor_renderer.h"
-#include "editor_sfml_renderer.h"
-
-#include "editor_entity2.h"
-
-#include "editor_adapt.h"
-#include "editor_entity.h"
-#include "editor_draw.h"
-#include "editor_debug.h"
-#include "editor_input.h"
-
-#include "editor_platform.h"
-
 /* TODO(hbr):
 Refactors:
 - get rid of SFML? (f32).
@@ -193,13 +165,13 @@ Bugs:
 
 Stack:
  - add sorting to rendering - this then will allow to draw things out of order and will simplify the code a lot
-- don't always require to specify model matrix - do something like SetModel(render_transform)
+- don't always require to specify model matrix - do something like SetModel(transform_inv)
 - uninline some UpdateAndRender* functions
 - get rid of sf::Sprite in editor code - move it to renderer
 - split renderer into generic renderer and sfml renderer
 - check why editor type is so fucking big - probably compress it a little
  - remove world_position, screen_position, clip_space and camera_position
-- try to remove multiple render_transforms from render_group
+- try to remove multiple transform_invs from render_group
 */
 
 #define WINDOW_TITLE "Parametric Curves Editor"
@@ -491,5 +463,7 @@ struct editor
    
    b32 HideUI;
 };
+
+EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender);
 
 #endif //EDITOR_H

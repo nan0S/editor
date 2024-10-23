@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 #include <stdarg.h>
-#include <math.h>
 
 //- context crack
 #if defined(_WIN32)
@@ -78,8 +77,8 @@ typedef intptr_t  smm;
 #define S64_MAX ((s64)0x7fffffffffffffffll)
 
 typedef uint32_t b32;
-#define true  (Cast(b32)1)
-#define false (Cast(b32)0)
+//#define true  (Cast(b32)1)
+//#define false (Cast(b32)0)
 
 typedef float f32;
 typedef double f64;
@@ -89,6 +88,40 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define INF_F64 F64Inf.F
 #define EPS_F32 0.0001f
 #define EPS_F64 0.000000001
+
+union v2
+{
+   struct { f32 X, Y; };
+   f32 E[2];
+};
+
+union v2s
+{
+   struct { s32 X, Y; };
+   s32 E[2];
+};
+
+union v4
+{
+   struct { f32 X, Y, Z, W; };
+   struct { f32 R, G, B, A; };
+   f32 E[4];
+};
+
+typedef v2 rotation_2d;
+
+struct transform
+{
+   v2 Offset;
+   rotation_2d Rotation;
+   v2 Scale;
+};
+
+struct transform_inv
+{
+   transform Forward;
+   transform Inverse;
+};
 
 #define internal static
 #define local    static
@@ -104,13 +137,13 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #endif
 
 #if OS_WINDOWS
-# define thread_local __declspec(thread)
+# define thread_static __declspec(thread)
 #endif
 #if OS_LINUX
-# define thread_local __thread
+# define thread_static __thread
 #endif
-#if !defined(thread_local)
-# error thread_local not defined
+#if !defined(thread_static)
+# error thread_static not defined
 #endif
 
 #define Bytes(N)      ((Cast(u64)(N)) << 0)
@@ -181,8 +214,7 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 #define Idx(Row, Col, NCols) ((Row)*(NCols) + (Col))
 #define ApproxEq32(X, Y) (Abs(X - Y) <= EPS_F32)
 #define ApproxEq64(X, Y) (Abs(X - Y) <= EPS_F64)
-// TODO(hbr): Rename to just Cmp
-#define IntCmp(X, Y) (((X) < (Y)) ? -1 : (((X) == (Y)) ? 0 : 1))
+#define Cmp(X, Y) (((X) < (Y)) ? -1 : (((X) == (Y)) ? 0 : 1))
 #define Swap(A, B, Type) do { Type NameConcat(Temp, __LINE__) = (A); (A) = (B); (B) = NameConcat(Temp, __LINE__); } while (0)
 #define AlignPow2(Align, Pow2) (((Align)+((Pow2)-1)) & (~((Pow2)-1)))
 #define IsPow2(X) (((X) & (X-1)) == 0)
@@ -272,58 +304,6 @@ Assert((Capacity) >= (Reserve)); \
 #define ArrayReverse(Array, Count, Type) \
 do { for (u64 _I_ = 0; _I_ < ((Count)>>1); ++_I_) { Swap((Array)[_I_], (Array)[(Count) - 1 - _I_], Type); } } while (0)
 
-//- memory
-struct arena
-{
-   arena *Next;
-   arena *Cur;
-   
-   void *Memory;
-   u64 Used;
-   u64 Capacity;
-   u64 Align;
-};
-
-struct temp_arena
-{
-   arena *Arena;
-   arena *SavedCur;
-   u64 SavedUsed;
-};
-
-struct pool_chunk
-{
-   pool_chunk *Next;
-};
-struct pool
-{
-   arena *BackingArena;
-   pool_chunk *FirstFreeChunk;
-   u64 ChunkSize;
-};
-
-internal arena *AllocArena(void);
-internal void   DeallocArena(arena *Arena);
-internal void   ClearArena(arena *Arena);
-internal void * PushSize(arena *Arena, u64 Size);
-internal void * PushSizeNonZero(arena *Arena, u64 Size);
-#define         PushStruct(Arena, Type) Cast(Type *)PushSize(Arena, SizeOf(Type))
-#define         PushStructNonZero(Arena, Type) Cast(Type *)PushSizeNonZero(Arena, SizeOf(Type))
-#define         PushArray(Arena, Count, Type) Cast(Type *)PushSize(Arena, (Count) * SizeOf(Type))
-#define         PushArrayNonZero(Arena, Count, Type) Cast(Type *)PushSizeNonZero(Arena, (Count) * SizeOf(Type))
-
-internal temp_arena BeginTemp(arena *Conflict);
-internal void       EndTemp(temp_arena Temp);
-
-#define        AllocPool(Type) AllocPoolImpl(SizeOf(Type), AlignOf(Type))
-internal void  DeallocPool(pool *Pool);
-#define        RequestChunk(Pool, Type) Cast(Type *)RequestChunkImpl(Pool)
-#define        RequestChunkNonZero(Pool, Type) Cast(Type *)RequestChunkNonZeroImpl(Pool)
-internal void  ReleaseChunk(pool *Pool, void *Chunk);
-
-internal void       InitThreadCtx(void);
-internal temp_arena TempArena(arena *Conflict);
-
 //- time
 typedef u64 timestamp64;
 struct date_time
@@ -338,70 +318,5 @@ struct date_time
 };
 internal date_time   TimestampToDateTime(timestamp64 Ts);
 internal timestamp64 DateTimeToTimestamp(date_time Dt);
-
-//- strings
-struct string
-{
-   char *Data;
-   u64 Count;
-};
-
-struct string_list_node
-{
-   string_list_node *Next;
-   string Str;
-};
-struct string_list
-{
-   string_list_node *Head;
-   string_list_node *Tail;
-   u64 NodeCount;
-   u64 TotalSize;
-};
-
-internal u64 Fmt(char *Buf, u64 BufSize, char const *Format, ...);
-internal u64 FmtV(char *Buf, u64 BufSize, char const *Format, va_list Args);
-
-internal b32         CharIsLower(char C);
-internal b32         CharIsUpper(char C);
-internal char        CharToLower(char C);
-internal char        CharToUpper(char C);
-internal b32         CharIsDigit(char C);
-
-internal string      MakeStr(char *Data, u64 Count);
-#define              StrLit(Lit) MakeStr(Cast(char *)Lit, ArrayCount(Lit) - 1)
-internal string      StrCopy(arena *Arena, string Str);
-internal string      CStrCopy(arena *Arena, char const *Str);
-internal string      StrF(arena *Arena, char const *Format, ...);
-internal string      StrFV(arena *Arena, char const *Format, va_list Args);
-internal string      StrFromCStr(char const *Str);
-internal string      CStrFromStr(arena *Arena, string Str);
-internal u64         CStrLen(char const *Str);
-
-internal b32         StrMatch(string A, string B, b32 CaseInsensitive);
-internal b32         StrEqual(string A, string B);
-internal int         StrCmp(string A, string B);
-internal b32         StrStartsWith(string Str, string Start);
-internal b32         StrEndsWith(string Str, string End);
-internal string      StrPrefix(string Str, u64 Count);
-internal string      StrSuffix(string Str, u64 Count);
-internal string      StrChop(string Str, u64 Chop);
-internal string      StrChopLastSlash(string Str);
-internal string      StrAfterLastSlash(string Str);
-internal string      StrChopLastDot(string Str);
-internal string      StrAfterLastDot(string Str);
-internal string_list StrSplit(arena *Arena, string Split, string On);
-internal b32         StrContains(string S, string Sub);
-internal string      StrSubstr(string S, u64 Pos, u64 Count);
-
-internal string      PathChopLastPart(string Path);
-internal string      PathLastPart(string Path);
-internal string      PathConcat(arena *Arena, string A, string B);
-internal string      PathListJoin(arena *Arena, string_list *Path);
-
-internal void        StrListPush(arena *Arena, string_list *List, string Str);
-internal string      StrListJoin(arena *Arena, string_list *List, string Sep);
-internal string_list StrListCopy(arena *Arena, string_list *List);
-internal void        StrListConcatInPlace(string_list *List, string_list *ToPush);
 
 #endif //EDITOR_BASE_H

@@ -114,7 +114,7 @@ struct curve_point_tracking_state
 {
    b32 Active;
    b32 NeedsRecomputationThisFrame;
-   f32 T;
+   f32 Fraction;
    local_position TrackedPoint;
    
    b32 IsSplitting;
@@ -238,24 +238,17 @@ internal f32 GetCurveCubicBezierPointRadius(curve *Curve);
 internal visible_cubic_bezier_points GetVisibleCubicBezierPoints(entity *Entity);
 
 inline internal curve_point_index
-MakeCurvePointIndexFromControlPointIndex(u64 Index)
+CurvePointIndexFromControlPointIndex(control_point_index Index)
 {
    curve_point_index Result = {};
    Result.Type = CurvePoint_ControlPoint;
-   Result.ControlPoint.Index = Index;
+   Result.ControlPoint = Index;
    
    return Result;
 }
 
 inline internal curve_point_index
-MakeCurvePointIndexFromControlPointIndex(control_point_index Index)
-{
-   curve_point_index Result = MakeCurvePointIndexFromControlPointIndex(Index.Index);
-   return Result;
-}
-
-inline internal curve_point_index
-MakeCurvePointIndexFromBezierPointIndex(cubic_bezier_point_index Index)
+CurvePointIndexFromBezierPointIndex(cubic_bezier_point_index Index)
 {
    curve_point_index Result = {};
    Result.Type = CurvePoint_CubicBezierPoint;
@@ -265,10 +258,10 @@ MakeCurvePointIndexFromBezierPointIndex(cubic_bezier_point_index Index)
 }
 
 inline internal cubic_bezier_point_index
-MakeCubicBezierPointIndexFromControlPointIndex(u64 ControlPointIndex)
+CubicBezierPointIndexFromControlPointIndex(control_point_index Index)
 {
    cubic_bezier_point_index Result = {};
-   Result.Index = 3 * ControlPointIndex + 1;
+   Result.Index = 3 * Index.Index + 1;
    
    return Result;
 }
@@ -308,9 +301,9 @@ GetCenterPointFromCubicBezierPointIndex(curve *Curve, cubic_bezier_point_index I
 }
 
 inline internal control_point_index
-CurvePointIndexToControlPointIndex(curve *Curve, u64 CurvePointIndex)
+CurveLinePointIndexToControlPointIndex(curve *Curve, u64 CurveLinePointIndex)
 {
-   u64 Index = SafeDiv0(CurvePointIndex, Curve->CurveParams.CurvePointCountPerSegment);
+   u64 Index = SafeDiv0(CurveLinePointIndex, Curve->CurveParams.CurvePointCountPerSegment);
    Assert(Index < Curve->ControlPointCount);
    control_point_index Result = {};
    Result.Index = ClampTop(Index, Curve->ControlPointCount - 1);
@@ -318,7 +311,7 @@ CurvePointIndexToControlPointIndex(curve *Curve, u64 CurvePointIndex)
    return Result;
 }
 
-internal void TranslateCurvePoint(entity *Entity, curve_point_index Index, v2 Translation, translate_curve_point_flags Flags);
+internal void SetCurvePoint(entity *Entity, curve_point_index Index, v2 P, translate_curve_point_flags Flags);
 internal void RemoveControlPoint(entity *Entity, u64 Index);
 internal control_point_index AppendControlPoint(entity *Entity, world_position Point);
 internal void InsertControlPoint(entity *Entity, world_position PointWorld, u64 At);
@@ -341,6 +334,13 @@ GetEntityModelTransform(entity *Entity)
    Result.Rotation = Entity->Rotation;
    
    return Result;
+}
+
+internal curve *
+SafeGetCurve(entity *Entity)
+{
+   Assert(Entity->Type == Entity_Curve);
+   return &Entity->Curve;
 }
 
 #endif //EDITOR_ENTITY2_H

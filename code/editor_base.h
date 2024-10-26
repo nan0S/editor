@@ -101,6 +101,12 @@ union v2s
    s32 E[2];
 };
 
+struct v2u
+{
+   struct { u32 X, Y; };
+   u32 E[2];
+};
+
 union v4
 {
    struct { f32 X, Y, Z, W; };
@@ -211,6 +217,7 @@ struct transform_inv
 #define ClampTop(X, Maxi) Min(X, Maxi)
 #define ClampBot(X, Mini) Max(X, Mini)
 #define Clamp(X, Mini, Maxi) ClampTop(ClampBot(X, Mini), Maxi)
+#define Clamp01(X) Clamp(X, 0, 1)
 #define Idx(Row, Col, NCols) ((Row)*(NCols) + (Col))
 #define ApproxEq32(X, Y) (Abs(X - Y) <= EPS_F32)
 #define ApproxEq64(X, Y) (Abs(X - Y) <= EPS_F64)
@@ -303,6 +310,11 @@ Assert((Capacity) >= (Reserve)); \
 } while (0)
 #define ArrayReverse(Array, Count, Type) \
 do { for (u64 _I_ = 0; _I_ < ((Count)>>1); ++_I_) { Swap((Array)[_I_], (Array)[(Count) - 1 - _I_], Type); } } while (0)
+
+inline internal v2  V2(f32 X, f32 Y) { return {X,Y}; }
+inline internal v2s V2S(s32 X, s32 Y) { return {X,Y}; }
+inline internal v2u V2U(u32 X, u32 Y) { return {X,Y}; }
+inline internal v4  V4(f32 X, f32 Y, f32 Z, f32 W) { return {X,Y,Z,W}; }
 
 //- time
 typedef u64 timestamp64;

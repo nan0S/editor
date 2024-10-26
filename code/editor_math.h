@@ -29,7 +29,6 @@ typedef v2  camera_position;
 typedef v2  world_position;
 typedef v2  local_position;
 
-inline internal v2 V2(f32 X, f32 Y) { return { X, Y }; }
 inline internal v2  operator+ (v2 U, v2 V)   { return V2(U.X + V.X, U.Y + V.Y); }
 inline internal v2  operator- (v2 U, v2 V)   { return V2(U.X - V.X, U.Y - V.Y); }
 inline internal v2  operator- (v2 U)            { return V2(-U.X, -U.Y); }
@@ -41,11 +40,9 @@ inline internal v2 &operator-=(v2 &U, v2 V)  { U.X -= V.X; U.Y -= V.Y; return U;
 inline internal b32 operator==(v2 U, v2 V)   { return (U.X == V.X && U.Y == V.Y); }
 inline internal b32 operator!=(v2 U, v2 V)   { return !(U == V); }
 
-inline internal v2s V2S32(s32 X, s32 Y) { return { X, Y }; }
 inline internal b32 operator==(v2s U, v2s V) { return (U.X == V.X && U.Y == V.Y); }
 inline internal b32 operator!=(v2s U, v2s V) { return !(U == V); }
 
-inline internal v4 V4(f32 X, f32 Y, f32 Z, f32 W) { return { X, Y, Z, W }; }
 inline internal v4 operator+(v4 U, v4 V) { return V4(U.X + V.X, U.Y + V.Y, U.Z + V.Z, U.W + V.W); }
 inline internal v4 operator-(v4 U, v4 V) { return V4(U.X - V.X, U.Y - V.Y, U.Z - V.Z, U.W - V.W); }
 inline internal v4 operator*(f32 Scale, v4 U) { return V4(Scale * U.X, Scale * U.Y, Scale * U.Z, Scale * U.W); }

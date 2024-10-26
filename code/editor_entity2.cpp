@@ -70,7 +70,7 @@ GetVisibleCubicBezierPoints(entity *Entity)
        Curve->CurveParams.BezierType == Bezier_Cubic)
    {
       cubic_bezier_point *Beziers = Curve->CubicBezierPoints;
-      cubic_bezier_point_index StartIndex = MakeCubicBezierPointIndexFromControlPointIndex(Curve->SelectedIndex.Index);
+      cubic_bezier_point_index StartIndex = CubicBezierPointIndexFromControlPointIndex(Curve->SelectedIndex);
       
       cubic_bezier_point_index PrevIndex = StartIndex;
       if (PrevCubicBezierPoint(Curve, &PrevIndex))
@@ -155,8 +155,7 @@ ExtractControlPointIndexAndBezierOffsetFromCurvePointIndex(curve_point_index Ind
 }
 
 internal void
-TranslateCurvePoint(entity *Entity, curve_point_index Index,
-                    v2 Translation, translate_curve_point_flags Flags)
+SetCurvePoint(entity *Entity, curve_point_index Index, v2 P, translate_curve_point_flags Flags)
 {
    curve *Curve = GetCurve(Entity);
    
@@ -168,12 +167,11 @@ TranslateCurvePoint(entity *Entity, curve_point_index Index,
    {
       cubic_bezier_point *B = Curve->CubicBezierPoints + ControlPointIndex.Index;
       local_position *TranslatePoint = B->Ps + BezierOffset;
-      world_position World = LocalEntityPositionToWorld(Entity, *TranslatePoint);
-      local_position Translated = WorldToLocalEntityPosition(Entity, World + Translation);
+      local_position LocalP = WorldToLocalEntityPosition(Entity, P);
       
       if (BezierOffset == 1)
       {
-         v2 LocalTranslation = Translated - B->P1;
+         v2 LocalTranslation = LocalP - B->P1;
          
          B->P0 += LocalTranslation;
          B->P2 += LocalTranslation;
@@ -188,7 +186,7 @@ TranslateCurvePoint(entity *Entity, curve_point_index Index,
          v2 DesiredTwinDirection;
          if (Flags & TranslateCurvePoint_MatchBezierTwinDirection)
          {
-            DesiredTwinDirection = B->P1 - Translated;
+            DesiredTwinDirection = B->P1 - LocalP;
          }
          else
          {
@@ -199,7 +197,7 @@ TranslateCurvePoint(entity *Entity, curve_point_index Index,
          v2 DesiredLengthVector;
          if (Flags & TranslateCurvePoint_MatchBezierTwinLength)
          {
-            DesiredLengthVector = B->P1 - Translated;
+            DesiredLengthVector = B->P1 - LocalP;
          }
          else
          {
@@ -210,7 +208,7 @@ TranslateCurvePoint(entity *Entity, curve_point_index Index,
          *Twin = B->P1 + DesiredTwinLength * DesiredTwinDirection;
       }
       
-      *TranslatePoint = Translated;
+      *TranslatePoint = LocalP;
    }
    
    RecomputeCurve(Entity);

@@ -193,16 +193,15 @@ global f32 GlobalImageScaleFactor         = 1.0f / 1920.0f;
 
 struct camera
 {
-   world_position Position;
-   rotation_2d Rotation;
-   
+   v2 P;
+   v2 Rotation;
    f32 Zoom;
    f32 ZoomSensitivity;
    
    b32 ReachingTarget;
    f32 ReachingTargetSpeed;
-   world_position PositionTarget;
-   f32 ZoomTarget;
+   v2 TargetP;
+   f32 TargetZoom;
 };
 
 typedef u64 collision_flags;
@@ -213,7 +212,6 @@ enum
    Collision_TrackedPoint     = (1<<2),
    Collision_Image            = (1<<3),
 };
-
 struct collision
 {
    entity *Entity;
@@ -230,24 +228,23 @@ enum user_action_type
    UserAction_ButtonReleased,
    UserAction_MouseMove,
 };
-
 struct user_action
 {
    user_action_type Type;
    union
    {
       struct {
-         button Button;
+         //button Button;
          screen_position ClickPosition;
       } Click;
       
       struct {
-         button Button;
+         //button Button;
          screen_position DragFromPosition;
       } Drag;
       
       struct {
-         button Button;
+         //button Button;
          screen_position ReleasePosition;
       } Release;
       
@@ -265,33 +262,33 @@ enum editor_mode_type
    EditorMode_Rotating,
 };
 
+struct editor_rotating_mode
+{
+   screen_position Center;
+   //button Button;
+};
 // TODO(hbr): Try to get rid of this type, if this is necessary, just remove this TODO
-enum moving_mode_type
+enum editor_moving_mode_type
 {
    MovingMode_Entity,
    MovingMode_Camera,
    MovingMode_CurvePoint,
    MovingMode_TrackedPoint,
 };
-
-// TODO(hbr): Be consistent in naming Rotating mode or Rotate mode - be consistent
+struct editor_moving_mode
+{
+   editor_moving_mode_type Type;
+   curve_point_index MovingPointIndex;
+   vertex_array OriginalCurveVertices;
+};
 struct editor_mode
 {
    editor_mode_type Type;
+   entity *Target;
    union
    {
-      struct {
-         moving_mode_type Type;
-         entity *Entity;
-         curve_point_index MovingPointIndex;
-         vertex_array OriginalCurveVertices;
-      } Moving;
-      
-      struct {
-         entity *Entity;
-         screen_position RotationCenter;
-         button Button;
-      } Rotating;
+      editor_moving_mode Moving;
+      editor_rotating_mode Rotating;
    };
 };
 
@@ -436,6 +433,26 @@ struct frame_stats
    f32 AvgFrameTime;
 };
 
+enum editor_left_click_mode
+{
+   EditorLeftClick_MovingTrackingPoint,
+   EditorLeftClick_MovingCurvePoint,
+   EditorLeftClick_MovingEntity,
+};
+struct editor_left_click_state
+{
+   b32 Active;
+   
+   entity *TargetEntity;
+   editor_left_click_mode Mode;
+   curve_point_index CurvePointIndex;
+   v2 LastMouseP;
+   
+   arena *OriginalVerticesArena;
+   b32 OriginalVerticesCaptured;
+   vertex_array OriginalLineVertices;
+};
+
 struct editor
 {
    b32 Initialized;
@@ -455,9 +472,15 @@ struct editor
    arena *MovingPointArena;
    editor_mode Mode;
    
+   editor_left_click_state LeftClick;
+   b32 MovingCamera;
+   b32 RightClickActive;
+   v2 RightClickP;
+   collision RightClickCollision;
+   
    v4 DefaultBackgroundColor;
    v4 BackgroundColor;
-   f32 CollisionToleranceClipSpace;
+   f32 CollisionToleranceClip;
    curve_params CurveDefaultParams;
    
    ui_config UI_Config;

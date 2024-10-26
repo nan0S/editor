@@ -1,92 +1,103 @@
 #ifndef EDITOR_PLATFORM_H
 #define EDITOR_PLATFORM_H
 
-enum button
+enum platform_event_type
 {
-   Button_Left,
-   Button_Right,
-   Button_Middle,
+   PlatformEvent_Press,
+   PlatformEvent_Release,
+   PlatformEvent_MouseMove,
+   PlatformEvent_Scroll,
+};
+
+enum platform_key
+{
+   PlatformKey_Unknown,
    
-   Button_Count,
-};
-
-struct button_state
-{
-   b32 WasPressed;
-   b32 Pressed;
-   v2s PressPosition;
-   v2s ReleasePosition;
-};
-
-enum key
-{
-   Key_S,
-   Key_W,
-   Key_E,
-   Key_O,
-   Key_N,
-   Key_Q,
-   Key_LeftShift,
-   Key_LeftCtrl,
-   Key_Esc,
-   Key_Tab,
+   PlatformKey_F1,
+   PlatformKey_F2,
+   PlatformKey_F3,
+   PlatformKey_F4,
+   PlatformKey_F5,
+   PlatformKey_F6,
+   PlatformKey_F7,
+   PlatformKey_F8,
+   PlatformKey_F9,
+   PlatformKey_F10,
+   PlatformKey_F11,
+   PlatformKey_F12,
    
-   Key_Count,
+   PlatformKey_A,
+   PlatformKey_B,
+   PlatformKey_C,
+   PlatformKey_D,
+   PlatformKey_E,
+   PlatformKey_F,
+   PlatformKey_G,
+   PlatformKey_H,
+   PlatformKey_I,
+   PlatformKey_J,
+   PlatformKey_K,
+   PlatformKey_L,
+   PlatformKey_M,
+   PlatformKey_N,
+   PlatformKey_O,
+   PlatformKey_P,
+   PlatformKey_Q,
+   PlatformKey_R,
+   PlatformKey_S,
+   PlatformKey_T,
+   PlatformKey_U,
+   PlatformKey_V,
+   PlatformKey_W,
+   PlatformKey_X,
+   PlatformKey_Y,
+   PlatformKey_Z,
+   
+   PlatformKey_Escape,
+   PlatformKey_LeftShift,
+   PlatformKey_RightShift,
+   PlatformKey_LeftCtrl,
+   PlatformKey_RightCtrl,
+   PlatformKey_LeftAlt,
+   PlatformKey_RightAlt,
+   PlatformKey_Space,
+   PlatformKey_Tab,
+   
+   PlatformKey_LeftMouseButton,
+   PlatformKey_RightMouseButton,
+   PlatformKey_MiddleMouseButton,
+   
+   PlatformKey_Count,
 };
 
-typedef u64 modifier_flags;
+typedef u64 platform_event_flags;
 enum
 {
-   Modifier_Shift = (1<<0),
-   Modifier_Alt   = (1<<1),
-   Modifier_Ctrl  = (1<<2),
+   PlatformEventFlag_Eaten    = (1<<0),
+   PlatformEventFlag_Alt      = (1<<1),
+   PlatformEventFlag_Shift    = (1<<2),
+   PlatformEventFlag_Ctrl     = (1<<3),
 };
 
-struct key_state
+struct platform_event
 {
-   b32 WasPressed;
-   b32 Pressed;
-   modifier_flags ModifierFlags;
+   platform_event_type Type;
+   platform_key Key;
+   platform_event_flags Flags;
+   v2 ClipSpaceMouseP;
+   f32 ScrollDelta;
 };
 
-struct editor_input
+struct platform_input
 {
-   button_state Buttons[Button_Count];
-   key_state Keys[Key_Count];
-   
-   v2s MousePosition;
-   v2s MouseLastPosition;
-   
-   f32 MouseWheelDelta;
-   
+   u64 EventCount;
+   platform_event *Events;
+   b32 Pressed[PlatformKey_Count];
    f32 dtForFrame;
    
-   // NOTE(hbr): Output from editor back to the main loop
+   // NOTE(hbr): Filled by application
    b32 QuitRequested;
 };
-
-// TODO(hbr): Rethink how mouse inputs should be handled. In particular when I press the mouse down
-// I want the control point to be selected right away. Also ScreenPointsAreClose is probably nonsense.
-// I don't want that - user can actually manage to click and release the button in place no problem
-// so checking whether those two places are "close" is unnecessary.
-internal b32
-KeyPressed(editor_input *Input, key Key, modifier_flags Flags)
-{
-   key_state *State = Input->Keys + Key;
-   b32 JustPressed = (State->Pressed && !State->WasPressed);
-   b32 WithModifiers = (State->ModifierFlags == Flags);
-   b32 Result = (JustPressed && WithModifiers);
-   
-   return Result;
-}
-
-internal b32
-IsKeyPressed(editor_input *Input, key Key)
-{
-   key_state *State = Input->Keys + Key;
-   b32 Result = State->Pressed;
-   return Result;
-}
 
 struct editor_memory
 {
@@ -94,7 +105,7 @@ struct editor_memory
    u64 PermamentMemorySize;
 };
 
-#define EDITOR_UPDATE_AND_RENDER(Name) void Name(editor_memory *Memory, editor_input *Input, render_frame *Frame)
+#define EDITOR_UPDATE_AND_RENDER(Name) void Name(editor_memory *Memory, platform_input *Input, render_frame *Frame)
 typedef EDITOR_UPDATE_AND_RENDER(editor_update_and_render);
 
 #endif //EDITOR_PLATFORM_H

@@ -84,7 +84,7 @@ struct render_frame
    render_command *Commands;
    u64 MaxCommandCount;
    
-   v2s WindowDim;
+   v2u WindowDim;
    
    transform Proj;
    v4 ClearColor;
@@ -98,8 +98,12 @@ struct render_group
    transform_inv CameraToClip;
    transform_inv ClipToScreen;
    
+   transform_inv ProjXForm;
+   
    transform ModelXForm;
    f32 ZOffset;
+   
+   f32 CollisionTolerance;
 };
 
 #endif //EDITOR_RENDERER_H

@@ -8,15 +8,13 @@ InitSFMLRenderer(arena *Arena, sf::RenderWindow *Window)
 }
 
 internal render_frame *
-SFMLBeginFrame(sfml_renderer *Renderer)
+SFMLBeginFrame(sfml_renderer *Renderer, v2u WindowDim)
 {
    render_frame *Frame = &Renderer->Frame;
    Frame->CommandCount = 0;
    Frame->Commands = Renderer->CommandBuffer;
    Frame->MaxCommandCount = ArrayCount(Renderer->CommandBuffer);
-   
-   sf::Vector2u WindowSize = Renderer->Window->getSize();
-   Frame->WindowDim = V2S32(WindowSize.x, WindowSize.y);
+   Frame->WindowDim = WindowDim;
    
    return Frame;
 }

@@ -370,9 +370,9 @@ ActuallyRecomputeCurve(entity *Entity)
 }
 
 internal void
-SetTrackingPointT(curve_point_tracking_state *Tracking, f32 T)
+SetTrackingPointFraction(curve_point_tracking_state *Tracking, f32 Fraction)
 {
-   Tracking->T = T;
+   Tracking->Fraction = Clamp01(Fraction);
    Tracking->NeedsRecomputationThisFrame = true;
 }
 
@@ -383,7 +383,7 @@ BeginCurvePointTracking(curve *Curve, b32 IsSplitting)
    Tracking->Active = true;
    Tracking->IsSplitting = IsSplitting;
    ClearArena(Tracking->Arena);
-   SetTrackingPointT(Tracking, 0.0f);
+   SetTrackingPointFraction(Tracking, 0.0f);
 }
 
 internal world_position

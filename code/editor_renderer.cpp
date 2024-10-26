@@ -125,14 +125,14 @@ MakeRenderTransform(v2 P, rotation_2d Rotation, v2 Scale)
 
 internal render_group
 BeginRenderGroup(render_frame *Frame,
-                 v2 CameraP, rotation_2d CameraRot, f32 CameraZoom,
-                 v4 ClearColor)
+                 v2 CameraP, v2 CameraRot, f32 CameraZoom,
+                 v4 ClearColor, f32 CollisionToleranceClip)
 {
    render_group Result = {};
    
    Result.Frame = Frame;
    
-   v2s WindowDim = Frame->WindowDim;
+   v2u WindowDim = Frame->WindowDim;
    f32 AspectRatio = Cast(f32)WindowDim.X / WindowDim.Y;
    
    Result.WorldToCamera = MakeRenderTransform(CameraP, CameraRot, V2(1.0f / CameraZoom, 1.0f / CameraZoom));
@@ -141,10 +141,15 @@ BeginRenderGroup(render_frame *Frame,
                                              Rotation2DZero(),
                                              2.0f * V2(1.0f / WindowDim.X, -1.0f / WindowDim.Y));
    
+   Result.ProjXForm.Forward = Result.CameraToClip.Forward * Result.WorldToCamera.Forward;
+   Result.ProjXForm.Inverse = Result.WorldToCamera.Inverse * Result.CameraToClip.Inverse;
+   
    Frame->ClearColor = ClearColor;
    Frame->Proj = Result.CameraToClip.Forward * Result.WorldToCamera.Forward;
    
    Result.ModelXForm = Identity();
+   
+   Result.CollisionTolerance = UnprojectLength(&Result.WorldToCamera, V2(CollisionToleranceClip, 0)).X;
    
    return Result;
 }

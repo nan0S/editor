@@ -210,7 +210,6 @@ enum
    Collision_CurvePoint       = (1<<0),
    Collision_CurveLine        = (1<<1),
    Collision_TrackedPoint     = (1<<2),
-   Collision_Image            = (1<<3),
 };
 struct collision
 {
@@ -453,6 +452,19 @@ struct editor_left_click_state
    vertex_array OriginalLineVertices;
 };
 
+struct editor_right_click_state
+{
+   b32 Active;
+   v2 ClickP;
+   collision CollisionAtP;
+};
+
+struct editor_middle_click_state
+{
+   b32 Active;
+   v2 ClipSpaceLastMouseP;
+};
+
 struct editor
 {
    b32 Initialized;
@@ -473,10 +485,8 @@ struct editor
    editor_mode Mode;
    
    editor_left_click_state LeftClick;
-   b32 MovingCamera;
-   b32 RightClickActive;
-   v2 RightClickP;
-   collision RightClickCollision;
+   editor_right_click_state RightClick;
+   editor_middle_click_state MiddleClick;
    
    v4 DefaultBackgroundColor;
    v4 BackgroundColor;

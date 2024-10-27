@@ -1,9 +1,9 @@
 // NOTE(hbr): this is code that is
 
 internal void
-SetCameraPosition(camera *Camera, v2 P)
+TranslateCamera(camera *Camera, v2 Translate)
 {
-   Camera->P = P;
+   Camera->P += Translate;
    Camera->ReachingTarget = false;
 }
 
@@ -121,18 +121,14 @@ ClipSpaceLengthToWorldSpace(f32 ClipSpaceDistance, render_group *Group)
 }
 
 internal collision
-CheckCollisionWith(entities *Entities,
-                   world_position CheckPosition,
-                   f32 CollisionTolerance,
-                   collision_flags CollisionWithFlags)
+CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
 {
    collision Result = {};
-   
    temp_arena Temp = TempArena(0);
    
    entity_array EntityArray = {};
-   EntityArray.Count = MAX_ENTITY_COUNT;
-   EntityArray.Entities = Entities->Entities;
+   EntityArray.Count = EntityCount;
+   EntityArray.Entities = Entities;
    sorted_entries Sorted = SortEntities(Temp.Arena, EntityArray);
    
    for (u64 Index = 0;
@@ -142,12 +138,12 @@ CheckCollisionWith(entities *Entities,
       entity *Entity = EntityArray.Entities + Sorted.Entries[Index].Index;
       if (IsEntityVisible(Entity))
       {
-         local_position CheckPositionLocal = WorldToLocalEntityPosition(Entity, CheckPosition);
+         v2 LocalAtP = WorldToLocalEntityPosition(Entity, AtP);
          switch (Entity->Type)
          {
             case Entity_Curve: {
                curve *Curve = &Entity->Curve;
-               if (AreCurvePointsVisible(Curve) && (CollisionWithFlags & Collision_CurvePoint))
+               if (AreCurvePointsVisible(Curve))
                {
                   u64 ControlPointCount = Curve->ControlPointCount;
                   local_position *ControlPoints = Curve->ControlPoints;
@@ -158,9 +154,8 @@ CheckCollisionWith(entities *Entities,
                      // TODO(hbr): Maybe move this function call outside of this loop
                      // due to performance reasons.
                      point_info PointInfo = GetCurveControlPointInfo(Entity, PointIndex);
-                     if (PointCollision(CheckPositionLocal,
-                                        ControlPoints[PointIndex],
-                                        PointInfo.Radius + PointInfo.OutlineThickness + CollisionTolerance))
+                     f32 CollisionRadius = PointInfo.Radius + PointInfo.OutlineThickness + Tolerance;
+                     if (PointCollision(LocalAtP, ControlPoints[PointIndex], CollisionRadius))
                      {
                         Result.Entity = Entity;
                         Result.Flags |= Collision_CurvePoint;
@@ -177,9 +172,7 @@ CheckCollisionWith(entities *Entities,
                      f32 PointRadius = GetCurveCubicBezierPointRadius(Curve);
                      cubic_bezier_point_index BezierIndex = VisibleBeziers.Indices[Index];
                      local_position BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
-                     if (PointCollision(CheckPositionLocal,
-                                        BezierPoint,
-                                        PointRadius + CollisionTolerance))
+                     if (PointCollision(LocalAtP, BezierPoint, PointRadius + Tolerance))
                      {
                         Result.Entity = Entity;
                         Result.Flags |= Collision_CurvePoint;
@@ -190,24 +183,20 @@ CheckCollisionWith(entities *Entities,
                }
                
                curve_point_tracking_state *Tracking = &Curve->PointTracking;
-               if (Tracking->Active && (CollisionWithFlags & Collision_TrackedPoint))
+               if (Tracking->Active)
                {
                   f32 PointRadius = GetCurveTrackedPointRadius(Curve);
-                  if (PointCollision(CheckPositionLocal,
-                                     Tracking->TrackedPoint,
-                                     PointRadius + CollisionTolerance))
+                  if (PointCollision(LocalAtP, Tracking->TrackedPoint, PointRadius + Tolerance))
                   {
                      Result.Entity = Entity;
                      Result.Flags |= Collision_TrackedPoint;
                   }
                }
                
-               if (CollisionWithFlags & Collision_CurveLine)
                {
                   local_position *CurvePoints = Curve->CurvePoints;
                   u64 CurvePointCount = Curve->CurvePointCount;
-                  f32 CurveWidth = 2.0f * CollisionTolerance + Curve->CurveParams.CurveWidth;
-                  local_position CheckPositionLocal = WorldToLocalEntityPosition(Entity, CheckPosition);
+                  f32 CurveWidth = 2.0f * Tolerance + Curve->CurveParams.CurveWidth;
                   
                   for (u64 CurvePointIndex = 0;
                        CurvePointIndex + 1 < CurvePointCount;
@@ -215,7 +204,7 @@ CheckCollisionWith(entities *Entities,
                   {
                      v2 P1 = CurvePoints[CurvePointIndex];
                      v2 P2 = CurvePoints[CurvePointIndex + 1];
-                     if (SegmentCollision(CheckPositionLocal, P1, P2, CurveWidth))
+                     if (SegmentCollision(LocalAtP, P1, P2, CurveWidth))
                      {
                         Result.Entity = Entity;
                         Result.Flags |= Collision_CurveLine;
@@ -228,20 +217,15 @@ CheckCollisionWith(entities *Entities,
             
             case Entity_Image: {
                image *Image = &Entity->Image;
-               if (CollisionWithFlags & Collision_Image)
+               sf::Vector2u TextureSize = Image->Texture.getSize();
+               f32 SizeX = Abs(GlobalImageScaleFactor * Entity->Scale.X * TextureSize.x);
+               f32 SizeY = Abs(GlobalImageScaleFactor * Entity->Scale.Y * TextureSize.y);
+               v2 Extents = 0.5f * V2(SizeX + Tolerance, SizeY + Tolerance);
+               
+               if (-Extents.X <= LocalAtP.X && LocalAtP.X <= Extents.X &&
+                   -Extents.Y <= LocalAtP.Y && LocalAtP.Y <= Extents.Y)
                {
-                  sf::Vector2u TextureSize = Image->Texture.getSize();
-                  f32 SizeX = Abs(GlobalImageScaleFactor * Entity->Scale.X * TextureSize.x);
-                  f32 SizeY = Abs(GlobalImageScaleFactor * Entity->Scale.Y * TextureSize.y);
-                  v2 Extents = 0.5f * V2(SizeX + CollisionTolerance,
-                                         SizeY + CollisionTolerance);
-                  
-                  if (-Extents.X <= CheckPositionLocal.X && CheckPositionLocal.X <= Extents.X &&
-                      -Extents.Y <= CheckPositionLocal.Y && CheckPositionLocal.Y <= Extents.Y)
-                  {
-                     Result.Entity = Entity;
-                     Result.Flags |= Collision_Image;
-                  }
+                  Result.Entity = Entity;
                }
             } break;
          }
@@ -1872,7 +1856,7 @@ UpdateAndRenderMenuBar(editor *Editor, platform_input *Input, render_group *Rend
             camera *Camera = &Editor->Camera;
             if (UI_MenuItemF(0, 0, "Reset Position"))
             {
-               SetCameraPosition(Camera, V2(0, 0));
+               TranslateCamera(Camera, -Camera->P);
             }
             if (UI_MenuItemF(0, 0, "Reset Rotation"))
             {
@@ -3271,6 +3255,142 @@ DebugUpdateAndRender(editor *Editor)
 #endif
 }
 
+internal void
+MovePointAlongCurve(entity *Entity, v2 *TranslateInOut, f32 *FractionInOut)
+{
+   v2 Translate = *TranslateInOut;
+   f32 Fraction = *FractionInOut;
+   
+   curve *Curve = SafeGetCurve(Entity);
+   u64 CurvePointCount = Curve->CurvePointCount;
+   local_position *CurvePoints = Curve->CurvePoints;
+   f32 DeltaFraction = 1.0f / (CurvePointCount - 1);
+   
+   {
+      u64 SplitCurvePointIndex = ClampTop(Cast(u64)FloorF32(Fraction * (CurvePointCount - 1)), CurvePointCount - 1);
+      while (SplitCurvePointIndex + 1 < CurvePointCount)
+      {
+         f32 NextFraction = Cast(f32)(SplitCurvePointIndex + 1) / (CurvePointCount - 1);
+         f32 PrevFraction = Cast(f32)SplitCurvePointIndex / (CurvePointCount - 1);
+         Fraction = Clamp(Fraction, PrevFraction, NextFraction);
+         
+         f32 SegmentFraction = (NextFraction - Fraction) / DeltaFraction;
+         SegmentFraction = Clamp(SegmentFraction, 0.0f, 1.0f);
+         
+         v2 CurveSegment =
+            LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex + 1])
+            - LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex]);
+         
+         f32 CurveSegmentLength = Norm(CurveSegment);
+         f32 InvCurveSegmentLength = 1.0f / CurveSegmentLength;
+         
+         f32 ProjectionSegmentFraction = ClampBot(Dot(CurveSegment, Translate) *
+                                                  InvCurveSegmentLength * InvCurveSegmentLength,
+                                                  0.0f);
+         
+         if (SegmentFraction <= ProjectionSegmentFraction)
+         {
+            Fraction = NextFraction;
+            Translate -= SegmentFraction * CurveSegment;
+            SplitCurvePointIndex += 1;
+         }
+         else
+         {
+            Fraction += ProjectionSegmentFraction * DeltaFraction;
+            Translate -= ProjectionSegmentFraction * CurveSegment;
+            break;
+         }
+      }
+   }
+   
+   {
+      u64 SplitCurvePointIndex = ClampTop(Cast(u64)CeilF32(Fraction * (CurvePointCount - 1)), CurvePointCount - 1);
+      while (SplitCurvePointIndex >= 1)
+      {
+         f32 NextFraction = Cast(f32)(SplitCurvePointIndex - 1) / (CurvePointCount - 1);
+         f32 PrevFraction = Cast(f32)SplitCurvePointIndex / (CurvePointCount - 1);
+         Fraction = Clamp(Fraction, NextFraction, PrevFraction);
+         
+         f32 SegmentFraction = (Fraction - NextFraction) / DeltaFraction;
+         SegmentFraction = Clamp(SegmentFraction, 0.0f, 1.0f);
+         
+         v2 CurveSegment =
+            LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex - 1])
+            - LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex]);
+         
+         f32 CurveSegmentLength = Norm(CurveSegment);
+         f32 InvCurveSegmentLength = 1.0f / CurveSegmentLength;
+         
+         f32 ProjectionSegmentFraction = ClampBot(Dot(CurveSegment, Translate) *
+                                                  InvCurveSegmentLength * InvCurveSegmentLength,
+                                                  0.0f);
+         
+         if (SegmentFraction <= ProjectionSegmentFraction)
+         {
+            Fraction = NextFraction;
+            Translate -= SegmentFraction * CurveSegment;
+            SplitCurvePointIndex -= 1;
+         }
+         else
+         {
+            Fraction -= ProjectionSegmentFraction * DeltaFraction;
+            Translate -= ProjectionSegmentFraction * CurveSegment;
+            break;
+         }
+      }
+   }
+   
+   *TranslateInOut = Translate;
+   *FractionInOut = Fraction;
+}
+
+#if 0
+internal void
+MovePointBackwardAlongCurve(entity *Entity, v2 *TranslateInOut, f32 *FractionInOut)
+{
+   v2 Translate = *TranslateInOut;
+   f32 Fraction = *FractionInOut;
+   
+   curve *Curve = SafeGetCurve(Entity);
+   u64 CurvePointCount = Curve->CurvePointCount;
+   f32 DeltaFraction = 1.0f / (CurvePointCount - 1);
+   local_position *CurvePoints = Curve->CurvePoints;
+   
+   u64 SplitCurvePointIndex = ClampTop(Cast(u64)CeilF32(Fraction * (CurvePointCount - 1)), CurvePointCount - 1);
+   while ()
+   {
+      
+      f32 SegmentFraction = (Fraction - NextFraction) / DeltaFraction;
+      SegmentFraction = Clamp(SegmentFraction, 0.0f, 1.0f);
+      
+      v2 CurveSegment = CurvePoints[] - CurvePoints[SplitCurvePointIndex];
+      
+      f32 CurveSegmentLength = Norm(CurveSegment);
+      f32 InvCurveSegmentLength = 1.0f / CurveSegmentLength;
+      
+      f32 ProjectionSegmentFraction = ClampBot(Dot(CurveSegment, Translate) *
+                                               InvCurveSegmentLength * InvCurveSegmentLength,
+                                               0.0f);
+      
+      if (SegmentFraction <= ProjectionSegmentFraction)
+      {
+         Fraction = NextFraction;
+         Translate -= SegmentFraction * CurveSegment;
+         SplitCurvePointIndex -= 1;
+      }
+      else
+      {
+         Fraction -= ProjectionSegmentFraction * DeltaFraction;
+         Translate -= ProjectionSegmentFraction * CurveSegment;
+         break;
+      }
+   }
+   
+   *TranslateInOut = Translate;
+   *FractionInOut = Fraction;
+}
+#endif
+
 EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 {
    TimeFunction;
@@ -3361,6 +3481,8 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    
    //- process events
    editor_left_click_state *LeftClick = &Editor->LeftClick;
+   editor_right_click_state *RightClick = &Editor->RightClick;
+   editor_middle_click_state *MiddleClick = &Editor->MiddleClick;
    for (u64 EventIndex = 0;
         EventIndex < Input->EventCount;
         ++EventIndex)
@@ -3383,9 +3505,10 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
          }
          else
          {
-            Collision = CheckCollisionWith(&Editor->Entities, MouseP,
-                                           RenderGroup->CollisionTolerance,
-                                           Collision_CurvePoint | Collision_CurveLine);
+            Collision = CheckCollisionWith(MAX_ENTITY_COUNT,
+                                           Editor->Entities.Entities,
+                                           MouseP,
+                                           RenderGroup->CollisionTolerance);
          }
          
          b32 DoSelectCurvePoint = false;
@@ -3469,17 +3592,20 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
          
          entity *Entity = LeftClick->TargetEntity;
          v2 Translate = MouseP - LeftClick->LastMouseP;
+         v2 TranslateLocal =
+            WorldToLocalEntityPosition(Entity, MouseP) -
+            WorldToLocalEntityPosition(Entity, LeftClick->LastMouseP);
+         
          
          switch (LeftClick->Mode)
          {
             case EditorLeftClick_MovingTrackingPoint: {
-               curve *Curve = SafeGetCurve(Entity);
-               f32 Fraction = Curve->PointTracking.Fraction;
-               u64 CurvePointCount = Curve->CurvePointCount;
-               f32 DeltaFraction = 1.0f / (CurvePointCount - 1);
-               local_position *CurvePoints = Curve->CurvePoints;
-               curve_point_tracking_state *Tracking = &Curve->PointTracking;
                
+               curve *Curve = SafeGetCurve(Entity);
+               curve_point_tracking_state *Tracking = &Curve->PointTracking;
+               f32 Fraction = Tracking->Fraction;
+               
+#if 1
                if (!LeftClick->OriginalVerticesCaptured)
                {
                   arena *Arena = LeftClick->OriginalVerticesArena;
@@ -3488,82 +3614,13 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
                   LeftClick->OriginalVerticesCaptured = true;
                }
                
-               // NOTE(hbr): Try move forwards
-               {
-                  u64 SplitCurvePointIndex = ClampTop(Cast(u64)FloorF32(Fraction * (CurvePointCount - 1)), CurvePointCount - 1);
-                  while (SplitCurvePointIndex + 1 < CurvePointCount)
-                  {
-                     f32 NextFraction = Cast(f32)(SplitCurvePointIndex + 1) / (CurvePointCount - 1);
-                     f32 PrevFraction = Cast(f32)SplitCurvePointIndex / (CurvePointCount - 1);
-                     Fraction = Clamp(Fraction, PrevFraction, NextFraction);
-                     
-                     f32 SegmentFraction = (NextFraction - Fraction) / DeltaFraction;
-                     SegmentFraction = Clamp(SegmentFraction, 0.0f, 1.0f);
-                     
-                     v2 CurveSegment =
-                        LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex + 1])
-                        - LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex]);
-                     
-                     f32 CurveSegmentLength = Norm(CurveSegment);
-                     f32 InvCurveSegmentLength = 1.0f / CurveSegmentLength;
-                     
-                     f32 ProjectionSegmentFraction = ClampBot(Dot(CurveSegment, Translate) *
-                                                              InvCurveSegmentLength * InvCurveSegmentLength,
-                                                              0.0f);
-                     
-                     if (SegmentFraction <= ProjectionSegmentFraction)
-                     {
-                        Fraction = NextFraction;
-                        Translate -= SegmentFraction * CurveSegment;
-                        SplitCurvePointIndex += 1;
-                     }
-                     else
-                     {
-                        Fraction += ProjectionSegmentFraction * DeltaFraction;
-                        Translate -= ProjectionSegmentFraction * CurveSegment;
-                        break;
-                     }
-                  }
-               }
-               
-               // NOTE(hbr): Try move backwards
-               {
-                  u64 SplitCurvePointIndex = ClampTop(Cast(u64)CeilF32(Fraction * (CurvePointCount - 1)), CurvePointCount - 1);
-                  while (SplitCurvePointIndex >= 1)
-                  {
-                     f32 NextFraction = Cast(f32)(SplitCurvePointIndex - 1) / (CurvePointCount - 1);
-                     f32 PrevFraction = Cast(f32)SplitCurvePointIndex / (CurvePointCount - 1);
-                     Fraction = Clamp(Fraction, NextFraction, PrevFraction);
-                     
-                     f32 SegmentFraction = (Fraction - NextFraction) / DeltaFraction;
-                     SegmentFraction = Clamp(SegmentFraction, 0.0f, 1.0f);
-                     
-                     v2 CurveSegment =
-                        LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex - 1])
-                        - LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex]);
-                     
-                     f32 CurveSegmentLength = Norm(CurveSegment);
-                     f32 InvCurveSegmentLength = 1.0f / CurveSegmentLength;
-                     
-                     f32 ProjectionSegmentFraction = ClampBot(Dot(CurveSegment, Translate) *
-                                                              InvCurveSegmentLength * InvCurveSegmentLength,
-                                                              0.0f);
-                     
-                     if (SegmentFraction <= ProjectionSegmentFraction)
-                     {
-                        Fraction = NextFraction;
-                        Translate -= SegmentFraction * CurveSegment;
-                        SplitCurvePointIndex -= 1;
-                     }
-                     else
-                     {
-                        Fraction -= ProjectionSegmentFraction * DeltaFraction;
-                        Translate -= ProjectionSegmentFraction * CurveSegment;
-                        break;
-                     }
-                  }
-               }
-               
+               MovePointAlongCurve(Entity, &Translate, &Fraction);
+#else
+               curve_point_tracking_state *Tracking = &Entity->Curve.PointTracking;
+               f32 Fraction = Tracking->Fraction;
+               MovePointAlongCurve(Entity, &TranslateLocal, &Fraction, false);
+               MovePointAlongCurve(Entity, &TranslateLocal, &Fraction, true);
+#endif
                SetTrackingPointFraction(Tracking, Fraction);
             }break;
             
@@ -3589,48 +3646,51 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
       }
       
       //- right click events processing
-      if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_RightMouseButton && !Editor->RightClickActive)
+      if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_RightMouseButton && !RightClick->Active)
       {
          Eat = true;
          
-         collision Collision = CheckCollisionWith(&Editor->Entities, MouseP,
-                                                  RenderGroup->CollisionTolerance,
-                                                  Collision_CurvePoint |
-                                                  Collision_TrackedPoint |
-                                                  Collision_Image);
+         collision Collision = CheckCollisionWith(MAX_ENTITY_COUNT,
+                                                  Editor->Entities.Entities,
+                                                  MouseP,
+                                                  RenderGroup->CollisionTolerance);
          
-         Editor->RightClickActive = true;
-         Editor->RightClickP = MouseP;
-         Editor->RightClickCollision = Collision;
+         RightClick->Active = true;
+         RightClick->ClickP = MouseP;
+         RightClick->CollisionAtP = Collision;
          
          entity *Entity = Collision.Entity;
+         if (Collision.Flags & Collision_CurvePoint)
+         {
+            curve *Curve = SafeGetCurve(Entity);
+            SelectControlPointFromCurvePointIndex(Curve, Collision.CurvePointIndex);
+         }
+         
          if (Entity)
          {
-            if (Collision.Flags & Collision_CurvePoint)
-            {
-               curve *Curve = SafeGetCurve(Entity);
-               SelectControlPointFromCurvePointIndex(Curve, Collision.CurvePointIndex);
-            }
+            SelectEntity(Editor, Entity);
          }
-         SelectEntity(Editor, Entity);
       }
       
-      if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_RightMouseButton && Editor->RightClickActive)
+      if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_RightMouseButton && RightClick->Active)
       {
          Eat = true;
-         Editor->RightClickActive = false;
+         RightClick->Active = false;
          
          // NOTE(hbr): perform click action only if button was released roughly in the same place
-         b32 ReleasedClose = (NormSquared(Editor->RightClickP - MouseP) <= RenderGroup->CollisionTolerance);
+         b32 ReleasedClose = (NormSquared(RightClick->ClickP - MouseP) <= Square(RenderGroup->CollisionTolerance));
          if (ReleasedClose)
          {
-            collision *Collision = &Editor->RightClickCollision;
+            collision *Collision = &RightClick->CollisionAtP;
             entity *Entity = Collision->Entity;
             curve *Curve = &Entity->Curve;
             
-            if ((Collision->Flags & Collision_TrackedPoint) && Curve->PointTracking.IsSplitting)
+            if (Collision->Flags & Collision_TrackedPoint)
             {
-               PerformBezierCurveSplit(Editor, Entity);
+               if (Curve->PointTracking.IsSplitting)
+               {
+                  PerformBezierCurveSplit(Editor, Entity);
+               }
             }
             else if (Collision->Flags & Collision_CurvePoint)
             {
@@ -3638,13 +3698,17 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
                {
                   RemoveControlPoint(Entity, Collision->CurvePointIndex.ControlPoint);
                }
-               SelectEntity(Editor, Collision->Entity);
+               else
+               {
+                  SelectControlPointFromCurvePointIndex(Curve, Collision->CurvePointIndex);
+               }
+               SelectEntity(Editor, Entity);
             }
-            else if (Collision->Flags & Collision_Image)
+            else if (Entity)
             {
                DeallocEntity(Editor, Entity);
             }
-            else if (Collision->Flags == 0)
+            else
             {
                DeselectCurrentEntity(Editor);
             }
@@ -3655,22 +3719,35 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
       if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_MiddleMouseButton)
       {
          Eat = true;
-         Editor->MovingCamera = true;
+         MiddleClick->Active = true;
+         MiddleClick->ClipSpaceLastMouseP = Event->ClipSpaceMouseP;
       }
       if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_MiddleMouseButton)
       {
          Eat = true;
-         Editor->MovingCamera = false;
+         MiddleClick->Active = false;
       }
-      if (!Eat && Event->Type == PlatformEvent_MouseMove && Editor->MovingCamera)
+      if (!Eat && Event->Type == PlatformEvent_MouseMove && MiddleClick->Active)
       {
          // NOTE(hbr): don't eat mouse move event
-         SetCameraPosition(&Editor->Camera, MouseP);
+         
+         v2 LastMouseP = ClipToWorld(MiddleClick->ClipSpaceLastMouseP, RenderGroup);
+         v2 Translate = MouseP - LastMouseP;
+         TranslateCamera(&Editor->Camera, -Translate);
+         MiddleClick->ClipSpaceLastMouseP = Event->ClipSpaceMouseP;
       }
+      
       if (!Eat && Event->Type == PlatformEvent_Scroll)
       {
          Eat = true;
          ZoomCamera(&Editor->Camera, Event->ScrollDelta);
+      }
+      
+      //- some general input handling
+      if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Escape)
+      {
+         Eat = true;
+         Input->QuitRequested = true;
       }
       
       //-
@@ -3680,161 +3757,21 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
       }
    }
    
+   // NOTE(hbr): these "sanity checks" are only necessary because ImGui captured any input that ends
+   // with some possible ImGui interaction - e.g. we start by clicking in our editor but end releasing
+   // on some ImGui window
    if (!Input->Pressed[PlatformKey_LeftMouseButton])
    {
       LeftClick->Active = false;
    }
-   
-   temp_arena Temp = TempArena(0);
-   for (u64 EventIndex = 0;
-        EventIndex < Input->EventCount;
-        ++EventIndex)
+   if (!Input->Pressed[PlatformKey_RightMouseButton])
    {
-      platform_event *Event = Input->Events + EventIndex;
-      string KeyStr = {};
-      switch (Event->Key)
-      {
-         case PlatformKey_Unknown: {KeyStr=StrLit("Unknown");}break;
-         case PlatformKey_F1: {KeyStr=StrLit("F1");}break;
-         case PlatformKey_F2: {KeyStr=StrLit("F2");}break;
-         case PlatformKey_F3: {KeyStr=StrLit("F3");}break;
-         case PlatformKey_F4: {KeyStr=StrLit("F4");}break;
-         case PlatformKey_F5: {KeyStr=StrLit("F5");}break;
-         case PlatformKey_F6: {KeyStr=StrLit("F6");}break;
-         case PlatformKey_F7: {KeyStr=StrLit("F7");}break;
-         case PlatformKey_F8: {KeyStr=StrLit("F8");}break;
-         case PlatformKey_F9: {KeyStr=StrLit("F9");}break;
-         case PlatformKey_F10: {KeyStr=StrLit("F10");}break;
-         case PlatformKey_F11: {KeyStr=StrLit("F11");}break;
-         case PlatformKey_F12: {KeyStr=StrLit("F12");}break;
-         case PlatformKey_A: {KeyStr=StrLit("A");}break;
-         case PlatformKey_B: {KeyStr=StrLit("B");}break;
-         case PlatformKey_C: {KeyStr=StrLit("C");}break;
-         case PlatformKey_D: {KeyStr=StrLit("D");}break;
-         case PlatformKey_E: {KeyStr=StrLit("E");}break;
-         case PlatformKey_F: {KeyStr=StrLit("F");}break;
-         case PlatformKey_G: {KeyStr=StrLit("G");}break;
-         case PlatformKey_H: {KeyStr=StrLit("H");}break;
-         case PlatformKey_I: {KeyStr=StrLit("I");}break;
-         case PlatformKey_J: {KeyStr=StrLit("J");}break;
-         case PlatformKey_K: {KeyStr=StrLit("K");}break;
-         case PlatformKey_L: {KeyStr=StrLit("L");}break;
-         case PlatformKey_M: {KeyStr=StrLit("M");}break;
-         case PlatformKey_N: {KeyStr=StrLit("N");}break;
-         case PlatformKey_O: {KeyStr=StrLit("O");}break;
-         case PlatformKey_P: {KeyStr=StrLit("P");}break;
-         case PlatformKey_Q: {KeyStr=StrLit("Q");}break;
-         case PlatformKey_R: {KeyStr=StrLit("R");}break;
-         case PlatformKey_S: {KeyStr=StrLit("S");}break;
-         case PlatformKey_T: {KeyStr=StrLit("T");}break;
-         case PlatformKey_U: {KeyStr=StrLit("U");}break;
-         case PlatformKey_V: {KeyStr=StrLit("V");}break;
-         case PlatformKey_W: {KeyStr=StrLit("W");}break;
-         case PlatformKey_X: {KeyStr=StrLit("X");}break;
-         case PlatformKey_Y: {KeyStr=StrLit("Y");}break;
-         case PlatformKey_Z: {KeyStr=StrLit("Z");}break;
-         case PlatformKey_Escape: {KeyStr=StrLit("Escape");}break;
-         case PlatformKey_LeftShift: {KeyStr=StrLit("LeftShift");}break;
-         case PlatformKey_RightShift: {KeyStr=StrLit("RightShift");}break;
-         case PlatformKey_LeftCtrl: {KeyStr=StrLit("LeftCtrl");}break;
-         case PlatformKey_RightCtrl: {KeyStr=StrLit("RightCtrl");}break;
-         case PlatformKey_LeftAlt: {KeyStr=StrLit("LeftAlt");}break;
-         case PlatformKey_RightAlt: {KeyStr=StrLit("RightAlt");}break;
-         case PlatformKey_Space: {KeyStr=StrLit("Space");}break;
-         case PlatformKey_Tab: {KeyStr=StrLit("Tab");}break;
-         case PlatformKey_LeftMouseButton: {KeyStr=StrLit("LeftMouseButton");}break;
-         case PlatformKey_RightMouseButton: {KeyStr=StrLit("RightMouseButton");}break;
-         case PlatformKey_MiddleMouseButton: {KeyStr=StrLit("MiddleMouseButton");}break;
-         case PlatformKey_Count: {KeyStr=StrLit("Count");}break;
-      }
-      
-      string_list Flags = {};
-      if (Event->Flags & PlatformEventFlag_Alt) StrListPush(Temp.Arena, &Flags, StrLit("Alt"));
-      if (Event->Flags & PlatformEventFlag_Shift) StrListPush(Temp.Arena, &Flags, StrLit("Shift"));
-      if (Event->Flags & PlatformEventFlag_Ctrl) StrListPush(Temp.Arena, &Flags, StrLit("Ctrl"));
-      string FlagsStr = StrListJoin(Temp.Arena, &Flags, StrLit("|"));
-      
-      string TypeStr = {};
-      switch (Event->Type)
-      {
-         case PlatformEvent_MouseMove: {TypeStr=StrLit("MouseMove");}break;
-         case PlatformEvent_Scroll: {TypeStr=StrLit("Scroll");}break;
-         case PlatformEvent_Press: {TypeStr=StrLit("Press");}break;
-         case PlatformEvent_Release: {TypeStr=StrLit("Release");}break;
-      }
-      
-      string ClipSpaceMousePStr = StrF(Temp.Arena, "(%f,%f)", Event->ClipSpaceMouseP.X, Event->ClipSpaceMouseP.Y);
-      string ScrollDeltaStr = StrF(Temp.Arena, "%f", Event->ScrollDelta);
-      
-      OutputDebugF("%S %S %S %S %S\n", TypeStr, KeyStr, FlagsStr, ClipSpaceMousePStr, ScrollDeltaStr);
+      RightClick->Active = false;
    }
-   for (u64 KeyIndex = 0;
-        KeyIndex < PlatformKey_Count;
-        ++KeyIndex)
+   if (!Input->Pressed[PlatformKey_MiddleMouseButton])
    {
-      string KeyStr = {};
-      switch (Cast(platform_key)KeyIndex)
-      {
-         case PlatformKey_Unknown: {KeyStr=StrLit("Unknown");}break;
-         case PlatformKey_F1: {KeyStr=StrLit("F1");}break;
-         case PlatformKey_F2: {KeyStr=StrLit("F2");}break;
-         case PlatformKey_F3: {KeyStr=StrLit("F3");}break;
-         case PlatformKey_F4: {KeyStr=StrLit("F4");}break;
-         case PlatformKey_F5: {KeyStr=StrLit("F5");}break;
-         case PlatformKey_F6: {KeyStr=StrLit("F6");}break;
-         case PlatformKey_F7: {KeyStr=StrLit("F7");}break;
-         case PlatformKey_F8: {KeyStr=StrLit("F8");}break;
-         case PlatformKey_F9: {KeyStr=StrLit("F9");}break;
-         case PlatformKey_F10: {KeyStr=StrLit("F10");}break;
-         case PlatformKey_F11: {KeyStr=StrLit("F11");}break;
-         case PlatformKey_F12: {KeyStr=StrLit("F12");}break;
-         case PlatformKey_A: {KeyStr=StrLit("A");}break;
-         case PlatformKey_B: {KeyStr=StrLit("B");}break;
-         case PlatformKey_C: {KeyStr=StrLit("C");}break;
-         case PlatformKey_D: {KeyStr=StrLit("D");}break;
-         case PlatformKey_E: {KeyStr=StrLit("E");}break;
-         case PlatformKey_F: {KeyStr=StrLit("F");}break;
-         case PlatformKey_G: {KeyStr=StrLit("G");}break;
-         case PlatformKey_H: {KeyStr=StrLit("H");}break;
-         case PlatformKey_I: {KeyStr=StrLit("I");}break;
-         case PlatformKey_J: {KeyStr=StrLit("J");}break;
-         case PlatformKey_K: {KeyStr=StrLit("K");}break;
-         case PlatformKey_L: {KeyStr=StrLit("L");}break;
-         case PlatformKey_M: {KeyStr=StrLit("M");}break;
-         case PlatformKey_N: {KeyStr=StrLit("N");}break;
-         case PlatformKey_O: {KeyStr=StrLit("O");}break;
-         case PlatformKey_P: {KeyStr=StrLit("P");}break;
-         case PlatformKey_Q: {KeyStr=StrLit("Q");}break;
-         case PlatformKey_R: {KeyStr=StrLit("R");}break;
-         case PlatformKey_S: {KeyStr=StrLit("S");}break;
-         case PlatformKey_T: {KeyStr=StrLit("T");}break;
-         case PlatformKey_U: {KeyStr=StrLit("U");}break;
-         case PlatformKey_V: {KeyStr=StrLit("V");}break;
-         case PlatformKey_W: {KeyStr=StrLit("W");}break;
-         case PlatformKey_X: {KeyStr=StrLit("X");}break;
-         case PlatformKey_Y: {KeyStr=StrLit("Y");}break;
-         case PlatformKey_Z: {KeyStr=StrLit("Z");}break;
-         case PlatformKey_Escape: {KeyStr=StrLit("Escape");}break;
-         case PlatformKey_LeftShift: {KeyStr=StrLit("LeftShift");}break;
-         case PlatformKey_RightShift: {KeyStr=StrLit("RightShift");}break;
-         case PlatformKey_LeftCtrl: {KeyStr=StrLit("LeftCtrl");}break;
-         case PlatformKey_RightCtrl: {KeyStr=StrLit("RightCtrl");}break;
-         case PlatformKey_LeftAlt: {KeyStr=StrLit("LeftAlt");}break;
-         case PlatformKey_RightAlt: {KeyStr=StrLit("RightAlt");}break;
-         case PlatformKey_Space: {KeyStr=StrLit("Space");}break;
-         case PlatformKey_Tab: {KeyStr=StrLit("Tab");}break;
-         case PlatformKey_LeftMouseButton: {KeyStr=StrLit("LeftMouseButton");}break;
-         case PlatformKey_RightMouseButton: {KeyStr=StrLit("RightMouseButton");}break;
-         case PlatformKey_MiddleMouseButton: {KeyStr=StrLit("MiddleMouseButton");}break;
-         case PlatformKey_Count: {KeyStr=StrLit("Count");}break;
-      }
-      
-      if (Input->Pressed[KeyIndex])
-      {
-         OutputDebugF("pressed %S\n", KeyStr);
-      }
+      MiddleClick->Active = false;
    }
-   EndTemp(Temp);
    
    //- update camera
    {
@@ -3844,13 +3781,22 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
          f32 t = 1.0f - PowF32(2.0f, -Camera->ReachingTargetSpeed * Input->dtForFrame);
          Camera->P = Lerp(Camera->P, Camera->TargetP, t);
          Camera->Zoom = Lerp(Camera->Zoom, Camera->TargetZoom, t);
+         
          if (ApproxEq32(Camera->Zoom, Camera->TargetZoom) &&
              ApproxEq32(Camera->P.X, Camera->TargetP.X) &&
              ApproxEq32(Camera->P.Y, Camera->TargetP.Y))
          {
+            Camera->P = Camera->TargetP;
+            Camera->Zoom = Camera->TargetZoom;
             Camera->ReachingTarget = false;
          }
       }
+   }
+   
+   if (RightClick->Active)
+   {
+      v4 Color = V4(0.5f, 0.5f, 0.5f, 0.3f);
+      PushCircle(RenderGroup, RightClick->ClickP, RenderGroup->CollisionTolerance, Color, 0.0f);
    }
    
 #if 0

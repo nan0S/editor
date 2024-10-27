@@ -94,8 +94,9 @@ struct platform_input
    platform_event *Events;
    b32 Pressed[PlatformKey_Count];
    f32 dtForFrame;
+   v2 ClipSpaceMouseP;
    
-   // NOTE(hbr): Filled by application
+   // NOTE(hbr): Set by application
    b32 QuitRequested;
 };
 

@@ -204,6 +204,9 @@ SFMLHandleInput(platform_input *Input,
          default: {} break;
       }
    }
+   
+   sf::Vector2i MouseP = sf::Mouse::getPosition();
+   Input->ClipSpaceMouseP = SFMLScreenToClip(MouseP.x, MouseP.y, WindowDim);
 }
 
 int main()

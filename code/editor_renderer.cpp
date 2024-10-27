@@ -111,6 +111,7 @@ MakeRenderTransform(v2 P, rotation_2d Rotation, v2 Scale)
    A.Scale = V2(1.0f / Scale.X, 1.0f / Scale.Y);
    A.Rotation = Rotation2DInverse(Rotation);
    A.Offset = -RotateAround(P, V2(0, 0), A.Rotation);
+   A.Offset = Hadamard(A.Offset, A.Scale);
    
    transform B = {};
    B.Scale = Scale;
@@ -139,7 +140,7 @@ BeginRenderGroup(render_frame *Frame,
    Result.CameraToClip = MakeRenderTransform(V2(0, 0), Rotation2DZero(), V2(AspectRatio, 1.0f));
    Result.ClipToScreen = MakeRenderTransform(-V2(1.0f, -1.0f),
                                              Rotation2DZero(),
-                                             2.0f * V2(1.0f / WindowDim.X, -1.0f / WindowDim.Y));
+                                             V2(2.0f / WindowDim.X, -2.0f / WindowDim.Y));
    
    Result.ProjXForm.Forward = Result.CameraToClip.Forward * Result.WorldToCamera.Forward;
    Result.ProjXForm.Inverse = Result.WorldToCamera.Inverse * Result.CameraToClip.Inverse;

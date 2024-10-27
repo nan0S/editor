@@ -3256,140 +3256,50 @@ DebugUpdateAndRender(editor *Editor)
 }
 
 internal void
-MovePointAlongCurve(entity *Entity, v2 *TranslateInOut, f32 *FractionInOut)
+MovePointAlongCurve(curve *Curve, v2 *TranslateInOut, f32 *PointFractionInOut, b32 Forward)
 {
    v2 Translate = *TranslateInOut;
-   f32 Fraction = *FractionInOut;
+   f32 Fraction = *PointFractionInOut;
    
-   curve *Curve = SafeGetCurve(Entity);
    u64 CurvePointCount = Curve->CurvePointCount;
    local_position *CurvePoints = Curve->CurvePoints;
    f32 DeltaFraction = 1.0f / (CurvePointCount - 1);
    
-   {
-      u64 SplitCurvePointIndex = ClampTop(Cast(u64)FloorF32(Fraction * (CurvePointCount - 1)), CurvePointCount - 1);
-      while (SplitCurvePointIndex + 1 < CurvePointCount)
-      {
-         f32 NextFraction = Cast(f32)(SplitCurvePointIndex + 1) / (CurvePointCount - 1);
-         f32 PrevFraction = Cast(f32)SplitCurvePointIndex / (CurvePointCount - 1);
-         Fraction = Clamp(Fraction, PrevFraction, NextFraction);
-         
-         f32 SegmentFraction = (NextFraction - Fraction) / DeltaFraction;
-         SegmentFraction = Clamp(SegmentFraction, 0.0f, 1.0f);
-         
-         v2 CurveSegment =
-            LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex + 1])
-            - LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex]);
-         
-         f32 CurveSegmentLength = Norm(CurveSegment);
-         f32 InvCurveSegmentLength = 1.0f / CurveSegmentLength;
-         
-         f32 ProjectionSegmentFraction = ClampBot(Dot(CurveSegment, Translate) *
-                                                  InvCurveSegmentLength * InvCurveSegmentLength,
-                                                  0.0f);
-         
-         if (SegmentFraction <= ProjectionSegmentFraction)
-         {
-            Fraction = NextFraction;
-            Translate -= SegmentFraction * CurveSegment;
-            SplitCurvePointIndex += 1;
-         }
-         else
-         {
-            Fraction += ProjectionSegmentFraction * DeltaFraction;
-            Translate -= ProjectionSegmentFraction * CurveSegment;
-            break;
-         }
-      }
-   }
+   f32 PointIndexFloat = Fraction * (CurvePointCount - 1);
+   u64 PointIndex = Cast(u64)(Forward ? FloorF32(PointIndexFloat) : CeilF32(PointIndexFloat));
+   PointIndex = ClampTop(PointIndex, CurvePointCount - 1);
    
+   s64 DirSign = (Forward ? 1 : -1);
+   
+   b32 Moving = true;
+   while (Moving)
    {
-      u64 SplitCurvePointIndex = ClampTop(Cast(u64)CeilF32(Fraction * (CurvePointCount - 1)), CurvePointCount - 1);
-      while (SplitCurvePointIndex >= 1)
+      u64 PrevPointIndex = PointIndex;
+      PointIndex += DirSign;
+      if (PointIndex >= CurvePointCount)
       {
-         f32 NextFraction = Cast(f32)(SplitCurvePointIndex - 1) / (CurvePointCount - 1);
-         f32 PrevFraction = Cast(f32)SplitCurvePointIndex / (CurvePointCount - 1);
-         Fraction = Clamp(Fraction, NextFraction, PrevFraction);
+         Moving = false;
+      }
+      
+      if (Moving)
+      {
+         v2 AlongCurve = CurvePoints[PointIndex] - CurvePoints[PrevPointIndex];
+         f32 AlongCurveLength = Norm(AlongCurve);
+         f32 InvAlongCurveLength = 1.0f / AlongCurveLength;
+         f32 Projection = Clamp01(Dot(AlongCurve, Translate) * InvAlongCurveLength * InvAlongCurveLength);
+         Translate -= Projection * AlongCurve;
+         Fraction += DirSign * Projection * DeltaFraction;
          
-         f32 SegmentFraction = (Fraction - NextFraction) / DeltaFraction;
-         SegmentFraction = Clamp(SegmentFraction, 0.0f, 1.0f);
-         
-         v2 CurveSegment =
-            LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex - 1])
-            - LocalEntityPositionToWorld(Entity, CurvePoints[SplitCurvePointIndex]);
-         
-         f32 CurveSegmentLength = Norm(CurveSegment);
-         f32 InvCurveSegmentLength = 1.0f / CurveSegmentLength;
-         
-         f32 ProjectionSegmentFraction = ClampBot(Dot(CurveSegment, Translate) *
-                                                  InvCurveSegmentLength * InvCurveSegmentLength,
-                                                  0.0f);
-         
-         if (SegmentFraction <= ProjectionSegmentFraction)
+         if (Projection < 1.0f)
          {
-            Fraction = NextFraction;
-            Translate -= SegmentFraction * CurveSegment;
-            SplitCurvePointIndex -= 1;
-         }
-         else
-         {
-            Fraction -= ProjectionSegmentFraction * DeltaFraction;
-            Translate -= ProjectionSegmentFraction * CurveSegment;
-            break;
+            Moving = false;
          }
       }
    }
    
    *TranslateInOut = Translate;
-   *FractionInOut = Fraction;
+   *PointFractionInOut = Fraction;
 }
-
-#if 0
-internal void
-MovePointBackwardAlongCurve(entity *Entity, v2 *TranslateInOut, f32 *FractionInOut)
-{
-   v2 Translate = *TranslateInOut;
-   f32 Fraction = *FractionInOut;
-   
-   curve *Curve = SafeGetCurve(Entity);
-   u64 CurvePointCount = Curve->CurvePointCount;
-   f32 DeltaFraction = 1.0f / (CurvePointCount - 1);
-   local_position *CurvePoints = Curve->CurvePoints;
-   
-   u64 SplitCurvePointIndex = ClampTop(Cast(u64)CeilF32(Fraction * (CurvePointCount - 1)), CurvePointCount - 1);
-   while ()
-   {
-      
-      f32 SegmentFraction = (Fraction - NextFraction) / DeltaFraction;
-      SegmentFraction = Clamp(SegmentFraction, 0.0f, 1.0f);
-      
-      v2 CurveSegment = CurvePoints[] - CurvePoints[SplitCurvePointIndex];
-      
-      f32 CurveSegmentLength = Norm(CurveSegment);
-      f32 InvCurveSegmentLength = 1.0f / CurveSegmentLength;
-      
-      f32 ProjectionSegmentFraction = ClampBot(Dot(CurveSegment, Translate) *
-                                               InvCurveSegmentLength * InvCurveSegmentLength,
-                                               0.0f);
-      
-      if (SegmentFraction <= ProjectionSegmentFraction)
-      {
-         Fraction = NextFraction;
-         Translate -= SegmentFraction * CurveSegment;
-         SplitCurvePointIndex -= 1;
-      }
-      else
-      {
-         Fraction -= ProjectionSegmentFraction * DeltaFraction;
-         Translate -= ProjectionSegmentFraction * CurveSegment;
-         break;
-      }
-   }
-   
-   *TranslateInOut = Translate;
-   *FractionInOut = Fraction;
-}
-#endif
 
 EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 {
@@ -3458,6 +3368,20 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
       Editor->Initialized = true;
       
       Editor->LeftClick.OriginalVerticesArena = AllocArena();
+      
+      entity *Entity = AllocEntity(Editor);
+      InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("special"), 0);
+      curve_params Params = Editor->CurveDefaultParams;
+      Params.InterpolationType = Interpolation_Bezier;
+      InitCurve(Entity, Params);
+      
+      AppendControlPoint(Entity, V2(-0.5f, -0.5f));
+      AppendControlPoint(Entity, V2(+0.5f, -0.5f));
+      AppendControlPoint(Entity, V2(+0.5f, +0.5f));
+      AppendControlPoint(Entity, V2(-0.5f, +0.5f));
+      
+      BeginCurvePointTracking(&Entity->Curve, false);
+      SetTrackingPointFraction(&Entity->Curve.PointTracking, 0.5f);
    }
    
    // NOTE(hbr): Beginning profiling frame is inside the loop, because we have only
@@ -3592,20 +3516,14 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
          
          entity *Entity = LeftClick->TargetEntity;
          v2 Translate = MouseP - LeftClick->LastMouseP;
-         v2 TranslateLocal =
-            WorldToLocalEntityPosition(Entity, MouseP) -
-            WorldToLocalEntityPosition(Entity, LeftClick->LastMouseP);
-         
+         v2 TranslateLocal = (WorldToLocalEntityPosition(Entity, MouseP) -
+                              WorldToLocalEntityPosition(Entity, LeftClick->LastMouseP));
          
          switch (LeftClick->Mode)
          {
             case EditorLeftClick_MovingTrackingPoint: {
-               
                curve *Curve = SafeGetCurve(Entity);
-               curve_point_tracking_state *Tracking = &Curve->PointTracking;
-               f32 Fraction = Tracking->Fraction;
                
-#if 1
                if (!LeftClick->OriginalVerticesCaptured)
                {
                   arena *Arena = LeftClick->OriginalVerticesArena;
@@ -3614,13 +3532,11 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
                   LeftClick->OriginalVerticesCaptured = true;
                }
                
-               MovePointAlongCurve(Entity, &Translate, &Fraction);
-#else
-               curve_point_tracking_state *Tracking = &Entity->Curve.PointTracking;
+               curve_point_tracking_state *Tracking = &Curve->PointTracking;
                f32 Fraction = Tracking->Fraction;
-               MovePointAlongCurve(Entity, &TranslateLocal, &Fraction, false);
-               MovePointAlongCurve(Entity, &TranslateLocal, &Fraction, true);
-#endif
+               MovePointAlongCurve(Curve, &TranslateLocal, &Fraction, true);
+               MovePointAlongCurve(Curve, &TranslateLocal, &Fraction, false);
+               
                SetTrackingPointFraction(Tracking, Fraction);
             }break;
             

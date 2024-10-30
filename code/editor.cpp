@@ -178,6 +178,8 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
   if (IsEntityVisible(Entity))
   {
    v2 LocalAtP = WorldToLocalEntityPosition(Entity, AtP);
+   // TODO(hbr): Note that Tolerance becomes wrong when we want to compute everything in
+   // local space, fix that
    switch (Entity->Type)
    {
     case Entity_Curve: {
@@ -2702,355 +2704,371 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   Editor->Initialized = true;
  }
  
- camera *Camera = &Editor->Camera;
- render_group RenderGroup_ =  BeginRenderGroup(Frame,
-                                               Camera->P, Camera->Rotation, Camera->Zoom,
-                                               Editor->BackgroundColor,
-                                               Editor->CollisionToleranceClip,
-                                               Editor->RotationRadiusClip);
+ render_group RenderGroup_;
  render_group *RenderGroup = &RenderGroup_;
- Editor->RenderGroup = RenderGroup;
- 
- //- process events
- editor_left_click_state *LeftClick = &Editor->LeftClick;
- editor_right_click_state *RightClick = &Editor->RightClick;
- editor_middle_click_state *MiddleClick = &Editor->MiddleClick;
- for (u64 EventIndex = 0;
-      EventIndex < Input->EventCount;
-      ++EventIndex)
  {
-  platform_event *Event = Input->Events + EventIndex;
-  b32 Eat = false;
-  v2 MouseP = ClipToWorld(Event->ClipSpaceMouseP, RenderGroup);
-  
-  //- left click events processing
-  if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_LeftMouseButton && !LeftClick->Active)
+  camera *Camera = &Editor->Camera;
+  RenderGroup_ = BeginRenderGroup(Frame,
+                                  Camera->P, Camera->Rotation, Camera->Zoom,
+                                  Editor->BackgroundColor,
+                                  Editor->CollisionToleranceClip,
+                                  Editor->RotationRadiusClip);
+  Editor->RenderGroup = RenderGroup;
+ }
+ 
+ //- process events and update click events
+ {
+  editor_left_click_state *LeftClick = &Editor->LeftClick;
+  editor_right_click_state *RightClick = &Editor->RightClick;
+  editor_middle_click_state *MiddleClick = &Editor->MiddleClick;
+  for (u64 EventIndex = 0;
+       EventIndex < Input->EventCount;
+       ++EventIndex)
   {
-   Eat = true;
+   platform_event *Event = Input->Events + EventIndex;
+   b32 Eat = false;
+   v2 MouseP = ClipToWorld(Event->ClipSpaceMouseP, RenderGroup);
    
-   LeftClick->Active = true;
-   LeftClick->OriginalVerticesCaptured = false;
-   LeftClick->LastMouseP = MouseP;
-   
-   collision Collision = {};
-   if (Input->Pressed[PlatformKey_LeftAlt])
+   //- left click events processing
+   if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_LeftMouseButton && !LeftClick->Active)
    {
-    // NOTE(hbr): Force no collision, so that user can add control point wherever they want
-   }
-   else
-   {
-    Collision = CheckCollisionWith(MAX_ENTITY_COUNT,
-                                   Editor->Entities.Entities,
-                                   MouseP,
-                                   RenderGroup->CollisionTolerance);
-   }
-   
-   curve *Curve = &Collision.Entity->Curve;
-   curve_point_tracking_state *Tracking = &Curve->PointTracking;
-   if (Collision.Entity && Input->Pressed[PlatformKey_LeftCtrl])
-   {
-    // NOTE(hbr): just move entity if ctrl is pressed
-    LeftClick->Mode = EditorLeftClick_MovingEntity;
-    LeftClick->TargetEntity = Collision.Entity;
-   }
-   else if ((Collision.Flags & Collision_CurveLine) && Tracking->Active)
-   {
-    LeftClick->Mode = EditorLeftClick_MovingTrackingPoint;
-    LeftClick->TargetEntity = Collision.Entity;
+    Eat = true;
     
-    f32 Fraction = SafeDiv0(Cast(f32)Collision.CurveLinePointIndex, (Curve->CurvePointCount- 1));
-    SetTrackingPointFraction(Tracking, Fraction);
-   }
-   else if (Collision.Flags & Collision_CurvePoint)
-   {
-    LeftClick->Mode = EditorLeftClick_MovingCurvePoint;
-    LeftClick->TargetEntity = Collision.Entity;
-    LeftClick->CurvePointIndex = Collision.CurvePointIndex;
-   }
-   else if (Collision.Flags & Collision_CurveLine)
-   {
-    control_point_index Index = CurveLinePointIndexToControlPointIndex(Curve, Collision.CurveLinePointIndex);
-    u64 InsertAt = Index.Index + 1;
-    InsertControlPoint(Collision.Entity, MouseP, InsertAt);
+    LeftClick->Active = true;
+    LeftClick->OriginalVerticesCaptured = false;
+    LeftClick->LastMouseP = MouseP;
     
-    LeftClick->Mode = EditorLeftClick_MovingCurvePoint;
-    LeftClick->TargetEntity = Collision.Entity;
-    LeftClick->CurvePointIndex = CurvePointIndexFromControlPointIndex(MakeControlPointIndex(InsertAt));
-   }
-   else if (Collision.Flags & Collision_TrackedPoint)
-   {
-    // NOTE(hbr): This shouldn't really happen, Collision_CurveLine should be set as well.
-    // But if it does, just backout.
-    LeftClick->Active = false;
-   }
-   else
-   {
-    if (Editor->SelectedEntity && Editor->SelectedEntity->Type == Entity_Curve)
+    collision Collision = {};
+    if (Input->Pressed[PlatformKey_LeftAlt])
     {
-     LeftClick->TargetEntity = Editor->SelectedEntity;
+     // NOTE(hbr): Force no collision, so that user can add control point wherever they want
     }
     else
     {
-     temp_arena Temp = TempArena(0);
-     entity *Entity = AllocEntity(Editor);
-     string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EntityCounter++);
-     InitEntity(Entity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
-     InitCurve(Entity, Editor->CurveDefaultParams);
-     EndTemp(Temp);
-     
-     LeftClick->TargetEntity = Entity;
+     Collision = CheckCollisionWith(MAX_ENTITY_COUNT,
+                                    Editor->Entities.Entities,
+                                    MouseP,
+                                    RenderGroup->CollisionTolerance);
     }
-    Assert(LeftClick->TargetEntity);
     
-    LeftClick->Mode = EditorLeftClick_MovingCurvePoint;
-    LeftClick->CurvePointIndex = CurvePointIndexFromControlPointIndex(AppendControlPoint(LeftClick->TargetEntity, MouseP));
-   }
-   
-   SelectEntity(Editor, LeftClick->TargetEntity);
-   if (LeftClick->Mode == EditorLeftClick_MovingCurvePoint)
-   {
-    SelectControlPointFromCurvePointIndex(SafeGetCurve(LeftClick->TargetEntity),
-                                          LeftClick->CurvePointIndex);
-   }
-  }
-  
-  if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_LeftMouseButton && LeftClick->Active)
-  {
-   Eat = true;
-   LeftClick->Active = false;
-  }
-  
-  if (!Eat && Event->Type == PlatformEvent_MouseMove && LeftClick->Active)
-  {
-   // NOTE(hbr): don't eat mouse move event
-   
-   entity *Entity = LeftClick->TargetEntity;
-   v2 Translate = MouseP - LeftClick->LastMouseP;
-   v2 TranslateLocal = (WorldToLocalEntityPosition(Entity, MouseP) -
-                        WorldToLocalEntityPosition(Entity, LeftClick->LastMouseP));
-   
-   switch (LeftClick->Mode)
-   {
-    case EditorLeftClick_MovingTrackingPoint: {
-     curve *Curve = SafeGetCurve(Entity);
-     curve_point_tracking_state *Tracking = &Curve->PointTracking;
-     f32 Fraction = Tracking->Fraction;
-     MovePointAlongCurve(Curve, &TranslateLocal, &Fraction, true);
-     MovePointAlongCurve(Curve, &TranslateLocal, &Fraction, false);
+    curve *Curve = &Collision.Entity->Curve;
+    curve_point_tracking_state *Tracking = &Curve->PointTracking;
+    if (Collision.Entity && Input->Pressed[PlatformKey_LeftCtrl])
+    {
+     // NOTE(hbr): just move entity if ctrl is pressed
+     LeftClick->Mode = EditorLeftClick_MovingEntity;
+     LeftClick->TargetEntity = Collision.Entity;
+    }
+    else if ((Collision.Flags & Collision_CurveLine) && Tracking->Active)
+    {
+     LeftClick->Mode = EditorLeftClick_MovingTrackingPoint;
+     LeftClick->TargetEntity = Collision.Entity;
      
+     f32 Fraction = SafeDiv0(Cast(f32)Collision.CurveLinePointIndex, (Curve->CurvePointCount- 1));
      SetTrackingPointFraction(Tracking, Fraction);
-    }break;
-    
-    case EditorLeftClick_MovingCurvePoint: {
-     if (!LeftClick->OriginalVerticesCaptured)
-     {
-      curve *Curve = SafeGetCurve(Entity);
-      arena *Arena = LeftClick->OriginalVerticesArena;
-      ClearArena(Arena);
-      LeftClick->OriginalLineVertices = CopyLineVertices(Arena, Curve->CurveVertices);
-      LeftClick->OriginalVerticesCaptured = true;
-     }
-     
-     translate_curve_point_flags Flags = 0;
-     if (Input->Pressed[PlatformKey_LeftShift])
-     {
-      Flags |= TranslateCurvePoint_MatchBezierTwinDirection;
-     }
-     if (Input->Pressed[PlatformKey_LeftCtrl])
-     {
-      Flags |= TranslateCurvePoint_MatchBezierTwinLength;
-     }
-     SetCurvePoint(Entity, LeftClick->CurvePointIndex, MouseP, Flags);
-    }break;
-    
-    case EditorLeftClick_MovingEntity: {
-     Entity->Position += Translate;
-    }break;
-   }
-   
-   LeftClick->LastMouseP = MouseP;
-  }
-  
-  //- right click events processing
-  if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_RightMouseButton && !RightClick->Active)
-  {
-   Eat = true;
-   
-   collision Collision = CheckCollisionWith(MAX_ENTITY_COUNT,
-                                            Editor->Entities.Entities,
-                                            MouseP,
-                                            RenderGroup->CollisionTolerance);
-   
-   RightClick->Active = true;
-   RightClick->ClickP = MouseP;
-   RightClick->CollisionAtP = Collision;
-   
-   entity *Entity = Collision.Entity;
-   if (Collision.Flags & Collision_CurvePoint)
-   {
-    curve *Curve = SafeGetCurve(Entity);
-    SelectControlPointFromCurvePointIndex(Curve, Collision.CurvePointIndex);
-   }
-   
-   if (Entity)
-   {
-    SelectEntity(Editor, Entity);
-   }
-  }
-  
-  if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_RightMouseButton && RightClick->Active)
-  {
-   Eat = true;
-   RightClick->Active = false;
-   
-   // NOTE(hbr): perform click action only if button was released roughly in the same place
-   b32 ReleasedClose = (NormSquared(RightClick->ClickP - MouseP) <= Square(RenderGroup->CollisionTolerance));
-   if (ReleasedClose)
-   {
-    collision *Collision = &RightClick->CollisionAtP;
-    entity *Entity = Collision->Entity;
-    curve *Curve = &Entity->Curve;
-    
-    if (Collision->Flags & Collision_TrackedPoint)
-    {
-     if (Curve->PointTracking.IsSplitting)
-     {
-      PerformBezierCurveSplit(Editor, Entity);
-     }
     }
-    else if (Collision->Flags & Collision_CurvePoint)
+    else if (Collision.Flags & Collision_CurvePoint)
     {
-     if (Collision->CurvePointIndex.Type == CurvePoint_ControlPoint)
+     LeftClick->Mode = EditorLeftClick_MovingCurvePoint;
+     LeftClick->TargetEntity = Collision.Entity;
+     LeftClick->CurvePointIndex = Collision.CurvePointIndex;
+    }
+    else if (Collision.Flags & Collision_CurveLine)
+    {
+     control_point_index Index = CurveLinePointIndexToControlPointIndex(Curve, Collision.CurveLinePointIndex);
+     u64 InsertAt = Index.Index + 1;
+     InsertControlPoint(Collision.Entity, MouseP, InsertAt);
+     
+     LeftClick->Mode = EditorLeftClick_MovingCurvePoint;
+     LeftClick->TargetEntity = Collision.Entity;
+     LeftClick->CurvePointIndex = CurvePointIndexFromControlPointIndex(MakeControlPointIndex(InsertAt));
+    }
+    else if (Collision.Flags & Collision_TrackedPoint)
+    {
+     // NOTE(hbr): This shouldn't really happen, Collision_CurveLine should be set as well.
+     // But if it does, just backout.
+     LeftClick->Active = false;
+    }
+    else
+    {
+     if (Editor->SelectedEntity && Editor->SelectedEntity->Type == Entity_Curve)
      {
-      RemoveControlPoint(Entity, Collision->CurvePointIndex.ControlPoint);
+      LeftClick->TargetEntity = Editor->SelectedEntity;
      }
      else
      {
-      SelectControlPointFromCurvePointIndex(Curve, Collision->CurvePointIndex);
+      temp_arena Temp = TempArena(0);
+      entity *Entity = AllocEntity(Editor);
+      string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EntityCounter++);
+      InitEntity(Entity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
+      InitCurve(Entity, Editor->CurveDefaultParams);
+      EndTemp(Temp);
+      
+      LeftClick->TargetEntity = Entity;
      }
+     Assert(LeftClick->TargetEntity);
+     
+     LeftClick->Mode = EditorLeftClick_MovingCurvePoint;
+     LeftClick->CurvePointIndex = CurvePointIndexFromControlPointIndex(AppendControlPoint(LeftClick->TargetEntity, MouseP));
+    }
+    
+    SelectEntity(Editor, LeftClick->TargetEntity);
+    if (LeftClick->Mode == EditorLeftClick_MovingCurvePoint)
+    {
+     SelectControlPointFromCurvePointIndex(SafeGetCurve(LeftClick->TargetEntity),
+                                           LeftClick->CurvePointIndex);
+    }
+   }
+   
+   if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_LeftMouseButton && LeftClick->Active)
+   {
+    Eat = true;
+    LeftClick->Active = false;
+   }
+   
+   if (!Eat && Event->Type == PlatformEvent_MouseMove && LeftClick->Active)
+   {
+    // NOTE(hbr): don't eat mouse move event
+    
+    entity *Entity = LeftClick->TargetEntity;
+    v2 Translate = MouseP - LeftClick->LastMouseP;
+    v2 TranslateLocal = (WorldToLocalEntityPosition(Entity, MouseP) -
+                         WorldToLocalEntityPosition(Entity, LeftClick->LastMouseP));
+    
+    switch (LeftClick->Mode)
+    {
+     case EditorLeftClick_MovingTrackingPoint: {
+      curve *Curve = SafeGetCurve(Entity);
+      curve_point_tracking_state *Tracking = &Curve->PointTracking;
+      f32 Fraction = Tracking->Fraction;
+      MovePointAlongCurve(Curve, &TranslateLocal, &Fraction, true);
+      MovePointAlongCurve(Curve, &TranslateLocal, &Fraction, false);
+      
+      SetTrackingPointFraction(Tracking, Fraction);
+     }break;
+     
+     case EditorLeftClick_MovingCurvePoint: {
+      if (!LeftClick->OriginalVerticesCaptured)
+      {
+       curve *Curve = SafeGetCurve(Entity);
+       arena *Arena = LeftClick->OriginalVerticesArena;
+       ClearArena(Arena);
+       LeftClick->OriginalLineVertices = CopyLineVertices(Arena, Curve->CurveVertices);
+       LeftClick->OriginalVerticesCaptured = true;
+      }
+      
+      translate_curve_point_flags Flags = 0;
+      if (Input->Pressed[PlatformKey_LeftShift])
+      {
+       Flags |= TranslateCurvePoint_MatchBezierTwinDirection;
+      }
+      if (Input->Pressed[PlatformKey_LeftCtrl])
+      {
+       Flags |= TranslateCurvePoint_MatchBezierTwinLength;
+      }
+      SetCurvePoint(Entity, LeftClick->CurvePointIndex, MouseP, Flags);
+     }break;
+     
+     case EditorLeftClick_MovingEntity: {
+      Entity->Position += Translate;
+     }break;
+    }
+    
+    LeftClick->LastMouseP = MouseP;
+   }
+   
+   //- right click events processing
+   if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_RightMouseButton && !RightClick->Active)
+   {
+    Eat = true;
+    
+    collision Collision = CheckCollisionWith(MAX_ENTITY_COUNT,
+                                             Editor->Entities.Entities,
+                                             MouseP,
+                                             RenderGroup->CollisionTolerance);
+    
+    RightClick->Active = true;
+    RightClick->ClickP = MouseP;
+    RightClick->CollisionAtP = Collision;
+    
+    entity *Entity = Collision.Entity;
+    if (Collision.Flags & Collision_CurvePoint)
+    {
+     curve *Curve = SafeGetCurve(Entity);
+     SelectControlPointFromCurvePointIndex(Curve, Collision.CurvePointIndex);
+    }
+    
+    if (Entity)
+    {
      SelectEntity(Editor, Entity);
     }
-    else if (Entity)
+   }
+   
+   if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_RightMouseButton && RightClick->Active)
+   {
+    Eat = true;
+    RightClick->Active = false;
+    
+    // NOTE(hbr): perform click action only if button was released roughly in the same place
+    b32 ReleasedClose = (NormSquared(RightClick->ClickP - MouseP) <= Square(RenderGroup->CollisionTolerance));
+    if (ReleasedClose)
     {
-     DeallocEntity(Editor, Entity);
+     collision *Collision = &RightClick->CollisionAtP;
+     entity *Entity = Collision->Entity;
+     curve *Curve = &Entity->Curve;
+     
+     if (Collision->Flags & Collision_TrackedPoint)
+     {
+      if (Curve->PointTracking.IsSplitting)
+      {
+       PerformBezierCurveSplit(Editor, Entity);
+      }
+     }
+     else if (Collision->Flags & Collision_CurvePoint)
+     {
+      if (Collision->CurvePointIndex.Type == CurvePoint_ControlPoint)
+      {
+       RemoveControlPoint(Entity, Collision->CurvePointIndex.ControlPoint);
+      }
+      else
+      {
+       SelectControlPointFromCurvePointIndex(Curve, Collision->CurvePointIndex);
+      }
+      SelectEntity(Editor, Entity);
+     }
+     else if (Entity)
+     {
+      DeallocEntity(Editor, Entity);
+     }
+     else
+     {
+      SelectEntity(Editor, 0);
+     }
+    }
+   }
+   
+   //- camera control events processing
+   if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_MiddleMouseButton)
+   {
+    Eat = true;
+    MiddleClick->Active = true;
+    MiddleClick->Rotate = (Input->Pressed[PlatformKey_LeftCtrl]);
+    MiddleClick->ClipSpaceLastMouseP = Event->ClipSpaceMouseP;
+   }
+   if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_MiddleMouseButton)
+   {
+    Eat = true;
+    MiddleClick->Active = false;
+   }
+   if (!Eat && Event->Type == PlatformEvent_MouseMove && MiddleClick->Active)
+   {
+    // NOTE(hbr): don't eat mouse move event
+    
+    camera *Camera = &Editor->Camera;
+    v2 FromP = ClipToWorld(MiddleClick->ClipSpaceLastMouseP, RenderGroup);
+    v2 ToP = MouseP;
+    if (MiddleClick->Rotate)
+    {
+     v2 CenterP = Camera->P;
+     if (NormSquared(FromP - CenterP) >= Square(RenderGroup->RotationRadius) &&
+         NormSquared(ToP   - CenterP) >= Square(RenderGroup->RotationRadius))
+     {
+      v2 Rotation = Rotation2DFromMovementAroundPoint(FromP, ToP, CenterP);
+      RotateCameraAround(Camera, Rotation2DInverse(Rotation), CenterP);
+     }
     }
     else
     {
-     SelectEntity(Editor, 0);
+     v2 Translate = ToP - FromP;
+     TranslateCamera(&Editor->Camera, -Translate);
     }
+    MiddleClick->ClipSpaceLastMouseP = Event->ClipSpaceMouseP;
+   }
+   
+   if (!Eat && Event->Type == PlatformEvent_Scroll)
+   {
+    Eat = true;
+    ZoomCamera(&Editor->Camera, Event->ScrollDelta);
+   }
+   
+   if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Tab)
+   {
+    Eat = true;
+    Editor->HideUI = true;
+   }
+   if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_Tab)
+   {
+    Eat = true;
+    Editor->HideUI = false;
+   }
+   
+   //- shortcuts
+   if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Escape)
+   {
+    Eat = true;
+    Input->QuitRequested = true;
+   }
+   
+   //-
+   if (Eat)
+   {
+    Event->Flags |= PlatformEventFlag_Eaten;
    }
   }
   
-  //- camera control events processing
-  if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_MiddleMouseButton)
+  // NOTE(hbr): these "sanity checks" are only necessary because ImGui captured any input that ends
+  // with some possible ImGui interaction - e.g. we start by clicking in our editor but end releasing
+  // on some ImGui window
+  if (!Input->Pressed[PlatformKey_LeftMouseButton])
   {
-   Eat = true;
-   MiddleClick->Active = true;
-   MiddleClick->Rotate = (Input->Pressed[PlatformKey_LeftCtrl]);
-   MiddleClick->ClipSpaceLastMouseP = Event->ClipSpaceMouseP;
+   LeftClick->Active = false;
   }
-  if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_MiddleMouseButton)
+  if (!Input->Pressed[PlatformKey_RightMouseButton])
   {
-   Eat = true;
+   RightClick->Active = false;
+  }
+  if (!Input->Pressed[PlatformKey_MiddleMouseButton])
+  {
    MiddleClick->Active = false;
   }
-  if (!Eat && Event->Type == PlatformEvent_MouseMove && MiddleClick->Active)
+  
+  if (LeftClick->Active && LeftClick->OriginalVerticesCaptured)
   {
-   // NOTE(hbr): don't eat mouse move event
-   
+   entity *Entity = LeftClick->TargetEntity;
+   v4 ShadowColor = Entity->Curve.CurveParams.CurveColor;
+   ShadowColor.A *= 0.15f;
+   // TODO(hbr): This is a little janky we call this function everytime
+   // Either solve it somehow or remove this function and do it more manually
+   SetEntityModelTransform(RenderGroup, Entity);
+   PushVertexArray(RenderGroup,
+                   LeftClick->OriginalLineVertices.Vertices,
+                   LeftClick->OriginalLineVertices.VertexCount,
+                   LeftClick->OriginalLineVertices.Primitive,
+                   ShadowColor, GetCurvePartZOffset(CurvePart_LineShadow));
+  }
+  
+  if (RightClick->Active)
+  {
+   v4 Color = V4(0.5f, 0.5f, 0.5f, 0.3f);
+   // TODO(hbr): Again, zoffset of this thing is wrong
+   PushCircle(RenderGroup, RightClick->ClickP, RenderGroup->CollisionTolerance, Color, 0.0f);
+  }
+  
+  if (MiddleClick->Active && MiddleClick->Rotate)
+  {
    camera *Camera = &Editor->Camera;
-   v2 FromP = ClipToWorld(MiddleClick->ClipSpaceLastMouseP, RenderGroup);
-   v2 ToP = MouseP;
-   if (MiddleClick->Rotate)
-   {
-    v2 CenterP = Camera->P;
-    if (NormSquared(FromP - CenterP) >= Square(RenderGroup->RotationRadius) &&
-        NormSquared(ToP   - CenterP) >= Square(RenderGroup->RotationRadius))
-    {
-     v2 Rotation = Rotation2DFromMovementAroundPoint(FromP, ToP, CenterP);
-     RotateCameraAround(Camera, Rotation2DInverse(Rotation), CenterP);
-    }
-   }
-   else
-   {
-    v2 Translate = ToP - FromP;
-    TranslateCamera(&Editor->Camera, -Translate);
-   }
-   MiddleClick->ClipSpaceLastMouseP = Event->ClipSpaceMouseP;
+   f32 Radius = RenderGroup->RotationRadius;
+   v4 Color = RGBA_Color(30, 56, 87, 80);
+   f32 OutlineThickness = 0.1f * Radius;
+   v4 OutlineColor = RGBA_Color(255, 255, 255, 24);
+   // TODO(hbr): ZOffset here is possibly wrong, it should be something on top of everything
+   // instead
+   PushCircle(RenderGroup,
+              Camera->P,
+              Radius - OutlineThickness,
+              Color, 0.0f,
+              OutlineThickness, OutlineColor);
   }
-  
-  if (!Eat && Event->Type == PlatformEvent_Scroll)
-  {
-   Eat = true;
-   ZoomCamera(&Editor->Camera, Event->ScrollDelta);
-  }
-  
-  if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Tab)
-  {
-   Eat = true;
-   Editor->HideUI = true;
-  }
-  if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_Tab)
-  {
-   Eat = true;
-   Editor->HideUI = false;
-  }
-  
-  //- shortcuts
-  if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Escape)
-  {
-   Eat = true;
-   Input->QuitRequested = true;
-  }
-  
-  //-
-  if (Eat)
-  {
-   Event->Flags |= PlatformEventFlag_Eaten;
-  }
- }
- 
- // NOTE(hbr): these "sanity checks" are only necessary because ImGui captured any input that ends
- // with some possible ImGui interaction - e.g. we start by clicking in our editor but end releasing
- // on some ImGui window
- if (!Input->Pressed[PlatformKey_LeftMouseButton])
- {
-  LeftClick->Active = false;
- }
- if (!Input->Pressed[PlatformKey_RightMouseButton])
- {
-  RightClick->Active = false;
- }
- if (!Input->Pressed[PlatformKey_MiddleMouseButton])
- {
-  MiddleClick->Active = false;
- }
- 
- if (LeftClick->Active && LeftClick->OriginalVerticesCaptured)
- {
-  entity *Entity = LeftClick->TargetEntity;
-  v4 ShadowColor = Entity->Curve.CurveParams.CurveColor;
-  ShadowColor.A *= 0.15f;
-  SetEntityModelTransform(RenderGroup, Entity);
-  PushVertexArray(RenderGroup,
-                  LeftClick->OriginalLineVertices.Vertices,
-                  LeftClick->OriginalLineVertices.VertexCount,
-                  LeftClick->OriginalLineVertices.Primitive,
-                  ShadowColor, GetCurvePartZOffset(CurvePart_LineShadow));
- }
- 
- if (MiddleClick->Active && MiddleClick->Rotate)
- {
-  camera *Camera = &Editor->Camera;
-  f32 Radius = RenderGroup->RotationRadius;
-  v4 Color = RGBA_Color(30, 56, 87, 80);
-  f32 OutlineThickness = 0.1f * Radius;
-  v4 OutlineColor = RGBA_Color(255, 255, 255, 24);
-  PushCircle(RenderGroup,
-             Camera->P,
-             Radius - OutlineThickness,
-             Color, 0.0f,
-             OutlineThickness, OutlineColor);
  }
  
  //- update camera
@@ -3072,15 +3090,6 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    }
   }
  }
- 
-#if 0
- //- render collision tolerance indicator
- if (RightClick->Active)
- {
-  v4 Color = V4(0.5f, 0.5f, 0.5f, 0.3f);
-  PushCircle(RenderGroup, RightClick->ClickP, RenderGroup->CollisionTolerance, Color, 0.0f);
- }
-#endif
  
  //- update frame stats
  {

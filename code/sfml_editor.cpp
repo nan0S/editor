@@ -33,6 +33,9 @@
 #include "editor_entity.cpp"
 #include "editor_entity2.cpp"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "third_party/stb/stb_image.h"
+
 #include "editor_sfml_renderer.h"
 #include "editor_sfml_renderer.cpp"
 

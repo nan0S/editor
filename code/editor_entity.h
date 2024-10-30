@@ -23,7 +23,7 @@ GetImage(entity *Entity)
 
 // TODO(hbr): Rename this internal and also maybe others to [EntityRotateAround] because it's not [curve] specific.
 internal void
-CurveRotateAround(entity *CurveEntity, world_position Center, rotation_2d Rotation)
+CurveRotateAround(entity *CurveEntity, v2 Center, v2 Rotation)
 {
  CurveEntity->Rotation = CombineRotations2D(CurveEntity->Rotation, Rotation);
 }
@@ -68,20 +68,20 @@ SetEntityName(entity *Entity, string Name)
 
 internal void
 InitEntity(entity *Entity,
-           world_position Position,
+           v2 P,
            v2 Scale,
-           rotation_2d Rotation,
+           v2 Rotation,
            string Name,
            s64 SortingLayer)
 {
- Entity->Position = Position;
+ Entity->P = P;
  Entity->Scale = Scale;
  Entity->Rotation = Rotation;
  SetEntityName(Entity, Name);
  Entity->SortingLayer = SortingLayer;
 }
 
-internal void SetCurveControlPoints(entity *Entity, u64 ControlPointCount, local_position *ControlPoints,
+internal void SetCurveControlPoints(entity *Entity, u64 ControlPointCount, v2 *ControlPoints,
                                     f32 *ControlPointWeights, cubic_bezier_point *CubicBezierPoints);
 
 // TODO(hbr): remove this
@@ -122,14 +122,12 @@ EndCurvePoints(curve *Curve)
  Curve->RecomputeRequested = true;
 }
 
-internal local_position WorldToLocalEntityPosition(entity *Entity, world_position Position);
-
-internal local_position
-WorldToLocalEntityPosition(entity *Entity, world_position Position)
+internal v2
+WorldToLocalEntityPosition(entity *Entity, v2 P)
 {
- local_position Result = RotateAround(Position - Entity->Position,
-                                      V2(0.0f, 0.0f),
-                                      Rotation2DInverse(Entity->Rotation));
+ v2 Result = RotateAround(P - Entity->P,
+                          V2(0.0f, 0.0f),
+                          Rotation2DInverse(Entity->Rotation));
  return Result;
 }
 

@@ -63,7 +63,7 @@ MovePointAlongCurve(curve *Curve, v2 *TranslateInOut, f32 *PointFractionInOut, b
  f32 Fraction = *PointFractionInOut;
  
  u64 CurvePointCount = Curve->CurvePointCount;
- local_position *CurvePoints = Curve->CurvePoints;
+ v2 *CurvePoints = Curve->CurvePoints;
  f32 DeltaFraction = 1.0f / (CurvePointCount - 1);
  
  f32 PointIndexFloat = Fraction * (CurvePointCount - 1);
@@ -103,35 +103,35 @@ MovePointAlongCurve(curve *Curve, v2 *TranslateInOut, f32 *PointFractionInOut, b
 }
 //////////////////////
 
-internal world_position
-CameraToWorldSpace(camera_position Position, render_group *Group)
+internal v2
+CameraToWorldSpace(v2 P, render_group *Group)
 {
- world_position Result = Unproject(&Group->WorldToCamera, Position);
+ v2 Result = Unproject(&Group->WorldToCamera, P);
  return Result;
 }
 
-internal camera_position
-WorldToCameraSpace(world_position Position, render_group *Group)
+internal v2
+WorldToCameraSpace(v2 P, render_group *Group)
 {
- camera_position Result = Project(&Group->WorldToCamera, Position);
+ v2 Result = Project(&Group->WorldToCamera, P);
  return Result;
 }
 
-internal camera_position
-ScreenToCameraSpace(screen_position Position, render_group *Group)
+internal v2
+ScreenToCameraSpace(v2s P, render_group *Group)
 {
- v2 Clip = Unproject(&Group->ClipToScreen, V2(Position.X, Position.Y));
- camera_position Result = Unproject(&Group->CameraToClip, Clip);
+ v2 Clip = Unproject(&Group->ClipToScreen, V2(P.X, P.Y));
+ v2 Result = Unproject(&Group->CameraToClip, Clip);
  return Result;
 }
 
-internal world_position
-ScreenToWorldSpace(screen_position Position, render_group *Group)
+internal v2
+ScreenToWorldSpace(v2s P, render_group *Group)
 {
- camera_position CameraPosition = ScreenToCameraSpace(Position, Group);
- world_position WorldPosition = CameraToWorldSpace(CameraPosition, Group);
+ v2 CameraP = ScreenToCameraSpace(P, Group);
+ v2 WorldP = CameraToWorldSpace(CameraP, Group);
  
- return WorldPosition;
+ return WorldP;
 }
 
 // NOTE(hbr): Distance in space [-AspectRatio, AspectRatio] x [-1, 1]
@@ -170,7 +170,7 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
      if (AreCurvePointsVisible(Curve))
      {
       u64 ControlPointCount = Curve->ControlPointCount;
-      local_position *ControlPoints = Curve->ControlPoints;
+      v2 *ControlPoints = Curve->ControlPoints;
       for (u64 PointIndex = 0;
            PointIndex < ControlPointCount;
            ++PointIndex)
@@ -195,7 +195,7 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
       {
        f32 PointRadius = GetCurveCubicBezierPointRadius(Curve);
        cubic_bezier_point_index BezierIndex = VisibleBeziers.Indices[Index];
-       local_position BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
+       v2 BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
        if (PointCollision(LocalAtP, BezierPoint, PointRadius + Tolerance))
        {
         Result.Entity = Entity;
@@ -210,7 +210,7 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
      if (Tracking->Active)
      {
       f32 PointRadius = GetCurveTrackedPointRadius(Curve);
-      if (PointCollision(LocalAtP, Tracking->TrackedPoint, PointRadius + Tolerance))
+      if (PointCollision(LocalAtP, Tracking->LocalSpaceTrackedPoint, PointRadius + Tolerance))
       {
        Result.Entity = Entity;
        Result.Flags |= Collision_TrackedPoint;
@@ -218,7 +218,7 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
      }
      
      {
-      local_position *CurvePoints = Curve->CurvePoints;
+      v2 *CurvePoints = Curve->CurvePoints;
       u64 CurvePointCount = Curve->CurvePointCount;
       f32 CurveWidth = 2.0f * Tolerance + Curve->CurveParams.CurveWidth;
       
@@ -412,7 +412,7 @@ CopyLineVertices(arena *Arena, vertex_array Vertices)
 internal void
 InitEntityFromEntity(entity *Dest, entity *Src)
 {
- InitEntity(Dest, Src->Position, Src->Scale, Src->Rotation, Src->Name, Src->SortingLayer);
+ InitEntity(Dest, Src->P, Src->Scale, Src->Rotation, Src->Name, Src->SortingLayer);
  switch (Src->Type)
  {
   case Entity_Curve: {
@@ -485,7 +485,7 @@ DuplicateEntity(entity *Entity, editor *Editor)
  SelectEntity(Editor, Copy);
  f32 SlightTranslationX = ClipSpaceLengthToWorldSpace(0.2f, Editor->RenderGroup);
  v2 SlightTranslation = V2(SlightTranslationX, 0.0f);
- Copy->Position += SlightTranslation;
+ Copy->P += SlightTranslation;
  
  EndTemp(Temp);
 }
@@ -535,7 +535,7 @@ LowerBezierCurveDegree(entity *Entity)
   Assert(Curve->CurveParams.InterpolationType == Interpolation_Bezier);
   temp_arena Temp = TempArena(Lowering->Arena);
   
-  local_position *LowerPoints = PushArrayNonZero(Temp.Arena, PointCount, local_position);
+  v2 *LowerPoints = PushArrayNonZero(Temp.Arena, PointCount, v2);
   f32 *LowerWeights = PushArrayNonZero(Temp.Arena, PointCount, f32);
   cubic_bezier_point *LowerBeziers = PushArrayNonZero(Temp.Arena, PointCount - 1, cubic_bezier_point);
   ArrayCopy(LowerPoints, Curve->ControlPoints, PointCount);
@@ -548,7 +548,7 @@ LowerBezierCurveDegree(entity *Entity)
    
    ClearArena(Lowering->Arena);
    
-   Lowering->SavedControlPoints = PushArrayNonZero(Lowering->Arena, PointCount, local_position);
+   Lowering->SavedControlPoints = PushArrayNonZero(Lowering->Arena, PointCount, v2);
    Lowering->SavedControlPointWeights = PushArrayNonZero(Lowering->Arena, PointCount, f32);
    Lowering->SavedCubicBezierPoints = PushArrayNonZero(Lowering->Arena, PointCount, cubic_bezier_point);
    ArrayCopy(Lowering->SavedControlPoints, Curve->ControlPoints, PointCount);
@@ -580,9 +580,9 @@ ElevateBezierCurveDegree(entity *Entity)
  temp_arena Temp = TempArena(0);
  
  u64 ControlPointCount = Curve->ControlPointCount;
- local_position *ElevatedControlPoints = PushArrayNonZero(Temp.Arena,
-                                                          ControlPointCount + 1,
-                                                          local_position);
+ v2 *ElevatedControlPoints = PushArrayNonZero(Temp.Arena,
+                                              ControlPointCount + 1,
+                                              v2);
  f32 *ElevatedControlPointWeights = PushArrayNonZero(Temp.Arena,
                                                      ControlPointCount + 1,
                                                      f32);
@@ -624,12 +624,12 @@ FocusCameraOnEntity(editor *Editor, entity *Entity)
    curve *Curve = &Entity->Curve;
    
    u64 PointCount = Curve->ControlPointCount;
-   local_position *Points = Curve->ControlPoints;
+   v2 *Points = Curve->ControlPoints;
    for (u64 PointIndex = 0;
         PointIndex < PointCount;
         ++PointIndex)
    {
-    world_position P = LocalEntityPositionToWorld(Entity, Points[PointIndex]);
+    v2 P = LocalEntityPositionToWorld(Entity, Points[PointIndex]);
     // TODO(hbr): Maybe include also point size
     AddPointAABB(&AABB, P);
    }
@@ -646,10 +646,10 @@ FocusCameraOnEntity(editor *Editor, entity *Entity)
    f32 HalfWidth = 0.5f * GlobalImageScaleFactor * ScaleX * TextureSize.x;
    f32 HalfHeight = 0.5f * GlobalImageScaleFactor * ScaleY * TextureSize.y;
    
-   AddPointAABB(&AABB, Entity->Position + V2( HalfWidth,  HalfHeight));
-   AddPointAABB(&AABB, Entity->Position + V2(-HalfWidth,  HalfHeight));
-   AddPointAABB(&AABB, Entity->Position + V2( HalfWidth, -HalfHeight));
-   AddPointAABB(&AABB, Entity->Position + V2(-HalfWidth, -HalfHeight));
+   AddPointAABB(&AABB, Entity->P + V2( HalfWidth,  HalfHeight));
+   AddPointAABB(&AABB, Entity->P + V2(-HalfWidth,  HalfHeight));
+   AddPointAABB(&AABB, Entity->P + V2( HalfWidth, -HalfHeight));
+   AddPointAABB(&AABB, Entity->P + V2(-HalfWidth, -HalfHeight));
 #endif
   } break;
   
@@ -1644,10 +1644,10 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
     {
      if (Tracking->NeedsRecomputationThisFrame || Curve->RecomputeRequested)
      {
-      Tracking->TrackedPoint = BezierCurveEvaluateWeighted(Tracking->Fraction,
-                                                           Curve->ControlPoints,
-                                                           Curve->ControlPointWeights,
-                                                           Curve->ControlPointCount);
+      Tracking->LocalSpaceTrackedPoint = BezierCurveEvaluateWeighted(Tracking->Fraction,
+                                                                     Curve->ControlPoints,
+                                                                     Curve->ControlPointWeights,
+                                                                     Curve->ControlPointCount);
      }
      
      f32 Radius = GetCurveTrackedPointRadius(Curve);
@@ -1655,7 +1655,7 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
      f32 OutlineThickness = 0.3f * Radius;
      v4 OutlineColor = DarkenColor(Color, 0.5f);
      PushCircle(Group,
-                Tracking->TrackedPoint, Radius, Color,
+                Tracking->LocalSpaceTrackedPoint, Radius, Color,
                 GetCurvePartZOffset(CurvePart_Special),
                 OutlineThickness, OutlineColor);
     }
@@ -1707,7 +1707,7 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
       
       Tracking->Intermediate = Intermediate;
       Tracking->LineVerticesPerIteration = LineVerticesPerIteration;
-      Tracking->TrackedPoint = Intermediate.P[Intermediate.TotalPointCount - 1];
+      Tracking->LocalSpaceTrackedPoint = Intermediate.P[Intermediate.TotalPointCount - 1];
      }
      
      u64 IterationCount = Tracking->Intermediate.IterationCount;
@@ -1737,7 +1737,7 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
       
       for (u64 I = 0; I < IterationCount - Iteration; ++I)
       {
-       local_position Point = Tracking->Intermediate.P[PointIndex];
+       v2 Point = Tracking->Intermediate.P[PointIndex];
        PushCircle(Group, Point, PointSize, IterationColor, GetCurvePartZOffset(CurvePart_Special));
        ++PointIndex;
       }
@@ -1799,7 +1799,7 @@ UpdateAndRenderDegreeLowering(render_group *RenderGroup, entity *Entity)
   
   if (MixChanged)
   {
-   local_position NewControlPoint = Lerp(Lowering->LowerDegree.P_I, Lowering->LowerDegree.P_II, Lowering->MixParameter);
+   v2 NewControlPoint = Lerp(Lowering->LowerDegree.P_I, Lowering->LowerDegree.P_II, Lowering->MixParameter);
    f32 NewControlPointWeight = Lerp(Lowering->LowerDegree.W_I, Lowering->LowerDegree.W_II, Lowering->MixParameter);
    
    SetCurveControlPoint(Entity,
@@ -2142,14 +2142,14 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
    
    if (State->SourceCurveLastControlPoint)
    {
-    ArrayReverse(From->ControlPoints,       FromCount, local_position);
+    ArrayReverse(From->ControlPoints,       FromCount, v2);
     ArrayReverse(From->ControlPointWeights, FromCount, f32);
     ArrayReverse(From->CubicBezierPoints,   FromCount, cubic_bezier_point);
    }
    
    if (State->WithCurveFirstControlPoint)
    {
-    ArrayReverse(To->ControlPoints,       ToCount, local_position);
+    ArrayReverse(To->ControlPoints,       ToCount, v2);
     ArrayReverse(To->ControlPointWeights, ToCount, f32);
     ArrayReverse(To->CubicBezierPoints,   ToCount, cubic_bezier_point);
    }
@@ -2185,7 +2185,7 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
    }
    
    // NOTE(hbr): Allocate buffers and copy control points into them
-   local_position *CombinedPoints  = PushArrayNonZero(Temp.Arena, CombinedPointCount, local_position);
+   v2 *CombinedPoints  = PushArrayNonZero(Temp.Arena, CombinedPointCount, v2);
    f32 *CombinedWeights = PushArrayNonZero(Temp.Arena, CombinedPointCount, f32);
    cubic_bezier_point *CombinedBeziers = PushArrayNonZero(Temp.Arena, CombinedPointCount, cubic_bezier_point);
    ArrayCopy(CombinedPoints, To->ControlPoints, ToCount);
@@ -2195,16 +2195,16 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
    // TODO(hbr): SIMD?
    for (u64 I = StartIndex; I < FromCount; ++I)
    {
-    world_position FromPoint = LocalEntityPositionToWorld(FromEntity, From->ControlPoints[I]);
-    local_position ToPoint   = WorldToLocalEntityPosition(ToEntity, FromPoint + Translation);
+    v2 FromPoint = LocalEntityPositionToWorld(FromEntity, From->ControlPoints[I]);
+    v2 ToPoint   = WorldToLocalEntityPosition(ToEntity, FromPoint + Translation);
     CombinedPoints[ToCount - StartIndex + I] = ToPoint;
    }
    for (u64 I = StartIndex; I < FromCount; ++I)
    {
     for (u64 J = 0; J < 3; ++J)
     {
-     world_position FromBezier = LocalEntityPositionToWorld(FromEntity, From->CubicBezierPoints[I].Ps[J]);
-     local_position ToBezier   = WorldToLocalEntityPosition(ToEntity, FromBezier + Translation); 
+     v2 FromBezier = LocalEntityPositionToWorld(FromEntity, From->CubicBezierPoints[I].Ps[J]);
+     v2 ToBezier   = WorldToLocalEntityPosition(ToEntity, FromBezier + Translation); 
      CombinedBeziers[(ToCount - StartIndex) + I].Ps[J] = ToBezier;
     }
    }
@@ -2306,15 +2306,15 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
      SourceCurve->ControlPointCount > 0 &&
      WithCurve->ControlPointCount > 0)
  {
-  local_position SourcePointLocal = (State->SourceCurveLastControlPoint ?
-                                     SourceCurve->ControlPoints[SourceCurve->ControlPointCount - 1] :
-                                     SourceCurve->ControlPoints[0]);
-  local_position WithPointLocal = (State->WithCurveFirstControlPoint ?
-                                   WithCurve->ControlPoints[0] :
-                                   WithCurve->ControlPoints[WithCurve->ControlPointCount - 1]);
+  v2 SourcePointLocal = (State->SourceCurveLastControlPoint ?
+                         SourceCurve->ControlPoints[SourceCurve->ControlPointCount - 1] :
+                         SourceCurve->ControlPoints[0]);
+  v2 WithPointLocal = (State->WithCurveFirstControlPoint ?
+                       WithCurve->ControlPoints[0] :
+                       WithCurve->ControlPoints[WithCurve->ControlPointCount - 1]);
   
-  world_position SourcePoint = LocalEntityPositionToWorld(State->SourceEntity, SourcePointLocal);
-  world_position WithPoint = LocalEntityPositionToWorld(State->WithEntity, WithPointLocal);
+  v2 SourcePoint = LocalEntityPositionToWorld(State->SourceEntity, SourcePointLocal);
+  v2 WithPoint = LocalEntityPositionToWorld(State->WithEntity, WithPointLocal);
   
   f32 LineWidth = 0.5f * SourceCurve->CurveParams.CurveWidth;
   v4 Color = SourceCurve->CurveParams.CurveColor;
@@ -2325,12 +2325,12 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
   
   f32 TriangleSide = 10.0f * LineWidth;
   f32 TriangleHeight = TriangleSide * SqrtF32(3.0f) / 2.0f;
-  world_position BaseVertex = WithPoint - TriangleHeight * LineDirection;
+  v2 BaseVertex = WithPoint - TriangleHeight * LineDirection;
   PushLine(Group, SourcePoint, BaseVertex, LineWidth, Color, GetCurvePartZOffset(CurvePart_Special));
   
   v2 LinePerpendicular = Rotate90DegreesAntiClockwise(LineDirection);
-  world_position LeftVertex = BaseVertex + 0.5f * TriangleSide * LinePerpendicular;
-  world_position RightVertex = BaseVertex - 0.5f * TriangleSide * LinePerpendicular;
+  v2 LeftVertex = BaseVertex + 0.5f * TriangleSide * LinePerpendicular;
+  v2 RightVertex = BaseVertex - 0.5f * TriangleSide * LinePerpendicular;
   PushTriangle(Group, LeftVertex, RightVertex, WithPoint, Color, GetCurvePartZOffset(CurvePart_Special));
  }
  
@@ -2399,8 +2399,8 @@ UpdateAndRenderEntities(editor *Editor, platform_input *Input, render_group *Ren
       {
        cubic_bezier_point_index BezierIndex = VisibleBeziers.Indices[Index];
        
-       local_position BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
-       local_position CenterPoint = GetCenterPointFromCubicBezierPointIndex(Curve, BezierIndex);
+       v2 BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
+       v2 CenterPoint = GetCenterPointFromCubicBezierPointIndex(Curve, BezierIndex);
        
        f32 BezierPointRadius = GetCurveCubicBezierPointRadius(Curve);
        f32 HelperLineWidth = 0.2f * CurveParams->CurveWidth;
@@ -2412,7 +2412,7 @@ UpdateAndRenderEntities(editor *Editor, platform_input *Input, render_group *Ren
       }
       
       u64 ControlPointCount = Curve->ControlPointCount;
-      local_position *ControlPoints = Curve->ControlPoints;
+      v2 *ControlPoints = Curve->ControlPoints;
       for (u64 PointIndex = 0;
            PointIndex < ControlPointCount;
            ++PointIndex)
@@ -2731,7 +2731,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
      }break;
      
      case EditorLeftClick_MovingEntity: {
-      Entity->Position += Translate;
+      Entity->P += Translate;
      }break;
     }
     
@@ -2999,10 +2999,10 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
                                   ArrayCount(Entity->NameBuffer),
                                   "Name");
      
-     UI_DragFloat2F(Entity->Position.E, 0.0f, 0.0f, 0, "Position");
+     UI_DragFloat2F(Entity->P.E, 0.0f, 0.0f, 0, "Position");
      if (ResetCtxMenu("PositionReset"))
      {
-      Entity->Position = V2(0.0f, 0.0f);
+      Entity->P = V2(0.0f, 0.0f);
      }
      
      UI_AngleSliderF(&Entity->Rotation, "Rotation");

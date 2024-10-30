@@ -55,7 +55,7 @@ struct render_command_rectangle
 {
  v2 Pos;
  v2 Size;
- rotation_2d Rotation;
+ v2 Rotation;
  v4 Color;
 };
 

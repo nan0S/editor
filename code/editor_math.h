@@ -19,15 +19,9 @@
 //~ Basic types
 struct rectangle2
 {
-   v2 Mini;
-   v2 Maxi;
+ v2 Mini;
+ v2 Maxi;
 };
-
-typedef v2s screen_position;
-typedef v2  clip_space;
-typedef v2  camera_position;
-typedef v2  world_position;
-typedef v2  local_position;
 
 inline internal v2  operator+ (v2 U, v2 V)   { return V2(U.X + V.X, U.Y + V.Y); }
 inline internal v2  operator- (v2 U, v2 V)   { return V2(U.X - V.X, U.Y - V.Y); }
@@ -86,19 +80,19 @@ internal v2 Hadamard(v2 A, v2 B);
 typedef u64 hull_point_count64;
 internal hull_point_count64 CalcConvexHull(u64 PointCount, v2 *Points, v2 *OutPoints);
 
-internal rotation_2d Rotation2D(f32 X, f32 Y);
-internal rotation_2d Rotation2DZero(void);
-internal rotation_2d Rotation2DFromVector(v2 Vector);
-internal rotation_2d Rotation2DFromDegrees(f32 Degrees);
-internal rotation_2d Rotation2DFromRadians(f32 Radians);
-internal f32         Rotation2DToDegrees(rotation_2d Rotation);
-internal f32         Rotation2DToRadians(rotation_2d Rotation);
-internal rotation_2d Rotation2DInverse(rotation_2d Rotation);
-internal rotation_2d Rotate90DegreesAntiClockwise(rotation_2d Rotation);
-internal rotation_2d Rotate90DegreesClockwise(rotation_2d Rotation);
-internal rotation_2d Rotation2DFromMovementAroundPoint(v2 From, v2 To, v2 Center);
-internal v2          RotateAround(v2 Point, v2 Center, rotation_2d Rotation);
-internal rotation_2d CombineRotations2D(rotation_2d RotationA, rotation_2d RotationB);
+internal v2 Rotation2D(f32 X, f32 Y);
+internal v2 Rotation2DZero(void);
+internal v2 Rotation2DFromVector(v2 Vector);
+internal v2 Rotation2DFromDegrees(f32 Degrees);
+internal v2 Rotation2DFromRadians(f32 Radians);
+internal f32 Rotation2DToDegrees(v2 Rotation);
+internal f32 Rotation2DToRadians(v2 Rotation);
+internal v2 Rotation2DInverse(v2 Rotation);
+internal v2 Rotate90DegreesAntiClockwise(v2 Rotation);
+internal v2 Rotate90DegreesClockwise(v2 Rotation);
+internal v2 Rotation2DFromMovementAroundPoint(v2 From, v2 To, v2 Center);
+internal v2 RotateAround(v2 Point, v2 Center, v2 Rotation);
+internal v2 CombineRotations2D(v2 RotationA, v2 RotationB);
 
 inline internal transform operator*(transform T2, transform T1);
 internal transform Identity(void);
@@ -127,25 +121,25 @@ internal f32  CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u64 N);
 
 struct bezier_lower_degree
 {
-   b32 Failure;
-   
-   u64 MiddlePointIndex;
-   
-   v2 P_I;
-   v2 P_II;
-   
-   f32 W_I;
-   f32 W_II;
+ b32 Failure;
+ 
+ u64 MiddlePointIndex;
+ 
+ v2 P_I;
+ v2 P_II;
+ 
+ f32 W_I;
+ f32 W_II;
 };
 
 union cubic_bezier_point
 {
-   struct {
-      local_position P0;
-      local_position P1;
-      local_position P2;
-   };
-   local_position Ps[3];
+ struct {
+  v2 P0;
+  v2 P1;
+  v2 P2;
+ };
+ v2 Ps[3];
 };
 
 internal v2                  BezierCurveEvaluate(f32 T, v2 *P, u64 N);
@@ -160,11 +154,11 @@ internal void                BezierCurveSplit(f32 T, u64 N, v2 *P, f32 *W,
 
 struct all_de_casteljau_intermediate_results
 {
-   u64 IterationCount;
-   u64 TotalPointCount;
-   // NOTE(hbr): Packed points: P1,P2,P3, Q1,Q2, R1
-   v2 *P;
-   f32 *W;
+ u64 IterationCount;
+ u64 TotalPointCount;
+ // NOTE(hbr): Packed points: P1,P2,P3, Q1,Q2, R1
+ v2 *P;
+ f32 *W;
 };
 internal all_de_casteljau_intermediate_results DeCasteljauAlgorithm(arena *Arena, f32 T, v2 *P, f32 *W, u64 N);
 
@@ -173,8 +167,8 @@ internal void GaussianElimination(f32 *A, u64 N, f32 *Solution);
 //~ Collisions, intersections, geometry
 struct line_intersection
 {
-   b32 IsOneIntersection;
-   v2 IntersectionPoint;
+ b32 IsOneIntersection;
+ v2 IntersectionPoint;
 };
 
 internal b32               PointCollision(v2 Position, v2 Point, f32 PointRadius);

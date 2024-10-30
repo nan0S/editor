@@ -54,7 +54,7 @@ PushCircle(render_group *Group,
 
 internal void
 PushRectangle(render_group *Group,
-              v2 Position, v2 Size, rotation_2d Rotation,
+              v2 Position, v2 Size, v2 Rotation,
               v4 Color, f32 ZOffset)
 {
  render_command *Command = PushRenderCommand(Group, RenderCommand_Rectangle, ZOffset);
@@ -84,7 +84,7 @@ PushLine(render_group *Group,
  v2 Size = V2(LineWidth, Length);
  // NOTE(hbr): Rotate 90 degrees clockwise, because our 0 degree rotation
  // corresponds to -90 degrees rotation in the real world
- rotation_2d Rotation = Rotate90DegreesClockwise(Rotation2DFromVector(Line));
+ v2 Rotation = Rotate90DegreesClockwise(Rotation2DFromVector(Line));
  PushRectangle(Group, Position, Size, Rotation, Color, ZOffset);
 }
 
@@ -118,7 +118,7 @@ PushImage(render_group *Group, v2 Dim, u64 Width, u64 Height, char *Pixels)
 }
 
 internal transform_inv
-MakeRenderTransform(v2 P, rotation_2d Rotation, v2 Scale)
+MakeRenderTransform(v2 P, v2 Rotation, v2 Scale)
 {
  transform_inv Result = {};
  

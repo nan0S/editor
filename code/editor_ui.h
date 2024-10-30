@@ -63,8 +63,8 @@ internal changed_b32       UI_SliderFloat(f32 *Value, f32 MinValue, f32 MaxValue
 internal changed_b32       UI_SliderFloatF(f32 *Value, f32 MinValue, f32 MaxValue, char const *Format, ...);
 #define                    UI_SliderInteger(Value, MinValue, MaxValue, Label) UI_SliderInteger_(Cast(s64 *)(Value), MinValue, MaxValue, Label)
 #define                    UI_SliderIntegerF(Value, MinValue, MaxValue, Format, ...) UI_SliderIntegerF_(Cast(s64 *)(Value), MinValue, MaxValue, Format, __VA_ARGS__)
-internal void              UI_AngleSlider(rotation_2d *Rotation, string Label);
-internal void              UI_AngleSliderF(rotation_2d *Rotation, char const *Format, ...);
+internal void              UI_AngleSlider(v2 *Rotation, string Label);
+internal void              UI_AngleSliderF(v2 *Rotation, char const *Format, ...);
 internal changed_b32       UI_ColorPicker(v4 *Color, string Label);
 internal changed_b32       UI_ColorPickerF(v4 *Color, char const *Format, ...);
 internal string            UI_InputText(char *Buf, u64 BufSize, string Label);

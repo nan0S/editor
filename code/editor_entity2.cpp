@@ -166,8 +166,8 @@ SetCurvePoint(entity *Entity, curve_point_index Index, v2 P, translate_curve_poi
  if (ControlPointIndex.Index < Curve->ControlPointCount)
  {
   cubic_bezier_point *B = Curve->CubicBezierPoints + ControlPointIndex.Index;
-  local_position *TranslatePoint = B->Ps + BezierOffset;
-  local_position LocalP = WorldToLocalEntityPosition(Entity, P);
+  v2 *TranslatePoint = B->Ps + BezierOffset;
+  v2 LocalP = WorldToLocalEntityPosition(Entity, P);
   
   if (BezierOffset == 1)
   {
@@ -181,7 +181,7 @@ SetCurvePoint(entity *Entity, curve_point_index Index, v2 P, translate_curve_poi
   else
   {
    Assert(BezierOffset == 0 || BezierOffset == 2);
-   local_position *Twin = B->Ps + (2 - BezierOffset);
+   v2 *Twin = B->Ps + (2 - BezierOffset);
    
    v2 DesiredTwinDirection;
    if (Flags & TranslateCurvePoint_MatchBezierTwinDirection)
@@ -329,7 +329,7 @@ SortEntities(arena *Arena, entity_array Entities)
 }
 
 internal control_point_index
-AppendControlPoint(entity *Entity, world_position Point)
+AppendControlPoint(entity *Entity, v2 Point)
 {
  control_point_index Result = {};
  Result.Index = Entity->Curve.ControlPointCount;
@@ -339,7 +339,7 @@ AppendControlPoint(entity *Entity, world_position Point)
 }
 
 internal void
-InsertControlPoint(entity *Entity, world_position PointWorld, u64 At)
+InsertControlPoint(entity *Entity, v2 Point, u64 At)
 {
  curve *Curve = GetCurve(Entity);
  if (Curve &&
@@ -347,7 +347,7 @@ InsertControlPoint(entity *Entity, world_position PointWorld, u64 At)
      At <= Curve->ControlPointCount)
  {
   u64 N = Curve->ControlPointCount;
-  local_position *P = Curve->ControlPoints;
+  v2 *P = Curve->ControlPoints;
   f32 *W = Curve->ControlPointWeights;
   cubic_bezier_point *B = Curve->CubicBezierPoints;
   
@@ -360,7 +360,7 @@ MemoryMove((Array) + ((At)+(ShiftCount)), \
   ShiftRightArray(B, N, At, 1);
 #undef ShiftRightArray
   
-  P[At] = WorldToLocalEntityPosition(Entity, PointWorld);
+  P[At] = WorldToLocalEntityPosition(Entity, Point);
   W[At] = 1.0f;
   
   // NOTE(hbr): Cubic bezier point calculation is not really defined
@@ -388,8 +388,8 @@ MemoryMove((Array) + ((At)+(ShiftCount)), \
 }
 
 internal void
-RotateEntityAround(entity *Entity, rotation_2d Rotate, world_position Around)
+RotateEntityAround(entity *Entity, v2 Rotate, v2 Around)
 {
- Entity->Position = RotateAround(Entity->Position, Around, Rotate);
+ Entity->P = RotateAround(Entity->P, Around, Rotate);
  Entity->Rotation = CombineRotations2D(Entity->Rotation, Rotate);
 }

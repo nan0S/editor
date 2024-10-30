@@ -112,7 +112,7 @@ struct curve_point_tracking_state
  b32 Active;
  b32 NeedsRecomputationThisFrame;
  f32 Fraction;
- local_position TrackedPoint;
+ v2 LocalSpaceTrackedPoint;
  
  b32 IsSplitting;
  
@@ -130,7 +130,7 @@ struct curve_degree_lowering_state
  arena *Arena;
  
  // TODO(hbr): Replace Saved with Original or the other way around - I already used original somewhere
- local_position *SavedControlPoints;
+ v2 *SavedControlPoints;
  f32 *SavedControlPointWeights;
  cubic_bezier_point *SavedCubicBezierPoints;
  vertex_array SavedCurveVertices;
@@ -152,16 +152,17 @@ struct curve
  
  control_point_index SelectedIndex;
  
+ // NOTE(hbr): All points here are in local space
  u64 ControlPointCount;
 #define MAX_CONTROL_POINT_COUNT 1024
- local_position ControlPoints[MAX_CONTROL_POINT_COUNT];
+ v2 ControlPoints[MAX_CONTROL_POINT_COUNT];
  f32 ControlPointWeights[MAX_CONTROL_POINT_COUNT];
  cubic_bezier_point CubicBezierPoints[MAX_CONTROL_POINT_COUNT];
  
  translate_curve_point_flags CubicBezierTranslateFlags;
  
  u64 CurvePointCount;
- local_position *CurvePoints;
+ v2 *CurvePoints;
  vertex_array CurveVertices;
  vertex_array PolylineVertices;
  vertex_array ConvexHullVertices;
@@ -199,9 +200,9 @@ struct entity
 {
  arena *Arena;
  
- world_position Position;
+ v2 P;
  v2 Scale;
- rotation_2d Rotation;
+ v2 Rotation;
  
  char NameBuffer[64];
  string Name;
@@ -273,23 +274,23 @@ MakeControlPointIndex(u64 Index)
  return Result;
 }
 
-inline internal local_position
+inline internal v2
 GetCubicBezierPoint(curve *Curve, cubic_bezier_point_index Index)
 {
- local_position Result = {};
+ v2 Result = {};
  if (Index.Index < 3 * Curve->ControlPointCount)
  {
-  local_position *Beziers = Cast(local_position *)Curve->CubicBezierPoints;
+  v2 *Beziers = Cast(v2 *)Curve->CubicBezierPoints;
   Result = Beziers[Index.Index];
  }
  
  return Result;
 }
 
-inline internal local_position
+inline internal v2
 GetCenterPointFromCubicBezierPointIndex(curve *Curve, cubic_bezier_point_index Index)
 {
- local_position Result = {};
+ v2 Result = {};
  u64 ControlPointIndex = Index.Index / 3;
  if (ControlPointIndex < Curve->ControlPointCount)
  {
@@ -312,8 +313,8 @@ CurveLinePointIndexToControlPointIndex(curve *Curve, u64 CurveLinePointIndex)
 
 internal void SetCurvePoint(entity *Entity, curve_point_index Index, v2 P, translate_curve_point_flags Flags);
 internal void RemoveControlPoint(entity *Entity, u64 Index);
-internal control_point_index AppendControlPoint(entity *Entity, world_position Point);
-internal void InsertControlPoint(entity *Entity, world_position PointWorld, u64 At);
+internal control_point_index AppendControlPoint(entity *Entity, v2 Point);
+internal void InsertControlPoint(entity *Entity, v2 Point, u64 At);
 internal void SelectControlPoint(curve *Curve, control_point_index Index);
 internal void SelectControlPointFromCurvePointIndex(curve *Curve, curve_point_index Index);
 internal b32 IsControlPointSelected(curve *Curve);
@@ -321,7 +322,7 @@ internal void UnselectControlPoint(curve *Curve);
 
 internal sorted_entries SortEntities(arena *Arena, entity_array Entities);
 
-internal void RotateEntityAround(entity *Entity, rotation_2d Rotate, world_position Around);
+internal void RotateEntityAround(entity *Entity, v2 Rotate, v2 Around);
 
 // TODO(hbr): Temporary solution
 internal transform
@@ -329,7 +330,7 @@ GetEntityModelTransform(entity *Entity)
 {
  transform Result = {};
  Result.Scale = Entity->Scale;
- Result.Offset = Entity->Position;
+ Result.Offset = Entity->P;
  Result.Rotation = Entity->Rotation;
  
  return Result;

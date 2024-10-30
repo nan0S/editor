@@ -91,42 +91,40 @@ union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
 
 union v2
 {
-   struct { f32 X, Y; };
-   f32 E[2];
+ struct { f32 X, Y; };
+ f32 E[2];
 };
 
 union v2s
 {
-   struct { s32 X, Y; };
-   s32 E[2];
+ struct { s32 X, Y; };
+ s32 E[2];
 };
 
 struct v2u
 {
-   struct { u32 X, Y; };
-   u32 E[2];
+ struct { u32 X, Y; };
+ u32 E[2];
 };
 
 union v4
 {
-   struct { f32 X, Y, Z, W; };
-   struct { f32 R, G, B, A; };
-   f32 E[4];
+ struct { f32 X, Y, Z, W; };
+ struct { f32 R, G, B, A; };
+ f32 E[4];
 };
-
-typedef v2 rotation_2d;
 
 struct transform
 {
-   v2 Offset;
-   rotation_2d Rotation;
-   v2 Scale;
+ v2 Offset;
+ v2 Rotation;
+ v2 Scale;
 };
 
 struct transform_inv
 {
-   transform Forward;
-   transform Inverse;
+ transform Forward;
+ transform Inverse;
 };
 
 #define internal static
@@ -320,13 +318,13 @@ inline internal v4  V4(f32 X, f32 Y, f32 Z, f32 W) { return {X,Y,Z,W}; }
 typedef u64 timestamp64;
 struct date_time
 {
-   u32 Year;  // [0..)
-   u16 Ms;    // [0,999]
-   u8  Sec;   // [0,59]
-   u8  Mins;  // [0,59]
-   u8  Hour;  // [0,23]
-   u8  Day;   // [0,30]
-   u8  Month; // [0,11]
+ u32 Year;  // [0..)
+ u16 Ms;    // [0,999]
+ u8  Sec;   // [0,59]
+ u8  Mins;  // [0,59]
+ u8  Hour;  // [0,23]
+ u8  Day;   // [0,30]
+ u8  Month; // [0,11]
 };
 internal date_time   TimestampToDateTime(timestamp64 Ts);
 internal timestamp64 DateTimeToTimestamp(date_time Dt);

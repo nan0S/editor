@@ -5,18 +5,15 @@ struct control_point_index
 {
  u64 Index;
 };
-
 struct cubic_bezier_point_index
 {
  u64 Index;
 };
-
-enum curve_point_type : u8
+enum curve_point_type
 {
  CurvePoint_ControlPoint,
  CurvePoint_CubicBezierPoint,
 };
-
 struct curve_point_index
 {
  curve_point_type Type;
@@ -32,7 +29,7 @@ struct visible_cubic_bezier_points
  cubic_bezier_point_index Indices[4];
 };
 
-enum interpolation_type : u8
+enum interpolation_type
 {
  Interpolation_CubicSpline,
  Interpolation_Bezier,
@@ -43,7 +40,7 @@ enum interpolation_type : u8
 read_only global char const *InterpolationNames[] = { "Cubic Spline", "Bezier", "Polynomial" };
 StaticAssert(ArrayCount(InterpolationNames) == Interpolation_Count, InterpolationNamesDefined);
 
-enum polynomial_interpolation_type : u8
+enum polynomial_interpolation_type
 {
  PolynomialInterpolation_Barycentric,
  PolynomialInterpolation_Newton,
@@ -52,7 +49,7 @@ enum polynomial_interpolation_type : u8
 read_only global char const *PolynomialInterpolationNames[] = { "Barycentric", "Newton" };
 StaticAssert(ArrayCount(PolynomialInterpolationNames) == PolynomialInterpolation_Count, PolynomialInterpolationNamesDefined);
 
-enum points_arrangement : u8
+enum points_arrangement
 {
  PointsArrangement_Chebychev,
  PointsArrangement_Equidistant,
@@ -67,7 +64,7 @@ struct polynomial_interpolation_params
  points_arrangement PointsArrangement;
 };
 
-enum cubic_spline_type : u8
+enum cubic_spline_type
 {
  CubicSpline_Natural,
  CubicSpline_Periodic,
@@ -76,7 +73,7 @@ enum cubic_spline_type : u8
 read_only global char const *CubicSplineNames[] = { "Natural", "Periodic" };
 StaticAssert(ArrayCount(CubicSplineNames) == CubicSpline_Count, CubicSplineNamesDefined);
 
-enum bezier_type : u8
+enum bezier_type
 {
  Bezier_Regular,
  Bezier_Cubic,

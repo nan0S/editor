@@ -103,23 +103,6 @@ MovePointAlongCurve(curve *Curve, v2 *TranslateInOut, f32 *PointFractionInOut, b
 }
 //////////////////////
 
-#if 0
-
-internal void
-UpdateCamera(camera *Camera, platform_input *Input)
-{
- 
-}
-
-internal void
-MoveCamera(camera *Camera, v2 Translation)
-{
- Camera->Position += Translation;
- Camera->ReachingTarget = false;
-}
-
-#endif
-
 internal world_position
 CameraToWorldSpace(camera_position Position, render_group *Group)
 {
@@ -281,15 +264,6 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
  return Result;
 }
 
-internal editor_mode
-EditorModeNormal(void)
-{
- editor_mode Result = {};
- Result.Type = EditorMode_Normal;
- 
- return Result;
-}
-
 internal f32
 CalculateAnimation(animation_type Animation, f32 T)
 {
@@ -321,12 +295,13 @@ internal entity *
 AllocEntity(editor *Editor)
 {
  entity *Entity = 0;
- entities *Entities = &Editor->Entities;
+ 
+ entity *Entities = Editor->Entities;
  for (u64 EntityIndex = 0;
-      EntityIndex < ArrayCount(Entities->Entities);
+      EntityIndex < MAX_ENTITY_COUNT;
       ++EntityIndex)
  {
-  entity *Current = Entities->Entities + EntityIndex;
+  entity *Current = Entities + EntityIndex;
   if (!(Current->Flags & EntityFlag_Active))
   {
    Entity = Current;
@@ -341,8 +316,6 @@ AllocEntity(editor *Editor)
    
    Entity->Flags |= EntityFlag_Active;
    ClearArena(Entity->Arena);
-   
-   ++Editor->EntityCount;
    
    break;
   }
@@ -386,7 +359,6 @@ DeallocEntity(editor *Editor, entity *Entity)
  }
  
  Entity->Flags &= ~EntityFlag_Active;
- --Editor->EntityCount;
 }
 
 internal void
@@ -426,60 +398,6 @@ AddNotificationF(editor *Editor, notification_type Type, char const *Format, ...
  va_end(Args);
 }
 
-internal void
-EditorSetProjectPath(editor *Editor, b32 Empty, string ProjectPath)
-{
-#if 0
- Editor->Empty = Empty;
- ClearArena(Editor->ProjectPathArena);
- Editor->ProjectPath = StrCopy(Editor->ProjectPathArena, ProjectPath);
- 
- temp_arena Temp = TempArena(0);
- string WindowTitle = StrLit("Untitled");
- if (!Empty)
- {
-  string FileName = StrChopLastSlash(ProjectPath);
-  string WithoutExt = StrChopLastDot(FileName);
-  WindowTitle = CStrFromStr(Temp.Arena, WithoutExt);
- }
- Editor->RenderData.Window->setTitle(WindowTitle.Data);
- EndTemp(Temp);
-#endif
-}
-
-internal b32
-ScreenPointsAreClose(screen_position A, screen_position B, render_group *Group)
-{
- camera_position C = ScreenToCameraSpace(A, Group);
- camera_position D = ScreenToCameraSpace(B, Group);
- 
- local f32 CameraSpaceEpsilon = 0.01f;
- b32 Result = NormSquared(C - D) <= Square(CameraSpaceEpsilon);
- 
- return Result;
-}
-
-internal editor_mode
-MakeMovingEntityMode(entity *Target)
-{
- editor_mode Result = {};
- Result.Type = EditorMode_Moving;
- Result.Target = Target;
- Result.Moving.Type = MovingMode_Entity;
- 
- return Result;
-}
-
-internal editor_mode
-MakeMovingCameraMode(void)
-{
- editor_mode Result = {};
- Result.Type = EditorMode_Moving;
- Result.Moving.Type = MovingMode_Camera;
- 
- return Result;
-}
-
 internal vertex_array
 CopyLineVertices(arena *Arena, vertex_array Vertices)
 {
@@ -489,48 +407,6 @@ CopyLineVertices(arena *Arena, vertex_array Vertices)
  
  return Result;
 }
-
-internal editor_mode
-MakeMovingCurvePointMode(arena *Arena, entity *TargetCurve, curve_point_index Index)
-{
- editor_mode Result = {};
- Result.Type = EditorMode_Moving;
- Result.Target = TargetCurve;
- Result.Moving.Type = MovingMode_CurvePoint;
- Result.Moving.MovingPointIndex = Index;
- 
- ClearArena(Arena);
- curve *Curve = GetCurve(TargetCurve);
- Result.Moving.OriginalCurveVertices = CopyLineVertices(Arena, Curve->CurveVertices);
- 
- return Result;
-}
-
-internal editor_mode
-MakeRotatingMode(entity *Target, screen_position Center)
-{
- editor_mode Result = {};
- Result.Type = EditorMode_Rotating;
- Result.Target = Target;
- Result.Rotating.Center = Center;
- 
- return Result;
-}
-
-internal editor_mode
-MakeMovingTrackedPointMode(entity *Target)
-{
- editor_mode Result = {};
- Result.Type = EditorMode_Moving;
- Result.Target = Target;
- Result.Moving.Type = MovingMode_TrackedPoint;
- 
- return Result;
-}
-
-internal void SetCurveControlPoints(entity *Entity, u64 ControlPointCount, local_position *ControlPoints,
-                                    f32 *ControlPointWeights, local_position *CubicBezierPoints);
-internal void SelectControlPoint(curve *Curve, control_point_index Index);
 
 // TODO(hbr): Maybe move into editor_entity.h
 internal void
@@ -2177,7 +2053,7 @@ UpdateAnimateCurveAnimation(editor *Editor, editor_input *Input, render_group *G
 
 // TODO(hbr): Refactor this function
 internal void
-RenderEntityCombo(entities *Entities, entity **InOutEntity, string Label)
+RenderEntityCombo(u64 EntityCount, entity *Entities, entity **InOutEntity, string Label)
 {
  entity *Entity = *InOutEntity;
  string Preview = (Entity ? Entity->Name : StrLit(""));
@@ -2187,7 +2063,7 @@ RenderEntityCombo(entities *Entities, entity **InOutEntity, string Label)
        EntityIndex < MAX_ENTITY_COUNT;
        ++EntityIndex)
   {
-   entity *Current= Entities->Entities + EntityIndex;
+   entity *Current= Entities + EntityIndex;
    if ((Current->Flags & EntityFlag_Active) &&
        (Current->Type == Entity_Curve) &&
        UI_SelectableItem(Current == Entity, Current->Name))
@@ -2215,8 +2091,8 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
   {                 
    if (IsWindowOpen)
    {
-    RenderEntityCombo(&Editor->Entities, &State->SourceEntity, StrLit("Curve 1"));
-    RenderEntityCombo(&Editor->Entities, &State->WithEntity,   StrLit("Curve 2"));
+    RenderEntityCombo(MAX_ENTITY_COUNT, Editor->Entities, &State->SourceEntity, StrLit("Curve 1"));
+    RenderEntityCombo(MAX_ENTITY_COUNT, Editor->Entities, &State->WithEntity,   StrLit("Curve 2"));
     UI_ComboF(&State->CombinationType, CurveCombination_Count, CurveCombinationNames, "Method");
    }
    
@@ -2470,7 +2346,7 @@ UpdateAndRenderEntities(editor *Editor, platform_input *Input, render_group *Ren
       EntryIndex < MAX_ENTITY_COUNT;
       ++EntryIndex)
  {
-  entity *Entity = Editor->Entities.Entities + EntryIndex;
+  entity *Entity = Editor->Entities + EntryIndex;
   if ((Entity->Flags & EntityFlag_Active) && IsEntityVisible(Entity))
   {
    SetEntityModelTransform(RenderGroup, Entity);
@@ -2485,20 +2361,6 @@ UpdateAndRenderEntities(editor *Editor, platform_input *Input, render_group *Ren
      if (Curve->RecomputeRequested)
      {
       ActuallyRecomputeCurve(Entity);
-     }
-     
-     if (Editor->Mode.Type == EditorMode_Moving &&
-         Editor->Mode.Moving.Type == MovingMode_CurvePoint &&
-         Editor->Mode.Target == Entity)
-     {
-      v4 Color = Curve->CurveParams.CurveColor;
-      Color.A *= 0.5f;
-      PushVertexArray(RenderGroup,
-                      Editor->Mode.Moving.OriginalCurveVertices.Vertices,
-                      Editor->Mode.Moving.OriginalCurveVertices.VertexCount,
-                      Editor->Mode.Moving.OriginalCurveVertices.Primitive,
-                      Color,
-                      GetCurvePartZOffset(CurvePart_LineShadow));
      }
      
      PushVertexArray(RenderGroup,
@@ -2648,12 +2510,11 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   Editor->CurveAnimation.Arena = AllocArena();
   Editor->CurveAnimation.AnimationSpeed = 1.0f;
   
-  entities *Entities = &Editor->Entities;
   for (u64 EntityIndex = 0;
        EntityIndex < MAX_ENTITY_COUNT;
        ++EntityIndex)
   {
-   entity *Entity = Entities->Entities + EntityIndex;
+   entity *Entity = Editor->Entities + EntityIndex;
    Entity->Arena = AllocArena();
    Entity->Curve.PointTracking.Arena = AllocArena();
    Entity->Curve.DegreeLowering.Arena = AllocArena();
@@ -2746,7 +2607,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
     else
     {
      Collision = CheckCollisionWith(MAX_ENTITY_COUNT,
-                                    Editor->Entities.Entities,
+                                    Editor->Entities,
                                     MouseP,
                                     RenderGroup->CollisionTolerance);
     }
@@ -2799,7 +2660,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
      {
       temp_arena Temp = TempArena(0);
       entity *Entity = AllocEntity(Editor);
-      string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EntityCounter++);
+      string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
       InitEntity(Entity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
       InitCurve(Entity, Editor->CurveDefaultParams);
       EndTemp(Temp);
@@ -2883,7 +2744,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
     Eat = true;
     
     collision Collision = CheckCollisionWith(MAX_ENTITY_COUNT,
-                                             Editor->Entities.Entities,
+                                             Editor->Entities,
                                              MouseP,
                                              RenderGroup->CollisionTolerance);
     
@@ -3256,7 +3117,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   {
    if (UI_BeginWindowF(&Editor->EntityListWindow, "Entities"))
    {
-    entities *Entities = &Editor->Entities;
+    entity *Entities = Editor->Entities;
     for (u64 EntityTypeIndex = 0;
          EntityTypeIndex < Entity_Count;
          ++EntityTypeIndex)
@@ -3276,7 +3137,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
            EntityIndex < MAX_ENTITY_COUNT;
            ++EntityIndex)
       {
-       entity *Entity = Entities->Entities + EntityIndex;
+       entity *Entity = Entities + EntityIndex;
        if ((Entity->Flags & EntityFlag_Active) && Entity->Type == EntityType)
        {
         UI_PushId(EntityIndex);

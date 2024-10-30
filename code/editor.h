@@ -180,18 +180,6 @@ Stack:
  moving the same control point which could lead to some weird behaviours, investigate that
 */
 
-#define WINDOW_TITLE "Parametric Curves Editor"
-#define SAVED_PROJECT_FILE_EXTENSION ".editor"
-// NOTE(hbr): This is a little too complex for such a simple thing.
-#define PROJECT_FILE_EXTENSION_SELECTION "Project File (*" SAVED_PROJECT_FILE_EXTENSION ")"
-#define JPG_FILE_EXTENSION_SELECTION "JPG Image (*.jpg)"
-#define PNG_FILE_EXTENSION_SELECTION "PNG Image (*.png)"
-
-#define SAVE_AS_MODAL_EXTENSION_SELECTION \
-PROJECT_FILE_EXTENSION_SELECTION "{" SAVED_PROJECT_FILE_EXTENSION "}" \
-"," JPG_FILE_EXTENSION_SELECTION "{.jpg}" \
-"," PNG_FILE_EXTENSION_SELECTION "{.png}"
-
 struct camera
 {
  v2 P;
@@ -208,9 +196,9 @@ struct camera
 typedef u64 collision_flags;
 enum
 {
- Collision_CurvePoint       = (1<<0),
- Collision_CurveLine        = (1<<1),
- Collision_TrackedPoint     = (1<<2),
+ Collision_CurvePoint   = (1<<0),
+ Collision_CurveLine    = (1<<1),
+ Collision_TrackedPoint = (1<<2),
 };
 struct collision
 {
@@ -220,78 +208,6 @@ struct collision
  u64 CurveLinePointIndex;
 };
 
-enum user_action_type
-{
- UserAction_None,
- UserAction_ButtonClicked,
- UserAction_ButtonDrag,
- UserAction_ButtonReleased,
- UserAction_MouseMove,
-};
-struct user_action
-{
- user_action_type Type;
- union
- {
-  struct {
-   //button Button;
-   screen_position ClickPosition;
-  } Click;
-  
-  struct {
-   //button Button;
-   screen_position DragFromPosition;
-  } Drag;
-  
-  struct {
-   //button Button;
-   screen_position ReleasePosition;
-  } Release;
-  
-  struct {
-   screen_position FromPosition;
-   screen_position ToPosition;
-  } MouseMove;
- };
-};
-
-enum editor_mode_type
-{
- EditorMode_Normal,
- EditorMode_Moving,
- EditorMode_Rotating,
-};
-
-struct editor_rotating_mode
-{
- screen_position Center;
- //button Button;
-};
-// TODO(hbr): Try to get rid of this type, if this is necessary, just remove this TODO
-enum editor_moving_mode_type
-{
- MovingMode_Entity,
- MovingMode_Camera,
- MovingMode_CurvePoint,
- MovingMode_TrackedPoint,
-};
-struct editor_moving_mode
-{
- editor_moving_mode_type Type;
- curve_point_index MovingPointIndex;
- vertex_array OriginalCurveVertices;
-};
-struct editor_mode
-{
- editor_mode_type Type;
- entity *Target;
- union
- {
-  editor_moving_mode Moving;
-  editor_rotating_mode Rotating;
- };
-};
-
 enum animate_curve_animation_stage
 {
  AnimateCurveAnimation_None,
@@ -299,11 +215,10 @@ enum animate_curve_animation_stage
  AnimateCurveAnimation_Animating,
 };
 
-enum animation_type : u8
+enum animation_type
 {
  Animation_Smooth,
  Animation_Linear,
- 
  Animation_Count,
 };
 read_only global char const *AnimationNames[] = { "Smooth", "Linear" };
@@ -331,17 +246,15 @@ struct curve_animation_state
  f32 Blend;
 };
 
-enum curve_combination_type : u8
+enum curve_combination_type
 {
  CurveCombination_None,
- 
  CurveCombination_Merge,
  CurveCombination_C0,
  CurveCombination_C1,
  CurveCombination_C2,
  CurveCombination_G1,
- 
- CurveCombination_Count
+ CurveCombination_Count,
 };
 read_only global char const *CurveCombinationNames[] = { "None", "Merge", "C0", "C1", "C2", "G1" };
 StaticAssert(ArrayCount(CurveCombinationNames) == CurveCombination_Count, CurveCombinationNamesDefined);
@@ -353,14 +266,6 @@ struct curve_combining_state
  b32 SourceCurveLastControlPoint;
  b32 WithCurveFirstControlPoint;
  curve_combination_type CombinationType;
-};
-
-enum action_to_do
-{
- ActionToDo_Nothing,
- ActionToDo_NewProject,
- ActionToDo_OpenProject,
- ActionToDo_Quit,
 };
 
 enum notification_type
@@ -386,7 +291,6 @@ enum curve_part
  CurvePart_Line,
  CurvePart_ControlPoint,
  CurvePart_Special,
- 
  CurvePart_Count,
 };
 internal f32
@@ -395,12 +299,6 @@ GetCurvePartZOffset(curve_part Part)
  f32 Result = Cast(f32)Part / Cast(f32)CurvePart_Count;
  return Result;
 }
-
-struct entities
-{
-#define MAX_ENTITY_COUNT 1024
- entity Entities[MAX_ENTITY_COUNT];
-};
 
 struct frame_stats
 {
@@ -456,6 +354,11 @@ struct editor
  b32 Initialized;
  
  camera Camera;
+ frame_stats FrameStats;
+ entity *SelectedEntity;
+#define MAX_ENTITY_COUNT 1024
+ entity Entities[MAX_ENTITY_COUNT];
+ u64 EverIncreasingEntityCounter;
  
  b32 HideUI;
  b32 EntityListWindow;
@@ -465,21 +368,12 @@ struct editor
  editor_left_click_state LeftClick;
  editor_right_click_state RightClick;
  editor_middle_click_state MiddleClick;
- 
  //////////////////////////////
- 
- frame_stats FrameStats;
  
  // TODO(hbr): Remove this from the state
  render_group *RenderGroup;
  
- u64 EntityCount;
- entities Entities;
- u64 EntityCounter;
- entity *SelectedEntity;
- 
  arena *MovingPointArena;
- editor_mode Mode;
  
  v4 DefaultBackgroundColor;
  v4 BackgroundColor;
@@ -489,11 +383,6 @@ struct editor
  
  curve_animation_state CurveAnimation;
  curve_combining_state CurveCombining;
- 
- b32 Empty;
- arena *ProjectPathArena;
- string ProjectPath;
- action_to_do ActionWaitingToBeDone;
  
  u64 NotificationCount;
  notification Notifications[32];

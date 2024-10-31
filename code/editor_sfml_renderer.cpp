@@ -30,6 +30,12 @@ RenderTransformToSFMLTransform(transform A)
  return Result;
 }
 
+internal int
+SFMLRenderCommandCmp(render_command *A, render_command *B)
+{
+ return Cmp(A->ZOffset, B->ZOffset);
+}
+
 internal void
 SFMLEndFrame(sfml_renderer *Renderer, render_frame *Frame)
 {
@@ -47,7 +53,7 @@ SFMLEndFrame(sfml_renderer *Renderer, render_frame *Frame)
  
  Window->clear(ColorToSFMLColor(Frame->ClearColor));
  
- QuickSort(Frame->Commands, Frame->CommandCount, render_command, RenderCommandCmp);
+ QuickSort(Frame->Commands, Frame->CommandCount, render_command, SFMLRenderCommandCmp);
  
  for (u64 CommandIndex = 0;
       CommandIndex < Frame->CommandCount;

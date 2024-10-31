@@ -7,8 +7,8 @@
 #define DegToRad32 (Pi32 / 180.0f)
 #define RadToDeg32 (180.0f / Pi32)
 
-#define PowF32(Base, Exponent) powf((Base), (Exponent))
-#define SinF32(X)              sinf((X))
+#define PowF32(Base, Exponent) powf(Base, Exponent)
+#define SinF32(X)              sinf(X)
 #define Log10F32(X)            log10f(X)
 #define FloorF32(X)            floorf(X)
 #define CeilF32(X)             ceilf(X)
@@ -16,13 +16,7 @@
 #define SqrtF32(X)             sqrtf(X)
 #define Atan2F32(Y, X)         atan2f(Y, X)
 
-//~ Basic types
-struct rectangle2
-{
- v2 Mini;
- v2 Maxi;
-};
-
+//~ Basic operations
 inline internal v2  operator+ (v2 U, v2 V)   { return V2(U.X + V.X, U.Y + V.Y); }
 inline internal v2  operator- (v2 U, v2 V)   { return V2(U.X - V.X, U.Y - V.Y); }
 inline internal v2  operator- (v2 U)            { return V2(-U.X, -U.Y); }
@@ -56,10 +50,6 @@ read_only global v4 RedColor         = V4(1.0f, 0.0f, 0.0f, 1.0f);
 read_only global v4 BlueColor        = V4(0.0f, 0.0f, 1.0f, 1.0f);
 read_only global v4 YellowColor      = V4(1.0f, 1.0f, 0.0f, 1.0f);
 read_only global v4 TransparentColor = V4(0.0f, 0.0f, 0.0f, 0.0f);
-
-#define V2FromVec(V) V2((f32)(V).x, (f32)(V).y)
-#define V2S32FromVec(V) V2S32((s32)(V).x, (s32)(V).y)
-#define ColorFromVec(V) RGBA_Color((u8)(V).r, (u8)(V).g, (u8)(V).b, (u8)(V).a)
 
 internal rectangle2 EmptyAABB(void);
 internal void AddPointAABB(rectangle2 *AABB, v2 P);

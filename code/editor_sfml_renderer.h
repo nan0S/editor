@@ -3,11 +3,9 @@
 
 struct sfml_renderer
 {
-   render_frame Frame;
-   
-   sf::RenderWindow *Window;
-   
-   render_command CommandBuffer[4096];
+ render_frame Frame;
+ sf::RenderWindow *Window;
+ render_command CommandBuffer[4096];
 };
 
 internal sfml_renderer *InitSFMLRenderer(arena *Arena, sf::RenderWindow *Window);

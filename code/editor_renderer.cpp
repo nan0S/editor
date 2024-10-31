@@ -1,9 +1,3 @@
-internal int
-RenderCommandCmp(render_command *A, render_command *B)
-{
- return Cmp(A->ZOffset, B->ZOffset);
-}
-
 internal render_command *
 PushRenderCommand(render_group *Group, render_command_type Type, f32 ZOffset)
 {

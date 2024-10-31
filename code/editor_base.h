@@ -77,8 +77,8 @@ typedef intptr_t  smm;
 #define S64_MAX ((s64)0x7fffffffffffffffll)
 
 typedef uint32_t b32;
-//#define true  (Cast(b32)1)
-//#define false (Cast(b32)0)
+#define true  (Cast(b32)1)
+#define false (Cast(b32)0)
 
 typedef float f32;
 typedef double f64;
@@ -112,6 +112,12 @@ union v4
  struct { f32 X, Y, Z, W; };
  struct { f32 R, G, B, A; };
  f32 E[4];
+};
+
+struct rectangle2
+{
+ v2 Mini;
+ v2 Maxi;
 };
 
 struct transform
@@ -238,6 +244,7 @@ struct transform_inv
 #define MemoryEqual(Ptr1, Ptr2, NumBytes) (MemoryCmp(Ptr1, Ptr2, NumBytes) == 0)
 #define StructZero(Ptr) MemoryZero(Ptr, SizeOf(*(Ptr)))
 #define ArrayCopy(Dst, Src, ElemCount) MemoryCopy(Dst, Src, (ElemCount) * SizeOf((Dst)[0]))
+#define ArrayReverse(Array, Count, Type) do { for (u64 _I_ = 0; _I_ < ((Count)>>1); ++_I_) { Swap((Array)[_I_], (Array)[(Count) - 1 - _I_], Type); } } while (0)
 
 #define ListIter(Var, Head, Type) for (Type *Var = (Head), *__Next = ((Head) ? (Head)->Next : 0); Var; Var = __Next, __Next = (__Next ? __Next->Next : 0))
 #define ListIterRev(Var, Tail, Type) for (Type *Var = (Tail), *__Prev = ((Tail) ? (Tail)->Prev : 0); Var; Var = __Prev, __Prev = (__Prev ? __Prev->Prev : 0))
@@ -268,46 +275,6 @@ if ((Node)->Next) (Node)->Next->Prev = (Node)->Prev; \
 (Tail) = ((Node) == (Tail) ? (Tail)->Prev : (Tail)); \
 } \
 } while (0)
-
-// TODO(hbr): I probably should remove these macros
-#define CAPACITY_GROW_FORMULA(Capacity) (2 * (Capacity) + 8)
-#define array(Type) Type *
-#define ArrayAlloc(Count, Type) Cast(Type *)HeapAllocNonZero((Count) * SizeOf(Type))
-#define ArrayFree(Array) HeapDealloc(Array)
-#define ArrayReserve(Array, Capacity, Reserve) \
-do { \
-if ((Reserve) > (Capacity)) \
-{ \
-(Capacity) = Max(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
-HeapDealloc(Array); \
-*(Cast(void **)&(Array)) = HeapAllocNonZero((Capacity) * SizeOf((Array)[0])); \
-} \
-Assert((Capacity) >= (Reserve)); \
-} while (0)
-#define ArrayReserveCopy(Array, Capacity, Reserve) \
-do { \
-if ((Reserve) > (Capacity)) \
-{ \
-(Capacity) = Max(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
-*(Cast(void **)&(Array)) = HeapRealloc((Array), (Capacity) * SizeOf((Array)[0])); \
-} \
-Assert((Capacity) >= (Reserve)); \
-} while (0)
-#define ArrayReserveCopyZero(Array, Capacity, Reserve) \
-do { \
-if ((Reserve) > (Capacity)) \
-{ \
-auto OldCapacity = (Capacity); \
-(Capacity) = Max(CAPACITY_GROW_FORMULA((Capacity)), (Reserve)); \
-*(Cast(void **)&(Array)) = HeapRealloc((Array), (Capacity) * SizeOf((Array)[0])); \
-if ((Capacity) > OldCapacity) { \
-MemoryZero((Array) + OldCapacity, ((Capacity)-OldCapacity) * SizeOf(*(Array))); \
-} \
-} \
-Assert((Capacity) >= (Reserve)); \
-} while (0)
-#define ArrayReverse(Array, Count, Type) \
-do { for (u64 _I_ = 0; _I_ < ((Count)>>1); ++_I_) { Swap((Array)[_I_], (Array)[(Count) - 1 - _I_], Type); } } while (0)
 
 inline internal v2  V2(f32 X, f32 Y) { return {X,Y}; }
 inline internal v2s V2S(s32 X, s32 Y) { return {X,Y}; }

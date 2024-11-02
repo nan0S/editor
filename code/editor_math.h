@@ -86,10 +86,13 @@ internal v2 CombineRotations2D(v2 RotationA, v2 RotationB);
 
 inline internal transform operator*(transform T2, transform T1);
 internal transform Identity(void);
-internal v2 ProjectLength(transform_inv *XForm, v2 Length);
-internal v2 UnprojectLength(transform_inv *XForm, v2 Length);
+internal transform_inv MakeFullTransform(v2 P, v2 Rotation, v2 Scale);
+internal v2 Transform(transform A, v2 P);
 internal v2 Project(transform_inv *XForm, v2 P);
 internal v2 Unproject(transform_inv *XForm, v2 P);
+internal v2 TransformLength(transform A, v2 Length);
+internal v2 ProjectLength(transform_inv *XForm, v2 Length);
+internal v2 UnprojectLength(transform_inv *XForm, v2 Length);
 
 //~ Interpolation
 internal void EquidistantPoints(f32 *Ti, u64 N);

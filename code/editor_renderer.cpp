@@ -111,28 +111,6 @@ PushImage(render_group *Group, v2 Dim, u64 Width, u64 Height, char *Pixels)
  Image->Scale = Group->ModelXForm.Scale;
 }
 
-internal transform_inv
-MakeRenderTransform(v2 P, v2 Rotation, v2 Scale)
-{
- transform_inv Result = {};
- 
- transform A = {};
- A.Scale = V2(1.0f / Scale.X, 1.0f / Scale.Y);
- A.Rotation = Rotation2DInverse(Rotation);
- A.Offset = -RotateAround(P, V2(0, 0), A.Rotation);
- A.Offset = Hadamard(A.Offset, A.Scale);
- 
- transform B = {};
- B.Scale = Scale;
- B.Rotation = Rotation;
- B.Offset = P;
- 
- Result.Forward = A;
- Result.Inverse = B;
- 
- return Result;
-}
-
 internal render_group
 BeginRenderGroup(render_frame *Frame,
                  v2 CameraP, v2 CameraRot, f32 CameraZoom,
@@ -146,11 +124,11 @@ BeginRenderGroup(render_frame *Frame,
  v2u WindowDim = Frame->WindowDim;
  f32 AspectRatio = Cast(f32)WindowDim.X / WindowDim.Y;
  
- Result.WorldToCamera = MakeRenderTransform(CameraP, CameraRot, V2(1.0f / CameraZoom, 1.0f / CameraZoom));
- Result.CameraToClip = MakeRenderTransform(V2(0, 0), Rotation2DZero(), V2(AspectRatio, 1.0f));
- Result.ClipToScreen = MakeRenderTransform(-V2(1.0f, -1.0f),
-                                           Rotation2DZero(),
-                                           V2(2.0f / WindowDim.X, -2.0f / WindowDim.Y));
+ Result.WorldToCamera = MakeFullTransform(CameraP, CameraRot, V2(1.0f / CameraZoom, 1.0f / CameraZoom));
+ Result.CameraToClip = MakeFullTransform(V2(0, 0), Rotation2DZero(), V2(AspectRatio, 1.0f));
+ Result.ClipToScreen = MakeFullTransform(-V2(1.0f, -1.0f),
+                                         Rotation2DZero(),
+                                         V2(2.0f / WindowDim.X, -2.0f / WindowDim.Y));
  
  Result.ProjXForm.Forward = Result.CameraToClip.Forward * Result.WorldToCamera.Forward;
  Result.ProjXForm.Inverse = Result.WorldToCamera.Inverse * Result.CameraToClip.Inverse;

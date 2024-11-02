@@ -393,3 +393,19 @@ RotateEntityAround(entity *Entity, v2 Rotate, v2 Around)
  Entity->P = RotateAround(Entity->P, Around, Rotate);
  Entity->Rotation = CombineRotations2D(Entity->Rotation, Rotate);
 }
+
+internal v2
+ToLocalEntitySpace(v2 P, entity *Entity)
+{
+ transform_inv XForm = MakeFullTransform(Entity->P, Entity->Rotation, Entity->Scale);
+ v2 Result = Unproject(&XForm, P);
+ return Result;
+}
+
+internal v2
+FromLocalEntitySpace(v2 P, entity *Entity)
+{
+ transform_inv XForm = MakeFullTransform(Entity->P, Entity->Rotation, Entity->Scale);
+ v2 Result = Project(&XForm, P);
+ return Result;
+}

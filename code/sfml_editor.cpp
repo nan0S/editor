@@ -14,15 +14,12 @@
 #include "editor_string.cpp"
 #include "editor_os.cpp"
 
-#include "third_party/sfml/include/SFML/Graphics.hpp"
-
 #define EDITOR_PROFILER 1
 #include "editor_profiler.h"
 #include "editor_math.h"
 #include "editor_ui.h"
 #include "editor_sort.h"
 #include "editor_entity2.h"
-#include "editor_adapt.h"
 #include "editor_entity.h"
 #include "editor.h"
 
@@ -36,12 +33,15 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "third_party/stb/stb_image.h"
 
-#include "editor_sfml_renderer.h"
-#include "editor_sfml_renderer.cpp"
-
+#include "third_party/sfml/include/SFML/Graphics.hpp"
+#include "sfml_editor_renderer.h"
 #include "sfml_editor.h"
 
 #include "editor.cpp"
+
+RENDERER_BEGIN_FRAME(SFMLBeginFrame);
+RENDERER_END_FRAME(SFMLEndFrame);
+SFML_RENDERER_INIT(SFMLRendererInit);
 
 internal platform_key
 SFMLKeyToPlatformKey(sf::Keyboard::Key Key)
@@ -238,7 +238,7 @@ int main()
   bool ImGuiInitSuccess = ImGui::SFML::Init(*Window, true);
   if (ImGuiInitSuccess)
   {
-   sfml_renderer *Renderer = InitSFMLRenderer(PermamentArena, Window);
+   platform_renderer *Renderer = SFMLRendererInit(Window);
    
    sf::Clock Clock;
    sfml_platform_input SFMLInput = {};

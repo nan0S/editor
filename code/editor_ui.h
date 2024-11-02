@@ -7,6 +7,14 @@ typedef b32 changed_b32;
 typedef b32 open_b32;
 typedef b32 expanded_b32;
 
+enum
+{
+ WindowFlag_AutoResize         = (1<<0),
+ WindowFlag_NoTitleBar         = (1<<1),
+ WindowFlag_NoFocusOnAppearing = (1<<2),
+};
+typedef u64 window_flags;
+
 internal void UI_PushLabel(string Label);
 internal void UI_PushLabelF(char const *Format, ...);
 internal void UI_PushId(u64 Id);
@@ -26,8 +34,8 @@ internal void UI_PopAlpha(void);
 #define UI_ColoredText(Color)  DeferBlock(UI_PushTextColor(Color), UI_PopTextColor())
 #define UI_Alpha(Alpha)        DeferBlock(UI_PushAlpha(Alpha), UI_PopAlpha())
 
-internal not_collapsed_b32 UI_BeginWindow(b32 *IsOpen, string Label);
-internal not_collapsed_b32 UI_BeginWindowF(b32 *IsOpen, char const *Format, ...);
+internal not_collapsed_b32 UI_BeginWindow(b32 *IsOpen, string Label, window_flags Flags);
+internal not_collapsed_b32 UI_BeginWindowF(b32 *IsOpen, window_flags Flags, char const *Format, ...);
 internal void              UI_EndWindow(void);
 
 internal void              UI_OpenPopup(string Label);

@@ -176,8 +176,9 @@ Stack:
 - usunac artefakty ktore sie pojawiaja gdy linia sie zagina w druga storne bardzo ostro
 - okienka ui powinny byc customizowalne jak duze
 - inserting control point in the middle of polynomial curve is sometimes broken
-- because clicks are now highly independent, we might now delete control point while
- moving the same control point which could lead to some weird behaviours, investigate that
+- because clicks are now highly independent, we might now delete control point while moving the same control point which could lead to some weird behaviours, investigate that
+ - try to highlight entity that is about to be removed - maybe even in general - highlight stuff upon sliding mouse into its collider
+
 */
 
 struct camera
@@ -270,11 +271,11 @@ struct curve_combining_state
 
 enum notification_type
 {
+ Notification_None,
  Notification_Success,
  Notification_Error,
  Notification_Warning,
 };
-
 struct notification
 {
  notification_type Type;
@@ -282,7 +283,6 @@ struct notification
  string Content;
  f32 LifeTime;
  f32 ScreenPosY;
- f32 BoxHeight;
 };
 
 enum curve_part
@@ -355,10 +355,15 @@ struct editor
  
  camera Camera;
  frame_stats FrameStats;
+ 
  entity *SelectedEntity;
 #define MAX_ENTITY_COUNT 1024
  entity Entities[MAX_ENTITY_COUNT];
  u64 EverIncreasingEntityCounter;
+ 
+#define MAX_NOTIFICATION_COUNT 16
+ u64 NotificationCount;
+ notification Notifications[MAX_NOTIFICATION_COUNT];
  
  b32 HideUI;
  b32 EntityListWindow;
@@ -368,6 +373,7 @@ struct editor
  editor_left_click_state LeftClick;
  editor_right_click_state RightClick;
  editor_middle_click_state MiddleClick;
+ 
  //////////////////////////////
  
  // TODO(hbr): Remove this from the state
@@ -383,9 +389,6 @@ struct editor
  
  curve_animation_state CurveAnimation;
  curve_combining_state CurveCombining;
- 
- u64 NotificationCount;
- notification Notifications[32];
 };
 
 EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender);

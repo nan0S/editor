@@ -1,14 +1,49 @@
+#include "imgui_inc.h"
+
+#include "editor_base.h"
+#include "editor_memory.h"
+#include "editor_string.h"
+#include "editor_os.h"
+#include "editor_renderer.h"
+#include "editor_math.h"
+
+#include "editor_base.cpp"
+#include "editor_memory.cpp"
+#include "editor_string.cpp"
+#include "editor_os.cpp"
+#include "editor_math.cpp"
+
+#include "third_party/sfml/include/SFML/Graphics.hpp"
+#include "sfml_editor_renderer.h"
+
+#include <malloc.h>
+
+/* TODO(hbr):
+I don't want:
+- editor_memory
+- most of editor_math
+- editor_string
+- editor_os
+- malloc
+*/
+
 internal sfml_renderer *
-InitSFMLRenderer(arena *Arena, sf::RenderWindow *Window)
+SFMLRendererInitImpl(sf::RenderWindow *Window)
 {
- sfml_renderer *SFML = PushStruct(Arena, sfml_renderer);
+ sfml_renderer *SFML = Cast(sfml_renderer *)malloc(SizeOf(sfml_renderer));
  SFML->Window = Window;
  
  return SFML;
 }
 
+SFML_RENDERER_INIT(SFMLRendererInit)
+{
+ platform_renderer *Renderer = Cast(platform_renderer *)SFMLRendererInitImpl(Window);
+ return Renderer;
+}
+
 internal render_frame *
-SFMLBeginFrame(sfml_renderer *Renderer, v2u WindowDim)
+SFMLBeginFrameImpl(sfml_renderer *Renderer, v2u WindowDim)
 {
  render_frame *Frame = &Renderer->Frame;
  Frame->CommandCount = 0;
@@ -16,6 +51,12 @@ SFMLBeginFrame(sfml_renderer *Renderer, v2u WindowDim)
  Frame->MaxCommandCount = ArrayCount(Renderer->CommandBuffer);
  Frame->WindowDim = WindowDim;
  
+ return Frame;
+}
+
+RENDERER_BEGIN_FRAME(SFMLBeginFrame)
+{
+ render_frame *Frame = SFMLBeginFrameImpl(Cast(sfml_renderer *)Renderer, WindowDim);
  return Frame;
 }
 
@@ -36,11 +77,41 @@ SFMLRenderCommandCmp(render_command *A, render_command *B)
  return Cmp(A->ZOffset, B->ZOffset);
 }
 
-internal void
-SFMLEndFrame(sfml_renderer *Renderer, render_frame *Frame)
+internal inline sf::Vector2f
+V2ToVector2f(v2 V)
 {
- TimeFunction;
+ sf::Vector2f Result = {};
+ Result.x = V.X;
+ Result.y = V.Y;
  
+ return Result;
+}
+
+internal inline sf::Vector2i
+V2S32ToVector2i(v2s V)
+{
+ sf::Vector2i Result = {};
+ Result.x = V.X;
+ Result.y = V.Y;
+ 
+ return Result;
+}
+
+internal inline sf::Color
+ColorToSFMLColor(v4 Color)
+{
+ sf::Color Result = {};
+ Result.r = Cast(u8)(255 * ClampTop(Color.R, 1.0f));
+ Result.g = Cast(u8)(255 * ClampTop(Color.G, 1.0f));
+ Result.b = Cast(u8)(255 * ClampTop(Color.B, 1.0f));
+ Result.a = Cast(u8)(255 * ClampTop(Color.A, 1.0f));
+ 
+ return Result;
+}
+
+internal void
+SFMLEndFrameImpl(sfml_renderer *Renderer, render_frame *Frame)
+{
  sf::Transform Transform = RenderTransformToSFMLTransform(Frame->Proj);
  
  sf::RenderWindow *Window = Renderer->Window;
@@ -60,7 +131,6 @@ SFMLEndFrame(sfml_renderer *Renderer, render_frame *Frame)
       ++CommandIndex)
  {
   render_command *Command = Frame->Commands + CommandIndex;
-  
   switch (Command->Type)
   {
    case RenderCommand_VertexArray: {
@@ -73,8 +143,7 @@ SFMLEndFrame(sfml_renderer *Renderer, render_frame *Frame)
      case Primitive_TriangleStrip: { Primitive = sf::TriangleStrip; }break;
     }
     
-    temp_arena Temp = TempArena(0);
-    sf::Vertex *SFMLVertices = PushArrayNonZero(Temp.Arena, Array->VertexCount, sf::Vertex);
+    sf::Vertex *SFMLVertices = Cast(sf::Vertex *)malloc(Array->VertexCount * SizeOf(sf::Vertex));
     {
      vertex *Vertices = Array->Vertices;
      v4 Color = Array->Color;
@@ -93,7 +162,7 @@ SFMLEndFrame(sfml_renderer *Renderer, render_frame *Frame)
     
     Window->draw(SFMLVertices, Array->VertexCount, Primitive, MVP);
     
-    EndTemp(Temp);
+    free(SFMLVertices);
    }break;
    
    case RenderCommand_Circle: {
@@ -142,7 +211,7 @@ SFMLEndFrame(sfml_renderer *Renderer, render_frame *Frame)
     
     Sprite.setTexture(SFMLTexture);
     Sprite.setOrigin(0.5f * Image->Width, 0.5f * Image->Height);
-    Sprite.setScale(1.0f / Image->Width * Image->Dim.X, 1.0f / Image->Height * Image->Dim.Y);
+    Sprite.setScale(1.0f / Image->Width * Image->Dim.X * Image->Scale.X, 1.0f / Image->Height * Image->Dim.Y * Image->Scale.Y);
     Sprite.setRotation(Rotation2DToDegrees(Image->Rotation));
     Sprite.setPosition(Image->P.X, Image->P.Y);
     
@@ -153,4 +222,9 @@ SFMLEndFrame(sfml_renderer *Renderer, render_frame *Frame)
  
  ImGui::SFML::Render(*Window);
  Window->display();
+}
+
+RENDERER_END_FRAME(SFMLEndFrame)
+{
+ SFMLEndFrameImpl(Cast(sfml_renderer *)Renderer, Frame);
 }

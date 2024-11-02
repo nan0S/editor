@@ -323,6 +323,8 @@ internal void UnselectControlPoint(curve *Curve);
 internal sorted_entries SortEntities(arena *Arena, entity_array Entities);
 
 internal void RotateEntityAround(entity *Entity, v2 Rotate, v2 Around);
+internal v2 ToLocalEntitySpace(v2 P, entity *Entity);
+internal v2 FromLocalEntitySpace(v2 P, entity *Entity);
 
 // TODO(hbr): Temporary solution
 internal transform

@@ -128,6 +128,7 @@ WorldToLocalEntityPosition(entity *Entity, v2 P)
  v2 Result = RotateAround(P - Entity->P,
                           V2(0.0f, 0.0f),
                           Rotation2DInverse(Entity->Rotation));
+ Result = Hadamard(V2(1.0f / Entity->Scale.X, 1.0f / Entity->Scale.Y), Result);
  return Result;
 }
 

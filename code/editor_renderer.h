@@ -1,6 +1,19 @@
 #ifndef EDITOR_RENDERER_H
 #define EDITOR_RENDERER_H
 
+struct transform
+{
+ v2 Offset;
+ v2 Rotation;
+ v2 Scale;
+};
+
+struct transform_inv
+{
+ transform Forward;
+ transform Inverse;
+};
+
 struct vertex
 {
  v2 Pos;
@@ -119,5 +132,10 @@ struct render_group
  f32 CollisionTolerance;
  f32 RotationRadius;
 };
+
+struct platform_renderer {};
+
+#define RENDERER_BEGIN_FRAME(Name) render_frame *Name(platform_renderer *Renderer, v2u WindowDim)
+#define RENDERER_END_FRAME(Name) void Name(platform_renderer *Renderer, render_frame *Frame)
 
 #endif //EDITOR_RENDERER_H

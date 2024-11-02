@@ -710,7 +710,7 @@ using ldb = f32;
 template<typename T>
 using vector = std::vector<T>;
 const ldb eps = 0.000001f; // CUSTOM
-int gauss(vector<vector<ldb>> a, vector<ldb> &ans) { // O(n^3)
+internal int gauss(vector<vector<ldb>> a, vector<ldb> &ans) { // O(n^3)
  int n = Cast(int)a.size(), m = Cast(int)a[0].size()-1;
  vector<int> pos(m, -1);
  ldb det = 1; int rank = 0;
@@ -1562,5 +1562,27 @@ internal v2
 Unproject(transform_inv *XForm, v2 P)
 {
  v2 Result = Transform(XForm->Inverse, P);
+ return Result;
+}
+
+internal transform_inv
+MakeFullTransform(v2 P, v2 Rotation, v2 Scale)
+{
+ transform_inv Result = {};
+ 
+ transform A = {};
+ A.Scale = V2(1.0f / Scale.X, 1.0f / Scale.Y);
+ A.Rotation = Rotation2DInverse(Rotation);
+ A.Offset = -RotateAround(P, V2(0, 0), A.Rotation);
+ A.Offset = Hadamard(A.Offset, A.Scale);
+ 
+ transform B = {};
+ B.Scale = Scale;
+ B.Rotation = Rotation;
+ B.Offset = P;
+ 
+ Result.Forward = A;
+ Result.Inverse = B;
+ 
  return Result;
 }

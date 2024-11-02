@@ -77,8 +77,8 @@ typedef intptr_t  smm;
 #define S64_MAX ((s64)0x7fffffffffffffffll)
 
 typedef uint32_t b32;
-#define true  (Cast(b32)1)
-#define false (Cast(b32)0)
+//#define true  (Cast(b32)1)
+//#define false (Cast(b32)0)
 
 typedef float f32;
 typedef double f64;
@@ -118,19 +118,6 @@ struct rectangle2
 {
  v2 Mini;
  v2 Maxi;
-};
-
-struct transform
-{
- v2 Offset;
- v2 Rotation;
- v2 Scale;
-};
-
-struct transform_inv
-{
- transform Forward;
- transform Inverse;
 };
 
 #define internal static
@@ -245,6 +232,7 @@ struct transform_inv
 #define StructZero(Ptr) MemoryZero(Ptr, SizeOf(*(Ptr)))
 #define ArrayCopy(Dst, Src, ElemCount) MemoryCopy(Dst, Src, (ElemCount) * SizeOf((Dst)[0]))
 #define ArrayReverse(Array, Count, Type) do { for (u64 _I_ = 0; _I_ < ((Count)>>1); ++_I_) { Swap((Array)[_I_], (Array)[(Count) - 1 - _I_], Type); } } while (0)
+#define ArrayMove(Dst, Src, ElemCount) MemoryMove(Dst, Src, (ElemCount) * SizeOf((Dst)[0]))
 
 #define ListIter(Var, Head, Type) for (Type *Var = (Head), *__Next = ((Head) ? (Head)->Next : 0); Var; Var = __Next, __Next = (__Next ? __Next->Next : 0))
 #define ListIterRev(Var, Tail, Type) for (Type *Var = (Tail), *__Prev = ((Tail) ? (Tail)->Prev : 0); Var; Var = __Prev, __Prev = (__Prev ? __Prev->Prev : 0))

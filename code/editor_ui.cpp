@@ -367,13 +367,17 @@ UI_TextF(char const *Format, ...)
 }
 
 internal not_collapsed_b32
-UI_BeginWindow(b32 *IsOpen, string Label)
+UI_BeginWindow(b32 *IsOpen, string Label, window_flags Flags)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
  bool IsOpen_ = false;
  if (IsOpen) IsOpen_ = Cast(bool)(*IsOpen);
- b32 Result = Cast(b32)ImGui::Begin(CLabel.Data, (IsOpen ? &IsOpen_ : 0), ImGuiWindowFlags_AlwaysAutoResize);
+ ImGuiWindowFlags ImGuiFlags = 0;
+ if (Flags & WindowFlag_AutoResize) ImGuiFlags |= ImGuiWindowFlags_AlwaysAutoResize;
+ if (Flags & WindowFlag_NoTitleBar) ImGuiFlags |= ImGuiWindowFlags_NoDecoration;
+ if (Flags & WindowFlag_NoFocusOnAppearing) ImGuiFlags |= ImGuiWindowFlags_NoFocusOnAppearing;
+ b32 Result = Cast(b32)ImGui::Begin(CLabel.Data, (IsOpen ? &IsOpen_ : 0), ImGuiFlags);
  if (IsOpen) *IsOpen = Cast(b32)IsOpen_;
  EndTemp(Temp);
  
@@ -381,13 +385,13 @@ UI_BeginWindow(b32 *IsOpen, string Label)
 }
 
 internal not_collapsed_b32
-UI_BeginWindowF(b32 *IsOpen, char const *Format, ...)
+UI_BeginWindowF(b32 *IsOpen, window_flags Flags, char const *Format, ...)
 {
  temp_arena Temp = TempArena(0);
  va_list Args;
  va_start(Args, Format);
  string Label = StrFV(Temp.Arena, Format, Args);
- b32 Result = UI_BeginWindow(IsOpen, Label);
+ b32 Result = UI_BeginWindow(IsOpen, Label, Flags);
  va_end(Args);
  EndTemp(Temp);
  

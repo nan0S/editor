@@ -43,17 +43,17 @@ ZoomCamera(camera *Camera, f32 By)
  Camera->ReachingTarget = false;
 }
 
-internal void
-SetEntityModelTransform(render_group *Group, entity *Entity)
-{
- SetModelTransform(Group, GetEntityModelTransform(Entity), Entity->SortingLayer);
-}
-
 internal v2
 ClipToWorld(v2 Clip, render_group *RenderGroup)
 {
  v2 World = Unproject(&RenderGroup->ProjXForm, Clip);
  return World;
+}
+
+internal void
+SetEntityModelTransform(render_group *Group, entity *Entity)
+{
+ SetModelTransform(Group, GetEntityModelTransform(Entity), Entity->SortingLayer);
 }
 
 internal void
@@ -381,19 +381,21 @@ AddNotificationF(editor *Editor, notification_type Type, char const *Format, ...
  va_list Args;
  va_start(Args, Format);
  
- if (Editor->NotificationCount == ArrayCount(Editor->Notifications))
+ if (Editor->NotificationCount == MAX_NOTIFICATION_COUNT)
  {
-  MemoryMove(Editor->Notifications, Editor->Notifications + 1,
-             SizeOf(notification) * (ArrayCount(Editor->Notifications) - 1));
+  ArrayMove(Editor->Notifications, Editor->Notifications + 1, Editor->NotificationCount - 1);
   --Editor->NotificationCount;
  }
- Assert(Editor->NotificationCount < ArrayCount(Editor->Notifications));
+ Assert(Editor->NotificationCount < MAX_NOTIFICATION_COUNT);
  
- notification *Notification = Editor->Notifications + Editor->NotificationCount++;
- StructZero(Notification);
+ notification *Notification = Editor->Notifications + Editor->NotificationCount;
+ ++Editor->NotificationCount;
+ 
  Notification->Type = Type;
  u64 ContentCount = FmtV(Notification->ContentBuffer, ArrayCount(Notification->ContentBuffer), Format, Args);
  Notification->Content = MakeStr(Notification->ContentBuffer, ContentCount);
+ Notification->LifeTime = 0.0f;
+ Notification->ScreenPosY = 0.0f;
  
  va_end(Args);
 }
@@ -493,7 +495,7 @@ DuplicateEntity(entity *Entity, editor *Editor)
 // NOTE(hbr): This should really be some highly local internal, don't expect to reuse.
 // It's highly specific.
 internal b32
-ResetCtxMenu_(string Label)
+ResetCtxMenu(string Label)
 {
  b32 Reset = false;
  if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(1))
@@ -510,7 +512,6 @@ ResetCtxMenu_(string Label)
  
  return Reset;
 }
-#define ResetCtxMenu(LabelLit) ResetCtxMenu_(StrLit(LabelLit))
 
 internal void
 BeginAnimatingCurve(curve_animation_state *Animation, entity *CurveEntity)
@@ -729,7 +730,7 @@ RenderSelectedEntityUI(editor *Editor)
      UI_LabelF("Curve")
      {
       SomeCurveParamChanged |= UI_ComboF(&CurveParams->InterpolationType, Interpolation_Count, InterpolationNames, "Interpolation Type");
-      if (ResetCtxMenu("InterpolationTypeReset"))
+      if (ResetCtxMenu(StrLit("InterpolationTypeReset")))
       {
        CurveParams->InterpolationType = DefaultParams.InterpolationType;
        SomeCurveParamChanged = true;
@@ -741,14 +742,14 @@ RenderSelectedEntityUI(editor *Editor)
         polynomial_interpolation_params *PolynomialParams = &CurveParams->PolynomialInterpolationParams;
         
         SomeCurveParamChanged |= UI_ComboF(&PolynomialParams->Type, PolynomialInterpolation_Count, PolynomialInterpolationNames, "Polynomial Type");
-        if (ResetCtxMenu("PolynomialTypeReset"))
+        if (ResetCtxMenu(StrLit("PolynomialTypeReset")))
         {
          PolynomialParams->Type = DefaultParams.PolynomialInterpolationParams.Type;
          SomeCurveParamChanged = true;
         }
         
         SomeCurveParamChanged |= UI_ComboF(&PolynomialParams->PointsArrangement, PointsArrangement_Count, PointsArrangementNames, "Points Arrangement");
-        if (ResetCtxMenu("PointsArrangementReset"))
+        if (ResetCtxMenu(StrLit("PointsArrangementReset")))
         {
          PolynomialParams->PointsArrangement =
           DefaultParams.PolynomialInterpolationParams.PointsArrangement;
@@ -758,7 +759,7 @@ RenderSelectedEntityUI(editor *Editor)
        
        case Interpolation_CubicSpline: {
         SomeCurveParamChanged |= UI_ComboF(&CurveParams->CubicSplineType, CubicSpline_Count, CubicSplineNames, "Spline Types");
-        if (ResetCtxMenu("SplineTypeReset"))
+        if (ResetCtxMenu(StrLit("SplineTypeReset")))
         {
          CurveParams->CubicSplineType = DefaultParams.CubicSplineType;
          SomeCurveParamChanged = true;
@@ -767,7 +768,7 @@ RenderSelectedEntityUI(editor *Editor)
        
        case Interpolation_Bezier: {
         SomeCurveParamChanged |= UI_ComboF(&CurveParams->BezierType, Bezier_Count, BezierNames, "Bezier Types");
-        if (ResetCtxMenu("BezierTypeReset"))
+        if (ResetCtxMenu(StrLit("BezierTypeReset")))
         {
          CurveParams->BezierType = DefaultParams.BezierType;
          SomeCurveParamChanged = true;
@@ -783,21 +784,21 @@ RenderSelectedEntityUI(editor *Editor)
      UI_LabelF("Line")
      {
       SomeCurveParamChanged |= UI_ColorPickerF(&CurveParams->CurveColor, "Color");
-      if (ResetCtxMenu("CurveColorReset"))
+      if (ResetCtxMenu(StrLit("CurveColorReset")))
       {
        CurveParams->CurveColor = DefaultParams.CurveColor;
        SomeCurveParamChanged = true;
       }
       
       SomeCurveParamChanged |= UI_DragFloatF(&CurveParams->CurveWidth, 0.0f, FLT_MAX, 0, "Width");
-      if (ResetCtxMenu("CurveWidthReset"))
+      if (ResetCtxMenu(StrLit("CurveWidthReset")))
       {
        CurveParams->CurveWidth = DefaultParams.CurveWidth;
        SomeCurveParamChanged = true;
       }
       
       SomeCurveParamChanged |= UI_SliderIntegerF(&CurveParams->CurvePointCountPerSegment, 1, 2000, "Detail");
-      if (ResetCtxMenu("DetailReset"))
+      if (ResetCtxMenu(StrLit("DetailReset")))
       {
        CurveParams->CurvePointCountPerSegment = DefaultParams.CurvePointCountPerSegment;
        SomeCurveParamChanged = true;
@@ -809,7 +810,7 @@ RenderSelectedEntityUI(editor *Editor)
      UI_LabelF("ControlPoints")
      {
       UI_CheckboxF(&CurveParams->PointsDisabled, "Points Disabled");
-      if (ResetCtxMenu("PointsDisabledReset"))
+      if (ResetCtxMenu(StrLit("PointsDisabledReset")))
       {
        CurveParams->PointsDisabled= DefaultParams.PointsDisabled;
       }
@@ -817,14 +818,14 @@ RenderSelectedEntityUI(editor *Editor)
       if (!CurveParams->PointsDisabled)
       {                     
        SomeCurveParamChanged |= UI_ColorPickerF(&CurveParams->PointColor, "Color");
-       if (ResetCtxMenu("PointColorReset"))
+       if (ResetCtxMenu(StrLit("PointColorReset")))
        {
         CurveParams->PointColor = DefaultParams.PointColor;
         SomeCurveParamChanged = true;
        }
        
        SomeCurveParamChanged |= UI_DragFloatF(&CurveParams->PointRadius, 0.0f, FLT_MAX, 0, "Radius");
-       if (ResetCtxMenu("PointRadiusReset"))
+       if (ResetCtxMenu(StrLit("PointRadiusReset")))
        {
         CurveParams->PointRadius = DefaultParams.PointRadius;
         SomeCurveParamChanged = true;
@@ -849,7 +850,7 @@ RenderSelectedEntityUI(editor *Editor)
           SomeCurveParamChanged |= UI_DragFloatF(&ControlPointWeights[SelectedIndex],
                                                  ControlPointMinWeight, ControlPointMaxWeight,
                                                  0, "Selected Point (%llu)", SelectedIndex);
-          if (ResetCtxMenu("SelectedPointWeightReset"))
+          if (ResetCtxMenu(StrLit("SelectedPointWeightReset")))
           {
            ControlPointWeights[SelectedIndex] = 1.0f;
           }
@@ -868,7 +869,7 @@ RenderSelectedEntityUI(editor *Editor)
             SomeCurveParamChanged |= UI_DragFloatF(&ControlPointWeights[ControlPointIndex],
                                                    ControlPointMinWeight, ControlPointMaxWeight,
                                                    0, "Point (%llu)", ControlPointIndex);
-            if (ResetCtxMenu("PointWeightReset"))
+            if (ResetCtxMenu(StrLit("PointWeightReset")))
             {
              ControlPointWeights[ControlPointIndex] = 1.0f;
             }
@@ -887,7 +888,7 @@ RenderSelectedEntityUI(editor *Editor)
      DeferBlock(UI_PushLabelF("Polyline"), UI_PopId())
      {
       UI_CheckboxF(&CurveParams->PolylineEnabled, "Enabled");
-      if (ResetCtxMenu("PolylineEnabled"))
+      if (ResetCtxMenu(StrLit("PolylineEnabled")))
       {
        CurveParams->PolylineEnabled = DefaultParams.PolylineEnabled;
       }
@@ -895,14 +896,14 @@ RenderSelectedEntityUI(editor *Editor)
       if (CurveParams->PolylineEnabled)
       {
        SomeCurveParamChanged |= UI_ColorPickerF(&CurveParams->PolylineColor, "Color");
-       if (ResetCtxMenu("PolylineColorReset"))
+       if (ResetCtxMenu(StrLit("PolylineColorReset")))
        {
         CurveParams->PolylineColor = DefaultParams.PolylineColor;
         SomeCurveParamChanged = true;
        }
        
        SomeCurveParamChanged |= UI_DragFloatF(&CurveParams->PolylineWidth, 0.0f, FLT_MAX, 0, "Width");
-       if (ResetCtxMenu("PolylineWidthReset"))
+       if (ResetCtxMenu(StrLit("PolylineWidthReset")))
        {
         CurveParams->PolylineWidth = DefaultParams.PolylineWidth;
         SomeCurveParamChanged = true;
@@ -915,7 +916,7 @@ RenderSelectedEntityUI(editor *Editor)
      DeferBlock(UI_PushLabelF("ConvexHull"), UI_PopId())
      {
       UI_CheckboxF(&CurveParams->ConvexHullEnabled, "Enabled");
-      if (ResetCtxMenu("ConvexHullEnabledReset"))
+      if (ResetCtxMenu(StrLit("ConvexHullEnabledReset")))
       {
        CurveParams->ConvexHullEnabled = DefaultParams.ConvexHullEnabled;
       }
@@ -923,14 +924,14 @@ RenderSelectedEntityUI(editor *Editor)
       if (CurveParams->ConvexHullEnabled)
       {
        SomeCurveParamChanged |= UI_ColorPickerF(&CurveParams->ConvexHullColor, "Color");
-       if (ResetCtxMenu("ConvexHullColorReset"))
+       if (ResetCtxMenu(StrLit("ConvexHullColorReset")))
        {
         CurveParams->ConvexHullColor = DefaultParams.ConvexHullColor;
         SomeCurveParamChanged = true;
        }
        
        SomeCurveParamChanged |= UI_DragFloatF(&CurveParams->ConvexHullWidth, 0.0f, FLT_MAX, 0, "Width");
-       if (ResetCtxMenu("ConvexHullWidthReset"))
+       if (ResetCtxMenu(StrLit("ConvexHullWidthReset")))
        {
         CurveParams->ConvexHullWidth = DefaultParams.ConvexHullWidth;
         SomeCurveParamChanged = true;
@@ -1072,137 +1073,6 @@ RenderSelectedEntityUI(editor *Editor)
  }
 }
 #endif
-
-internal void
-UpdateAndRenderNotifications(editor *Editor, platform_input *Input, render_group *RenderGroup)
-{
- temp_arena Temp = TempArena(0);
- 
- UI_Label(StrLit("Notifications"))
- {
-  v2u WindowDim = RenderGroup->Frame->WindowDim;
-  f32 Padding = 0.01f * WindowDim.X;
-  f32 TargetPosY = WindowDim.Y - Padding;
-  
-  f32 WindowWidth = 0.1f * WindowDim.X;
-  ImVec2 WindowMinSize = ImVec2(WindowWidth, 0.0f);
-  ImVec2 WindowMaxSize = ImVec2(WindowWidth, FLT_MAX);
-  
-  notification *FreeNotification = Editor->Notifications;
-  u64 RemoveCount = 0;
-  for (u64 NotificationIndex = 0;
-       NotificationIndex < Editor->NotificationCount;
-       ++NotificationIndex)
-  {
-   notification *Notification = Editor->Notifications + NotificationIndex;
-   Notification->LifeTime += Input->dtForFrame;
-   
-   enum notification_life_time {
-    NotificationLifeTime_In,
-    NotificationLifeTime_Proper,
-    NotificationLifeTime_Out,
-    NotificationLifeTime_Invisible,
-    NotificationLifeTime_Count,
-   };
-   local f32 LifeTimes[NotificationLifeTime_Count] = {
-    0.15f, 10.0f, 0.15f, 0.1f,
-   };
-   
-   f32 RelLifeTime = Notification->LifeTime;
-   u64 LifeTimeIndex = 0;
-   for (; LifeTimeIndex < NotificationLifeTime_Count;
-        ++LifeTimeIndex)
-   {
-    if (RelLifeTime <= LifeTimes[LifeTimeIndex])
-    {
-     break;
-    }
-    RelLifeTime -= LifeTimes[LifeTimeIndex];
-   }
-   
-   b32 ShouldBeRemoved = false;
-   f32 Fade = 0.0f;
-   switch (Cast(notification_life_time)LifeTimeIndex)
-   {
-    case NotificationLifeTime_In:        { Fade = Map01(RelLifeTime, 0.0f, LifeTimes[NotificationLifeTime_In]); } break;
-    case NotificationLifeTime_Proper:    { Fade = 1.0f; } break;
-    case NotificationLifeTime_Out:       { Fade = 1.0f - Map01(RelLifeTime, 0.0f, LifeTimes[NotificationLifeTime_Out]); } break;
-    case NotificationLifeTime_Invisible: { Fade = 0.0f; } break;
-    case NotificationLifeTime_Count:     { ShouldBeRemoved = true; } break;
-   }
-   // NOTE(hbr): Quadratic interpolation instead of linear.
-   Fade = 1.0f - Square(1.0f - Fade);
-   Assert(-EPS_F32 <= Fade && Fade <= 1.0f + EPS_F32);
-   
-   f32 CurrentPosY = Notification->ScreenPosY;
-   local f32 MoveSpeed = 20.0f;
-   f32 NextPosY = Lerp(CurrentPosY, TargetPosY, 1.0f - PowF32(2.0f, -MoveSpeed * Input->dtForFrame));
-   if (ApproxEq32(TargetPosY, NextPosY))
-   {
-    NextPosY = TargetPosY;
-   }
-   Notification->ScreenPosY = NextPosY;
-   
-   ImVec2 WindowPosition = ImVec2(WindowDim.X - Padding, NextPosY);
-   ImGui::SetNextWindowPos(WindowPosition, ImGuiCond_Always, ImVec2(1.0f, 1.0f));
-   ImGui::SetNextWindowSizeConstraints(WindowMinSize, WindowMaxSize);
-   
-   UI_Alpha(Fade)
-   {
-    string Label = StrF(Temp.Arena, "Notification#%llu", NotificationIndex);
-    DeferBlock(ImGui::Begin(Label.Data, 0,
-                            ImGuiWindowFlags_AlwaysAutoResize |
-                            ImGuiWindowFlags_NoDecoration |
-                            ImGuiWindowFlags_NoNavFocus |
-                            ImGuiWindowFlags_NoFocusOnAppearing),
-               ImGui::End())
-    {
-     ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
-     
-     if (ImGui::IsWindowHovered() && (ImGui::IsMouseClicked(0) ||
-                                      ImGui::IsMouseClicked(1)))
-     {
-      ShouldBeRemoved = true;
-     }
-     
-     char const *Title = 0;
-     v4 TitleColor = {};
-     switch (Notification->Type)
-     {
-      case Notification_Success: { Title = "Success"; TitleColor = GreenColor; } break;
-      case Notification_Error:   { Title = "Error";   TitleColor = RedColor; } break;
-      case Notification_Warning: { Title = "Warning"; TitleColor = YellowColor; } break;
-     }
-     
-     UI_ColoredText(TitleColor) UI_TextF(Title);
-     
-     ImGui::Separator();
-     DeferBlock(ImGui::PushTextWrapPos(0.0f), ImGui::PopTextWrapPos())
-     {
-      string Content = CStrFromStr(Temp.Arena, Notification->Content);
-      UI_TextF(Content.Data);
-     }
-     
-     f32 WindowHeight = ImGui::GetWindowHeight();
-     Notification->BoxHeight = WindowHeight;
-     TargetPosY -= WindowHeight + Padding;
-    }
-   }
-   
-   if (ShouldBeRemoved)
-   {
-    ++RemoveCount;
-   }
-   else
-   {
-    *FreeNotification++ = *Notification;
-   }
-  }
-  Editor->NotificationCount -= RemoveCount;
- }
- 
- EndTemp(Temp);
-}
 
 internal void
 UpdateAndRenderMenuBar(editor *Editor, platform_input *Input, render_group *RenderGroup)
@@ -1622,7 +1492,7 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
     b32 PerformSplit = false;
     b32 Cancel = false;
     b32 IsWindowOpen = true;
-    DeferBlock(UI_BeginWindowF(&IsWindowOpen, "Splitting '%S'", Entity->Name),
+    DeferBlock(UI_BeginWindowF(&IsWindowOpen, 0, "Splitting '%S'", Entity->Name),
                UI_EndWindow())
     {
      Tracking->NeedsRecomputationThisFrame |= UI_SliderFloatF(&Tracking->Fraction, 0.0f, 1.0f, "Split Point");
@@ -1663,7 +1533,8 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
    else
    {
     b32 IsWindowOpen = true;
-    DeferBlock(UI_BeginWindowF(&IsWindowOpen, "De Casteljau Algorithm '%S'", Entity->Name),
+    DeferBlock(UI_BeginWindowF(&IsWindowOpen, WindowFlag_AutoResize,
+                               "De Casteljau Algorithm '%S'", Entity->Name),
                UI_EndWindow())
     {
      Tracking->NeedsRecomputationThisFrame |= UI_SliderFloatF(&Tracking->Fraction, 0.0f, 1.0f, "t");
@@ -1781,7 +1652,7 @@ UpdateAndRenderDegreeLowering(render_group *RenderGroup, entity *Entity)
   
   b32 IsDegreeLoweringWindowOpen = true;
   b32 MixChanged = false;
-  if (UI_BeginWindowF(&IsDegreeLoweringWindowOpen, "Degree Lowering"))
+  if (UI_BeginWindowF(&IsDegreeLoweringWindowOpen, 0, "Degree Lowering"))
   {          
    // TODO(hbr): Add wrapping
    UI_TextF("Degree lowering failed (curve has higher degree "
@@ -2087,7 +1958,7 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
   b32 Combine      = false;
   b32 Cancel       = false;
   b32 IsWindowOpen = true;
-  if (UI_BeginWindowF(&IsWindowOpen, "Combine Curves"))
+  if (UI_BeginWindowF(&IsWindowOpen, 0, "Combine Curves"))
   {                 
    if (IsWindowOpen)
    {
@@ -2870,6 +2741,14 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
     Input->QuitRequested = true;
    }
    
+#if BUILD_DEBUG
+   if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_E)
+   {
+    Eat = true;
+    AddNotificationF(Editor, Notification_Success, "hello dasdasdsad as dsa d sad sa ds dsa d  d sa dsa sd a dsa d a dsa d sa dad sasda");
+   }
+#endif
+   
    //-
    if (Eat)
    {
@@ -2984,7 +2863,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    if (Editor->SelectedEntityWindow && Entity)
    {
     UI_PushLabelF("SelectedEntity");
-    if (UI_BeginWindowF(&Editor->SelectedEntityWindow, "Selected Entity"))
+    if (UI_BeginWindowF(&Editor->SelectedEntityWindow, WindowFlag_AutoResize, "Selected Entity"))
     {
      curve *Curve = 0;
      image *Image = 0;
@@ -3000,19 +2879,19 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
                                   "Name");
      
      UI_DragFloat2F(Entity->P.E, 0.0f, 0.0f, 0, "Position");
-     if (ResetCtxMenu("PositionReset"))
+     if (ResetCtxMenu(StrLit("PositionReset")))
      {
       Entity->P = V2(0.0f, 0.0f);
      }
      
      UI_AngleSliderF(&Entity->Rotation, "Rotation");
-     if (ResetCtxMenu("RotationReset"))
+     if (ResetCtxMenu(StrLit("RotationReset")))
      {
       Entity->Rotation = Rotation2DZero();
      }
      
      UI_DragFloat2F(Entity->Scale.E, 0.0f, 0.0f, 0, "Scale");
-     if (ResetCtxMenu("ScaleReset"))
+     if (ResetCtxMenu(StrLit("ScaleReset")))
      {
       Entity->Scale = V2(1.0f, 1.0f);
      }
@@ -3023,7 +2902,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
       UI_DragFloatF(&UniformScale, 0.0f, 0.0f, "Drag Me!", "Uniform Scale");
       f32 WidthOverHeight = Entity->Scale.X / Entity->Scale.Y;
       Entity->Scale = Entity->Scale + V2(WidthOverHeight * UniformScale, UniformScale);
-      if (ResetCtxMenu("ScaleReset"))
+      if (ResetCtxMenu(StrLit("DragMeReset")))
       {
        Entity->Scale = V2(1.0f, 1.0f);
       }
@@ -3031,7 +2910,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
      }
      
      UI_SliderIntegerF(&Entity->SortingLayer, -100, 100, "Sorting Layer");
-     if (ResetCtxMenu("SortingLayerReset"))
+     if (ResetCtxMenu(StrLit("SortingLayerReset")))
      {
       Entity->SortingLayer = 0;
      }
@@ -3075,22 +2954,29 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
      if (UI_BeginMenuF("Camera"))
      {
       camera *Camera = &Editor->Camera;
-      if (UI_MenuItemF(0, 0, "Reset Position"))
+      
+      UI_DragFloat2F(Camera->P.E, 0.0f, 0.0f, 0, "Position");
+      if (ResetCtxMenu(StrLit("PositionReset")))
       {
        TranslateCamera(Camera, -Camera->P);
       }
-      if (UI_MenuItemF(0, 0, "Reset Rotation"))
+      
+      UI_AngleSliderF(&Camera->Rotation, "Rotation");
+      if (ResetCtxMenu(StrLit("RotationReset")))
       {
        RotateCameraAround(Camera, Rotation2DInverse(Camera->Rotation), Camera->P);
       }
-      if (UI_MenuItemF(0, 0, "Reset Zoom"))
+      
+      UI_DragFloatF(&Camera->Zoom, 0.0f, 0.0f, 0, "Zoom");
+      if (ResetCtxMenu(StrLit("ZoomReset")))
       {
        SetCameraZoom(Camera, 1.0f);
       }
+      
       UI_EndMenu();
      }
      UI_ColorPickerF(&Editor->BackgroundColor, "Background Color");
-     if (ResetCtxMenu("BackgroundColorReset"))
+     if (ResetCtxMenu(StrLit("BackgroundColorReset")))
      {
       Editor->BackgroundColor = Editor->DefaultBackgroundColor;
      }
@@ -3115,7 +3001,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   //- render entity list UI
   if (Editor->EntityListWindow)
   {
-   if (UI_BeginWindowF(&Editor->EntityListWindow, "Entities"))
+   if (UI_BeginWindowF(&Editor->EntityListWindow, 0, "Entities"))
    {
     entity *Entities = Editor->Entities;
     for (u64 EntityTypeIndex = 0;
@@ -3191,16 +3077,129 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   //- render diagnostics UI
   if (Editor->DiagnosticsWindow)
   {
-   if (UI_BeginWindowF(&Editor->DiagnosticsWindow, "Diagnostics"))
+   if (UI_BeginWindowF(&Editor->DiagnosticsWindow, WindowFlag_AutoResize, "Diagnostics"))
    {
     frame_stats *Stats = &Editor->FrameStats;
-    UI_TextF("%20s: %.2f ms", "Frame time", 1000.0f * Input->dtForFrame);
-    UI_TextF("%20s: %.0f", "FPS", Stats->FPS);
-    UI_TextF("%20s: %.2f ms", "Min frame time", 1000.0f * Stats->MinFrameTime);
-    UI_TextF("%20s: %.2f ms", "Max frame time", 1000.0f * Stats->MaxFrameTime);
-    UI_TextF("%20s: %.2f ms", "Average frame time", 1000.0f * Stats->AvgFrameTime);
+    UI_TextF("%-20s %.2f ms", "Frame time", 1000.0f * Input->dtForFrame);
+    UI_TextF("%-20s %.0f", "FPS", Stats->FPS);
+    UI_TextF("%-20s %.2f ms", "Min frame time", 1000.0f * Stats->MinFrameTime);
+    UI_TextF("%-20s %.2f ms", "Max frame time", 1000.0f * Stats->MaxFrameTime);
+    UI_TextF("%-20s %.2f ms", "Average frame time", 1000.0f * Stats->AvgFrameTime);
    }
    UI_EndWindow();
+  }
+  
+  //- render notifications
+  UI_LabelF("Notifications")
+  {
+   v2u WindowDim = RenderGroup->Frame->WindowDim;
+   f32 Padding = 0.01f * WindowDim.X;
+   f32 TargetPosY = WindowDim.Y - Padding;
+   f32 WindowWidth = 0.1f * WindowDim.X;
+   
+   for (u64 NotificationIndex = 0;
+        NotificationIndex < MAX_NOTIFICATION_COUNT;
+        ++NotificationIndex)
+   {
+    notification *Notification = Editor->Notifications + NotificationIndex;
+    if (Notification->Type != Notification_None)
+    {
+     b32 Remove = false;
+     
+     Notification->LifeTime += Input->dtForFrame;
+     
+     f32 MoveSpeed = 20.0f;
+     f32 NextPosY = Lerp(Notification->ScreenPosY,
+                         TargetPosY,
+                         1.0f - PowF32(2.0f, -MoveSpeed * Input->dtForFrame));
+     Notification->ScreenPosY = NextPosY;
+     
+     ImVec2 WindowPosition = ImVec2(WindowDim.X - Padding, NextPosY);
+     ImVec2 WindowMinSize = ImVec2(WindowWidth, 0.0f);
+     ImVec2 WindowMaxSize = ImVec2(WindowWidth, FLT_MAX);
+     ImGui::SetNextWindowPos(WindowPosition, ImGuiCond_Always, ImVec2(1.0f, 1.0f));
+     ImGui::SetNextWindowSizeConstraints(WindowMinSize, WindowMaxSize);
+     
+     enum notification_phase
+     {
+      NotificationPhase_FadeIn,
+      NotificationPhase_ProperLife,
+      NotificationPhase_FadeOut,
+      NotificationPhase_Invisible,
+      NotificationPhase_Count,
+     };
+     local f32 Phases[NotificationPhase_Count] = {
+      0.15f, // fade in
+      10.0f, // proper lifetime
+      0.15f, // fade out
+      0.1f,  // invisible
+     };
+     f32 PhaseFraction = Notification->LifeTime;
+     u64 PhaseIndex = 0;
+     for (; PhaseIndex < NotificationPhase_Count; ++PhaseIndex)
+     {
+      if (PhaseFraction <= Phases[PhaseIndex])
+      {
+       break;
+      }
+      PhaseFraction -= Phases[PhaseIndex];
+     }
+     f32 Fade = 0.0f;
+     switch (Cast(notification_phase)PhaseIndex)
+     {
+      case NotificationPhase_FadeIn:     { Fade = Map01(PhaseFraction, 0.0f, Phases[NotificationPhase_FadeIn]); }break;
+      case NotificationPhase_ProperLife: { Fade = 1.0f; }break;
+      case NotificationPhase_FadeOut:    { Fade = 1.0f - Map01(PhaseFraction, 0.0f, Phases[NotificationPhase_FadeOut]); } break;
+      case NotificationPhase_Invisible:  { Fade = 0.0f; } break;
+      case NotificationPhase_Count:      { Remove = true; } break;
+     }
+     // NOTE(hbr): Quadratic interpolation instead of linear.
+     Fade = 1.0f - Square(1.0f - Fade);
+     
+     UI_Alpha(Fade)
+     {
+      DeferBlock(UI_BeginWindowF(0, WindowFlag_AutoResize | WindowFlag_NoTitleBar | WindowFlag_NoFocusOnAppearing,
+                                 "Notification%lu", NotificationIndex),
+                 UI_EndWindow())
+      {
+       ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
+       if (ImGui::IsWindowHovered() && (ImGui::IsMouseClicked(0) ||
+                                        ImGui::IsMouseClicked(1)))
+       {
+        Remove = true;
+       }
+       
+       string Title = {};
+       v4 TitleColor = {};
+       switch (Notification->Type)
+       {
+        case Notification_Success: { Title = StrLit("Success"); TitleColor = GreenColor; } break;
+        case Notification_Error:   { Title = StrLit("Error");   TitleColor = RedColor; } break;
+        case Notification_Warning: { Title = StrLit("Warning"); TitleColor = YellowColor; } break;
+        case Notification_None: InvalidPath; break;
+       }
+       
+       UI_ColoredText(TitleColor)
+       {
+        UI_Text(Title);
+       }
+       
+       ImGui::Separator();
+       ImGui::PushTextWrapPos(0.0f);
+       UI_Text(Notification->Content);
+       ImGui::PopTextWrapPos();
+       
+       f32 WindowHeight = ImGui::GetWindowHeight();
+       TargetPosY -= WindowHeight + Padding;
+      }
+     }
+     
+     if (Remove)
+     {
+      Notification->Type = Notification_None;
+     }
+    }
+   }
   }
   
 #if BUILD_DEBUG
@@ -3208,7 +3207,18 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 #endif
  }
  
- UpdateAndRenderNotifications(Editor, Input, RenderGroup);
+ {
+  entity *Entity = &Editor->Entities[0];
+  if ((Entity->Flags & EntityFlag_Active) &&
+      (Entity->Type == Entity_Curve))
+  {
+   v2 MouseP = ClipToWorld(Input->ClipSpaceMouseP, RenderGroup);
+   v2 LocalEntityP = WorldToLocalEntityPosition(Entity, MouseP);
+   SetModelTransform(RenderGroup, GetEntityModelTransform(Entity), 0.0f);
+   PushCircle(RenderGroup, LocalEntityP, 0.1f, RedColor, 0.0f);
+  }
+ }
+ 
  UpdateAndRenderEntities(Editor, Input, RenderGroup);
 }
 

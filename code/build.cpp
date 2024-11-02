@@ -64,6 +64,7 @@ CompileProgram(b32 Debug)
  StrListPush(GlobalArena, &BasicCompileCmd, StrF(GlobalArena, "/I%S", CodePath(StrLit("third_party/imgui"))));
  
  string ImguiObj = StrF(GlobalArena, "imgui_unity_%s.obj", Mode);
+ process ImGui = {};
  if (!OS_FileExists(ImguiObj))
  {
   string_list ImguiCmd = StrListCopy(GlobalArena, &BasicCompileCmd);
@@ -71,19 +72,18 @@ CompileProgram(b32 Debug)
   StrListPush(GlobalArena, &ImguiCmd, CodePath(StrLit("imgui_unity.cpp")));
   StrListPush(GlobalArena, &ImguiCmd, StrF(GlobalArena, "/Fo:%S", ImguiObj));
   LogF("%s imgui build command: %S", Mode, StrListJoin(GlobalArena, &ImguiCmd, StrLit(" ")));
-  process Imgui = OS_LaunchProcess(ImguiCmd);
-  OS_WaitForProcessToFinish(Imgui);
+  ImGui = OS_LaunchProcess(ImguiCmd);
  }
  
  string RendererObj = StrF(GlobalArena, "sfml_editor_sfml_renderer_%s.obj", Mode);
+ process Renderer = {};
  {
   string_list RendererCmd = StrListCopy(GlobalArena, &BasicCompileCmd);
   StrListPush(GlobalArena, &RendererCmd, StrLit("/c"));
   StrListPush(GlobalArena, &RendererCmd, CodePath(StrLit("sfml_editor_sfml_renderer.cpp")));
   StrListPush(GlobalArena, &RendererCmd, StrF(GlobalArena, "/Fo:%S", RendererObj));
   LogF("%s SFML renderer build command: %S", Mode, StrListJoin(GlobalArena, &RendererCmd, StrLit(" ")));
-  process Renderer = OS_LaunchProcess(RendererCmd);
-  OS_WaitForProcessToFinish(Renderer);
+  Renderer = OS_LaunchProcess(RendererCmd);
  }
  
  string_list MainCmd = BasicCompileCmd;
@@ -98,6 +98,10 @@ CompileProgram(b32 Debug)
  StrListPush(GlobalArena, &MainCmd, StrLit("sfml-graphics.lib"));
  StrListPush(GlobalArena, &MainCmd, StrLit("sfml-system.lib"));
  StrListPush(GlobalArena, &MainCmd, StrLit("sfml-window.lib"));
+ 
+ OS_WaitForProcessToFinish(ImGui);
+ OS_WaitForProcessToFinish(Renderer);
+ 
  LogF("%s build command: %S", Mode, StrListJoin(GlobalArena, &MainCmd, StrLit(" ")));
  process Build = OS_LaunchProcess(MainCmd);
  
@@ -113,6 +117,7 @@ int main(int ArgCount, char *Argv[])
  u64 BeginTSC = ReadCPUTimer();
  
  InitThreadCtx();
+ InitOS();
  GlobalArena = TempArena(0).Arena;
  
  string ExePath = OS_FullPathFromPath(GlobalArena, StrFromCStr(Argv[0]));
@@ -225,8 +230,8 @@ int main(int ArgCount, char *Argv[])
     u64 CPUFreq = EstimateCPUFreq(3);
     u64 EndTSC = ReadCPUTimer();
     u64 DiffTSC = EndTSC - BeginTSC;
-    f64 BuildSec = Cast(f64)DiffTSC / CPUFreq;
-    LogF("build took %.3lfs", BuildSec);
+    f32 BuildSec = Cast(f32)DiffTSC / CPUFreq;
+    LogF("build took %.3fs", BuildSec);
    }
   }
   else

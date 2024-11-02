@@ -231,6 +231,7 @@ struct point_info
 
 internal b32 IsEntityVisible(entity *Entity);
 internal b32 IsEntitySelected(entity *Entity);
+internal b32 IsControlPointSelected(curve *Curve);
 internal b32 AreCurvePointsVisible(curve *Curve);
 internal point_info GetCurveControlPointInfo(entity *Curve, u64 PointIndex);
 internal f32 GetCurveTrackedPointRadius(curve *Curve);
@@ -317,7 +318,6 @@ internal control_point_index AppendControlPoint(entity *Entity, v2 Point);
 internal void InsertControlPoint(entity *Entity, v2 Point, u64 At);
 internal void SelectControlPoint(curve *Curve, control_point_index Index);
 internal void SelectControlPointFromCurvePointIndex(curve *Curve, curve_point_index Index);
-internal b32 IsControlPointSelected(curve *Curve);
 internal void UnselectControlPoint(curve *Curve);
 
 internal sorted_entries SortEntities(arena *Arena, entity_array Entities);

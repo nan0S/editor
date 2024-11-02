@@ -2208,138 +2208,6 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
  EndTemp(Temp);
 }
 
-internal void
-UpdateAndRenderEntities(editor *Editor, platform_input *Input, render_group *RenderGroup)
-{
- TimeFunction;
- 
- for (u64 EntryIndex = 0;
-      EntryIndex < MAX_ENTITY_COUNT;
-      ++EntryIndex)
- {
-  entity *Entity = Editor->Entities + EntryIndex;
-  if ((Entity->Flags & EntityFlag_Active) && IsEntityVisible(Entity))
-  {
-   SetEntityModelTransform(RenderGroup, Entity);
-   f32 BaseZOffset = Cast(f32)Entity->SortingLayer;
-   
-   switch (Entity->Type)
-   {
-    case Entity_Curve: {
-     curve *Curve = &Entity->Curve;
-     curve_params *CurveParams = &Curve->CurveParams;
-     
-     if (Curve->RecomputeRequested)
-     {
-      ActuallyRecomputeCurve(Entity);
-     }
-     
-     PushVertexArray(RenderGroup,
-                     Curve->CurveVertices.Vertices,
-                     Curve->CurveVertices.VertexCount,
-                     Curve->CurveVertices.Primitive,
-                     Curve->CurveParams.CurveColor,
-                     GetCurvePartZOffset(CurvePart_Line));
-     
-     if (CurveParams->PolylineEnabled)
-     {
-      PushVertexArray(RenderGroup,
-                      Curve->PolylineVertices.Vertices,
-                      Curve->PolylineVertices.VertexCount,
-                      Curve->PolylineVertices.Primitive,
-                      Curve->CurveParams.PolylineColor,
-                      GetCurvePartZOffset(CurvePart_Special));
-     }
-     
-     if (CurveParams->ConvexHullEnabled)
-     {
-      PushVertexArray(RenderGroup,
-                      Curve->ConvexHullVertices.Vertices,
-                      Curve->ConvexHullVertices.VertexCount,
-                      Curve->ConvexHullVertices.Primitive,
-                      Curve->CurveParams.ConvexHullColor,
-                      GetCurvePartZOffset(CurvePart_Special));
-     }
-     
-     if (AreCurvePointsVisible(Curve))
-     {
-      visible_cubic_bezier_points VisibleBeziers = GetVisibleCubicBezierPoints(Entity);
-      for (u64 Index = 0;
-           Index < VisibleBeziers.Count;
-           ++Index)
-      {
-       cubic_bezier_point_index BezierIndex = VisibleBeziers.Indices[Index];
-       
-       v2 BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
-       v2 CenterPoint = GetCenterPointFromCubicBezierPointIndex(Curve, BezierIndex);
-       
-       f32 BezierPointRadius = GetCurveCubicBezierPointRadius(Curve);
-       f32 HelperLineWidth = 0.2f * CurveParams->CurveWidth;
-       
-       PushLine(RenderGroup, BezierPoint, CenterPoint, HelperLineWidth, CurveParams->CurveColor,
-                GetCurvePartZOffset(CurvePart_Line));
-       PushCircle(RenderGroup, BezierPoint, BezierPointRadius, CurveParams->PointColor,
-                  GetCurvePartZOffset(CurvePart_ControlPoint));
-      }
-      
-      u64 ControlPointCount = Curve->ControlPointCount;
-      v2 *ControlPoints = Curve->ControlPoints;
-      for (u64 PointIndex = 0;
-           PointIndex < ControlPointCount;
-           ++PointIndex)
-      {
-       point_info PointInfo = GetCurveControlPointInfo(Entity, PointIndex);
-       PushCircle(RenderGroup,
-                  ControlPoints[PointIndex],
-                  PointInfo.Radius,
-                  PointInfo.Color,
-                  GetCurvePartZOffset(CurvePart_ControlPoint),
-                  PointInfo.OutlineThickness,
-                  PointInfo.OutlineColor);
-      }
-     }
-     
-     UpdateAndRenderDegreeLowering(RenderGroup, Entity);
-     
-     curve_animation_state *Animation = &Editor->CurveAnimation;
-     if (Animation->Stage == AnimateCurveAnimation_Animating && Animation->FromCurveEntity == Entity)
-     {
-      // TODO(hbr): Update this color calculation. This should be interpolation between two curves' colors.
-      // TODO(hbr): Not only colors but also z offset
-      v4 Color = Curve->CurveParams.CurveColor;
-      PushVertexArray(RenderGroup,
-                      Animation->AnimatedCurveVertices.Vertices,
-                      Animation->AnimatedCurveVertices.VertexCount,
-                      Animation->AnimatedCurveVertices.Primitive,
-                      Color,
-                      GetCurvePartZOffset(CurvePart_Line));
-     }
-     
-     // TODO(hbr): Update this
-     curve_combining_state *Combining = &Editor->CurveCombining;
-     if (Combining->SourceEntity == Entity)
-     {
-      UpdateAndRenderCurveCombining(RenderGroup, Editor);
-     }
-     
-     UpdateAndRenderPointTracking(RenderGroup, Editor, Entity);
-     
-     Curve->RecomputeRequested = false;
-    } break;
-    
-    case Entity_Image: {
-     image *Image = &Entity->Image;
-     PushImage(RenderGroup, Image->Dim, Image->Width, Image->Height, Image->Pixels);
-    }break;
-    
-    case Entity_Count: InvalidPath; break;
-   }
-   
-   ResetModelTransform(RenderGroup);
-  }
- }
-}
-
 EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 {
  TimeFunction;
@@ -3207,19 +3075,132 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 #endif
  }
  
+ //- update and render entities
+ for (u64 EntryIndex = 0;
+      EntryIndex < MAX_ENTITY_COUNT;
+      ++EntryIndex)
  {
-  entity *Entity = &Editor->Entities[0];
-  if ((Entity->Flags & EntityFlag_Active) &&
-      (Entity->Type == Entity_Curve))
+  entity *Entity = Editor->Entities + EntryIndex;
+  if ((Entity->Flags & EntityFlag_Active) && IsEntityVisible(Entity))
   {
-   v2 MouseP = ClipToWorld(Input->ClipSpaceMouseP, RenderGroup);
-   v2 LocalEntityP = WorldToLocalEntityPosition(Entity, MouseP);
-   SetModelTransform(RenderGroup, GetEntityModelTransform(Entity), 0.0f);
-   PushCircle(RenderGroup, LocalEntityP, 0.1f, RedColor, 0.0f);
+   SetEntityModelTransform(RenderGroup, Entity);
+   f32 BaseZOffset = Cast(f32)Entity->SortingLayer;
+   
+   switch (Entity->Type)
+   {
+    case Entity_Curve: {
+     curve *Curve = &Entity->Curve;
+     curve_params *CurveParams = &Curve->CurveParams;
+     
+     if (Curve->RecomputeRequested)
+     {
+      ActuallyRecomputeCurve(Entity);
+     }
+     
+     PushVertexArray(RenderGroup,
+                     Curve->CurveVertices.Vertices,
+                     Curve->CurveVertices.VertexCount,
+                     Curve->CurveVertices.Primitive,
+                     Curve->CurveParams.CurveColor,
+                     GetCurvePartZOffset(CurvePart_Line));
+     
+     if (CurveParams->PolylineEnabled)
+     {
+      PushVertexArray(RenderGroup,
+                      Curve->PolylineVertices.Vertices,
+                      Curve->PolylineVertices.VertexCount,
+                      Curve->PolylineVertices.Primitive,
+                      Curve->CurveParams.PolylineColor,
+                      GetCurvePartZOffset(CurvePart_Special));
+     }
+     
+     if (CurveParams->ConvexHullEnabled)
+     {
+      PushVertexArray(RenderGroup,
+                      Curve->ConvexHullVertices.Vertices,
+                      Curve->ConvexHullVertices.VertexCount,
+                      Curve->ConvexHullVertices.Primitive,
+                      Curve->CurveParams.ConvexHullColor,
+                      GetCurvePartZOffset(CurvePart_Special));
+     }
+     
+     if (AreCurvePointsVisible(Curve))
+     {
+      visible_cubic_bezier_points VisibleBeziers = GetVisibleCubicBezierPoints(Entity);
+      for (u64 Index = 0;
+           Index < VisibleBeziers.Count;
+           ++Index)
+      {
+       cubic_bezier_point_index BezierIndex = VisibleBeziers.Indices[Index];
+       
+       v2 BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
+       v2 CenterPoint = GetCenterPointFromCubicBezierPointIndex(Curve, BezierIndex);
+       
+       f32 BezierPointRadius = GetCurveCubicBezierPointRadius(Curve);
+       f32 HelperLineWidth = 0.2f * CurveParams->CurveWidth;
+       
+       PushLine(RenderGroup, BezierPoint, CenterPoint, HelperLineWidth, CurveParams->CurveColor,
+                GetCurvePartZOffset(CurvePart_Line));
+       PushCircle(RenderGroup, BezierPoint, BezierPointRadius, CurveParams->PointColor,
+                  GetCurvePartZOffset(CurvePart_ControlPoint));
+      }
+      
+      u64 ControlPointCount = Curve->ControlPointCount;
+      v2 *ControlPoints = Curve->ControlPoints;
+      for (u64 PointIndex = 0;
+           PointIndex < ControlPointCount;
+           ++PointIndex)
+      {
+       point_info PointInfo = GetCurveControlPointInfo(Entity, PointIndex);
+       PushCircle(RenderGroup,
+                  ControlPoints[PointIndex],
+                  PointInfo.Radius,
+                  PointInfo.Color,
+                  GetCurvePartZOffset(CurvePart_ControlPoint),
+                  PointInfo.OutlineThickness,
+                  PointInfo.OutlineColor);
+      }
+     }
+     
+     UpdateAndRenderDegreeLowering(RenderGroup, Entity);
+     
+     curve_animation_state *Animation = &Editor->CurveAnimation;
+     if (Animation->Stage == AnimateCurveAnimation_Animating && Animation->FromCurveEntity == Entity)
+     {
+      // TODO(hbr): Update this color calculation. This should be interpolation between two curves' colors.
+      // TODO(hbr): Not only colors but also z offset
+      v4 Color = Curve->CurveParams.CurveColor;
+      PushVertexArray(RenderGroup,
+                      Animation->AnimatedCurveVertices.Vertices,
+                      Animation->AnimatedCurveVertices.VertexCount,
+                      Animation->AnimatedCurveVertices.Primitive,
+                      Color,
+                      GetCurvePartZOffset(CurvePart_Line));
+     }
+     
+     // TODO(hbr): Update this
+     curve_combining_state *Combining = &Editor->CurveCombining;
+     if (Combining->SourceEntity == Entity)
+     {
+      UpdateAndRenderCurveCombining(RenderGroup, Editor);
+     }
+     
+     UpdateAndRenderPointTracking(RenderGroup, Editor, Entity);
+     
+     Curve->RecomputeRequested = false;
+    } break;
+    
+    case Entity_Image: {
+     image *Image = &Entity->Image;
+     PushImage(RenderGroup, Image->Dim, Image->Width, Image->Height, Image->Pixels);
+    }break;
+    
+    case Entity_Count: InvalidPath; break;
+   }
+   
+   ResetModelTransform(RenderGroup);
   }
  }
- 
- UpdateAndRenderEntities(Editor, Input, RenderGroup);
 }
 
 // NOTE(hbr): Specifically after every file is included. Works in Unity build only.

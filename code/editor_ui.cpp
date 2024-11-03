@@ -576,3 +576,29 @@ UI_BeginPopupModal(string Label)
 }
 
 internal void UI_CloseCurrentPopup(void) { ImGui::CloseCurrentPopup(); }
+
+internal b32 UI_BeginTree(string Label)
+{
+ temp_arena Temp = TempArena(0);
+ string CLabel = CStrFromStr(Temp.Arena, Label);
+ b32 Expanded = Cast(bool)ImGui::TreeNode(CLabel.Data);
+ EndTemp(Temp);
+ 
+ return Expanded;
+}
+
+internal b32
+UI_BeginTreeF(char const *Format, ...)
+{
+ va_list Args;
+ va_start(Args, Format);
+ temp_arena Temp = TempArena(0);
+ string Label = StrFV(Temp.Arena, Format, Args);
+ b32 Result = UI_BeginTree(Label);
+ EndTemp(Temp);
+ va_end(Args);
+ 
+ return Result;
+}
+
+internal void UI_EndTree(void) { ImGui::TreePop(); }

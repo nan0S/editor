@@ -1,7 +1,7 @@
 internal b32
-AreCurvePointsVisible(curve *Curve)
+AreLinePointsVisible(curve *Curve)
 {
- b32 Result = (!Curve->CurveParams.PointsDisabled);
+ b32 Result = (!Curve->Params.PointsDisabled);
  return Result;
 }
 
@@ -22,7 +22,7 @@ IsEntitySelected(entity *Entity)
 internal f32
 GetCurveTrackedPointRadius(curve *Curve)
 {
- f32 Result = 1.5f * Curve->CurveParams.CurveWidth;
+ f32 Result = 1.5f * Curve->Params.LineWidth;
  return Result;
 }
 
@@ -66,8 +66,8 @@ GetVisibleCubicBezierPoints(entity *Entity)
  curve *Curve = GetCurve(Entity);
  if (IsEntitySelected(Entity) &&
      IsControlPointSelected(Curve) &&
-     Curve->CurveParams.InterpolationType == Interpolation_Bezier &&
-     Curve->CurveParams.BezierType == Bezier_Cubic)
+     Curve->Params.Interpolation == Interpolation_Bezier &&
+     Curve->Params.Bezier == Bezier_Cubic)
  {
   cubic_bezier_point *Beziers = Curve->CubicBezierPoints;
   cubic_bezier_point_index StartIndex = CubicBezierPointIndexFromControlPointIndex(Curve->SelectedIndex);
@@ -102,7 +102,7 @@ GetCurveControlPointInfo(entity *Entity, u64 PointIndex)
  point_info Result = {};
  
  curve *Curve = GetCurve(Entity);
- curve_params *Params = &Curve->CurveParams;
+ curve_params *Params = &Curve->Params;
  
  Result.Radius = Params->PointRadius;
  if (PointIndex == Curve->ControlPointCount - 1)
@@ -131,7 +131,7 @@ internal f32
 GetCurveCubicBezierPointRadius(curve *Curve)
 {
  // TODO(hbr): Make bezier points smaller
- f32 Result = Curve->CurveParams.PointRadius;
+ f32 Result = Curve->Params.PointRadius;
  return Result;
 }
 

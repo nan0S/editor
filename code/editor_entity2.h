@@ -1,6 +1,85 @@
 #ifndef EDITOR_ENTITY2_H
 #define EDITOR_ENTITY2_H
 
+enum interpolation_type
+{
+ Interpolation_CubicSpline,
+ Interpolation_Bezier,
+ Interpolation_Polynomial,
+ Interpolation_Count
+};
+// TODO(hbr): Try to add designated array intializers
+read_only global char const *InterpolationNames[] = { "Cubic Spline", "Bezier", "Polynomial" };
+StaticAssert(ArrayCount(InterpolationNames) == Interpolation_Count, InterpolationNamesDefined);
+
+enum polynomial_interpolation_type
+{
+ PolynomialInterpolation_Barycentric,
+ PolynomialInterpolation_Newton,
+ PolynomialInterpolation_Count,
+};
+read_only global char const *PolynomialInterpolationNames[] = { "Barycentric", "Newton" };
+StaticAssert(ArrayCount(PolynomialInterpolationNames) == PolynomialInterpolation_Count, PolynomialInterpolationNamesDefined);
+
+enum point_spacing
+{
+ PointSpacing_Chebychev,
+ PointSpacing_Equidistant,
+ PointSpacing_Count,
+};
+read_only global char const *PointSpacingNames[] = { "Chebychev", "Equidistant" };
+StaticAssert(ArrayCount(PointSpacingNames) == PointSpacing_Count, PointSpacingNamesDefined);
+
+struct polynomial_interpolation_params
+{
+ polynomial_interpolation_type Type;
+ point_spacing PointSpacing;
+};
+
+enum cubic_spline_type
+{
+ CubicSpline_Natural,
+ CubicSpline_Periodic,
+ CubicSpline_Count,
+};
+read_only global char const *CubicSplineNames[] = { "Natural", "Periodic" };
+StaticAssert(ArrayCount(CubicSplineNames) == CubicSpline_Count, CubicSplineNamesDefined);
+
+enum bezier_type
+{
+ Bezier_Regular,
+ Bezier_Cubic,
+ Bezier_Count,
+};
+read_only global char const *BezierNames[] = { "Regular", "Cubic" };
+StaticAssert(ArrayCount(BezierNames) == Bezier_Count, BezierNamesDefined);
+
+struct curve_params
+{
+ interpolation_type Interpolation;
+ polynomial_interpolation_params Polynomial;
+ cubic_spline_type CubicSpline;
+ bezier_type Bezier;
+ 
+ b32 LineDisabled;
+ v4 LineColor;
+ f32 LineWidth;
+ 
+ b32 PointsDisabled;
+ v4 PointColor;
+ f32 PointRadius;
+ 
+ b32 PolylineEnabled;
+ v4 PolylineColor;
+ f32 PolylineWidth;
+ 
+ b32 ConvexHullEnabled;
+ v4 ConvexHullColor;
+ f32 ConvexHullWidth;
+ 
+ u64 PointCountPerSegment;
+};
+
 struct control_point_index
 {
  u64 Index;
@@ -29,84 +108,6 @@ struct visible_cubic_bezier_points
  cubic_bezier_point_index Indices[4];
 };
 
-enum interpolation_type
-{
- Interpolation_CubicSpline,
- Interpolation_Bezier,
- Interpolation_Polynomial,
- Interpolation_Count
-};
-// TODO(hbr): Try to add designated array intializers
-read_only global char const *InterpolationNames[] = { "Cubic Spline", "Bezier", "Polynomial" };
-StaticAssert(ArrayCount(InterpolationNames) == Interpolation_Count, InterpolationNamesDefined);
-
-enum polynomial_interpolation_type
-{
- PolynomialInterpolation_Barycentric,
- PolynomialInterpolation_Newton,
- PolynomialInterpolation_Count,
-};
-read_only global char const *PolynomialInterpolationNames[] = { "Barycentric", "Newton" };
-StaticAssert(ArrayCount(PolynomialInterpolationNames) == PolynomialInterpolation_Count, PolynomialInterpolationNamesDefined);
-
-enum points_arrangement
-{
- PointsArrangement_Chebychev,
- PointsArrangement_Equidistant,
- PointsArrangement_Count,
-};
-read_only global char const *PointsArrangementNames[] = { "Chebychev", "Equidistant" };
-StaticAssert(ArrayCount(PointsArrangementNames) == PointsArrangement_Count, PointsArrangementNamesDefined);
-
-struct polynomial_interpolation_params
-{
- polynomial_interpolation_type Type;
- points_arrangement PointsArrangement;
-};
-
-enum cubic_spline_type
-{
- CubicSpline_Natural,
- CubicSpline_Periodic,
- CubicSpline_Count,
-};
-read_only global char const *CubicSplineNames[] = { "Natural", "Periodic" };
-StaticAssert(ArrayCount(CubicSplineNames) == CubicSpline_Count, CubicSplineNamesDefined);
-
-enum bezier_type
-{
- Bezier_Regular,
- Bezier_Cubic,
- Bezier_Count,
-};
-read_only global char const *BezierNames[] = { "Regular", "Cubic" };
-StaticAssert(ArrayCount(BezierNames) == Bezier_Count, BezierNamesDefined);
-
-struct curve_params
-{
- interpolation_type InterpolationType;
- polynomial_interpolation_params PolynomialInterpolationParams;
- cubic_spline_type CubicSplineType;
- bezier_type BezierType;
- 
- v4 CurveColor;
- f32 CurveWidth;
- 
- b32 PointsDisabled;
- v4 PointColor;
- f32 PointRadius;
- 
- b32 PolylineEnabled;
- v4 PolylineColor;
- f32 PolylineWidth;
- 
- b32 ConvexHullEnabled;
- v4 ConvexHullColor;
- f32 ConvexHullWidth;
- 
- u64 CurvePointCountPerSegment;
-};
-
 struct curve_point_tracking_state
 {
  b32 Active;
@@ -133,7 +134,7 @@ struct curve_degree_lowering_state
  v2 *SavedControlPoints;
  f32 *SavedControlPointWeights;
  cubic_bezier_point *SavedCubicBezierPoints;
- vertex_array SavedCurveVertices;
+ vertex_array SavedLineVertices;
  
  bezier_lower_degree LowerDegree;
  f32 MixParameter;
@@ -148,22 +149,23 @@ enum
 
 struct curve
 {
- curve_params CurveParams;
+ curve_params Params;
  
- control_point_index SelectedIndex;
- 
- // NOTE(hbr): All points here are in local space
+ // all points here are in local space
  u64 ControlPointCount;
 #define MAX_CONTROL_POINT_COUNT 1024
  v2 ControlPoints[MAX_CONTROL_POINT_COUNT];
  f32 ControlPointWeights[MAX_CONTROL_POINT_COUNT];
  cubic_bezier_point CubicBezierPoints[MAX_CONTROL_POINT_COUNT];
  
+ control_point_index SelectedIndex;
+ 
  translate_curve_point_flags CubicBezierTranslateFlags;
  
- u64 CurvePointCount;
- v2 *CurvePoints;
- vertex_array CurveVertices;
+ u64 LinePointCount;
+ v2 *LinePoints;
+ 
+ vertex_array LineVertices;
  vertex_array PolylineVertices;
  vertex_array ConvexHullVertices;
  
@@ -232,7 +234,7 @@ struct point_info
 internal b32 IsEntityVisible(entity *Entity);
 internal b32 IsEntitySelected(entity *Entity);
 internal b32 IsControlPointSelected(curve *Curve);
-internal b32 AreCurvePointsVisible(curve *Curve);
+internal b32 AreLinePointsVisible(curve *Curve);
 internal point_info GetCurveControlPointInfo(entity *Curve, u64 PointIndex);
 internal f32 GetCurveTrackedPointRadius(curve *Curve);
 internal f32 GetCurveCubicBezierPointRadius(curve *Curve);
@@ -304,7 +306,7 @@ GetCenterPointFromCubicBezierPointIndex(curve *Curve, cubic_bezier_point_index I
 inline internal control_point_index
 CurveLinePointIndexToControlPointIndex(curve *Curve, u64 CurveLinePointIndex)
 {
- u64 Index = SafeDiv0(CurveLinePointIndex, Curve->CurveParams.CurvePointCountPerSegment);
+ u64 Index = SafeDiv0(CurveLinePointIndex, Curve->Params.PointCountPerSegment);
  Assert(Index < Curve->ControlPointCount);
  control_point_index Result = {};
  Result.Index = ClampTop(Index, Curve->ControlPointCount - 1);

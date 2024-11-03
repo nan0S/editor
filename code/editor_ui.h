@@ -54,6 +54,10 @@ internal expanded_b32      UI_BeginCombo(string Preview, string Label);
 internal expanded_b32      UI_BeginComboF(string Preview, char const *Format, ...);
 internal void              UI_EndCombo(void);
 
+internal expanded_b32      UI_BeginTree(string Label);
+internal expanded_b32      UI_BeginTreeF(char const *Format, ...);
+internal void              UI_EndTree(void);
+
 internal void              UI_NewRow(void);
 internal void              UI_SameRow(void);
 

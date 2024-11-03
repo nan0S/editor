@@ -124,7 +124,7 @@ DONE:
 - adding points to Cubic Spline with in-between point selection when dragged
 - saving curve should include CubicBezierPoints
 - when moving control point, still show the previous curve, only when button is released actually change the curve
-- fix CurvePointIndex calculation in case of collisions, etc., dividing by CurvePointCountPerSegment doesnt't work
+- fix CurvePointIndex calculation in case of collisions, etc., dividing by LinePointCountPerSegment doesnt't work
  in case of CubicSpline Periodic
 - focus on images
 - animating camera focus
@@ -236,9 +236,9 @@ struct curve_animation_state
  u64 SavedToCurveVersion;
  // NOTE(hbr): Number of points in ToCurve has to match number
  // of points in FromCurve in order to avoid animation artifacts.
- u64 CurvePointCount;
- v2 *ToCurvePoints;
- vertex_array AnimatedCurveVertices;
+ u64 LinePointCount;
+ v2 *ToLinePoints;
+ vertex_array AnimatedLineVertices;
  
  b32 IsAnimationPlaying;
  animation_type Animation;

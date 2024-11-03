@@ -91,7 +91,7 @@ internal void
 InitCurve(entity *Entity, curve_params Params)
 {
  Entity->Type = Entity_Curve;
- Entity->Curve.CurveParams = Params;
+ Entity->Curve.Params = Params;
  UnselectControlPoint(&Entity->Curve);
  SetCurveControlPoints(Entity, 0, 0, 0, 0);
 }
@@ -104,7 +104,7 @@ InitImage(entity *Entity)
 }
 
 internal b32
-BeginCurvePoints(curve *Curve, u64 ControlPointCount)
+BeginLinePoints(curve *Curve, u64 ControlPointCount)
 {
  b32 Result = false;
  if (ControlPointCount <= MAX_CONTROL_POINT_COUNT)
@@ -117,7 +117,7 @@ BeginCurvePoints(curve *Curve, u64 ControlPointCount)
 }
 
 internal void
-EndCurvePoints(curve *Curve)
+EndLinePoints(curve *Curve)
 {
  Curve->RecomputeRequested = true;
 }

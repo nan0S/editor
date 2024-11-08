@@ -9,6 +9,7 @@
 
 #define PowF32(Base, Exponent) powf(Base, Exponent)
 #define SinF32(X)              sinf(X)
+#define CosF32(X)              cosf(X)
 #define Log10F32(X)            log10f(X)
 #define FloorF32(X)            floorf(X)
 #define CeilF32(X)             ceilf(X)

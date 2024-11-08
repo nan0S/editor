@@ -97,15 +97,13 @@ PushTriangle(render_group *Group,
 }
 
 internal void
-PushImage(render_group *Group, v2 Dim, u64 Width, u64 Height, char *Pixels)
+PushImage(render_group *Group, v2 Dim, u64 TextureIndex)
 {
  render_command *Command = PushRenderCommand(Group, RenderCommand_Image, 0.0f);
  
  render_command_image *Image = &Command->Image;
- Image->Width = Width;
- Image->Height = Height;
- Image->Pixels = Pixels;
  Image->Dim = Dim;
+ Image->TextureIndex = TextureIndex;
  Image->P = Group->ModelXForm.Offset;
  Image->Rotation = Group->ModelXForm.Rotation;
  Image->Scale = Group->ModelXForm.Scale;
@@ -156,4 +154,29 @@ ResetModelTransform(render_group *Group)
 {
  Group->ModelXForm = Identity();
  Group->ZOffset = 0.0f;
+}
+
+internal texture_transfer_op *
+PushTextureTransfer(texture_transfer_queue *Queue, u64 RequestSize)
+{
+ texture_transfer_op *Result = 0;
+ 
+ u64 NewUsed = Queue->TransferMemoryUsed + RequestSize;
+ if ((Queue->OpCount < ArrayCount(Queue->Ops)) && (NewUsed <= Queue->TransferMemorySize))
+ {
+  Result = Queue->Ops + Queue->OpCount++;
+  Result->Pixels = Queue->TransferMemory + Queue->TransferMemoryUsed;
+  Queue->TransferMemoryUsed = NewUsed;
+ }
+ 
+ return Result;
+}
+
+internal void
+PopTextureTransfer(texture_transfer_queue *Queue, texture_transfer_op *Op)
+{
+ Assert(Queue->OpCount > 0);
+ --Queue->OpCount;
+ Assert(Queue->Ops + Queue->OpCount == Op);
+ Queue->TransferMemoryUsed = Op->Pixels - Queue->TransferMemory;
 }

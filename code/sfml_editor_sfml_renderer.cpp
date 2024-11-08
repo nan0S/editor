@@ -6,6 +6,7 @@
 #include "editor_os.h"
 #include "editor_renderer.h"
 #include "editor_math.h"
+#include "editor_sort.h"
 
 #include "editor_base.cpp"
 #include "editor_memory.cpp"
@@ -14,9 +15,10 @@
 #include "editor_math.cpp"
 
 #include "third_party/sfml/include/SFML/Graphics.hpp"
-#include "sfml_editor_renderer.h"
+#include "third_party/sfml/include/SFML/OpenGL.hpp"
 
-#include <malloc.h>
+#include "sfml_editor_renderer.h"
+#include "editor_renderer_sfml.h"
 
 /* TODO(hbr):
 I don't want:
@@ -24,21 +26,42 @@ I don't want:
 - most of editor_math
 - editor_string
 - editor_os
-- malloc
 */
 
 internal sfml_renderer *
-SFMLRendererInitImpl(sf::RenderWindow *Window)
+SFMLRendererInitImpl(arena *Arena, platform_renderer_limits *Limits, sf::RenderWindow *Window)
 {
- sfml_renderer *SFML = Cast(sfml_renderer *)malloc(SizeOf(sfml_renderer));
- SFML->Window = Window;
+ sfml_renderer *Renderer = PushStruct(Arena, sfml_renderer);
  
- return SFML;
+ texture_transfer_queue *Queue = &Renderer->PlatformHeader.TextureQueue;
+ Queue->TransferMemorySize = Limits->MaxTextureQueueMemorySize;
+ Queue->TransferMemory = PushArrayNonZero(Arena, Queue->TransferMemorySize, char);
+ 
+ Renderer->Window = Window;
+ 
+ u64 TextureCount = Limits->MaxTextureCount;
+ GLuint *Textures = PushArray(Arena, TextureCount, GLuint);
+ Renderer->MaxTextureCount = TextureCount;
+ Renderer->Textures = Textures;
+ 
+ glGenTextures(TextureCount, Textures);
+ for (u64 TextureIndex = 0;
+      TextureIndex < TextureCount;
+      ++TextureIndex)
+ {
+  glBindTexture(GL_TEXTURE_2D, Textures[TextureIndex]);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+ }
+ 
+ return Renderer;
 }
 
 SFML_RENDERER_INIT(SFMLRendererInit)
 {
- platform_renderer *Renderer = Cast(platform_renderer *)SFMLRendererInitImpl(Window);
+ platform_renderer *Renderer = Cast(platform_renderer *)SFMLRendererInitImpl(Arena, Limits, Window);
  return Renderer;
 }
 
@@ -77,26 +100,6 @@ SFMLRenderCommandCmp(render_command *A, render_command *B)
  return Cmp(A->ZOffset, B->ZOffset);
 }
 
-internal inline sf::Vector2f
-V2ToVector2f(v2 V)
-{
- sf::Vector2f Result = {};
- Result.x = V.X;
- Result.y = V.Y;
- 
- return Result;
-}
-
-internal inline sf::Vector2i
-V2S32ToVector2i(v2s V)
-{
- sf::Vector2i Result = {};
- Result.x = V.X;
- Result.y = V.Y;
- 
- return Result;
-}
-
 internal inline sf::Color
 ColorToSFMLColor(v4 Color)
 {
@@ -112,17 +115,35 @@ ColorToSFMLColor(v4 Color)
 internal void
 SFMLEndFrameImpl(sfml_renderer *Renderer, render_frame *Frame)
 {
+ GLuint *Textures = Renderer->Textures;
  sf::Transform Transform = RenderTransformToSFMLTransform(Frame->Proj);
- 
  sf::RenderWindow *Window = Renderer->Window;
- 
- // NOTE(hbr): Set Normalized Device Coordinates View
- sf::Vector2f Size = sf::Vector2f(2.0f, -2.0f);
- sf::Vector2f Center = sf::Vector2f(0.0f, 0.0f);
- sf::View View = sf::View(Center, Size);
- Window->setView(View);
- 
  Window->clear(ColorToSFMLColor(Frame->ClearColor));
+ 
+ //- uploads textures into GPU
+ {
+  texture_transfer_queue *Queue = &Renderer->PlatformHeader.TextureQueue;
+  for (u64 OpIndex = 0;
+       OpIndex < Queue->OpCount;
+       ++OpIndex)
+  {
+   texture_transfer_op *Op = Queue->Ops + OpIndex;
+   Assert(Op->TextureIndex < Renderer->MaxTextureCount);
+   
+   glBindTexture(GL_TEXTURE_2D, Textures[Op->TextureIndex]);
+   glTexImage2D(GL_TEXTURE_2D,
+                0,
+                GL_RGBA,
+                Op->Width, Op->Height,
+                0,
+                GL_RGBA,
+                GL_UNSIGNED_BYTE,
+                Op->Pixels);
+  }
+  
+  Queue->OpCount = 0;
+  Queue->TransferMemoryUsed = 0;
+ }
  
  QuickSort(Frame->Commands, Frame->CommandCount, render_command, SFMLRenderCommandCmp);
  
@@ -131,91 +152,147 @@ SFMLEndFrameImpl(sfml_renderer *Renderer, render_frame *Frame)
       ++CommandIndex)
  {
   render_command *Command = Frame->Commands + CommandIndex;
+  
+  glMatrixMode(GL_PROJECTION);
+  glLoadMatrixf(Transform.getMatrix());
+  
   switch (Command->Type)
   {
    case RenderCommand_VertexArray: {
     render_command_vertex_array *Array = &Command->VertexArray;
     
-    sf::PrimitiveType Primitive = {};
+    sf::Transform Model = RenderTransformToSFMLTransform(Array->ModelXForm);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadMatrixf(Model.getMatrix());
+    
+    int glPrimitive = 0;
     switch (Array->Primitive)
     {
-     case Primitive_Triangles: { Primitive = sf::Triangles; }break;
-     case Primitive_TriangleStrip: { Primitive = sf::TriangleStrip; }break;
+     case Primitive_TriangleStrip: {glPrimitive = GL_TRIANGLE_STRIP;}break;
+     case Primitive_Triangles:     {glPrimitive = GL_TRIANGLES;}break;
     }
     
-    sf::Vertex *SFMLVertices = Cast(sf::Vertex *)malloc(Array->VertexCount * SizeOf(sf::Vertex));
+    glBegin(glPrimitive);
+    glColor4fv(Array->Color.E);
+    for (u64 VertexIndex = 0;
+         VertexIndex < Array->VertexCount;
+         ++VertexIndex)
     {
-     vertex *Vertices = Array->Vertices;
-     v4 Color = Array->Color;
-     for (u64 VertexIndex = 0;
-          VertexIndex < Array->VertexCount;
-          ++VertexIndex)
-     {
-      sf::Vertex *V = SFMLVertices + VertexIndex;
-      V->position = V2ToVector2f(Vertices[VertexIndex].Pos);
-      V->color = ColorToSFMLColor(Color);
-     }
+     glVertex2fv(Array->Vertices[VertexIndex].Pos.E);
     }
-    
-    sf::Transform Model = RenderTransformToSFMLTransform(Array->ModelXForm);
-    sf::Transform MVP = Transform * Model;
-    
-    Window->draw(SFMLVertices, Array->VertexCount, Primitive, MVP);
-    
-    free(SFMLVertices);
+    glEnd();
    }break;
    
    case RenderCommand_Circle: {
     render_command_circle *Circle = &Command->Circle;
-    sf::CircleShape Shape = sf::CircleShape();
-    Shape.setRadius(Circle->Radius);
-    Shape.setFillColor(ColorToSFMLColor(Circle->Color));
-    Shape.setOrigin(Circle->Radius, Circle->Radius);
-    Shape.setPosition(Circle->Pos.X, Circle->Pos.Y);
-    Shape.setOutlineThickness(Circle->OutlineThickness);
-    Shape.setOutlineColor(ColorToSFMLColor(Circle->OutlineColor));
-    Window->draw(Shape, Transform);
+    
+    {
+     transform Tmp = {};
+     Tmp.Offset = Circle->Pos;
+     Tmp.Scale = V2(1.0f, 1.0f);
+     Tmp.Rotation = Rotation2DZero();
+     sf::Transform Model = RenderTransformToSFMLTransform(Tmp);
+     glMatrixMode(GL_MODELVIEW);
+     glLoadMatrixf(Model.getMatrix());
+    }
+    
+    glBegin(GL_TRIANGLE_FAN);
+    glColor4fv(Circle->Color.E);
+    glVertex2f(0.0f, 0.0f);
+    u64 VertexCount = 30;
+    for (u64 VertexIndex = 0;
+         VertexIndex <= VertexCount;
+         ++VertexIndex)
+    {
+     f32 Radians = 2*Pi32 / VertexCount * VertexIndex;
+     v2 P = Circle->Radius * Rotation2DFromRadians(Radians);
+     glVertex2fv(P.E);
+    }
+    glEnd();
+    
+    glBegin(GL_TRIANGLE_STRIP);
+    glColor4fv(Circle->OutlineColor.E);
+    for (u64 VertexIndex = 0;
+         VertexIndex <= VertexCount;
+         ++VertexIndex)
+    {
+     f32 Radians = 2*Pi32 / VertexCount * VertexIndex;
+     v2 P = Rotation2DFromRadians(Radians);
+     v2 P1 = Circle->Radius * P;
+     v2 P2 = (Circle->Radius + Circle->OutlineThickness) * P;
+     glVertex2fv(P1.E);
+     glVertex2fv(P2.E);
+    }
+    glEnd();
    }break;
    
    case RenderCommand_Rectangle: {
     render_command_rectangle *Rect = &Command->Rectangle;
-    sf::RectangleShape Shape = sf::RectangleShape();
-    Shape.setSize(V2ToVector2f(Rect->Size));
-    Shape.setFillColor(ColorToSFMLColor(Rect->Color));
-    Shape.setOrigin(0.5f * Rect->Size.X, 0.5f * Rect->Size.Y);
-    Shape.setPosition(Rect->Pos.X, Rect->Pos.Y);
-    Shape.setRotation(Rotation2DToDegrees(Rect->Rotation));
-    Window->draw(Shape, Transform);
+    
+    transform Tmp = {};
+    Tmp.Offset = Rect->Pos;
+    Tmp.Rotation = Rect->Rotation;
+    Tmp.Scale = 0.5f * Rect->Size;
+    sf::Transform Model = RenderTransformToSFMLTransform(Tmp);
+    
+    glMatrixMode(GL_MODELVIEW);
+    glLoadMatrixf(Model.getMatrix());
+    glBegin(GL_QUADS);
+    
+    glColor4fv(Rect->Color.E);
+    glVertex2f(-1.0f, -1.0f);
+    glVertex2f(+1.0f, -1.0f);
+    glVertex2f(+1.0f, +1.0f);
+    glVertex2f(-1.0f, +1.0f);
+    
+    glEnd();
    }break;
    
    case RenderCommand_Triangle: {
     render_command_triangle *Tri = &Command->Triangle;
-    sf::Vertex Verts[3] = {};
-    Verts[0].position = V2ToVector2f(Tri->P0);
-    Verts[1].position = V2ToVector2f(Tri->P1);
-    Verts[2].position = V2ToVector2f(Tri->P2);
-    Verts[0].color = ColorToSFMLColor(Tri->Color);
-    Verts[1].color = ColorToSFMLColor(Tri->Color);
-    Verts[2].color = ColorToSFMLColor(Tri->Color);
-    Window->draw(Verts, 3, sf::Triangles, Transform);
+    
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    
+    glBegin(GL_TRIANGLES);
+    glColor4fv(Tri->Color.E);
+    glVertex2fv(Tri->P0.E);
+    glVertex2fv(Tri->P1.E);
+    glVertex2fv(Tri->P2.E);
+    glEnd();
    }break;
    
    case RenderCommand_Image: {
     render_command_image *Image = &Command->Image;
     
-    sf::Image SFMLImage;
-    sf::Texture SFMLTexture;
-    sf::Sprite Sprite;
-    SFMLImage.create(Image->Width, Image->Height, Cast(sf::Uint8 *)Image->Pixels);
-    SFMLTexture.loadFromImage(SFMLImage);
+    glBindTexture(GL_TEXTURE_2D, Textures[Image->TextureIndex]);
     
-    Sprite.setTexture(SFMLTexture);
-    Sprite.setOrigin(0.5f * Image->Width, 0.5f * Image->Height);
-    Sprite.setScale(1.0f / Image->Width * Image->Dim.X * Image->Scale.X, 1.0f / Image->Height * Image->Dim.Y * Image->Scale.Y);
-    Sprite.setRotation(Rotation2DToDegrees(Image->Rotation));
-    Sprite.setPosition(Image->P.X, Image->P.Y);
+    sf::Transform Model;
+    {
+     transform Tmp = {};
+     Tmp.Offset = Image->P;
+     Tmp.Rotation = Image->Rotation;
+     Tmp.Scale = Image->Scale;
+     Model = RenderTransformToSFMLTransform(Tmp);
+    }
+    glMatrixMode(GL_MODELVIEW);
+    glLoadMatrixf(Model.getMatrix());
     
-    Window->draw(Sprite, Transform);
+    glBegin(GL_QUADS);
+    
+    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+    glTexCoord2f(0.0f, 0.0f);
+    glVertex2f(-0.5f * Image->Dim.X, -0.5f * Image->Dim.Y);
+    glTexCoord2f(1.0f, 0.0f);
+    glVertex2f(+0.5f * Image->Dim.X, -0.5f * Image->Dim.Y);
+    glTexCoord2f(1.0f, 1.0f);
+    glVertex2f(+0.5f * Image->Dim.X, +0.5f * Image->Dim.Y);
+    glTexCoord2f(0.0f, 1.0f);
+    glVertex2f(-0.5f * Image->Dim.X, +0.5f * Image->Dim.Y);
+    
+    glEnd();
+    
+    glBindTexture(GL_TEXTURE_2D, 0);
    }break;
   }
  }

@@ -345,8 +345,6 @@ ActuallyRecomputeCurve(entity *Entity)
 {
  TimeFunction;
  
- temp_arena Temp = TempArena(Entity->Arena);
- 
  curve *Curve = GetCurve(Entity);
  ClearArena(Entity->Arena);
  
@@ -362,11 +360,9 @@ ActuallyRecomputeCurve(entity *Entity)
  Curve->LineVertices = ComputeVerticesOfThickLine(Entity->Arena, Curve->LinePointCount, Curve->LinePoints,  Curve->Params.LineWidth, IsCurveLooped(Curve));
  Curve->PolylineVertices = ComputeVerticesOfThickLine(Entity->Arena, Curve->ControlPointCount, Curve->ControlPoints, Curve->Params.PolylineWidth, false);
  
- v2 *ConvexHullPoints = PushArrayNonZero(Temp.Arena, Curve->ControlPointCount, v2);
- u64 NumConvexHullPoints = CalcConvexHull(Curve->ControlPointCount, Curve->ControlPoints, ConvexHullPoints);
- Curve->ConvexHullVertices = ComputeVerticesOfThickLine(Entity->Arena, NumConvexHullPoints, ConvexHullPoints, Curve->Params.ConvexHullWidth, true);
- 
- EndTemp(Temp);
+ Curve->ConvexHullPoints = PushArrayNonZero(Entity->Arena, Curve->ControlPointCount, v2);
+ Curve->ConvexHullCount = CalcConvexHull(Curve->ControlPointCount, Curve->ControlPoints, Curve->ConvexHullPoints);
+ Curve->ConvexHullVertices = ComputeVerticesOfThickLine(Entity->Arena, Curve->ConvexHullCount, Curve->ConvexHullPoints, Curve->Params.ConvexHullWidth, true);
 }
 
 internal void

@@ -86,9 +86,7 @@ struct render_command_image
  v2 Rotation;
  v2 Scale;
  v2 Dim;
- u64 Width;
- u64 Height;
- char *Pixels;
+ u64 TextureIndex;
 };
 
 struct render_command
@@ -133,7 +131,34 @@ struct render_group
  f32 RotationRadius;
 };
 
-struct platform_renderer {};
+struct texture_transfer_op
+{
+ u64 TextureIndex;
+ u64 Width;
+ u64 Height;
+ char *Pixels;
+};
+
+struct texture_transfer_queue
+{
+ u64 OpCount;
+ texture_transfer_op Ops[32];
+ 
+ char *TransferMemory;
+ u64 TransferMemoryUsed;
+ u64 TransferMemorySize;
+};
+
+struct platform_renderer_limits
+{
+ u64 MaxTextureQueueMemorySize;
+ u64 MaxTextureCount;
+};
+
+struct platform_renderer
+{
+ texture_transfer_queue TextureQueue;
+};
 
 #define RENDERER_BEGIN_FRAME(Name) render_frame *Name(platform_renderer *Renderer, v2u WindowDim)
 #define RENDERER_END_FRAME(Name) void Name(platform_renderer *Renderer, render_frame *Frame)

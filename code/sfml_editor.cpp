@@ -34,6 +34,7 @@
 #include "third_party/stb/stb_image.h"
 
 #include "third_party/sfml/include/SFML/Graphics.hpp"
+
 #include "sfml_editor_renderer.h"
 #include "sfml_editor.h"
 
@@ -43,79 +44,160 @@ RENDERER_BEGIN_FRAME(SFMLBeginFrame);
 RENDERER_END_FRAME(SFMLEndFrame);
 SFML_RENDERER_INIT(SFMLRendererInit);
 
+global sf::Keyboard::Key SFMLKeys[] =
+{
+ sf::Keyboard::F1,
+ sf::Keyboard::F2,
+ sf::Keyboard::F3,
+ sf::Keyboard::F4,
+ sf::Keyboard::F5,
+ sf::Keyboard::F6,
+ sf::Keyboard::F7,
+ sf::Keyboard::F8,
+ sf::Keyboard::F9,
+ sf::Keyboard::F10,
+ sf::Keyboard::F11,
+ sf::Keyboard::F12,
+ 
+ sf::Keyboard::A,
+ sf::Keyboard::B,
+ sf::Keyboard::C,
+ sf::Keyboard::D,
+ sf::Keyboard::E,
+ sf::Keyboard::F,
+ sf::Keyboard::G,
+ sf::Keyboard::H,
+ sf::Keyboard::I,
+ sf::Keyboard::J,
+ sf::Keyboard::K,
+ sf::Keyboard::L,
+ sf::Keyboard::M,
+ sf::Keyboard::N,
+ sf::Keyboard::O,
+ sf::Keyboard::P,
+ sf::Keyboard::Q,
+ sf::Keyboard::R,
+ sf::Keyboard::S,
+ sf::Keyboard::T,
+ sf::Keyboard::U,
+ sf::Keyboard::V,
+ sf::Keyboard::W,
+ sf::Keyboard::X,
+ sf::Keyboard::Y,
+ sf::Keyboard::Z,
+ 
+ sf::Keyboard::Escape,
+ sf::Keyboard::LShift,
+ sf::Keyboard::RShift,
+ sf::Keyboard::LControl,
+ sf::Keyboard::RControl,
+ sf::Keyboard::LAlt,
+ sf::Keyboard::RAlt,
+ sf::Keyboard::Space,
+ sf::Keyboard::Tab,
+};
+
+global platform_key SFMLPlatformKeys[] =
+{
+ PlatformKey_F1,
+ PlatformKey_F2,
+ PlatformKey_F3,
+ PlatformKey_F4,
+ PlatformKey_F5,
+ PlatformKey_F6,
+ PlatformKey_F7,
+ PlatformKey_F8,
+ PlatformKey_F9,
+ PlatformKey_F10,
+ PlatformKey_F11,
+ PlatformKey_F12,
+ 
+ PlatformKey_A,
+ PlatformKey_B,
+ PlatformKey_C,
+ PlatformKey_D,
+ PlatformKey_E,
+ PlatformKey_F,
+ PlatformKey_G,
+ PlatformKey_H,
+ PlatformKey_I,
+ PlatformKey_J,
+ PlatformKey_K,
+ PlatformKey_L,
+ PlatformKey_M,
+ PlatformKey_N,
+ PlatformKey_O,
+ PlatformKey_P,
+ PlatformKey_Q,
+ PlatformKey_R,
+ PlatformKey_S,
+ PlatformKey_T,
+ PlatformKey_U,
+ PlatformKey_V,
+ PlatformKey_W,
+ PlatformKey_X,
+ PlatformKey_Y,
+ PlatformKey_Z,
+ 
+ PlatformKey_Escape,
+ PlatformKey_LeftShift,
+ PlatformKey_RightShift,
+ PlatformKey_LeftCtrl,
+ PlatformKey_RightCtrl,
+ PlatformKey_LeftAlt,
+ PlatformKey_RightAlt,
+ PlatformKey_Space,
+ PlatformKey_Tab,
+};
+
+global sf::Mouse::Button SFMLButtons[] =
+{
+ sf::Mouse::Left,
+ sf::Mouse::Right,
+ sf::Mouse::Middle,
+};
+
+global platform_key SFMLPlatformButtons[] =
+{
+ PlatformKey_LeftMouseButton,
+ PlatformKey_RightMouseButton,
+ PlatformKey_MiddleMouseButton,
+};
+
 internal platform_key
 SFMLKeyToPlatformKey(sf::Keyboard::Key Key)
 {
- switch (Key)
+ platform_key Result = PlatformKey_Unknown;
+ for (u64 Index = 0;
+      Index < ArrayCount(SFMLKeys);
+      ++Index)
  {
-  case sf::Keyboard::F1:  {return PlatformKey_F1;}break;
-  case sf::Keyboard::F2:  {return PlatformKey_F2;}break;
-  case sf::Keyboard::F3:  {return PlatformKey_F3;}break;
-  case sf::Keyboard::F4:  {return PlatformKey_F4;}break;
-  case sf::Keyboard::F5:  {return PlatformKey_F5;}break;
-  case sf::Keyboard::F6:  {return PlatformKey_F6;}break;
-  case sf::Keyboard::F7:  {return PlatformKey_F7;}break;
-  case sf::Keyboard::F8:  {return PlatformKey_F8;}break;
-  case sf::Keyboard::F9:  {return PlatformKey_F9;}break;
-  case sf::Keyboard::F10: {return PlatformKey_F10;}break;
-  case sf::Keyboard::F11: {return PlatformKey_F11;}break;
-  case sf::Keyboard::F12: {return PlatformKey_F12;}break;
-  
-  case sf::Keyboard::A: {return PlatformKey_A;}break;
-  case sf::Keyboard::B: {return PlatformKey_B;}break;
-  case sf::Keyboard::C: {return PlatformKey_C;}break;
-  case sf::Keyboard::D: {return PlatformKey_D;}break;
-  case sf::Keyboard::E: {return PlatformKey_E;}break;
-  case sf::Keyboard::F: {return PlatformKey_F;}break;
-  case sf::Keyboard::G: {return PlatformKey_G;}break;
-  case sf::Keyboard::H: {return PlatformKey_H;}break;
-  case sf::Keyboard::I: {return PlatformKey_I;}break;
-  case sf::Keyboard::J: {return PlatformKey_J;}break;
-  case sf::Keyboard::K: {return PlatformKey_K;}break;
-  case sf::Keyboard::L: {return PlatformKey_L;}break;
-  case sf::Keyboard::M: {return PlatformKey_M;}break;
-  case sf::Keyboard::N: {return PlatformKey_N;}break;
-  case sf::Keyboard::O: {return PlatformKey_O;}break;
-  case sf::Keyboard::P: {return PlatformKey_P;}break;
-  case sf::Keyboard::Q: {return PlatformKey_Q;}break;
-  case sf::Keyboard::R: {return PlatformKey_R;}break;
-  case sf::Keyboard::S: {return PlatformKey_S;}break;
-  case sf::Keyboard::T: {return PlatformKey_T;}break;
-  case sf::Keyboard::U: {return PlatformKey_U;}break;
-  case sf::Keyboard::V: {return PlatformKey_V;}break;
-  case sf::Keyboard::W: {return PlatformKey_W;}break;
-  case sf::Keyboard::X: {return PlatformKey_X;}break;
-  case sf::Keyboard::Y: {return PlatformKey_Y;}break;
-  case sf::Keyboard::Z: {return PlatformKey_Z;}break;
-  
-  case sf::Keyboard::Escape:   {return PlatformKey_Escape;}break;
-  case sf::Keyboard::LShift:   {return PlatformKey_LeftShift;}break;
-  case sf::Keyboard::RShift:   {return PlatformKey_RightShift;}break;
-  case sf::Keyboard::LControl: {return PlatformKey_LeftCtrl;}break;
-  case sf::Keyboard::RControl: {return PlatformKey_RightCtrl;}break;
-  case sf::Keyboard::LAlt:     {return PlatformKey_LeftAlt;}break;
-  case sf::Keyboard::RAlt:     {return PlatformKey_RightAlt;}break;
-  case sf::Keyboard::Space:    {return PlatformKey_Space;}break;
-  case sf::Keyboard::Tab:      {return PlatformKey_Tab;}break;
-  
-  default: {}break;
+  if (SFMLKeys[Index] == Key)
+  {
+   Result = SFMLPlatformKeys[Index];
+   break;
+  }
  }
  
- return PlatformKey_Unknown;
+ return Result;
 }
 
 internal platform_key
 SFMLButtonToPlatformKey(sf::Mouse::Button Button)
 {
- switch (Button)
+ platform_key Result = PlatformKey_Unknown;
+ for (u64 Index = 0;
+      Index < ArrayCount(SFMLButtons);
+      ++Index)
  {
-  case sf::Mouse::Left: {return PlatformKey_LeftMouseButton;}break;
-  case sf::Mouse::Right: {return PlatformKey_RightMouseButton;}break;
-  case sf::Mouse::Middle: {return PlatformKey_MiddleMouseButton;}break;
-  default: {}break;
+  if (SFMLButtons[Index] == Button)
+  {
+   Result = SFMLPlatformButtons[Index];
+   break;
+  }
  }
  
- return PlatformKey_Unknown;
+ return Result;
 }
 
 internal platform_event *
@@ -165,7 +247,6 @@ SFMLHandleInput(platform_input *Input,
      if (SFMLEvent.key.alt) Event->Flags |= PlatformEventFlag_Alt;
      if (SFMLEvent.key.control) Event->Flags |= PlatformEventFlag_Ctrl;
     }
-    Input->Pressed[Key] = Pressed;
    }break;
    
    case sf::Event::MouseButtonPressed:
@@ -183,7 +264,6 @@ SFMLHandleInput(platform_input *Input,
                                                 WindowDim);
      }
     }
-    Input->Pressed[Key] = Pressed;
    } break;
    
    case sf::Event::MouseMoved: {
@@ -208,8 +288,62 @@ SFMLHandleInput(platform_input *Input,
   }
  }
  
+ // NOTE(hbr): Just to be safe and also avoid bugs, query the state of all the keys/buttons.
+ // Don't rely too much on state-dependent, event-processing loop above for final key/button state.
+ // It could happen that some events are not processed for whatever reason (other window has been opened)
+ // and this event has not been sent to our main window but to that window instead.
+ for (u64 Index = 0;
+      Index < ArrayCount(SFMLKeys);
+      ++Index)
+ {
+  sf::Keyboard::Key SFMLKey = SFMLKeys[Index];
+  platform_key PlatformKey = SFMLPlatformKeys[Index];
+  Input->Pressed[PlatformKey] = sf::Keyboard::isKeyPressed(SFMLKey);
+ }
+ for (u64 Index = 0;
+      Index < ArrayCount(SFMLButtons);
+      ++Index)
+ {
+  sf::Mouse::Button SFMLButton = SFMLButtons[Index];
+  platform_key PlatformButton = SFMLPlatformButtons[Index];
+  Input->Pressed[PlatformButton] = sf::Mouse::isButtonPressed(SFMLButton);
+ }
+ 
  sf::Vector2i MouseP = sf::Mouse::getPosition();
  Input->ClipSpaceMouseP = SFMLScreenToClip(MouseP.x, MouseP.y, WindowDim);
+}
+
+PLATFORM_OPEN_FILE_DIALOG(SFMLOpenFileDialog)
+{
+ platform_file_dialog_result Result = {};
+ 
+ u64 Count = 256;
+ char *Buffer = PushArrayNonZero(Arena, Count, char);
+ 
+ HWND WindowHandle = GetActiveWindow();
+ 
+ OPENFILENAME Open = {};
+ Open.lStructSize = SizeOf(Open);
+ Open.lpstrFile = Buffer;
+ Open.hwndOwner = WindowHandle;
+ if (Count > 0) Open.lpstrFile[0] = '\0';
+ Open.nMaxFile = Count;
+ Open.lpstrFilter =
+  "All Files (*.*)\0" "*.*\0"
+  "PNG (*.png)\0" "*.png\0"
+  "JPEG (*.jpg *.jpeg *jpe)\0" "*.jpg;*.jpeg;*.jpe\0"
+  "Windows BMP File (*.bmp)\0" "*.bmp\0"
+  ;
+ Open.nFilterIndex = 1;
+ Open.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+ 
+ if (GetOpenFileName(&Open) == TRUE)
+ {
+  Result.Success = true;
+  Result.FilePath = StrFromCStr(Buffer);
+ }
+ 
+ return Result;
 }
 
 int main()
@@ -219,13 +353,16 @@ int main()
  InitOS();
  InitProfiler();
  
- arena *PermamentArena = AllocArena();
- 
  sf::VideoMode VideoMode = sf::VideoMode::getDesktopMode();
  sf::ContextSettings ContextSettings = sf::ContextSettings();
  ContextSettings.antialiasingLevel = 4;
  sf::RenderWindow Window_(VideoMode, "Parametric Curves Editor", sf::Style::Default, ContextSettings);
  sf::RenderWindow *Window = &Window_;
+ 
+ platform_renderer_limits Limits_ = {};
+ platform_renderer_limits *Limits = &Limits_;
+ Limits->MaxTextureQueueMemorySize = Megabytes(100);
+ Limits->MaxTextureCount = 256;
  
 #if 0
  //#if not(BUILD_DEBUG)
@@ -238,7 +375,9 @@ int main()
   bool ImGuiInitSuccess = ImGui::SFML::Init(*Window, true);
   if (ImGuiInitSuccess)
   {
-   platform_renderer *Renderer = SFMLRendererInit(Window);
+   arena *PermamentArena = AllocArena();
+   
+   platform_renderer *Renderer = SFMLRendererInit(PermamentArena, Limits, Window);
    
    sf::Clock Clock;
    sfml_platform_input SFMLInput = {};
@@ -247,8 +386,10 @@ int main()
    
    editor_memory Memory_ = {};
    editor_memory *Memory = &Memory_;
-   Memory->PermamentMemorySize = Megabytes(128);
-   Memory->PermamentMemory = PushSize(PermamentArena, Memory->PermamentMemorySize);
+   Memory->PermamentArena = PermamentArena;
+   Memory->TextureQueue = &Renderer->TextureQueue;
+   Memory->MaxTextureCount = Limits->MaxTextureCount;
+   Memory->PlatformOpenFileDialog = SFMLOpenFileDialog;
    
    b32 Running = true;
    while (Running)

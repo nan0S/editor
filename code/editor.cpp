@@ -101,6 +101,27 @@ MovePointAlongCurve(curve *Curve, v2 *TranslateInOut, f32 *PointFractionInOut, b
  *TranslateInOut = Translate;
  *PointFractionInOut = Fraction;
 }
+
+internal texture_index *
+AllocateTextureIndex(editor_assets *Assets)
+{
+ texture_index *Result = Assets->FirstFreeTextureIndex;
+ if (Result)
+ {
+  Assets->FirstFreeTextureIndex = Result->Next;
+ }
+ return Result;
+}
+
+internal void
+DeallocateTextureIndex(editor_assets *Assets, texture_index *Index)
+{
+ if (Index)
+ {
+  Index->Next = Assets->FirstFreeTextureIndex;
+  Assets->FirstFreeTextureIndex = Index;
+ }
+}
 //////////////////////
 
 internal v2
@@ -139,6 +160,34 @@ internal f32
 ClipSpaceLengthToWorldSpace(f32 ClipSpaceDistance, render_group *Group)
 {
  f32 Result = UnprojectLength(&Group->WorldToCamera, V2(ClipSpaceDistance, 0)).X;
+ return Result;
+}
+
+struct line_collision
+{
+ b32 Collided;
+ u64 PointIndex;
+};
+internal line_collision
+CheckCollisionWithMultiLine(v2 LocalAtP, v2 *LinePoints, u64 PointCount, f32 Width, f32 Tolerance)
+{
+ line_collision Result = {};
+ 
+ f32 CheckWidth = Width + 2 * Tolerance;
+ for (u64 PointIndex = 0;
+      PointIndex + 1 < PointCount;
+      ++PointIndex)
+ {
+  v2 P1 = LinePoints[PointIndex + 0];
+  v2 P2 = LinePoints[PointIndex + 1];
+  if (SegmentCollision(LocalAtP, P1, P2, CheckWidth))
+  {
+   Result.Collided = true;
+   Result.PointIndex = PointIndex;
+   break;
+  }
+ }
+ 
  return Result;
 }
 
@@ -215,26 +264,80 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
        Result.Entity = Entity;
        Result.Flags |= Collision_TrackedPoint;
       }
+      
+      // NOTE(hbr): !Collision.Entity - small optimization because this collision doesn't add
+      // anything to Flags.
+      if (!Tracking->IsSplitting && !Result.Entity)
+      {
+       u64 IterationCount = Tracking->Intermediate.IterationCount;
+       v2 *Points = Tracking->Intermediate.P;
+       
+       u64 PointIndex = 0;
+       for (u64 Iteration = 0;
+            Iteration < IterationCount;
+            ++Iteration)
+       {
+        v2 *LinePoints = Points + PointIndex;
+        u64 PointCount = IterationCount - Iteration;
+        line_collision Line = CheckCollisionWithMultiLine(LocalAtP, LinePoints, PointCount,
+                                                          Curve->Params.LineWidth, Tolerance);
+        if (Line.Collided)
+        {
+         Result.Entity = Entity;
+         goto collided_label;
+        }
+        
+        for (u64 I = 0; I < PointCount; ++I)
+        {
+         if (PointCollision(LocalAtP, Points[PointIndex], Curve->Params.PointRadius + Tolerance))
+         {
+          Result.Entity = Entity;
+          goto collided_label;
+         }
+         ++PointIndex;
+        }
+       }
+       collided_label:
+       int x = 1;
+      }
      }
      
+     if (!Curve->Params.LineDisabled)
      {
-      v2 *LinePoints = Curve->LinePoints;
-      u64 LinePointCount = Curve->LinePointCount;
-      f32 LineWidth = 2.0f * Tolerance + Curve->Params.LineWidth;
-      
-      for (u64 CurvePointIndex = 0;
-           CurvePointIndex + 1 < LinePointCount;
-           ++CurvePointIndex)
+      line_collision Line = CheckCollisionWithMultiLine(LocalAtP,
+                                                        Curve->LinePoints, Curve->LinePointCount,
+                                                        Curve->Params.LineWidth, Tolerance);
+      if (Line.Collided)
       {
-       v2 P1 = LinePoints[CurvePointIndex];
-       v2 P2 = LinePoints[CurvePointIndex + 1];
-       if (SegmentCollision(LocalAtP, P1, P2, LineWidth))
-       {
-        Result.Entity = Entity;
-        Result.Flags |= Collision_CurveLine;
-        Result.CurveLinePointIndex = CurvePointIndex;
-        break;
-       }
+       Result.Entity = Entity;
+       Result.Flags |= Collision_CurveLine;
+       Result.CurveLinePointIndex = Line.PointIndex;
+      }
+     }
+     
+     // NOTE(hbr): !Collision.Entity - small optimization because this collision doesn't add
+     // anything to Flags.
+     if (Curve->Params.ConvexHullEnabled && !Result.Entity)
+     {
+      line_collision Line = CheckCollisionWithMultiLine(LocalAtP,
+                                                        Curve->ConvexHullPoints, Curve->ConvexHullCount,
+                                                        Curve->Params.ConvexHullWidth, Tolerance);
+      if (Line.Collided)
+      {
+       Result.Entity = Entity;
+      }
+     }
+     
+     // NOTE(hbr): !Collision.Entity - small optimization because this collision doesn't add
+     // anything to Flags.
+     if (Curve->Params.PolylineEnabled && !Result.Entity)
+     {
+      line_collision Line = CheckCollisionWithMultiLine(LocalAtP,
+                                                        Curve->ControlPoints, Curve->ControlPointCount,
+                                                        Curve->Params.PolylineWidth, Tolerance);
+      if (Line.Collided)
+      {
+       Result.Entity = Entity;
       }
      }
     } break;
@@ -356,6 +459,12 @@ DeallocEntity(editor *Editor, entity *Entity)
  if (Editor->SelectedEntity == Entity)
  {
   Editor->SelectedEntity = 0;
+ }
+ 
+ if (Entity->Type == Entity_Image)
+ {
+  image *Image = &Entity->Image;
+  DeallocateTextureIndex(&Editor->Assets, Image->TextureIndex);
  }
  
  Entity->Flags &= ~EntityFlag_Active;
@@ -725,206 +834,136 @@ RenderSelectedEntityUI(editor *Editor)
      curve_params DefaultParams = Editor->CurveDefaultParams;
      curve_params *CurveParams = &Curve->Params;
      
+     b32 Delete                        = false;
+     b32 Copy                          = false;
+     b32 SwitchVisibility              = false;
+     b32 Deselect                      = false;
+     b32 FocusOn                       = false;
+     b32 ElevateBezierCurve            = false;
+     b32 LowerBezierCurve              = false;
+     b32 SplitBezierCurve              = false;
+     b32 AnimateCurve                  = false;
+     b32 CombineCurve                  = false;
+     b32 SplitOnControlPoint           = false;
+     b32 VisualizeDeCasteljau          = false;
+     
      UI_NewRow();
-     UI_SeparatorTextF("Curve");
-     UI_LabelF("Curve")
+     UI_SeparatorTextF("Actions");
      {
-      SomeCurveParamChanged |= UI_ComboF(&CurveParams->Interpolation, Interpolation_Count, InterpolationNames, "Interpolation Type");
-      if (ResetCtxMenu(StrLit("InterpolationReset")))
-      {
-       CurveParams->Interpolation = DefaultParams.Interpolation;
-       SomeCurveParamChanged = true;
-      }
-      
-      switch (CurveParams->Interpolation)
-      {
-       case Interpolation_Polynomial: {
-        polynomial_interpolation_params *Polynomial = &CurveParams->Polynomial;
-        
-        SomeCurveParamChanged |= UI_ComboF(&Polynomial->Type, PolynomialInterpolation_Count, PolynomialInterpolationNames, "Polynomial Type");
-        if (ResetCtxMenu(StrLit("PolynomialTypeReset")))
-        {
-         Polynomial->Type = DefaultParams.Polynomial.Type;
-         SomeCurveParamChanged = true;
-        }
-        
-        SomeCurveParamChanged |= UI_ComboF(&Polynomial->PointSpacing, PointSpacing_Count, PointSpacingNames, "Points Arrangement");
-        if (ResetCtxMenu(StrLit("PointSpacingReset")))
-        {
-         Polynomial->PointSpacing =
-          DefaultParams.Polynomial.PointSpacing;
-         SomeCurveParamChanged = true;
-        }
-       } break;
-       
-       case Interpolation_CubicSpline: {
-        SomeCurveParamChanged |= UI_ComboF(&CurveParams->CubicSpline, CubicSpline_Count, CubicSplineNames, "Spline Types");
-        if (ResetCtxMenu(StrLit("SplineTypeReset")))
-        {
-         CurveParams->CubicSpline = DefaultParams.CubicSpline;
-         SomeCurveParamChanged = true;
-        }
-       } break;
-       
-       case Interpolation_Bezier: {
-        SomeCurveParamChanged |= UI_ComboF(&CurveParams->Bezier, Bezier_Count, BezierNames, "Bezier Types");
-        if (ResetCtxMenu(StrLit("BezierReset")))
-        {
-         CurveParams->Bezier = DefaultParams.Bezier;
-         SomeCurveParamChanged = true;
-        }
-       } break;
-       
-       case Interpolation_Count: InvalidPath;
-      }
-     }
-     
-     UI_NewRow();
-     UI_SeparatorTextF("Line");
-     
-     
-     UI_NewRow();
-     UI_SeparatorTextF("Control Points");
-     
-     
-     UI_NewRow();
-     UI_SeparatorTextF("Polyline");
-     
-     
-     UI_NewRow();
-     UI_SeparatorTextF("Convex Hull");
-     
-    }
-    
-    b32 Delete                        = false;
-    b32 Copy                          = false;
-    b32 SwitchVisibility              = false;
-    b32 Deselect                      = false;
-    b32 FocusOn                       = false;
-    b32 ElevateBezierCurve            = false;
-    b32 LowerBezierCurve              = false;
-    b32 SplitBezierCurve              = false;
-    b32 AnimateCurve                  = false;
-    b32 CombineCurve                  = false;
-    b32 SplitOnControlPoint           = false;
-    b32 VisualizeDeCasteljau          = false;
-    
-    UI_NewRow();
-    UI_SeparatorTextF("Actions");
-    {
-     Delete = UI_ButtonF("Delete");
-     UI_SameRow();
-     Copy = UI_ButtonF("Copy");
-     UI_SameRow();
-     SwitchVisibility = UI_ButtonF((Entity->Flags & EntityFlag_Hidden) ? "Show" : "Hide");
-     UI_SameRow();
-     Deselect = UI_ButtonF("Deselect");
-     UI_SameRow();
-     FocusOn = UI_ButtonF("Focus");
-     
-     if (Curve)
-     {
-      curve_params *CurveParams = &Curve->Params;
-      
-      // TODO(hbr): Maybe pick better name than transform
-      AnimateCurve = UI_ButtonF("Animate");
+      Delete = UI_ButtonF("Delete");
       UI_SameRow();
-      // TODO(hbr): Maybe pick better name than "Combine"
-      CombineCurve = UI_ButtonF("Combine");
+      Copy = UI_ButtonF("Copy");
+      UI_SameRow();
+      SwitchVisibility = UI_ButtonF((Entity->Flags & EntityFlag_Hidden) ? "Show" : "Hide");
+      UI_SameRow();
+      Deselect = UI_ButtonF("Deselect");
+      UI_SameRow();
+      FocusOn = UI_ButtonF("Focus");
       
-      UI_Disabled(!IsControlPointSelected(Curve))
+      if (Curve)
       {
+       curve_params *CurveParams = &Curve->Params;
+       
+       // TODO(hbr): Maybe pick better name than transform
+       AnimateCurve = UI_ButtonF("Animate");
        UI_SameRow();
-       SplitOnControlPoint = UI_ButtonF("Split on Control Point");
-      }
-      
-      b32 IsBezierRegular = (CurveParams->Interpolation == Interpolation_Bezier &&
-                             CurveParams->Bezier == Bezier_Regular);
-      UI_Disabled(!IsBezierRegular)
-      {
-       UI_Disabled(Curve->ControlPointCount < 2)
+       // TODO(hbr): Maybe pick better name than "Combine"
+       CombineCurve = UI_ButtonF("Combine");
+       
+       UI_Disabled(!IsControlPointSelected(Curve))
        {
         UI_SameRow();
-        SplitBezierCurve = UI_ButtonF("Split");
+        SplitOnControlPoint = UI_ButtonF("Split on Control Point");
        }
-       ElevateBezierCurve = UI_ButtonF("Elevate Degree");
-       UI_Disabled(Curve->ControlPointCount == 0)
+       
+       b32 IsBezierRegular = (CurveParams->Interpolation == Interpolation_Bezier &&
+                              CurveParams->Bezier == Bezier_Regular);
+       UI_Disabled(!IsBezierRegular)
        {
-        UI_SameRow();
-        LowerBezierCurve = UI_ButtonF("Lower Degree");
+        UI_Disabled(Curve->ControlPointCount < 2)
+        {
+         UI_SameRow();
+         SplitBezierCurve = UI_ButtonF("Split");
+        }
+        ElevateBezierCurve = UI_ButtonF("Elevate Degree");
+        UI_Disabled(Curve->ControlPointCount == 0)
+        {
+         UI_SameRow();
+         LowerBezierCurve = UI_ButtonF("Lower Degree");
+        }
+        VisualizeDeCasteljau = UI_ButtonF("Visualize De Casteljau");
        }
-       VisualizeDeCasteljau = UI_ButtonF("Visualize De Casteljau");
+       
       }
-      
+     }
+     
+     if (Delete)
+     {
+      DeallocEntity(Editor, Entity);
+     }
+     
+     if (Copy)
+     {
+      DuplicateEntity(Entity, Editor);
+     }
+     
+     if (SwitchVisibility)
+     {
+      Entity->Flags ^= EntityFlag_Hidden;
+     }
+     
+     if (Deselect)
+     {
+      DeselectCurrentEntity(Editor);
+     }
+     
+     if (FocusOn)
+     {
+      FocusCameraOnEntity(Editor, Entity);
+     }
+     
+     if (ElevateBezierCurve)
+     {
+      ElevateBezierCurveDegree(Entity);
+     }
+     
+     if (LowerBezierCurve)
+     {
+      LowerBezierCurveDegree(Entity);
+     }
+     
+     if (SplitBezierCurve)
+     {
+      BeginCurvePointTracking(Curve, true);
+     }
+     
+     if (AnimateCurve)
+     {
+      BeginAnimatingCurve(&Editor->CurveAnimation, Entity);
+     }
+     
+     if (CombineCurve)
+     {
+      BeginCurveCombining(&Editor->CurveCombining, Entity);
+     }
+     
+     if (SplitOnControlPoint)
+     {
+      SplitCurveOnControlPoint(Entity, Editor);
+     }
+     
+     if (VisualizeDeCasteljau)
+     {
+      BeginCurvePointTracking(Curve, false);
+     }
+     
+     if (SomeCurveParamChanged)
+     {
+      RecomputeCurve(Entity);
      }
     }
-    
-    if (Delete)
-    {
-     DeallocEntity(Editor, Entity);
-    }
-    
-    if (Copy)
-    {
-     DuplicateEntity(Entity, Editor);
-    }
-    
-    if (SwitchVisibility)
-    {
-     Entity->Flags ^= EntityFlag_Hidden;
-    }
-    
-    if (Deselect)
-    {
-     DeselectCurrentEntity(Editor);
-    }
-    
-    if (FocusOn)
-    {
-     FocusCameraOnEntity(Editor, Entity);
-    }
-    
-    if (ElevateBezierCurve)
-    {
-     ElevateBezierCurveDegree(Entity);
-    }
-    
-    if (LowerBezierCurve)
-    {
-     LowerBezierCurveDegree(Entity);
-    }
-    
-    if (SplitBezierCurve)
-    {
-     BeginCurvePointTracking(Curve, true);
-    }
-    
-    if (AnimateCurve)
-    {
-     BeginAnimatingCurve(&Editor->CurveAnimation, Entity);
-    }
-    
-    if (CombineCurve)
-    {
-     BeginCurveCombining(&Editor->CurveCombining, Entity);
-    }
-    
-    if (SplitOnControlPoint)
-    {
-     SplitCurveOnControlPoint(Entity, Editor);
-    }
-    
-    if (VisualizeDeCasteljau)
-    {
-     BeginCurvePointTracking(Curve, false);
-    }
-    
-    if (SomeCurveParamChanged)
-    {
-     RecomputeCurve(Entity);
-    }
+    UI_EndWindow();
    }
-   UI_EndWindow();
   }
  }
 }
@@ -2064,14 +2103,49 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
  EndTemp(Temp);
 }
 
+struct loaded_image
+{
+ b32 Success;
+ u64 Width;
+ u64 Height;
+ char *Pixels;
+};
+internal loaded_image
+LoadImageFromMemory(arena *Arena, char *ImageData, u64 Count)
+{
+ loaded_image Result = {};
+ 
+ stbi_set_flip_vertically_on_load(1);
+ int Width, Height;
+ int Components;
+ int RequestComponents = 4;
+ char *Data = Cast(char *)stbi_load_from_memory(Cast(stbi_uc const *)ImageData, Count, &Width, &Height, &Components, RequestComponents);
+ if (Data)
+ {
+  u64 TotalSize = Cast(u64)Width * Height * RequestComponents;
+  char *Pixels = PushArrayNonZero(Arena, TotalSize, char);
+  MemoryCopy(Pixels, Data, TotalSize);
+  
+  Result.Success = true;
+  Result.Width = Width;
+  Result.Height = Height;
+  Result.Pixels = Pixels;
+  
+  stbi_image_free(Data);
+ }
+ 
+ return Result;
+}
+
 EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 {
  TimeFunction;
  
- Assert(Memory->PermamentMemorySize >= SizeOf(editor));
- editor *Editor = Cast(editor *)Memory->PermamentMemory;
- if (!Editor->Initialized)
+ editor *Editor = Memory->Editor;
+ if (!Editor)
  {
+  Editor = Memory->Editor = PushStruct(Memory->PermamentArena, editor);
+  
   Editor->BackgroundColor = Editor->DefaultBackgroundColor = RGBA_Color(21, 21, 21);
   Editor->CollisionToleranceClip = 0.02f;
   Editor->RotationRadiusClip = 0.1f;
@@ -2137,24 +2211,18 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    SetTrackingPointFraction(&Entity->Curve.PointTracking, 0.5f);
   }
   
+  editor_assets *Assets = &Editor->Assets;
+  u64 TextureCount = Memory->MaxTextureCount;
+  for (u64 Index = 0;
+       Index < TextureCount;
+       ++Index)
   {
-   entity *Entity = AllocEntity(Editor);
-   InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("special"), 0);
-   Entity->Type = Entity_Image;
-   
-   image *Image = &Entity->Image;
-   
-   stbi_set_flip_vertically_on_load(1);
-   int x, y, comp, req_comp = 4;
-   unsigned char *data = stbi_load("C:/codebase/editor/data/example.jpg",
-                                   &x, &y, &comp, req_comp);
-   
-   Image->Width = x;
-   Image->Height = y;
-   Image->Pixels = Cast(char *)data;
-   Image->Dim.X = Cast(f32)x / y;
-   Image->Dim.Y = 1.0f;
+   texture_index *TextureIndex = PushStruct(Memory->PermamentArena, texture_index);
+   TextureIndex->Index = TextureCount - 1 - Index;
+   TextureIndex->Next = Assets->FirstFreeTextureIndex;
+   Assets->FirstFreeTextureIndex = TextureIndex;
   }
+  Assets->TextureQueue = Memory->TextureQueue;
   
   Editor->Initialized = true;
  }
@@ -2172,6 +2240,11 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
  }
  
  //- process events and update click events
+ b32 NewProject = false;
+ b32 OpenFileDialog = false;
+ b32 SaveProject = false;
+ b32 SaveProjectAs = false;
+ b32 QuitProject = false;
  {
   editor_left_click_state *LeftClick = &Editor->LeftClick;
   editor_right_click_state *RightClick = &Editor->RightClick;
@@ -2458,10 +2531,34 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    }
    
    //- shortcuts
+   if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_N && (Event->Flags & PlatformEventFlag_Ctrl))
+   {
+    Eat = true;
+    NewProject = true;
+   }
+   
+   if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_O && (Event->Flags & PlatformEventFlag_Ctrl))
+   {
+    Eat = true;
+    OpenFileDialog = true;
+   }
+   
+   if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_S && (Event->Flags & PlatformEventFlag_Ctrl))
+   {
+    Eat = true;
+    SaveProject = true;
+   }
+   
+   if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_S && (Event->Flags & PlatformEventFlag_Ctrl) && (Event->Flags & PlatformEventFlag_Shift))
+   {
+    Eat = true;
+    SaveProjectAs = true;
+   }
+   
    if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Escape)
    {
     Eat = true;
-    Input->QuitRequested = true;
+    QuitProject = true;
    }
    
 #if BUILD_DEBUG
@@ -2864,81 +2961,66 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   }
   
   //- render menu bar UI
+  if (UI_BeginMainMenuBar())
   {
-   b32 NewProject    = false;
-   b32 OpenProject   = false;
-   b32 QuitProject   = false;
-   b32 SaveProject   = false;
-   b32 SaveProjectAs = false;
-   b32 Import        = false;
-   
-   if (UI_BeginMainMenuBar())
+   if (UI_BeginMenuF("File"))
    {
-    if (UI_BeginMenuF("File"))
-    {
-     NewProject    = UI_MenuItemF(0, "Ctrl+N",       "New");
-     Import        = UI_MenuItemF(0, 0,              "Import");
-     OpenProject   = UI_MenuItemF(0, "Ctrl+O",       "Open");
-     SaveProject   = UI_MenuItemF(0, "Ctrl+S",       "Save");
-     SaveProjectAs = UI_MenuItemF(0, "Shift+Ctrl+S", "Save As");
-     QuitProject   = UI_MenuItemF(0, "Q/Escape",     "Quit");
-     UI_EndMenu();
-    }
-    
-    if (UI_BeginMenuF("View"))
-    {
-     UI_MenuItemF(&Editor->EntityListWindow, 0, "Entity List");
-     UI_MenuItemF(&Editor->SelectedEntityWindow, 0, "Selected Entity");
-     UI_EndMenu();
-    }
-    
-    if (UI_BeginMenuF("Settings"))
-    {
-     if (UI_BeginMenuF("Camera"))
-     {
-      camera *Camera = &Editor->Camera;
-      
-      UI_DragFloat2F(Camera->P.E, 0.0f, 0.0f, 0, "Position");
-      if (ResetCtxMenu(StrLit("PositionReset")))
-      {
-       TranslateCamera(Camera, -Camera->P);
-      }
-      
-      UI_AngleSliderF(&Camera->Rotation, "Rotation");
-      if (ResetCtxMenu(StrLit("RotationReset")))
-      {
-       RotateCameraAround(Camera, Rotation2DInverse(Camera->Rotation), Camera->P);
-      }
-      
-      UI_DragFloatF(&Camera->Zoom, 0.0f, 0.0f, 0, "Zoom");
-      if (ResetCtxMenu(StrLit("ZoomReset")))
-      {
-       SetCameraZoom(Camera, 1.0f);
-      }
-      
-      UI_EndMenu();
-     }
-     UI_ColorPickerF(&Editor->BackgroundColor, "Background Color");
-     if (ResetCtxMenu(StrLit("BackgroundColorReset")))
-     {
-      Editor->BackgroundColor = Editor->DefaultBackgroundColor;
-     }
-     UI_EndMenu();
-    }
-    
-    // TODO(hbr): Complete help menu
-    if (UI_BeginMenuF("Help"))
-    {
-     UI_EndMenu();
-    }
-    
-    UI_EndMainMenuBar();
+    NewProject     = UI_MenuItemF(0, "Ctrl+N",       "New");
+    OpenFileDialog = UI_MenuItemF(0, "Ctrl+O",       "Open");
+    SaveProject    = UI_MenuItemF(0, "Ctrl+S",       "Save");
+    SaveProjectAs  = UI_MenuItemF(0, "Ctrl+Shift+S", "Save As");
+    QuitProject    = UI_MenuItemF(0, "Escape",     "Quit");
+    UI_EndMenu();
    }
    
-   if (QuitProject)
+   if (UI_BeginMenuF("View"))
    {
-    Input->QuitRequested = true;
+    UI_MenuItemF(&Editor->EntityListWindow, 0, "Entity List");
+    UI_MenuItemF(&Editor->SelectedEntityWindow, 0, "Selected Entity");
+    UI_EndMenu();
    }
+   
+   if (UI_BeginMenuF("Settings"))
+   {
+    if (UI_BeginMenuF("Camera"))
+    {
+     camera *Camera = &Editor->Camera;
+     
+     UI_DragFloat2F(Camera->P.E, 0.0f, 0.0f, 0, "Position");
+     if (ResetCtxMenu(StrLit("PositionReset")))
+     {
+      TranslateCamera(Camera, -Camera->P);
+     }
+     
+     UI_AngleSliderF(&Camera->Rotation, "Rotation");
+     if (ResetCtxMenu(StrLit("RotationReset")))
+     {
+      RotateCameraAround(Camera, Rotation2DInverse(Camera->Rotation), Camera->P);
+     }
+     
+     UI_DragFloatF(&Camera->Zoom, 0.0f, 0.0f, 0, "Zoom");
+     if (ResetCtxMenu(StrLit("ZoomReset")))
+     {
+      SetCameraZoom(Camera, 1.0f);
+     }
+     
+     UI_EndMenu();
+    }
+    UI_ColorPickerF(&Editor->BackgroundColor, "Background Color");
+    if (ResetCtxMenu(StrLit("BackgroundColorReset")))
+    {
+     Editor->BackgroundColor = Editor->DefaultBackgroundColor;
+    }
+    UI_EndMenu();
+   }
+   
+   // TODO(hbr): Complete help menu
+   if (UI_BeginMenuF("Help"))
+   {
+    UI_EndMenu();
+   }
+   
+   UI_EndMainMenuBar();
   }
   
   //- render entity list UI
@@ -3150,6 +3232,68 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 #endif
  }
  
+ if (OpenFileDialog)
+ {
+  temp_arena Temp = TempArena(0);
+  
+  b32 Success = false;
+  platform_file_dialog_result OpenDialog = Memory->PlatformOpenFileDialog(Temp.Arena);
+  if (OpenDialog.Success)
+  {
+   string FilePath = OpenDialog.FilePath;
+   string FileData = OS_ReadEntireFile(Temp.Arena, FilePath);
+   loaded_image LoadedImage = LoadImageFromMemory(Temp.Arena, FileData.Data, FileData.Count);
+   if (LoadedImage.Success)
+   {
+    u64 RequestSize = LoadedImage.Width * LoadedImage.Height * 4;
+    editor_assets *Assets = &Editor->Assets;
+    texture_transfer_op *TextureOp = PushTextureTransfer(Assets->TextureQueue, RequestSize);
+    if (TextureOp)
+    {
+     texture_index *TextureIndex = AllocateTextureIndex(Assets);
+     if (TextureIndex)
+     {
+      MemoryCopy(TextureOp->Pixels, LoadedImage.Pixels, RequestSize);
+      TextureOp->Width = LoadedImage.Width;
+      TextureOp->Height = LoadedImage.Height;
+      TextureOp->TextureIndex = TextureIndex->Index;
+      
+      string FileName = PathLastPart(FilePath);
+      string FileNameNoExt = StrChopLastDot(FileName);
+      
+      entity *Entity = AllocEntity(Editor);
+      InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), FileNameNoExt, 0);
+      Entity->Type = Entity_Image;
+      
+      image *Image = &Entity->Image;
+      Image->Dim.X = 2.0f * Cast(f32)LoadedImage.Width / LoadedImage.Height;
+      Image->Dim.Y = 2.0f;
+      Image->TextureIndex = TextureIndex;
+      
+      Success = true;
+     }
+    }
+    
+    if (!Success && TextureOp)
+    {
+     PopTextureTransfer(Assets->TextureQueue, TextureOp);
+    }
+   }
+  }
+  
+  if (!Success)
+  {
+   AddNotificationF(Editor, Notification_Error, "failed to open %S", OpenDialog.FilePath);
+  }
+  
+  EndTemp(Temp);
+ }
+ 
+ if (QuitProject)
+ {
+  Input->QuitRequested = true;
+ }
+ 
  //- update and render entities
  for (u64 EntryIndex = 0;
       EntryIndex < MAX_ENTITY_COUNT;
@@ -3270,7 +3414,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
     
     case Entity_Image: {
      image *Image = &Entity->Image;
-     PushImage(RenderGroup, Image->Dim, Image->Width, Image->Height, Image->Pixels);
+     PushImage(RenderGroup, Image->Dim, Image->TextureIndex->Index);
     }break;
     
     case Entity_Count: InvalidPath; break;

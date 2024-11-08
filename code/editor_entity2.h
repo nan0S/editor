@@ -165,6 +165,9 @@ struct curve
  u64 LinePointCount;
  v2 *LinePoints;
  
+ u64 ConvexHullCount;
+ v2 *ConvexHullPoints;
+ 
  vertex_array LineVertices;
  vertex_array PolylineVertices;
  vertex_array ConvexHullVertices;
@@ -175,12 +178,11 @@ struct curve
  curve_degree_lowering_state DegreeLowering;
 };
 
+struct texture_index;
 struct image
 {
  v2 Dim;
- u64 Width;
- u64 Height;
- char *Pixels;
+ texture_index *TextureIndex;
 };
 
 enum entity_type

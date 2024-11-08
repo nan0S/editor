@@ -95,6 +95,7 @@ CompileProgram(b32 Debug)
  StrListPush(GlobalArena, &MainCmd, StrF(GlobalArena, "/out:editor_%s.exe", Mode));
  StrListPush(GlobalArena, &MainCmd, StrF(GlobalArena, "/LIBPATH:%S", CodePath(StrLit("third_party/sfml/lib"))));
  StrListPush(GlobalArena, &MainCmd, StrLit("Opengl32.lib"));
+ StrListPush(GlobalArena, &MainCmd, StrLit("Comdlg32.lib"));
  StrListPush(GlobalArena, &MainCmd, StrLit("sfml-graphics.lib"));
  StrListPush(GlobalArena, &MainCmd, StrLit("sfml-system.lib"));
  StrListPush(GlobalArena, &MainCmd, StrLit("sfml-window.lib"));

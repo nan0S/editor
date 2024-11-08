@@ -122,7 +122,7 @@ Rotation2DFromDegrees(f32 Degrees)
 internal v2
 Rotation2DFromRadians(f32 Radians)
 {
- v2 Result = Rotation2D(cosf(Radians), sinf(Radians));
+ v2 Result = Rotation2D(CosF32(Radians), SinF32(Radians));
  return Result;
 }
 
@@ -504,7 +504,7 @@ ChebyshevPoints(f32 *Ti, u64 N)
 {
  for (u64 K = 0; K < N; ++K)
  {
-  Ti[K] = cosf(Pi32 * (2*K+1) / (2*N));
+  Ti[K] = CosF32(Pi32 * (2*K+1) / (2*N));
  }
 }
 
@@ -1432,7 +1432,6 @@ SegmentCollision(v2 Position,
   
   if (ProjectionLengthSquared <= DotUV)
   {
-   
    // |Ax + By + C| / sqrt(A^2 + B^2)
    f32 A = U.Y;
    f32 B = -U.X;

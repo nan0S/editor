@@ -159,10 +159,20 @@ Ideas:
 obstacles, I don't want to unwittingly click on some other curve/image and select it
 - confirm window when removing points
 
+Ideas:
+- dodawanie punktow z dwoch stron
+- loop curve with checkbox - it seems useful
+- czesto jak rysuje to jestem mega zzoomwany na image - chce dodac nowa curve ale nie mam jak latwo odselectowac aktualnej bo wszedzie wokolo jest image
+- ogolnie caly czas sie boje ze cos usune - undo/redo to troche zmityguje ale chyba to nie powinno byc takie proste - szczegolnie images - byc moze lewy przycisk nie powinien usuwac entities - tylko punkty na przyklad
+- zmienianie koloru krzywej "inline" a nie w osobnym okienku
+- hide all control points in ALL curves using some button or something
+- resize image "inline", not in separate window
+
 Bugs:
 - clicking on control point doesn't do anything, but should select this curve and control point
 - splitting bezier curve doesnt fully recompute one of the curves
 - removing curve point unselects curve, dont do that
+- klikanie na image kiedy jest wysuniety na przod za pomoca sorting layer i tak dodaje punkt zamiast robic select tego image
 
 Stack:
  - add sorting to rendering - this then will allow to draw things out of order and will simplify the code a lot
@@ -178,7 +188,6 @@ Stack:
 - inserting control point in the middle of polynomial curve is sometimes broken
 - because clicks are now highly independent, we might now delete control point while moving the same control point which could lead to some weird behaviours, investigate that
  - try to highlight entity that is about to be removed - maybe even in general - highlight stuff upon sliding mouse into its collider
-
 */
 
 struct camera
@@ -349,6 +358,18 @@ struct editor_middle_click_state
  v2 ClipSpaceLastMouseP;
 };
 
+struct texture_index
+{
+ texture_index *Next;
+ u64 Index;
+};
+
+struct editor_assets
+{
+ texture_transfer_queue *TextureQueue;
+ texture_index *FirstFreeTextureIndex;
+};
+
 struct editor
 {
  b32 Initialized;
@@ -373,6 +394,8 @@ struct editor
  editor_left_click_state LeftClick;
  editor_right_click_state RightClick;
  editor_middle_click_state MiddleClick;
+ 
+ editor_assets Assets;
  
  //////////////////////////////
  

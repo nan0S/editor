@@ -3,31 +3,31 @@
 
 struct arena
 {
-   arena *Next;
-   arena *Cur;
-   
-   void *Memory;
-   u64 Used;
-   u64 Capacity;
-   u64 Align;
+ arena *Next;
+ arena *Cur;
+ 
+ void *Memory;
+ u64 Used;
+ u64 Capacity;
+ u64 Align;
 };
 
 struct temp_arena
 {
-   arena *Arena;
-   arena *SavedCur;
-   u64 SavedUsed;
+ arena *Arena;
+ arena *SavedCur;
+ u64 SavedUsed;
 };
 
 struct pool_chunk
 {
-   pool_chunk *Next;
+ pool_chunk *Next;
 };
 struct pool
 {
-   arena *BackingArena;
-   pool_chunk *FirstFreeChunk;
-   u64 ChunkSize;
+ arena *BackingArena;
+ pool_chunk *FirstFreeChunk;
+ u64 ChunkSize;
 };
 
 internal arena *AllocArena(void);

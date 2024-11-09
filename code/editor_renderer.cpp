@@ -122,6 +122,8 @@ BeginRenderGroup(render_frame *Frame,
  v2u WindowDim = Frame->WindowDim;
  f32 AspectRatio = Cast(f32)WindowDim.X / WindowDim.Y;
  
+ 
+ 
  Result.WorldToCamera = MakeFullTransform(CameraP, CameraRot, V2(1.0f / CameraZoom, 1.0f / CameraZoom));
  Result.CameraToClip = MakeFullTransform(V2(0, 0), Rotation2DZero(), V2(AspectRatio, 1.0f));
  Result.ClipToScreen = MakeFullTransform(-V2(1.0f, -1.0f),

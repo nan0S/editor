@@ -1564,6 +1564,29 @@ Unproject(transform_inv *XForm, v2 P)
  return Result;
 }
 
+
+internal m3x3_inv
+CameraTransform(v2 P, v2 Rotation, f32 Zoom)
+{
+ m3x3_inv Result = {};
+ 
+ v2 XAxis = Rotation;
+ v2 YAxis = Rotate90DegreesAntiClockwise(Rotation);
+ 
+ m3x3 A = Rows2x2(XAxis, YAxis);
+ A = Scale3x3(A, Zoom);
+ v2 AP = -(A*P);
+ A = Translate3x3(A, AP);
+ Result.Forward = A;
+ 
+ m3x3 iA = Cols3x3(XAxis, YAxis);
+ iA = Scale3x3(iA, 1 / Zoom);
+ iA = Translate3x3(iA, P);
+ Result.Inverse = iA;
+ 
+ return Result;
+}
+
 internal transform_inv
 MakeFullTransform(v2 P, v2 Rotation, v2 Scale)
 {

@@ -1368,8 +1368,6 @@ UpdateAndRenderMenuBar(editor *Editor, platform_input *Input, render_group *Rend
 internal void
 UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity)
 {
- TimeFunction;
- 
  curve *Curve = &Entity->Curve;
  curve_params *CurveParams = &Curve->Params;
  curve_point_tracking_state *Tracking = &Curve->PointTracking;
@@ -1527,8 +1525,6 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
 internal void
 UpdateAndRenderDegreeLowering(render_group *RenderGroup, entity *Entity)
 {
- TimeFunction;
- 
  curve *Curve = GetCurve(Entity);
  curve_params *CurveParams = &Curve->Params;
  curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
@@ -2139,8 +2135,6 @@ LoadImageFromMemory(arena *Arena, char *ImageData, u64 Count)
 
 EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 {
- TimeFunction;
- 
  editor *Editor = Memory->Editor;
  if (!Editor)
  {
@@ -3239,7 +3233,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   if (OpenDialog.Success)
   {
    string FilePath = OpenDialog.FilePath;
-   string FileData = OS_ReadEntireFile(Temp.Arena, FilePath);
+   string FileData = Platform.ReadEntireFile(Temp.Arena, FilePath);
    loaded_image LoadedImage = LoadImageFromMemory(Temp.Arena, FileData.Data, FileData.Count);
    if (LoadedImage.Success)
    {
@@ -3422,6 +3416,3 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   }
  }
 }
-
-// NOTE(hbr): Specifically after every file is included. Works in Unity build only.
-StaticAssert(__COUNTER__ < ArrayCount(profiler::Anchors), ProfileAnchorsFitIntoArray);

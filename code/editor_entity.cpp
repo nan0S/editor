@@ -343,8 +343,6 @@ EvaluateCurve(curve *Curve, u64 LinePointCount, v2 *LinePoints)
 internal void
 ActuallyRecomputeCurve(entity *Entity)
 {
- TimeFunction;
- 
  curve *Curve = GetCurve(Entity);
  ClearArena(Entity->Arena);
  

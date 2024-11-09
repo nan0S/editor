@@ -1,21 +1,15 @@
-// TODO(hbr): what the fuck is this
-#pragma warning(1 : 4062)
 #include "imgui_inc.h"
 
 #include "editor_base.h"
 #include "editor_string.h"
 #include "editor_platform.h"
 #include "editor_memory.h"
-#include "editor_os.h"
 #include "editor_renderer.h"
 
 #include "editor_base.cpp"
 #include "editor_memory.cpp"
 #include "editor_string.cpp"
-#include "editor_os.cpp"
 
-#define EDITOR_PROFILER 1
-#include "editor_profiler.h"
 #include "editor_math.h"
 #include "editor_ui.h"
 #include "editor_sort.h"
@@ -40,9 +34,14 @@
 
 #include "editor.cpp"
 
+#include <windows.h>
+
+global u64 GlobalPageSize;
+global u64 GlobalProcCount;
+
+SFML_RENDERER_INIT(SFMLRendererInit);
 RENDERER_BEGIN_FRAME(SFMLBeginFrame);
 RENDERER_END_FRAME(SFMLEndFrame);
-SFML_RENDERER_INIT(SFMLRendererInit);
 
 global sf::Keyboard::Key SFMLKeys[] =
 {
@@ -317,18 +316,22 @@ SFMLHandleInput(platform_input *Input,
 
 PLATFORM_ALLOC_VIRTUAL_MEMORY(SFMLAllocMemory)
 {
- void *Result = OS_AllocVirtualMemory(Size, Commit);
+ DWORD AllocationType = (MEM_RESERVE | (Commit ? MEM_COMMIT : 0));
+ DWORD Protect = (Commit ? PAGE_READWRITE : PAGE_NOACCESS);
+ void *Result = VirtualAlloc(0, Size, AllocationType, Protect);
+ 
  return Result;
 }
 
 PLATFORM_COMMIT_VIRTUAL_MEMORY(SFMLCommitMemory)
 {
- OS_CommitVirtualMemory(Memory, Size);
+ u64 PageSnappedSize = AlignPow2(Size, GlobalPageSize);
+ VirtualAlloc(Memory, PageSnappedSize, MEM_COMMIT, PAGE_READWRITE);
 }
 
 PLATFORM_DEALLOC_VIRTUAL_MEMORY(SFMLDeallocMemory)
 {
- OS_DeallocVirtualMemory(Memory, Size);
+ VirtualFree(Memory, 0, MEM_RELEASE);
 }
 
 PLATFORM_OPEN_FILE_DIALOG(SFMLOpenFileDialog)
@@ -361,21 +364,68 @@ PLATFORM_OPEN_FILE_DIALOG(SFMLOpenFileDialog)
  return Result;
 }
 
-
+PLATFORM_READ_ENTIRE_FILE(SFMLReadEntireFile)
+{
+ temp_arena Temp = TempArena(Arena);
+ 
+ string CFilePath = CStrFromStr(Temp.Arena, FilePath);
+ 
+ DWORD DesiredAccess = GENERIC_READ;
+ DWORD CreationDisposition = OPEN_EXISTING;
+ HANDLE File = CreateFileA(CFilePath.Data, DesiredAccess, FILE_SHARE_READ, 0,
+                           CreationDisposition, FILE_ATTRIBUTE_NORMAL, 0);
+ 
+ u64 FileSize = 0;
+ {
+  LARGE_INTEGER Win32FileSize = {};
+  if (GetFileSizeEx(File, &Win32FileSize))
+  {
+   FileSize = Win32FileSize.QuadPart;
+  }
+ }
+ 
+ char *Buffer = PushArrayNonZero(Arena, FileSize, char);
+ 
+ char *At = Buffer;
+ u64 Left = FileSize;
+ while (Left > 0)
+ {
+  DWORD ToRead = Min(U32_MAX, Left);
+  DWORD Read = 0;
+  ReadFile(File, Buffer, ToRead, &Read, 0);
+  
+  Left -= Read;
+  At += Read;
+  
+  if (Read != ToRead)
+  {
+   break;
+  }
+ }
+ string Result = MakeStr(Buffer, FileSize - Left);
+ 
+ EndTemp(Temp);
+ 
+ return Result;
+}
 
 platform_api Platform;
 
 int main()
 {
+ SYSTEM_INFO Info = {};
+ GetSystemInfo(&Info);
+ GlobalProcCount = Info.dwNumberOfProcessors;
+ GlobalPageSize = Info.dwPageSize;
+ 
  Platform.AllocVirtualMemory = SFMLAllocMemory;
  Platform.CommitVirtualMemory = SFMLCommitMemory;
  Platform.DeallocVirtualMemory = SFMLDeallocMemory;
  Platform.OpenFileDialog = SFMLOpenFileDialog;
+ Platform.ReadEntireFile = SFMLReadEntireFile;
  
  // TODO(hbr): Move to editor code, or move out entirely
  InitThreadCtx();
- InitOS();
- InitProfiler();
  
  sf::VideoMode VideoMode = sf::VideoMode::getDesktopMode();
  sf::ContextSettings ContextSettings = sf::ContextSettings();
@@ -383,23 +433,17 @@ int main()
  sf::RenderWindow Window_(VideoMode, "Parametric Curves Editor", sf::Style::Default, ContextSettings);
  sf::RenderWindow *Window = &Window_;
  
- platform_renderer_limits Limits_ = {};
- platform_renderer_limits *Limits = &Limits_;
- Limits->MaxTextureQueueMemorySize = Megabytes(100);
- Limits->MaxTextureCount = 256;
- 
-#if 0
- //#if not(BUILD_DEBUG)
- Window.setFramerateLimit(60);
- //#endif
-#endif
- 
  if (Window->isOpen())
  {
   bool ImGuiInitSuccess = ImGui::SFML::Init(*Window, true);
   if (ImGuiInitSuccess)
   {
    arena *PermamentArena = AllocArena();
+   
+   platform_renderer_limits Limits_ = {};
+   platform_renderer_limits *Limits = &Limits_;
+   Limits->MaxTextureQueueMemorySize = Megabytes(100);
+   Limits->MaxTextureCount = 256;
    
    platform_renderer *Renderer = SFMLRendererInit(PermamentArena, Limits, Window);
    
@@ -420,10 +464,7 @@ int main()
    {
     auto SFMLDeltaTime = Clock.restart();
     Input->dtForFrame = SFMLDeltaTime.asSeconds();
-    {
-     TimeBlock("ImGui::SFML::Update");
-     ImGui::SFML::Update(*Window, SFMLDeltaTime);
-    }
+    ImGui::SFML::Update(*Window, SFMLDeltaTime);
     
     sf::Vector2u WindowDim_ = Window->getSize();
     v2u WindowDim = V2U(WindowDim_.x, WindowDim_.y);

@@ -84,15 +84,101 @@ RENDERER_BEGIN_FRAME(SFMLBeginFrame)
  return Frame;
 }
 
-internal sf::Transform
-RenderTransformToSFMLTransform(transform A)
+internal m3x3
+M3x3Identity(void)
 {
- sf::Transform Result = sf::Transform()
-  .translate(A.Offset.X, A.Offset.Y)
-  .scale(A.Scale.X, A.Scale.Y)
-  .rotate(Rotation2DToDegrees(A.Rotation));
+ m3x3 Result = {};
+ Result.M[0][0] = 1.0f;
+ Result.M[1][1] = 1.0f;
+ Result.M[2][2] = 1.0f;
  
  return Result;
+}
+
+internal m3x3
+M3x3Mult(m3x3 A, m3x3 B)
+{
+ m3x3 Result = {};
+ for (u64 i = 0; i < 3; ++i)
+ {
+  for (u64 j = 0; j < 3; ++j)
+  {
+   for (u64 k = 0; k < 3; ++k)
+   {
+    Result.M[i][j] += A.M[i][k] * B.M[k][j];
+   }
+  }
+ }
+ 
+ return Result;
+}
+
+internal m3x3
+M3x3Transpose(m3x3 M)
+{
+ m3x3 Result = M;
+ for (u64 i = 0; i < 3; ++i)
+ {
+  for (u64 j = 0; j < i; ++j)
+  {
+   Swap(Result.M[i][j], Result.M[j][i], f32);
+  }
+ }
+ 
+ return Result;
+}
+
+
+struct m4x4
+{
+ f32 M[4][4];
+};
+
+internal m4x4
+M3x3ToM4x4OpenGL(m3x3 M)
+{
+ M = M3x3Transpose(M);
+ 
+#define X(i,j) M.M[i][j]
+ m4x4 R = {
+  { {X(0,0), X(0,1), 0, X(0,2)},
+   {X(1,0), X(1,1), 0, X(1,2)},
+   {     0,      0, 1,      0},
+   {X(2,0), X(2,1), 0, X(2,2)}}
+ };
+#undef X
+ 
+ return R;
+}
+
+internal m4x4
+TransformToM3x3(transform T)
+{
+ m3x3 A = M3x3Identity();
+ A.M[0][2] = T.Offset.X;
+ A.M[1][2] = T.Offset.Y;
+ A.M[2][2] = 1.0f;
+ 
+ m3x3 B = M3x3Identity();
+ B.M[0][0] = T.Scale.X;
+ B.M[1][1] = T.Scale.Y;
+ B.M[2][2] = 1.0f;
+ 
+ m3x3 C = M3x3Identity();
+ C.M[0][0] = T.Rotation.X;
+ C.M[1][0] = T.Rotation.Y;
+ C.M[0][1] = -T.Rotation.Y;
+ C.M[1][1] = T.Rotation.X;
+ C.M[2][2] = 1.0f;
+ 
+ m3x3 Result = M3x3Identity();
+ Result = M3x3Mult(Result, A);
+ Result = M3x3Mult(Result, B);
+ Result = M3x3Mult(Result, C);
+ 
+ m4x4 R = M3x3ToM4x4OpenGL(Result);
+ 
+ return R;
 }
 
 internal int
@@ -117,7 +203,7 @@ internal void
 SFMLEndFrameImpl(sfml_renderer *Renderer, render_frame *Frame)
 {
  GLuint *Textures = Renderer->Textures;
- sf::Transform Transform = RenderTransformToSFMLTransform(Frame->Proj);
+ m4x4 M = TransformToM3x3(Frame->Proj);
  sf::RenderWindow *Window = Renderer->Window;
  Window->clear(ColorToSFMLColor(Frame->ClearColor));
  
@@ -155,16 +241,16 @@ SFMLEndFrameImpl(sfml_renderer *Renderer, render_frame *Frame)
   render_command *Command = Frame->Commands + CommandIndex;
   
   glMatrixMode(GL_PROJECTION);
-  glLoadMatrixf(Transform.getMatrix());
+  glLoadMatrixf(Cast(f32 *)M.M);
   
   switch (Command->Type)
   {
    case RenderCommand_VertexArray: {
     render_command_vertex_array *Array = &Command->VertexArray;
     
-    sf::Transform Model = RenderTransformToSFMLTransform(Array->ModelXForm);
+    m4x4 Model = TransformToM3x3(Array->ModelXForm);
     glMatrixMode(GL_MODELVIEW);
-    glLoadMatrixf(Model.getMatrix());
+    glLoadMatrixf(Cast(f32 *)Model.M);
     
     int glPrimitive = 0;
     switch (Array->Primitive)
@@ -192,9 +278,9 @@ SFMLEndFrameImpl(sfml_renderer *Renderer, render_frame *Frame)
      Tmp.Offset = Circle->Pos;
      Tmp.Scale = V2(1.0f, 1.0f);
      Tmp.Rotation = Rotation2DZero();
-     sf::Transform Model = RenderTransformToSFMLTransform(Tmp);
+     m4x4 Model = TransformToM3x3(Tmp);
      glMatrixMode(GL_MODELVIEW);
-     glLoadMatrixf(Model.getMatrix());
+     glLoadMatrixf(Cast(f32 *)Model.M);
     }
     
     glBegin(GL_TRIANGLE_FAN);
@@ -234,18 +320,16 @@ SFMLEndFrameImpl(sfml_renderer *Renderer, render_frame *Frame)
     Tmp.Offset = Rect->Pos;
     Tmp.Rotation = Rect->Rotation;
     Tmp.Scale = 0.5f * Rect->Size;
-    sf::Transform Model = RenderTransformToSFMLTransform(Tmp);
-    
+    m4x4 Model = TransformToM3x3(Tmp);
     glMatrixMode(GL_MODELVIEW);
-    glLoadMatrixf(Model.getMatrix());
-    glBegin(GL_QUADS);
+    glLoadMatrixf(Cast(f32 *)Model.M);
     
+    glBegin(GL_QUADS);
     glColor4fv(Rect->Color.E);
     glVertex2f(-1.0f, -1.0f);
     glVertex2f(+1.0f, -1.0f);
     glVertex2f(+1.0f, +1.0f);
     glVertex2f(-1.0f, +1.0f);
-    
     glEnd();
    }break;
    
@@ -268,19 +352,18 @@ SFMLEndFrameImpl(sfml_renderer *Renderer, render_frame *Frame)
     
     glBindTexture(GL_TEXTURE_2D, Textures[Image->TextureIndex]);
     
-    sf::Transform Model;
+    m4x4 Model;
     {
      transform Tmp = {};
      Tmp.Offset = Image->P;
      Tmp.Rotation = Image->Rotation;
      Tmp.Scale = Image->Scale;
-     Model = RenderTransformToSFMLTransform(Tmp);
+     Model = TransformToM3x3(Tmp);
     }
     glMatrixMode(GL_MODELVIEW);
-    glLoadMatrixf(Model.getMatrix());
+    glLoadMatrixf(Cast(f32 *)Model.M);
     
     glBegin(GL_QUADS);
-    
     glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
     glTexCoord2f(0.0f, 0.0f);
     glVertex2f(-0.5f * Image->Dim.X, -0.5f * Image->Dim.Y);
@@ -290,7 +373,6 @@ SFMLEndFrameImpl(sfml_renderer *Renderer, render_frame *Frame)
     glVertex2f(+0.5f * Image->Dim.X, +0.5f * Image->Dim.Y);
     glTexCoord2f(0.0f, 1.0f);
     glVertex2f(-0.5f * Image->Dim.X, +0.5f * Image->Dim.Y);
-    
     glEnd();
     
     glBindTexture(GL_TEXTURE_2D, 0);

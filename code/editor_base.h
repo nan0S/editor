@@ -107,17 +107,38 @@ struct v2u
  u32 E[2];
 };
 
+union v3
+{
+ struct { f32 X, Y, Z; };
+ struct { f32 R, G, B; };
+ f32 E[3];
+ struct { v2 XY; f32 _Z; };
+};
+
 union v4
 {
  struct { f32 X, Y, Z, W; };
  struct { f32 R, G, B, A; };
  f32 E[4];
+ struct { v2 XY; v2 ZW; };
+ struct { v3 XYZ; f32 _W; };
 };
 
 struct rectangle2
 {
  v2 Mini;
  v2 Maxi;
+};
+
+struct m3x3
+{
+ f32 M[3][3];
+};
+
+struct m3x3_inv
+{
+ m3x3 Forward;
+ m3x3 Inverse;
 };
 
 #define internal static
@@ -267,6 +288,8 @@ if ((Node)->Next) (Node)->Next->Prev = (Node)->Prev; \
 inline internal v2  V2(f32 X, f32 Y) { return {X,Y}; }
 inline internal v2s V2S(s32 X, s32 Y) { return {X,Y}; }
 inline internal v2u V2U(u32 X, u32 Y) { return {X,Y}; }
+inline internal v3  V3(f32 X, f32 Y, f32 Z) { return {X,Y,Z}; }
+inline internal v3  V3(v2 XY, f32 Z) { return {XY.X,XY.Y,Z}; }
 inline internal v4  V4(f32 X, f32 Y, f32 Z, f32 W) { return {X,Y,Z,W}; }
 
 //- time

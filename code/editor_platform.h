@@ -119,6 +119,9 @@ typedef PLATFORM_DEALLOC_VIRTUAL_MEMORY(platform_dealloc_virtual_memory);
 #define PLATFORM_OPEN_FILE_DIALOG(Name) platform_file_dialog_result Name(arena *Arena)
 typedef PLATFORM_OPEN_FILE_DIALOG(platform_open_file_dialog);
 
+#define PLATFORM_READ_ENTIRE_FILE(Name) string Name(arena *Arena, string FilePath)
+typedef PLATFORM_READ_ENTIRE_FILE(platform_read_entire_file);
+
 struct platform_api
 {
  platform_alloc_virtual_memory *AllocVirtualMemory;
@@ -126,6 +129,8 @@ struct platform_api
  platform_commit_virtual_memory *CommitVirtualMemory;
  
  platform_open_file_dialog *OpenFileDialog;
+ 
+ platform_read_entire_file *ReadEntireFile;
 };
 extern platform_api Platform;
 

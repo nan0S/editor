@@ -2223,8 +2223,6 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    Assets->FirstFreeTextureIndex = TextureIndex;
   }
   Assets->TextureQueue = Memory->TextureQueue;
-  
-  Editor->Initialized = true;
  }
  
  render_group RenderGroup_;
@@ -2555,7 +2553,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
     SaveProjectAs = true;
    }
    
-   if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Escape)
+   if (!Eat && ((Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Escape) || (Event->Type == PlatformEvent_WindowClose)))
    {
     Eat = true;
     QuitProject = true;
@@ -3237,7 +3235,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   temp_arena Temp = TempArena(0);
   
   b32 Success = false;
-  platform_file_dialog_result OpenDialog = Memory->PlatformOpenFileDialog(Temp.Arena);
+  platform_file_dialog_result OpenDialog = Platform.OpenFileDialog(Temp.Arena);
   if (OpenDialog.Success)
   {
    string FilePath = OpenDialog.FilePath;

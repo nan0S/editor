@@ -372,8 +372,6 @@ struct editor_assets
 
 struct editor
 {
- b32 Initialized;
- 
  camera Camera;
  frame_stats FrameStats;
  

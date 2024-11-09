@@ -3,11 +3,11 @@
 #include "imgui_inc.h"
 
 #include "editor_base.h"
-#include "editor_memory.h"
 #include "editor_string.h"
+#include "editor_platform.h"
+#include "editor_memory.h"
 #include "editor_os.h"
 #include "editor_renderer.h"
-#include "editor_platform.h"
 
 #include "editor_base.cpp"
 #include "editor_memory.cpp"
@@ -233,7 +233,9 @@ SFMLHandleInput(platform_input *Input,
   ImGui::SFML::ProcessEvent(*Window, SFMLEvent);
   switch (SFMLEvent.type)
   {
-   case sf::Event::Closed: { Window->close(); }break;
+   case sf::Event::Closed: {
+    SFMLPushPlatformEvent(SFMLInput, PlatformEvent_WindowClose);
+   }break;
    
    case sf::Event::KeyPressed:
    case sf::Event::KeyReleased: {
@@ -264,7 +266,7 @@ SFMLHandleInput(platform_input *Input,
                                                 WindowDim);
      }
     }
-   } break;
+   }break;
    
    case sf::Event::MouseMoved: {
     platform_event *Event = SFMLPushPlatformEvent(SFMLInput, PlatformEvent_MouseMove);
@@ -274,7 +276,7 @@ SFMLHandleInput(platform_input *Input,
                                                SFMLEvent.mouseMove.y,
                                                WindowDim);
     }
-   } break;
+   }break;
    
    case sf::Event::MouseWheelScrolled: {
     platform_event *Event = SFMLPushPlatformEvent(SFMLInput, PlatformEvent_Scroll);
@@ -282,9 +284,9 @@ SFMLHandleInput(platform_input *Input,
     {
      Event->ScrollDelta = SFMLEvent.mouseWheelScroll.delta;
     }
-   } break;
+   }break;
    
-   default: {} break;
+   default: {}break;
   }
  }
  
@@ -313,6 +315,22 @@ SFMLHandleInput(platform_input *Input,
  Input->ClipSpaceMouseP = SFMLScreenToClip(MouseP.x, MouseP.y, WindowDim);
 }
 
+PLATFORM_ALLOC_VIRTUAL_MEMORY(SFMLAllocMemory)
+{
+ void *Result = OS_AllocVirtualMemory(Size, Commit);
+ return Result;
+}
+
+PLATFORM_COMMIT_VIRTUAL_MEMORY(SFMLCommitMemory)
+{
+ OS_CommitVirtualMemory(Memory, Size);
+}
+
+PLATFORM_DEALLOC_VIRTUAL_MEMORY(SFMLDeallocMemory)
+{
+ OS_DeallocVirtualMemory(Memory, Size);
+}
+
 PLATFORM_OPEN_FILE_DIALOG(SFMLOpenFileDialog)
 {
  platform_file_dialog_result Result = {};
@@ -320,12 +338,9 @@ PLATFORM_OPEN_FILE_DIALOG(SFMLOpenFileDialog)
  u64 Count = 256;
  char *Buffer = PushArrayNonZero(Arena, Count, char);
  
- HWND WindowHandle = GetActiveWindow();
- 
  OPENFILENAME Open = {};
  Open.lStructSize = SizeOf(Open);
  Open.lpstrFile = Buffer;
- Open.hwndOwner = WindowHandle;
  if (Count > 0) Open.lpstrFile[0] = '\0';
  Open.nMaxFile = Count;
  Open.lpstrFilter =
@@ -346,8 +361,17 @@ PLATFORM_OPEN_FILE_DIALOG(SFMLOpenFileDialog)
  return Result;
 }
 
+
+
+platform_api Platform;
+
 int main()
 {
+ Platform.AllocVirtualMemory = SFMLAllocMemory;
+ Platform.CommitVirtualMemory = SFMLCommitMemory;
+ Platform.DeallocVirtualMemory = SFMLDeallocMemory;
+ Platform.OpenFileDialog = SFMLOpenFileDialog;
+ 
  // TODO(hbr): Move to editor code, or move out entirely
  InitThreadCtx();
  InitOS();
@@ -389,41 +413,34 @@ int main()
    Memory->PermamentArena = PermamentArena;
    Memory->TextureQueue = &Renderer->TextureQueue;
    Memory->MaxTextureCount = Limits->MaxTextureCount;
-   Memory->PlatformOpenFileDialog = SFMLOpenFileDialog;
+   Memory->PlatformAPI = Platform;
    
    b32 Running = true;
    while (Running)
    {
-    if (!Window->isOpen())
+    auto SFMLDeltaTime = Clock.restart();
+    Input->dtForFrame = SFMLDeltaTime.asSeconds();
+    {
+     TimeBlock("ImGui::SFML::Update");
+     ImGui::SFML::Update(*Window, SFMLDeltaTime);
+    }
+    
+    sf::Vector2u WindowDim_ = Window->getSize();
+    v2u WindowDim = V2U(WindowDim_.x, WindowDim_.y);
+    
+    sfml_platform_input SFMLInput = {};
+    SFMLHandleInput(Input, &SFMLInput, Window, WindowDim);
+    
+    Input->EventCount = SFMLInput.EventCount;
+    Input->Events = SFMLInput.Events;
+    
+    render_frame *Frame = SFMLBeginFrame(Renderer, WindowDim);
+    EditorUpdateAndRender(Memory, Input, Frame);
+    SFMLEndFrame(Renderer, Frame);
+    
+    if (Input->QuitRequested)
     {
      Running = false;
-    }
-    else
-    {
-     auto SFMLDeltaTime = Clock.restart();
-     Input->dtForFrame = SFMLDeltaTime.asSeconds();
-     {
-      TimeBlock("ImGui::SFML::Update");
-      ImGui::SFML::Update(*Window, SFMLDeltaTime);
-     }
-     
-     sf::Vector2u WindowDim_ = Window->getSize();
-     v2u WindowDim = V2U(WindowDim_.x, WindowDim_.y);
-     
-     sfml_platform_input SFMLInput = {};
-     SFMLHandleInput(Input, &SFMLInput, Window, WindowDim);
-     
-     Input->EventCount = SFMLInput.EventCount;
-     Input->Events = SFMLInput.Events;
-     
-     render_frame *Frame = SFMLBeginFrame(Renderer, WindowDim);
-     EditorUpdateAndRender(Memory, Input, Frame);
-     SFMLEndFrame(Renderer, Frame);
-     
-     if (Input->QuitRequested)
-     {
-      Running = false;
-     }
     }
    }
   }

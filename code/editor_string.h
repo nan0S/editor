@@ -3,22 +3,24 @@
 
 struct string
 {
-   char *Data;
-   u64 Count;
+ char *Data;
+ u64 Count;
 };
 
 struct string_list_node
 {
-   string_list_node *Next;
-   string Str;
+ string_list_node *Next;
+ string Str;
 };
 struct string_list
 {
-   string_list_node *Head;
-   string_list_node *Tail;
-   u64 NodeCount;
-   u64 TotalSize;
+ string_list_node *Head;
+ string_list_node *Tail;
+ u64 NodeCount;
+ u64 TotalSize;
 };
+
+struct arena;
 
 internal u64 Fmt(char *Buf, u64 BufSize, char const *Format, ...);
 internal u64 FmtV(char *Buf, u64 BufSize, char const *Format, va_list Args);

@@ -1,8 +1,9 @@
 #include "imgui_inc.h"
 
 #include "editor_base.h"
-#include "editor_memory.h"
 #include "editor_string.h"
+#include "editor_platform.h"
+#include "editor_memory.h"
 #include "editor_os.h"
 #include "editor_renderer.h"
 #include "editor_math.h"

@@ -7,6 +7,7 @@ enum platform_event_type
  PlatformEvent_Release,
  PlatformEvent_MouseMove,
  PlatformEvent_Scroll,
+ PlatformEvent_WindowClose,
 };
 
 enum platform_key
@@ -106,22 +107,41 @@ struct platform_file_dialog_result
  string FilePath;
 };
 
+#define PLATFORM_ALLOC_VIRTUAL_MEMORY(Name) void *Name(u64 Size, b32 Commit)
+typedef PLATFORM_ALLOC_VIRTUAL_MEMORY(platform_alloc_virtual_memory);
+
+#define PLATFORM_COMMIT_VIRTUAL_MEMORY(Name) void Name(void *Memory, u64 Size)
+typedef PLATFORM_COMMIT_VIRTUAL_MEMORY(platform_commit_virtual_memory);
+
+#define PLATFORM_DEALLOC_VIRTUAL_MEMORY(Name) void Name(void *Memory, u64 Size)
+typedef PLATFORM_DEALLOC_VIRTUAL_MEMORY(platform_dealloc_virtual_memory);
+
 #define PLATFORM_OPEN_FILE_DIALOG(Name) platform_file_dialog_result Name(arena *Arena)
 typedef PLATFORM_OPEN_FILE_DIALOG(platform_open_file_dialog);
 
-struct editor;
+struct platform_api
+{
+ platform_alloc_virtual_memory *AllocVirtualMemory;
+ platform_dealloc_virtual_memory *DeallocVirtualMemory;
+ platform_commit_virtual_memory *CommitVirtualMemory;
+ 
+ platform_open_file_dialog *OpenFileDialog;
+};
+extern platform_api Platform;
 
 struct editor_memory
 {
- arena *PermamentArena;
- editor *Editor;
+ struct arena *PermamentArena;
+ 
+ struct editor *Editor;
  
  u64 MaxTextureCount;
- texture_transfer_queue *TextureQueue;
+ struct texture_transfer_queue *TextureQueue;
  
- platform_open_file_dialog *PlatformOpenFileDialog;
+ platform_api PlatformAPI;
 };
 
+struct render_frame;
 #define EDITOR_UPDATE_AND_RENDER(Name) void Name(editor_memory *Memory, platform_input *Input, render_frame *Frame)
 typedef EDITOR_UPDATE_AND_RENDER(editor_update_and_render);
 

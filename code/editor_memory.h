@@ -30,6 +30,8 @@ struct pool
  u64 ChunkSize;
 };
 
+struct arena;
+
 internal arena *AllocArena(void);
 internal void   DeallocArena(arena *Arena);
 internal void   ClearArena(arena *Arena);

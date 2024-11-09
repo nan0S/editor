@@ -1,7 +1,10 @@
 #include "editor_base.h"
-#include "editor_memory.h"
 #include "editor_string.h"
+#include "editor_platform.h"
+#include "editor_memory.h"
 #include "editor_os.h"
+
+platform_api Platform;
 
 #include "editor_base.cpp"
 #include "editor_memory.cpp"
@@ -113,9 +116,29 @@ CompileProgram(b32 Debug)
  return Build;
 }
 
+PLATFORM_ALLOC_VIRTUAL_MEMORY(BuildAllocVirtualMemory)
+{
+ void *Result = OS_AllocVirtualMemory(Size, Commit);
+ return Result;
+}
+
+PLATFORM_DEALLOC_VIRTUAL_MEMORY(BuildDeallocVirtualMemory)
+{
+ OS_DeallocVirtualMemory(Memory, Size);
+}
+
+PLATFORM_COMMIT_VIRTUAL_MEMORY(BuildCommitVirtualMemory)
+{
+ OS_CommitVirtualMemory(Memory, Size);
+}
+
 int main(int ArgCount, char *Argv[])
 {
  u64 BeginTSC = ReadCPUTimer();
+ 
+ Platform.AllocVirtualMemory = BuildAllocVirtualMemory;
+ Platform.DeallocVirtualMemory = BuildDeallocVirtualMemory;
+ Platform.CommitVirtualMemory = BuildCommitVirtualMemory;
  
  InitThreadCtx();
  InitOS();

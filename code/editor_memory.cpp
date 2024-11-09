@@ -3,7 +3,7 @@ AllocArenaSize(u64 Size, u64 Align)
 {
  u64 Header = AlignPow2(SizeOf(arena), Align);
  u64 Capacity = Max(Header + Size, Megabytes(1));
- void *Memory = OS_AllocVirtualMemory(Capacity, true);
+ void *Memory = Platform.AllocVirtualMemory(Capacity, true);
  Assert(Cast(umm)Memory % Align == 0);
  
  arena *Arena = Cast(arena *)Memory;
@@ -81,7 +81,7 @@ DeallocArena(arena *Arena)
  {
   arena *Next = Node->Next;
   StructZero(Node);
-  OS_DeallocVirtualMemory(Arena->Memory, Arena->Capacity);
+  Platform.DeallocVirtualMemory(Arena->Memory, Arena->Capacity);
   Node = Next;
  }
 }

@@ -327,20 +327,6 @@ internal void UnselectControlPoint(curve *Curve);
 internal sorted_entries SortEntities(arena *Arena, entity_array Entities);
 
 internal void RotateEntityAround(entity *Entity, v2 Rotate, v2 Around);
-internal v2 ToLocalEntitySpace(v2 P, entity *Entity);
-internal v2 FromLocalEntitySpace(v2 P, entity *Entity);
-
-// TODO(hbr): Temporary solution
-internal transform
-GetEntityModelTransform(entity *Entity)
-{
- transform Result = {};
- Result.Scale = Entity->Scale;
- Result.Offset = Entity->P;
- Result.Rotation = Entity->Rotation;
- 
- return Result;
-}
 
 internal curve *
 SafeGetCurve(entity *Entity)

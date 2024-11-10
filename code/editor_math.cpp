@@ -1376,6 +1376,13 @@ GaussianElimination(f32 *A, u64 N, f32 *Solution)
  EndTemp(Temp);
 }
 
+internal f32
+PointSignedDistanceSquared(v2 P, v2 Point, f32 Radius)
+{
+ f32 Result = NormSquared(P - Point) - Radius*Radius;
+ return Result;
+}
+
 internal b32
 PointCollision(v2 Position, v2 Point, f32 PointRadius)
 {
@@ -1498,72 +1505,39 @@ IsNonEmpty(rectangle2 *Rect)
  return Result;
 }
 
-internal v2
-Transform(transform A, v2 P)
+internal inline v2
+operator*(m3x3 A, v2 P)
 {
- v2 Result = Hadamard(P, A.Scale);
- Result = RotateAround(Result, V2(0, 0), A.Rotation);
- Result = Result + A.Offset;
+ v2 R = Transform3x3(A, V3(P, 1.0f)).XY;
+ return R;
+}
+
+internal inline v3
+operator*(m3x3 A, v3 P)
+{
+ v3 R = Transform3x3(A, P);
+ return R;
+}
+
+internal m3x3
+operator*(m3x3 A, m3x3 B)
+{
+ m3x3 R;
  
- return Result;
-}
-
-internal v2
-TransformLength(transform A, v2 Length)
-{
- v2 Result = Hadamard(Length, A.Scale);
- return Result;
-}
-
-internal transform
-operator*(transform T2, transform T1)
-{
- transform Result = {};
- Result.Scale = Hadamard(T2.Scale, T1.Scale);
- Result.Rotation = CombineRotations2D(T2.Rotation, T1.Rotation);
- Result.Offset = RotateAround(Hadamard(T2.Scale, T1.Offset), V2(0, 0), T2.Rotation) + T2.Offset;
+ R.M[0][0] = A.M[0][0]*B.M[0][0] + A.M[0][1]*B.M[1][0] + A.M[0][2]*B.M[2][0];
+ R.M[0][1] = A.M[0][0]*B.M[0][1] + A.M[0][1]*B.M[1][1] + A.M[0][2]*B.M[2][1];
+ R.M[0][2] = A.M[0][0]*B.M[0][2] + A.M[0][1]*B.M[1][2] + A.M[0][2]*B.M[2][2];
  
- return Result;
-}
-
-internal transform
-Identity(void)
-{
- transform Result = {};
- Result.Rotation = Rotation2DZero();
- Result.Scale = V2(1.0f, 1.0f);
+ R.M[1][0] = A.M[1][0]*B.M[0][0] + A.M[1][1]*B.M[1][0] + A.M[1][2]*B.M[2][0];
+ R.M[1][1] = A.M[1][0]*B.M[0][1] + A.M[1][1]*B.M[1][1] + A.M[1][2]*B.M[2][1];
+ R.M[1][2] = A.M[1][0]*B.M[0][2] + A.M[1][1]*B.M[1][2] + A.M[1][2]*B.M[2][2];
  
- return Result;
+ R.M[2][0] = A.M[2][0]*B.M[0][0] + A.M[2][1]*B.M[1][0] + A.M[2][2]*B.M[2][0];
+ R.M[2][1] = A.M[2][0]*B.M[0][1] + A.M[2][1]*B.M[1][1] + A.M[2][2]*B.M[2][1];
+ R.M[2][2] = A.M[2][0]*B.M[0][2] + A.M[2][1]*B.M[1][2] + A.M[2][2]*B.M[2][2];
+ 
+ return R;
 }
-
-internal v2
-ProjectLength(transform_inv *XForm, v2 Length)
-{
- v2 Result = TransformLength(XForm->Forward, Length);
- return Result;
-}
-
-internal v2
-UnprojectLength(transform_inv *XForm, v2 Length)
-{
- v2 Result = TransformLength(XForm->Inverse, Length);
- return Result;
-}
-
-internal v2
-Project(transform_inv *XForm, v2 P)
-{
- v2 Result = Transform(XForm->Forward, P);
- return Result;
-}
-
-internal v2
-Unproject(transform_inv *XForm, v2 P)
-{
- v2 Result = Transform(XForm->Inverse, P);
- return Result;
-}
-
 
 internal m3x3_inv
 CameraTransform(v2 P, v2 Rotation, f32 Zoom)
@@ -1573,7 +1547,7 @@ CameraTransform(v2 P, v2 Rotation, f32 Zoom)
  v2 XAxis = Rotation;
  v2 YAxis = Rotate90DegreesAntiClockwise(Rotation);
  
- m3x3 A = Rows2x2(XAxis, YAxis);
+ m3x3 A = Rows3x3(XAxis, YAxis);
  A = Scale3x3(A, Zoom);
  v2 AP = -(A*P);
  A = Translate3x3(A, AP);
@@ -1587,24 +1561,135 @@ CameraTransform(v2 P, v2 Rotation, f32 Zoom)
  return Result;
 }
 
-internal transform_inv
-MakeFullTransform(v2 P, v2 Rotation, v2 Scale)
+internal m3x3_inv
+ClipTransform(f32 AspectRatio)
 {
- transform_inv Result = {};
+ m3x3_inv R;
+ R.Forward = Diag3x3(1/AspectRatio, 1.0f);
+ R.Inverse = Diag3x3(AspectRatio, 1.0f);
  
- transform A = {};
- A.Scale = V2(1.0f / Scale.X, 1.0f / Scale.Y);
- A.Rotation = Rotation2DInverse(Rotation);
- A.Offset = -RotateAround(P, V2(0, 0), A.Rotation);
- A.Offset = Hadamard(A.Offset, A.Scale);
+ return R;
+}
+
+internal m3x3
+ModelTransform(v2 P, v2 Rotation, v2 Scale)
+{
+ v2 XAxis = Rotation;
+ v2 YAxis = Rotate90DegreesAntiClockwise(Rotation);
  
- transform B = {};
- B.Scale = Scale;
- B.Rotation = Rotation;
- B.Offset = P;
+ m3x3 A = Cols3x3(XAxis, YAxis);
+ A = Scale3x3(A, Scale);
+ A = Translate3x3(A, P);
  
- Result.Forward = A;
- Result.Inverse = B;
+ return A;
+}
+
+internal v2
+Unproject(render_group *RenderGroup, v2 Clip)
+{
+ v2 R = RenderGroup->ProjXForm.Inverse * Clip;
+ return R;
+}
+
+internal m3x3
+Identity3x3(void)
+{
+ m3x3 Result = {};
+ Result.M[0][0] = 1.0f;
+ Result.M[1][1] = 1.0f;
+ Result.M[2][2] = 1.0f;
  
  return Result;
+}
+
+internal m3x3
+Transpose3x3(m3x3 M)
+{
+ m3x3 R = {
+  { {M.M[0][0], M.M[1][0], M.M[2][0]},
+   {M.M[0][1], M.M[1][1], M.M[2][1]},
+   {M.M[0][2], M.M[1][2], M.M[2][2]}}
+ };
+ return R;
+}
+
+internal m3x3
+Rows3x3(v2 X, v2 Y)
+{
+ m3x3 R = {
+  { { X.X, X.Y, 0 },
+   { Y.X, Y.Y, 0 },
+   {   0,   0, 1 }}
+ };
+ return R;
+}
+
+internal m3x3
+Cols3x3(v2 X, v2 Y)
+{
+ m3x3 R = {
+  { { X.X, Y.X, 0},
+   { X.Y, Y.Y, 0},
+   {   0,   0, 1}}
+ };
+ return R;
+}
+
+internal m3x3
+Scale3x3(m3x3 A, f32 Scale)
+{
+ m3x3 R = A;
+ 
+ R.M[0][0] *= Scale;
+ R.M[0][1] *= Scale;
+ R.M[1][0] *= Scale;
+ R.M[1][1] *= Scale;
+ 
+ return R;
+}
+
+internal m3x3
+Scale3x3(m3x3 A, v2 Scale)
+{
+ m3x3 R = A;
+ 
+ R.M[0][0] *= Scale.X;
+ R.M[0][1] *= Scale.X;
+ R.M[1][0] *= Scale.Y;
+ R.M[1][1] *= Scale.Y;
+ 
+ return R;
+}
+
+internal m3x3
+Translate3x3(m3x3 A, v2 P)
+{
+ m3x3 R = A;
+ 
+ R.M[0][2] += P.X;
+ R.M[1][2] += P.Y;
+ 
+ return R;
+}
+
+internal v3
+Transform3x3(m3x3 A, v3 P)
+{
+ v3 R = {
+  P.X*A.M[0][0] + P.Y*A.M[0][1] + P.Z*A.M[0][2],
+  P.X*A.M[1][0] + P.Y*A.M[1][1] + P.Z*A.M[1][2],
+  P.X*A.M[2][0] + P.Y*A.M[2][1] + P.Z*A.M[2][2],
+ };
+ return R;
+}
+
+internal m3x3
+Diag3x3(f32 X, f32 Y)
+{
+ m3x3 R = {
+  { {X, 0, 0},
+   {0, Y, 0},
+   {0, 0, 1}}
+ };
+ return R;
 }

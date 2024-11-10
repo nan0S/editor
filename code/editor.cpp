@@ -43,19 +43,6 @@ ZoomCamera(camera *Camera, f32 By)
  Camera->ReachingTarget = false;
 }
 
-internal v2
-ClipToWorld(v2 Clip, render_group *RenderGroup)
-{
- v2 World = Unproject(&RenderGroup->ProjXForm, Clip);
- return World;
-}
-
-internal void
-SetEntityModelTransform(render_group *Group, entity *Entity)
-{
- SetModelTransform(Group, GetEntityModelTransform(Entity), Entity->SortingLayer);
-}
-
 internal void
 MovePointAlongCurve(curve *Curve, v2 *TranslateInOut, f32 *PointFractionInOut, b32 Forward)
 {
@@ -124,45 +111,6 @@ DeallocateTextureIndex(editor_assets *Assets, texture_index *Index)
 }
 //////////////////////
 
-internal v2
-CameraToWorldSpace(v2 P, render_group *Group)
-{
- v2 Result = Unproject(&Group->WorldToCamera, P);
- return Result;
-}
-
-internal v2
-WorldToCameraSpace(v2 P, render_group *Group)
-{
- v2 Result = Project(&Group->WorldToCamera, P);
- return Result;
-}
-
-internal v2
-ScreenToCameraSpace(v2s P, render_group *Group)
-{
- v2 Clip = Unproject(&Group->ClipToScreen, V2(P.X, P.Y));
- v2 Result = Unproject(&Group->CameraToClip, Clip);
- return Result;
-}
-
-internal v2
-ScreenToWorldSpace(v2s P, render_group *Group)
-{
- v2 CameraP = ScreenToCameraSpace(P, Group);
- v2 WorldP = CameraToWorldSpace(CameraP, Group);
- 
- return WorldP;
-}
-
-// NOTE(hbr): Distance in space [-AspectRatio, AspectRatio] x [-1, 1]
-internal f32
-ClipSpaceLengthToWorldSpace(f32 ClipSpaceDistance, render_group *Group)
-{
- f32 Result = UnprojectLength(&Group->WorldToCamera, V2(ClipSpaceDistance, 0)).X;
- return Result;
-}
-
 struct line_collision
 {
  b32 Collided;
@@ -216,46 +164,71 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
    {
     case Entity_Curve: {
      curve *Curve = &Entity->Curve;
+     u64 ControlPointCount = Curve->ControlPointCount;
+     v2 *ControlPoints = Curve->ControlPoints;
+     curve_params *Params = &Curve->Params;
+     curve_point_tracking_state *Tracking = &Curve->PointTracking;
+     
      if (AreLinePointsVisible(Curve))
      {
-      u64 ControlPointCount = Curve->ControlPointCount;
-      v2 *ControlPoints = Curve->ControlPoints;
-      for (u64 PointIndex = 0;
-           PointIndex < ControlPointCount;
-           ++PointIndex)
+      //- control points
       {
-       // TODO(hbr): Maybe move this function call outside of this loop
-       // due to performance reasons.
-       point_info PointInfo = GetCurveControlPointInfo(Entity, PointIndex);
-       f32 CollisionRadius = PointInfo.Radius + PointInfo.OutlineThickness + Tolerance;
-       if (PointCollision(LocalAtP, ControlPoints[PointIndex], CollisionRadius))
+       f32 MinSignedDistance = INF_F32;
+       u64 MinPointIndex = 0;
+       for (u64 PointIndex = 0;
+            PointIndex < ControlPointCount;
+            ++PointIndex)
+       {
+        // TODO(hbr): Maybe move this function call outside of this loop
+        // due to performance reasons.
+        point_info PointInfo = GetCurveControlPointInfo(Entity, PointIndex);
+        f32 CollisionRadius = PointInfo.Radius + PointInfo.OutlineThickness + Tolerance;
+        f32 SignedDistance = PointSignedDistanceSquared(LocalAtP, ControlPoints[PointIndex], CollisionRadius);
+        if (SignedDistance < MinSignedDistance)
+        {
+         MinSignedDistance = SignedDistance;
+         MinPointIndex = PointIndex;
+        }
+       }
+       
+       if (MinSignedDistance < 0)
        {
         Result.Entity = Entity;
         Result.Flags |= Collision_CurvePoint;
-        Result.CurvePointIndex = CurvePointIndexFromControlPointIndex({PointIndex});
-        break;
+        Result.CurvePointIndex = CurvePointIndexFromControlPointIndex({MinPointIndex});
        }
       }
       
-      visible_cubic_bezier_points VisibleBeziers = GetVisibleCubicBezierPoints(Entity);
-      for (u64 Index = 0;
-           Index < VisibleBeziers.Count;
-           ++Index)
+      //- bezier "control" points
       {
-       f32 PointRadius = GetCurveCubicBezierPointRadius(Curve);
-       cubic_bezier_point_index BezierIndex = VisibleBeziers.Indices[Index];
-       v2 BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
-       if (PointCollision(LocalAtP, BezierPoint, PointRadius + Tolerance))
+       visible_cubic_bezier_points VisibleBeziers = GetVisibleCubicBezierPoints(Entity);
+       f32 MinSignedDistance = INF_F32;
+       cubic_bezier_point_index MinPointIndex = {};
+       
+       for (u64 Index = 0;
+            Index < VisibleBeziers.Count;
+            ++Index)
+       {
+        f32 PointRadius = GetCurveCubicBezierPointRadius(Curve);
+        cubic_bezier_point_index BezierIndex = VisibleBeziers.Indices[Index];
+        v2 BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
+        f32 SignedDistance = PointSignedDistanceSquared(LocalAtP, BezierPoint, PointRadius + Tolerance);
+        if (SignedDistance < MinSignedDistance)
+        {
+         MinSignedDistance = SignedDistance;
+         MinPointIndex = BezierIndex;
+        }
+       }
+       
+       if (MinSignedDistance < 0)
        {
         Result.Entity = Entity;
         Result.Flags |= Collision_CurvePoint;
-        Result.CurvePointIndex = CurvePointIndexFromBezierPointIndex(BezierIndex);
-        break;
+        Result.CurvePointIndex = CurvePointIndexFromBezierPointIndex(MinPointIndex);
        }
       }
      }
      
-     curve_point_tracking_state *Tracking = &Curve->PointTracking;
      if (Tracking->Active)
      {
       f32 PointRadius = GetCurveTrackedPointRadius(Curve);
@@ -280,7 +253,7 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
         v2 *LinePoints = Points + PointIndex;
         u64 PointCount = IterationCount - Iteration;
         line_collision Line = CheckCollisionWithMultiLine(LocalAtP, LinePoints, PointCount,
-                                                          Curve->Params.LineWidth, Tolerance);
+                                                          Params->LineWidth, Tolerance);
         if (Line.Collided)
         {
          Result.Entity = Entity;
@@ -306,7 +279,7 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
      {
       line_collision Line = CheckCollisionWithMultiLine(LocalAtP,
                                                         Curve->LinePoints, Curve->LinePointCount,
-                                                        Curve->Params.LineWidth, Tolerance);
+                                                        Params->LineWidth, Tolerance);
       if (Line.Collided)
       {
        Result.Entity = Entity;
@@ -321,7 +294,7 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
      {
       line_collision Line = CheckCollisionWithMultiLine(LocalAtP,
                                                         Curve->ConvexHullPoints, Curve->ConvexHullCount,
-                                                        Curve->Params.ConvexHullWidth, Tolerance);
+                                                        Params->ConvexHullWidth, Tolerance);
       if (Line.Collided)
       {
        Result.Entity = Entity;
@@ -333,8 +306,8 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
      if (Curve->Params.PolylineEnabled && !Result.Entity)
      {
       line_collision Line = CheckCollisionWithMultiLine(LocalAtP,
-                                                        Curve->ControlPoints, Curve->ControlPointCount,
-                                                        Curve->Params.PolylineWidth, Tolerance);
+                                                        ControlPoints, ControlPointCount,
+                                                        Params->PolylineWidth, Tolerance);
       if (Line.Collided)
       {
        Result.Entity = Entity;
@@ -344,9 +317,9 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
     
     case Entity_Image: {
      image *Image = &Entity->Image;
-     v2 Extents = 0.5f * Image->Dim;
-     if (-Extents.X <= LocalAtP.X && LocalAtP.X <= Extents.X &&
-         -Extents.Y <= LocalAtP.Y && LocalAtP.Y <= Extents.Y)
+     v2 Dim = Image->Dim;
+     if (-Dim.X <= LocalAtP.X && LocalAtP.X <= Dim.X &&
+         -Dim.Y <= LocalAtP.Y && LocalAtP.Y <= Dim.Y)
      {
       Result.Entity = Entity;
      }
@@ -594,7 +567,8 @@ DuplicateEntity(entity *Entity, editor *Editor)
  SetEntityName(Copy, CopyName);
  
  SelectEntity(Editor, Copy);
- f32 SlightTranslationX = ClipSpaceLengthToWorldSpace(0.2f, Editor->RenderGroup);
+ // TODO(hbr): This is not right, translate depending on camera zoom
+ f32 SlightTranslationX = 0.2f;
  v2 SlightTranslation = V2(SlightTranslationX, 0.0f);
  Copy->P += SlightTranslation;
  
@@ -1484,8 +1458,6 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
      
      f32 PointSize = CurveParams->PointRadius;
      
-     transform ModelXForm = GetEntityModelTransform(Entity);
-     
      u64 PointIndex = 0;
      for (u64 Iteration = 0;
           Iteration < IterationCount;
@@ -1586,7 +1558,8 @@ UpdateAndRenderDegreeLowering(render_group *RenderGroup, entity *Entity)
  
  if (Lowering->Active)
  {
-  SetEntityModelTransform(RenderGroup, Entity);
+  m3x3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
+  SetTransform(RenderGroup, Model, Entity->SortingLayer);
   
   v4 Color = Curve->Params.LineColor;
   Color.A *= 0.5f;
@@ -1598,7 +1571,7 @@ UpdateAndRenderDegreeLowering(render_group *RenderGroup, entity *Entity)
                   Color,
                   GetCurvePartZOffset(CurvePart_LineShadow));
   
-  ResetModelTransform(RenderGroup);
+  ResetTransform(RenderGroup);
  }
 }
 
@@ -2247,7 +2220,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   {
    platform_event *Event = Input->Events + EventIndex;
    b32 Eat = false;
-   v2 MouseP = ClipToWorld(Event->ClipSpaceMouseP, RenderGroup);
+   v2 MouseP = Unproject(RenderGroup, Event->ClipSpaceMouseP);
    
    //- left click events processing
    if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_LeftMouseButton && !LeftClick->Active)
@@ -2485,7 +2458,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
     // NOTE(hbr): don't eat mouse move event
     
     camera *Camera = &Editor->Camera;
-    v2 FromP = ClipToWorld(MiddleClick->ClipSpaceLastMouseP, RenderGroup);
+    v2 FromP = Unproject(RenderGroup, MiddleClick->ClipSpaceLastMouseP);
     v2 ToP = MouseP;
     if (MiddleClick->Rotate)
     {
@@ -2591,9 +2564,12 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    {
     v4 ShadowColor = Entity->Curve.Params.LineColor;
     ShadowColor.A *= 0.15f;
+    
     // TODO(hbr): This is a little janky we call this function everytime
     // Either solve it somehow or remove this function and do it more manually
-    SetEntityModelTransform(RenderGroup, Entity);
+    m3x3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
+    SetTransform(RenderGroup, Model, Entity->SortingLayer);
+    
     PushVertexArray(RenderGroup,
                     LeftClick->OriginalLineVertices.Vertices,
                     LeftClick->OriginalLineVertices.VertexCount,
@@ -3258,8 +3234,8 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
       Entity->Type = Entity_Image;
       
       image *Image = &Entity->Image;
-      Image->Dim.X = 2.0f * Cast(f32)LoadedImage.Width / LoadedImage.Height;
-      Image->Dim.Y = 2.0f;
+      Image->Dim.X = Cast(f32)LoadedImage.Width / LoadedImage.Height;
+      Image->Dim.Y = 1.0f;
       Image->TextureIndex = TextureIndex;
       
       Success = true;
@@ -3294,8 +3270,8 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   entity *Entity = Editor->Entities + EntryIndex;
   if ((Entity->Flags & EntityFlag_Active) && IsEntityVisible(Entity))
   {
-   SetEntityModelTransform(RenderGroup, Entity);
-   f32 BaseZOffset = Cast(f32)Entity->SortingLayer;
+   m3x3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
+   SetTransform(RenderGroup, Model, Entity->SortingLayer);
    
    switch (Entity->Type)
    {
@@ -3412,7 +3388,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
     case Entity_Count: InvalidPath; break;
    }
    
-   ResetModelTransform(RenderGroup);
+   ResetTransform(RenderGroup);
   }
  }
 }

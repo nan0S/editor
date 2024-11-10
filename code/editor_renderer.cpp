@@ -1,11 +1,12 @@
 internal render_command *
-PushRenderCommand(render_group *Group, render_command_type Type, f32 ZOffset)
+PushRenderCommand(render_group *Group, render_command_type Type, m3x3 Model, f32 ZOffset)
 {
  render_frame *Frame = Group->Frame;
  Assert(Frame->CommandCount < Frame->MaxCommandCount);
  render_command *Result = Frame->Commands + Frame->CommandCount;
  ++Frame->CommandCount;
  Result->Type = Type;
+ Result->ModelXForm = Group->ModelXForm * Model;
  Result->ZOffset = Group->ZOffset + ZOffset;
  
  return Result;
@@ -19,51 +20,41 @@ PushVertexArray(render_group *Group,
                 v4 Color,
                 f32 ZOffset)
 {
- render_command *Command = PushRenderCommand(Group, RenderCommand_VertexArray, ZOffset);
+ render_command *Command = PushRenderCommand(Group, RenderCommand_VertexArray, Identity3x3(), ZOffset);
  
  render_command_vertex_array *Array = &Command->VertexArray;
  Array->Vertices = Vertices;
  Array->VertexCount = VertexCount;
  Array->Primitive = Primitive;
  Array->Color = Color;
- Array->ModelXForm = Group->ModelXForm;
 }
 
 internal void
 PushCircle(render_group *Group,
-           v2 Position, f32 Radius, v4 Color,
+           v2 P, f32 Radius, v4 Color,
            f32 ZOffset,
            f32 OutlineThickness = 0,
            v4 OutlineColor = V4(0, 0, 0, 0))
 {
- render_command *Command = PushRenderCommand(Group, RenderCommand_Circle, ZOffset);
+ m3x3 Model = ModelTransform(P, Rotation2DZero(), V2(Radius, Radius));
+ render_command *Command = PushRenderCommand(Group, RenderCommand_Circle, Model, ZOffset);
  
  render_command_circle *Circle = &Command->Circle;
- Circle->Pos = Transform(Group->ModelXForm, Position);
- Circle->Radius = TransformLength(Group->ModelXForm, V2(Radius, 0)).X;
  Circle->Color = Color;
- Circle->OutlineThickness = OutlineThickness;
+ Circle->OutlineThickness = 1.0f + OutlineThickness/Radius;
  Circle->OutlineColor = OutlineColor;
 }
 
 internal void
 PushRectangle(render_group *Group,
-              v2 Position, v2 Size, v2 Rotation,
+              v2 P, v2 Size, v2 Rotation,
               v4 Color, f32 ZOffset)
 {
- render_command *Command = PushRenderCommand(Group, RenderCommand_Rectangle, ZOffset);
+ m3x3 Model = ModelTransform(P, Rotation, 0.5f * Size);
+ render_command *Command = PushRenderCommand(Group, RenderCommand_Rectangle, Model, ZOffset);
  
  render_command_rectangle *Rectangle = &Command->Rectangle;
- Rectangle->Pos = Transform(Group->ModelXForm, Position);
- Rectangle->Size = TransformLength(Group->ModelXForm, Size);
- Rectangle->Rotation = Rotation;
  Rectangle->Color = Color;
-}
-
-internal void
-PushSquare(render_group *Group, v2 Position, f32 Side, v4 Color, f32 ZOffset)
-{
- PushRectangle(Group, Position, V2(Side, Side), Rotation2DZero(), Color,  ZOffset);
 }
 
 internal void
@@ -87,26 +78,23 @@ PushTriangle(render_group *Group,
              v2 P0, v2 P1, v2 P2,
              v4 Color, f32 ZOffset)
 {
- render_command *Command = PushRenderCommand(Group, RenderCommand_Triangle, ZOffset);
+ render_command *Command = PushRenderCommand(Group, RenderCommand_Triangle, Identity3x3(), ZOffset);
  
  render_command_triangle *Triangle = &Command->Triangle;
- Triangle->P0 = Transform(Group->ModelXForm, P0);
- Triangle->P1 = Transform(Group->ModelXForm, P1);
- Triangle->P2 = Transform(Group->ModelXForm, P2);
+ Triangle->P0 = P0;
+ Triangle->P1 = P1;
+ Triangle->P2 = P2;
  Triangle->Color = Color;
 }
 
 internal void
 PushImage(render_group *Group, v2 Dim, u64 TextureIndex)
 {
- render_command *Command = PushRenderCommand(Group, RenderCommand_Image, 0.0f);
+ m3x3 Model = ModelTransform(V2(0, 0), Rotation2DZero(), Dim);
+ render_command *Command = PushRenderCommand(Group, RenderCommand_Image, Model, 0.0f);
  
  render_command_image *Image = &Command->Image;
- Image->Dim = Dim;
  Image->TextureIndex = TextureIndex;
- Image->P = Group->ModelXForm.Offset;
- Image->Rotation = Group->ModelXForm.Rotation;
- Image->Scale = Group->ModelXForm.Scale;
 }
 
 internal render_group
@@ -121,41 +109,20 @@ BeginRenderGroup(render_frame *Frame,
  
  v2u WindowDim = Frame->WindowDim;
  f32 AspectRatio = Cast(f32)WindowDim.X / WindowDim.Y;
+ m3x3_inv CameraT = CameraTransform(CameraP, CameraRot, CameraZoom);
+ m3x3_inv ClipT = ClipTransform(AspectRatio);
  
+ Result.ProjXForm.Forward = ClipT.Forward * CameraT.Forward;
+ Result.ProjXForm.Inverse = CameraT.Inverse * ClipT.Inverse;
+ Result.ModelXForm = Identity3x3();
  
+ Result.CollisionTolerance = CollisionToleranceClip / CameraZoom;
+ Result.RotationRadius = CollisionToleranceClip / CameraZoom;
  
- Result.WorldToCamera = MakeFullTransform(CameraP, CameraRot, V2(1.0f / CameraZoom, 1.0f / CameraZoom));
- Result.CameraToClip = MakeFullTransform(V2(0, 0), Rotation2DZero(), V2(AspectRatio, 1.0f));
- Result.ClipToScreen = MakeFullTransform(-V2(1.0f, -1.0f),
-                                         Rotation2DZero(),
-                                         V2(2.0f / WindowDim.X, -2.0f / WindowDim.Y));
- 
- Result.ProjXForm.Forward = Result.CameraToClip.Forward * Result.WorldToCamera.Forward;
- Result.ProjXForm.Inverse = Result.WorldToCamera.Inverse * Result.CameraToClip.Inverse;
- 
+ Frame->Proj = Result.ProjXForm.Forward;
  Frame->ClearColor = ClearColor;
- Frame->Proj = Result.CameraToClip.Forward * Result.WorldToCamera.Forward;
- 
- Result.ModelXForm = Identity();
- 
- Result.CollisionTolerance = UnprojectLength(&Result.WorldToCamera, V2(CollisionToleranceClip, 0)).X;
- Result.RotationRadius = UnprojectLength(&Result.WorldToCamera, V2(RotationRadiusClip, 0)).X;
  
  return Result;
-}
-
-internal void
-SetModelTransform(render_group *Group, transform Model, f32 ZOffset)
-{
- Group->ModelXForm = Model;
- Group->ZOffset = ZOffset;
-}
-
-internal void
-ResetModelTransform(render_group *Group)
-{
- Group->ModelXForm = Identity();
- Group->ZOffset = 0.0f;
 }
 
 internal texture_transfer_op *
@@ -181,4 +148,18 @@ PopTextureTransfer(texture_transfer_queue *Queue, texture_transfer_op *Op)
  --Queue->OpCount;
  Assert(Queue->Ops + Queue->OpCount == Op);
  Queue->TransferMemoryUsed = Op->Pixels - Queue->TransferMemory;
+}
+
+internal void
+SetTransform(render_group *RenderGroup, m3x3 Model, f32 ZOffset)
+{
+ RenderGroup->ModelXForm = Model;
+ RenderGroup->ZOffset;
+}
+
+internal void
+ResetTransform(render_group *RenderGroup)
+{
+ RenderGroup->ModelXForm = Identity3x3();
+ RenderGroup->ZOffset = 0;
 }

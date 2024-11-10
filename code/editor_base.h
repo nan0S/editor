@@ -141,6 +141,11 @@ struct m3x3_inv
  m3x3 Inverse;
 };
 
+struct m4x4
+{
+ f32 M[4][4];
+};
+
 #define internal static
 #define local    static
 #define global   static

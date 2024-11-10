@@ -85,86 +85,15 @@ internal v2 Rotation2DFromMovementAroundPoint(v2 From, v2 To, v2 Center);
 internal v2 RotateAround(v2 Point, v2 Center, v2 Rotation);
 internal v2 CombineRotations2D(v2 RotationA, v2 RotationB);
 
-inline internal transform operator*(transform T2, transform T1);
-internal transform Identity(void);
-internal transform_inv MakeFullTransform(v2 P, v2 Rotation, v2 Scale);
-internal v2 Transform(transform A, v2 P);
-internal v2 Project(transform_inv *XForm, v2 P);
-internal v2 Unproject(transform_inv *XForm, v2 P);
-internal v2 TransformLength(transform A, v2 Length);
-internal v2 ProjectLength(transform_inv *XForm, v2 Length);
-internal v2 UnprojectLength(transform_inv *XForm, v2 Length);
-
-internal m3x3
-Rows2x2(v2 X, v2 Y)
-{
- m3x3 R = {
-  { { X.X, X.Y, 0 },
-   { Y.X, Y.Y, 0 },
-   {   0,   0, 1 }}
- };
- return R;
-}
-
-internal m3x3
-Cols3x3(v2 X, v2 Y)
-{
- m3x3 R = {
-  { { X.X, Y.X, 0},
-   { X.Y, Y.Y, 0},
-   {   0,   0, 1}}
- };
- return R;
-}
-
-internal m3x3
-Scale3x3(m3x3 A, f32 Scale)
-{
- m3x3 R = A;
- 
- R.M[0][0] *= Scale;
- R.M[0][1] *= Scale;
- R.M[1][0] *= Scale;
- R.M[1][1] *= Scale;
- 
- return R;
-}
-
-internal m3x3
-Translate3x3(m3x3 A, v2 P)
-{
- m3x3 R = A;
- 
- R.M[0][2] += P.X;
- R.M[1][2] += P.Y;
- 
- return R;
-}
-
-internal v3
-Transform3x3(m3x3 A, v3 P)
-{
- v3 R = {
-  P.X*A.M[0][0] + P.Y*A.M[0][1] + P.Z*A.M[0][2],
-  P.X*A.M[1][0] + P.Y*A.M[1][1] + P.Z*A.M[1][2],
-  P.X*A.M[2][0] + P.Y*A.M[2][1] + P.Z*A.M[2][2],
- };
- return R;
-}
-
-inline v2
-operator*(m3x3 A, v2 P)
-{
- v2 R = Transform3x3(A, V3(P, 1.0f)).XY;
- return R;
-}
-
-inline v3
-operator*(m3x3 A, v3 P)
-{
- v3 R = Transform3x3(A, P);
- return R;
-}
+internal m3x3 Identity3x3(void);
+internal m3x3 Transpose3x3(m3x3 M);
+internal m3x3 Rows3x3(v2 X, v2 Y);
+internal m3x3 Cols3x3(v2 X, v2 Y);
+internal m3x3 Scale3x3(m3x3 A, f32 Scale);
+internal m3x3 Scale3x3(m3x3 A, v2 Scale);
+internal m3x3 Translate3x3(m3x3 A, v2 P);
+internal v3 Transform3x3(m3x3 A, v3 P);
+internal m3x3 Diag3x3(f32 X, f32 Y);
 
 //~ Interpolation
 internal void EquidistantPoints(f32 *Ti, u64 N);

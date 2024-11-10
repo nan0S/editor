@@ -1,19 +1,6 @@
 #ifndef EDITOR_RENDERER_H
 #define EDITOR_RENDERER_H
 
-struct transform
-{
- v2 Offset;
- v2 Rotation;
- v2 Scale;
-};
-
-struct transform_inv
-{
- transform Forward;
- transform Inverse;
-};
-
 struct vertex
 {
  v2 Pos;
@@ -52,13 +39,10 @@ struct render_command_vertex_array
  vertex *Vertices;
  render_primitive_type Primitive;
  v4 Color;
- transform ModelXForm;
 };
 
 struct render_command_circle
 {
- v2 Pos;
- f32 Radius;
  v4 Color;
  f32 OutlineThickness;
  v4 OutlineColor;
@@ -66,9 +50,6 @@ struct render_command_circle
 
 struct render_command_rectangle
 {
- v2 Pos;
- v2 Size;
- v2 Rotation;
  v4 Color;
 };
 
@@ -82,10 +63,6 @@ struct render_command_triangle
 
 struct render_command_image
 {
- v2 P;
- v2 Rotation;
- v2 Scale;
- v2 Dim;
  u64 TextureIndex;
 };
 
@@ -99,6 +76,7 @@ struct render_command
   render_command_triangle Triangle;
   render_command_image Image;
  };
+ m3x3 ModelXForm;
  f32 ZOffset;
 };
 
@@ -110,7 +88,7 @@ struct render_frame
  
  v2u WindowDim;
  
- transform Proj;
+ m3x3 Proj;
  v4 ClearColor;
 };
 
@@ -118,13 +96,8 @@ struct render_group
 {
  render_frame *Frame;
  
- transform_inv WorldToCamera;
- transform_inv CameraToClip;
- transform_inv ClipToScreen;
- 
- transform_inv ProjXForm;
- 
- transform ModelXForm;
+ m3x3_inv ProjXForm;
+ m3x3 ModelXForm;
  f32 ZOffset;
  
  f32 CollisionTolerance;

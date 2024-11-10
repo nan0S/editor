@@ -705,6 +705,7 @@ inline internal f32 Bi(f32 *Ti, f32 *Y, u64 I) { return 1.0f / Hi(Ti, I) * (Y[I+
 inline internal f32 Vi(f32 *Ti, u64 I) { return 2.0f * (Hi(Ti, I-1) + Hi(Ti, I)); }
 inline internal f32 Ui(f32 *Ti, f32 *Y, u64 I) { return 6.0f * (Bi(Ti, Y, I) - Bi(Ti, Y, I-1)); }
 
+#include <vector>
 // TODO(hbr): Temporary, remove
 using ldb = f32;
 template<typename T>

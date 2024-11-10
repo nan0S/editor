@@ -1,25 +1,21 @@
-#include "imgui_inc.h"
-
-#include "editor_base.h"
-#include "editor_string.h"
-#include "editor_platform.h"
-#include "editor_memory.h"
-#include "editor_os.h"
-#include "editor_renderer.h"
-#include "editor_math.h"
-#include "editor_sort.h"
-
-#include "editor_base.cpp"
-#include "editor_memory.cpp"
-#include "editor_string.cpp"
-#include "editor_os.cpp"
-#include "editor_math.cpp"
-
 #include "third_party/sfml/include/SFML/Graphics.hpp"
 #include "third_party/sfml/include/SFML/OpenGL.hpp"
 
-#include "sfml_editor_renderer.h"
+#include "imgui_inc.h"
+
+#include "editor_base.h"
+#include "editor_memory.h"
+#include "editor_string.h"
+#include "editor_math.h"
+#include "editor_platform.h"
+#include "editor_renderer.h"
 #include "editor_renderer_sfml.h"
+#include "sfml_editor_renderer.h"
+
+#include "editor_math.cpp"
+#include "editor_memory.cpp"
+
+#include "third_party/imgui_sfml/imgui-SFML.h"
 
 /* TODO(hbr):
 I don't want:
@@ -75,7 +71,11 @@ SFMLBeginFrameImpl(sfml_renderer *Renderer, v2u WindowDim)
  Frame->MaxCommandCount = ArrayCount(Renderer->CommandBuffer);
  Frame->WindowDim = WindowDim;
  
- 
+#if 0
+ ImGui_ImplOpenGL3_NewFrame();
+ ImGui_ImplWin32_NewFrame();
+ ImGui::NewFrame();
+#endif
  
  return Frame;
 }
@@ -265,12 +265,18 @@ SFMLEndFrameImpl(sfml_renderer *Renderer, render_frame *Frame)
   }
  }
  
- ImGui::SFML::Render(*Window);
+#if 0
+ ImGui::Render();
+ ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
  
  // TODO(hbr): Of course remove this from here and instead write this as a platform agnostic layer
  HWND WindowHandle = GetActiveWindow();
  HDC DeviceContext = GetDC(WindowHandle);
  SwapBuffers(DeviceContext);
+#endif
+ 
+ ImGui::SFML::Render(*Window);
+ Window->display();
 }
 
 RENDERER_END_FRAME(SFMLEndFrame)

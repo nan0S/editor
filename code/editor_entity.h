@@ -132,6 +132,13 @@ WorldToLocalEntityPosition(entity *Entity, v2 P)
  return Result;
 }
 
+internal v2
+LocalEntityPositionToWorld(entity *Entity, v2 P)
+{
+ v2 Result = RotateAround(P, V2(0.0f, 0.0f), Entity->Rotation) + Entity->P;
+ return Result;
+}
+
 // TODO(hbr): Rename this function into MarkCurveChanged or sth like that
 internal void
 RecomputeCurve(entity *Entity)

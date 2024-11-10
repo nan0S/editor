@@ -5,7 +5,5 @@
 #include "third_party/imgui/imgui_draw.cpp"
 #include "third_party/imgui/imgui_tables.cpp"
 #include "third_party/imgui/imgui_widgets.cpp"
-
-#include "third_party/imgui_sfml/imgui-SFML.cpp"
-
-#include "third_party/imgui_file_dialog/ImGuiFileDialog.cpp"
+#include "third_party/imgui/imgui_impl_win32.cpp"
+#include "third_party/imgui/imgui_impl_opengl3.cpp"

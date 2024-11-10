@@ -380,13 +380,6 @@ BeginCurvePointTracking(curve *Curve, b32 IsSplitting)
  SetTrackingPointFraction(Tracking, 0.0f);
 }
 
-internal v2
-LocalEntityPositionToWorld(entity *Entity, v2 P)
-{
- v2 Result = RotateAround(P, V2(0.0f, 0.0f), Entity->Rotation) + Entity->P;
- return Result;
-}
-
 internal void
 SetCurveControlPoints(entity *Entity,
                       u64 ControlPointCount,

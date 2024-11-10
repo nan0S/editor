@@ -1,3 +1,14 @@
+#define STB_IMAGE_IMPLEMENTATION
+#include "third_party/stb/stb_image.h"
+
+#include "editor_math.cpp"
+#include "editor_memory.cpp"
+#include "editor_string.cpp"
+#include "editor_renderer.cpp"
+#include "editor_entity.cpp"
+#include "editor_entity2.cpp"
+#include "editor_ui.cpp"
+
 // NOTE(hbr): this is code that is
 
 internal void
@@ -958,9 +969,9 @@ UpdateAndRenderMenuBar(editor *Editor, platform_input *Input, render_group *Rend
  ImVec2 FileDialogMinSize = HalfWindowDim;
  ImVec2 FileDialogMaxSize = ImVec2(Cast(f32)WindowDim.X, Cast(f32)WindowDim.Y);
  
+#if 0
  auto FileDialog = ImGuiFileDialog::Instance();
  
-#if 0
  string ConfirmCloseProject = StrLit("ConfirmCloseCurrentProject");
  if (NewProject || KeyPressed(Input, Key_N, Modifier_Ctrl))
  {

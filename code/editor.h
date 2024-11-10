@@ -1,6 +1,17 @@
 #ifndef EDITOR_H
 #define EDITOR_H
 
+#include "editor_base.h"
+#include "editor_string.h"
+#include "editor_memory.h"
+#include "editor_platform.h"
+#include "editor_renderer.h"
+#include "editor_math.h"
+#include "editor_sort.h"
+#include "editor_entity2.h"
+#include "editor_entity.h"
+#include "editor_ui.h"
+
 /* TODO(hbr):
 Refactors:
 - get rid of SFML? (f32).

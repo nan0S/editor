@@ -1,4 +1,4 @@
-// dear imgui, v1.89.5
+// dear imgui, v1.89.3
 // (drawing and font code)
 
 /*
@@ -26,12 +26,13 @@ Index of this file:
 #define _CRT_SECURE_NO_WARNINGS
 #endif
 
+#include "imgui.h"
+#ifndef IMGUI_DISABLE
+
 #ifndef IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_DEFINE_MATH_OPERATORS
 #endif
 
-#include "imgui.h"
-#ifndef IMGUI_DISABLE
 #include "imgui_internal.h"
 #ifdef IMGUI_ENABLE_FREETYPE
 #include "misc/freetype/imgui_freetype.h"
@@ -3790,7 +3791,6 @@ void ImGui::RenderArrow(ImDrawList* draw_list, ImVec2 pos, ImU32 col, ImGuiDir d
 
 void ImGui::RenderBullet(ImDrawList* draw_list, ImVec2 pos, ImU32 col)
 {
-    // FIXME-OPT: This should be baked in font.
     draw_list->AddCircleFilled(pos, draw_list->_Data->FontSize * 0.20f, col, 8);
 }
 

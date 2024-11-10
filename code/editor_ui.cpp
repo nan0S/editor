@@ -294,6 +294,7 @@ UI_SeparatorText(string Text)
 {
  temp_arena Temp = TempArena(0);
  string CText = CStrFromStr(Temp.Arena, Text);
+ // TODO(hbr): uncomment
  ImGui::SeparatorText(CText.Data);
  EndTemp(Temp);
 }

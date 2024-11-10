@@ -1,40 +1,20 @@
+#include "third_party/sfml/include/SFML/Graphics.hpp"
+#include "third_party/sfml/include/SFML/OpenGL.hpp"
+
 #include "imgui_inc.h"
 
 #include "editor_base.h"
+#include "editor_memory.h"
 #include "editor_string.h"
 #include "editor_platform.h"
-#include "editor_memory.h"
 #include "editor_renderer.h"
-
-#include "editor_base.cpp"
-#include "editor_memory.cpp"
-#include "editor_string.cpp"
-
-#include "editor_math.h"
-#include "editor_ui.h"
-#include "editor_sort.h"
-#include "editor_entity2.h"
-#include "editor_entity.h"
-#include "editor.h"
-
-#include "editor_profiler.cpp"
-#include "editor_math.cpp"
-#include "editor_renderer.cpp"
-#include "editor_ui.cpp"
-#include "editor_entity.cpp"
-#include "editor_entity2.cpp"
-
-#define STB_IMAGE_IMPLEMENTATION
-#include "third_party/stb/stb_image.h"
-
-#include "third_party/sfml/include/SFML/Graphics.hpp"
 
 #include "sfml_editor_renderer.h"
 #include "sfml_editor.h"
 
+// TODO(hbr): move this to "game" code
+#include "editor.h"
 #include "editor.cpp"
-
-#include <windows.h>
 
 global u64 GlobalPageSize;
 global u64 GlobalProcCount;
@@ -218,6 +198,9 @@ SFMLScreenToClip(int X, int Y, v2u WindowDim)
                 -(2.0f * Y / WindowDim.Y - 1.0f));
  return Result;
 }
+
+#include "third_party/imgui_sfml/imgui-SFML.h"
+#include "third_party/imgui_sfml/imgui-SFML.cpp"
 
 internal void
 SFMLHandleInput(platform_input *Input,
@@ -435,7 +418,19 @@ int main()
  
  if (Window->isOpen())
  {
-  bool ImGuiInitSuccess = ImGui::SFML::Init(*Window, true);
+  b32 ImGuiInitSuccess = ImGui::SFML::Init(*Window, true);
+  
+#if 0
+  ImGui::CreateContext();
+  // TODO(hbr): Maybe set ImGui IO flags
+  
+  HWND WindowHandle = GetActiveWindow();
+  ImGui_ImplWin32_Init(WindowHandle);
+  ImGui_ImplOpenGL3_Init();
+#endif
+  
+  // TODO(hbr): Remove this
+  //b32 ImGuiInitSuccess = true;
   if (ImGuiInitSuccess)
   {
    arena *PermamentArena = AllocArena();
@@ -462,9 +457,8 @@ int main()
    b32 Running = true;
    while (Running)
    {
-    auto SFMLDeltaTime = Clock.restart();
-    Input->dtForFrame = SFMLDeltaTime.asSeconds();
-    ImGui::SFML::Update(*Window, SFMLDeltaTime);
+    auto DeltaTime = Clock.restart();
+    ImGui::SFML::Update(*Window, DeltaTime);
     
     sf::Vector2u WindowDim_ = Window->getSize();
     v2u WindowDim = V2U(WindowDim_.x, WindowDim_.y);

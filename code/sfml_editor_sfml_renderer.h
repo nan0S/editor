@@ -1,0 +1,6 @@
+/* date = November 10th 2024 2:15 am */
+
+#ifndef SFML_EDITOR_SFML_RENDERER_H
+#define SFML_EDITOR_SFML_RENDERER_H
+
+#endif //SFML_EDITOR_SFML_RENDERER_H

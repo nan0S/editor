@@ -43,6 +43,10 @@
 #endif
 
 //- basic
+#define internal static
+#define local    static
+#define global   static
+
 typedef uint8_t  u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
@@ -77,17 +81,19 @@ typedef intptr_t  smm;
 #define S64_MAX ((s64)0x7fffffffffffffffll)
 
 typedef uint32_t b32;
-//#define true  (Cast(b32)1)
-//#define false (Cast(b32)0)
 
 typedef float f32;
 typedef double f64;
-union { u32 I; f32 F; } F32Inf = { 0x7f800000 };
-union { u64 I; f64 F; } F64Inf = { 0x7ff0000000000000ull };
-#define INF_F32 F32Inf.F
-#define INF_F64 F64Inf.F
-#define EPS_F32 0.0001f
-#define EPS_F64 0.000000001
+
+#define F32_INF _F32Inf()
+#define F64_INF _F64Inf()
+#define F32_EPS 0.0001f
+#define F64_EPS 0.000000001
+
+// NOTE(hbr): Unfortunately this construction is necessary. Putting this outside of function
+// can violate one definition rule.
+inline f32 _F32Inf(void) { union { u32 I; f32 F; } X = {0x7f800000}; return X.F; }
+inline f64 _F64Inf(void) { union { u64 I; f64 F; } X = {0x7ff0000000000000ull}; return X.F; }
 
 union v2
 {
@@ -145,10 +151,6 @@ struct m4x4
 {
  f32 M[4][4];
 };
-
-#define internal static
-#define local    static
-#define global   static
 
 #if OS_WINDOWS
 # pragma section(".roglob", read)
@@ -236,8 +238,8 @@ struct m4x4
 #define Clamp(X, Mini, Maxi) ClampTop(ClampBot(X, Mini), Maxi)
 #define Clamp01(X) Clamp(X, 0, 1)
 #define Idx(Row, Col, NCols) ((Row)*(NCols) + (Col))
-#define ApproxEq32(X, Y) (Abs(X - Y) <= EPS_F32)
-#define ApproxEq64(X, Y) (Abs(X - Y) <= EPS_F64)
+#define ApproxEq32(X, Y) (Abs(X - Y) <= F32_EPS)
+#define ApproxEq64(X, Y) (Abs(X - Y) <= F64_EPS)
 #define Cmp(X, Y) (((X) < (Y)) ? -1 : (((X) == (Y)) ? 0 : 1))
 #define Swap(A, B, Type) do { Type NameConcat(Temp, __LINE__) = (A); (A) = (B); (B) = NameConcat(Temp, __LINE__); } while (0)
 #define AlignPow2(Align, Pow2) (((Align)+((Pow2)-1)) & (~((Pow2)-1)))

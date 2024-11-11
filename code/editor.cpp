@@ -184,7 +184,7 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
      {
       //- control points
       {
-       f32 MinSignedDistance = INF_F32;
+       f32 MinSignedDistance = F32_INF;
        u64 MinPointIndex = 0;
        for (u64 PointIndex = 0;
             PointIndex < ControlPointCount;
@@ -213,7 +213,7 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
       //- bezier "control" points
       {
        visible_cubic_bezier_points VisibleBeziers = GetVisibleCubicBezierPoints(Entity);
-       f32 MinSignedDistance = INF_F32;
+       f32 MinSignedDistance = F32_INF;
        cubic_bezier_point_index MinPointIndex = {};
        
        for (u64 Index = 0;
@@ -2140,16 +2140,14 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   Editor->CurveDefaultParams.ConvexHullWidth = LineWidth;
   Editor->CurveDefaultParams.PointCountPerSegment = 50;
   
-  Editor->Camera = {
-   .P = V2(0.0f, 0.0f),
-   .Rotation = Rotation2DZero(),
-   .Zoom = 1.0f,
-   .ZoomSensitivity = 0.05f,
-   .ReachingTargetSpeed = 10.0f,
-  };
+  Editor->Camera.P = V2(0.0f, 0.0f);
+  Editor->Camera.Rotation = Rotation2DZero();
+  Editor->Camera.Zoom = 1.0f;
+  Editor->Camera.ZoomSensitivity = 0.05f;
+  Editor->Camera.ReachingTargetSpeed = 10.0f;
   
-  Editor->FrameStats.Calculation.MinFrameTime = +INF_F32;
-  Editor->FrameStats.Calculation.MaxFrameTime = -INF_F32;
+  Editor->FrameStats.Calculation.MinFrameTime = +F32_INF;
+  Editor->FrameStats.Calculation.MaxFrameTime = -F32_INF;
   
   Editor->MovingPointArena = AllocArena();
   Editor->MovingPointArena = AllocArena();
@@ -2653,8 +2651,8 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    Stats->AvgFrameTime = Stats->Calculation.SumFrameTime / Stats->Calculation.FrameCount;
    
    Stats->Calculation.FrameCount = 0;
-   Stats->Calculation.MinFrameTime = INF_F32;
-   Stats->Calculation.MaxFrameTime = -INF_F32;
+   Stats->Calculation.MinFrameTime = F32_INF;
+   Stats->Calculation.MaxFrameTime = -F32_INF;
    Stats->Calculation.SumFrameTime = 0.0f;
   }
  }

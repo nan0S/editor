@@ -1117,8 +1117,8 @@ BezierCurveLowerDegree(v2 *P, f32 *W, u64 N)
    Result.MiddlePointIndex = H-1;
    Result.P_I = Prev_Front_P;
    Result.P_II = Prev_Back_P;
-   Result.W_I = ClampBot(Prev_Front_W, EPS_F32);
-   Result.W_II = ClampBot(Prev_Back_W, EPS_F32);
+   Result.W_I = ClampBot(Prev_Front_W, F32_EPS);
+   Result.W_II = ClampBot(Prev_Back_W, F32_EPS);
   }
  }
  
@@ -1334,7 +1334,7 @@ GaussianElimination(f32 *A, u64 N, f32 *Solution)
     Max = I;
    }
   }
-  if (Abs(A[Idx(Max, Col, N+1)]) < EPS_F32)
+  if (Abs(A[Idx(Max, Col, N+1)]) < F32_EPS)
   {
    continue;
   }
@@ -1348,7 +1348,7 @@ GaussianElimination(f32 *A, u64 N, f32 *Solution)
   Pos[Col] = Row;
   for (u64 I = 0; I < N; ++I)
   {
-   if (I != Row && Abs(A[Idx(I, Col, N+1)]) > EPS_F32)
+   if (I != Row && Abs(A[Idx(I, Col, N+1)]) > F32_EPS)
    {
     f32 C = A[Idx(I, Col, N+1)] / A[Idx(Row, Col, N+1)];
     for (u64 J = Col; J <= N; ++J)
@@ -1483,8 +1483,8 @@ internal rectangle2
 EmptyAABB(void)
 {
  rectangle2 Result = {};
- Result.Mini = V2(INF_F32, INF_F32);
- Result.Maxi = V2(-INF_F32, -INF_F32);
+ Result.Mini = V2(F32_INF, F32_INF);
+ Result.Maxi = V2(-F32_INF, -F32_INF);
  
  return Result;
 }

@@ -4,8 +4,6 @@
 #include "editor_memory.h"
 #include "editor_os.h"
 
-platform_api Platform;
-
 #include "editor_base.cpp"
 #include "editor_memory.cpp"
 #include "editor_string.cpp"
@@ -14,6 +12,7 @@ platform_api Platform;
 global arena *GlobalArena;
 global string Code = StrLit("code");
 global string Build = StrLit("build");
+global platform_api Platform;
 
 internal void
 LogF(char const *Format, ...)
@@ -49,7 +48,6 @@ CompileProgram(b32 Debug)
  StrListPush(GlobalArena, &BasicCompileCmd, Debug ? StrLit("/DBUILD_DEBUG=1") : StrLit("/DBUILD_DEBUG=0"));
  StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/Zi"));
  StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/FS"));
- StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/std:c++20"));
  StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/nologo"));
  StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/WX"));
  StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/W4"));
@@ -63,7 +61,6 @@ CompileProgram(b32 Debug)
  StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4310"));
  StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4456"));
  StrListPush(GlobalArena, &BasicCompileCmd, StrF(GlobalArena, "/I%S", CodePath(StrLit("."))));
- StrListPush(GlobalArena, &BasicCompileCmd, StrF(GlobalArena, "/I%S", CodePath(StrLit("third_party/sfml/include"))));
  StrListPush(GlobalArena, &BasicCompileCmd, StrF(GlobalArena, "/I%S", CodePath(StrLit("third_party/imgui"))));
  
  string ImguiObj = StrF(GlobalArena, "imgui_unity_%s.obj", Mode);

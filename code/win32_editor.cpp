@@ -52,14 +52,12 @@ PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
 {
  platform_file_dialog_result Result = {};
  
- u64 Count = 256;
- char *Buffer = PushArrayNonZero(Arena, Count, char);
- 
+ local char Buffer[256];
  OPENFILENAME Open = {};
  Open.lStructSize = SizeOf(Open);
  Open.lpstrFile = Buffer;
- if (Count > 0) Open.lpstrFile[0] = '\0';
- Open.nMaxFile = Count;
+ Open.lpstrFile[0] = '\0';
+ Open.nMaxFile = ArrayCount(Buffer);
  Open.lpstrFilter =
   "All Files (*.*)\0" "*.*\0"
   "PNG (*.png)\0" "*.png\0"
@@ -362,17 +360,6 @@ Win32SecondsElapsed(LARGE_INTEGER Begin, LARGE_INTEGER End)
  return Result;
 }
 
-internal void
-Win32FinishTimedBlock(LARGE_INTEGER BeginBlock, char const *Label)
-{
- LARGE_INTEGER EndBlock = Win32GetClock();
- f32 Elapsed = Win32SecondsElapsed(BeginBlock, EndBlock);
- temp_arena Temp = TempArena(0);
- string Print = StrF(Temp.Arena, "%s: %f\n", Label, 1000.0f * Elapsed);
- OutputDebugStringA(Print.Data);
- EndTemp(Temp);
-}
-
 int
 WinMain(HINSTANCE Instance,
         HINSTANCE PrevInstance,
@@ -463,33 +450,27 @@ WinMain(HINSTANCE Instance,
    b32 Running = true;
    while (Running)
    {
+    //- process input events
     win32_platform_input Win32Input = {};
     GlobalWin32Input = &Win32Input;
-    
-    MSG Msg;
-    while (PeekMessage(&Msg, 0, 0, 0, PM_REMOVE))
+    v2u WindowDim = {};
     {
-     TranslateMessage(&Msg);
-     DispatchMessage(&Msg);
-    }
-    if (Msg.message == WM_QUIT)
-    {
-     Win32PushPlatformEvent(PlatformEvent_WindowClose);
-    }
-    
-    v2u WindowDim = Win32GetWindowDim(Window);
-    render_frame *Frame;
-    {
-     LARGE_INTEGER BeginBlock = Win32GetClock();
-     Frame = Win32BeginFrame(Renderer, WindowDim);
-     Win32FinishTimedBlock(BeginBlock, "Win32BeginFrame");
-    }
-    
-    LARGE_INTEGER EndClock = Win32GetClock();
-    {
+     MSG Msg;
+     while (PeekMessage(&Msg, 0, 0, 0, PM_REMOVE))
+     {
+      TranslateMessage(&Msg);
+      DispatchMessage(&Msg);
+     }
+     if (Msg.message == WM_QUIT)
+     {
+      Win32PushPlatformEvent(PlatformEvent_WindowClose);
+     }
+     
      Input.EventCount = Win32Input.EventCount;
      Input.Events = Win32Input.Events;
-     Input.dtForFrame = Win32SecondsElapsed(LastClock, EndClock);
+     
+     // NOTE(hbr): get window dim after processing events
+     WindowDim = Win32GetWindowDim(Window);
      
      POINT CursorP;
      GetCursorPos(&CursorP);
@@ -497,17 +478,13 @@ WinMain(HINSTANCE Instance,
      Input.ClipSpaceMouseP = Win32ScreenToClip(CursorP.x, CursorP.y, WindowDim);
     }
     
-    {
-     LARGE_INTEGER BeginBlock = Win32GetClock();
-     EditorUpdateAndRender(&Memory, &Input, Frame);
-     Win32FinishTimedBlock(BeginBlock, "EditorUpdateAndRender");
-    }
+    render_frame *Frame = Win32BeginFrame(Renderer, WindowDim);
     
-    {
-     LARGE_INTEGER BeginBlock = Win32GetClock();
-     Win32EndFrame(Renderer, Frame);
-     Win32FinishTimedBlock(BeginBlock, "Win32EndFrame");
-    }
+    LARGE_INTEGER EndClock = Win32GetClock();
+    Input.dtForFrame = Win32SecondsElapsed(LastClock, EndClock);
+    EditorUpdateAndRender(&Memory, &Input, Frame);
+    
+    Win32EndFrame(Renderer, Frame);
     
     if (Input.QuitRequested)
     {

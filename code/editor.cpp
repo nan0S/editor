@@ -3213,15 +3213,17 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
  
  if (OpenFileDialog)
  {
-  temp_arena Temp = TempArena(0);
-  
   b32 Success = false;
-  platform_file_dialog_result OpenDialog = Platform.OpenFileDialog(Temp.Arena);
+  
+  platform_file_dialog_result OpenDialog = Platform.OpenFileDialog();
   if (OpenDialog.Success)
   {
+   temp_arena Temp = TempArena(0);
+   
    string FilePath = OpenDialog.FilePath;
    string FileData = Platform.ReadEntireFile(Temp.Arena, FilePath);
    loaded_image LoadedImage = LoadImageFromMemory(Temp.Arena, FileData.Data, FileData.Count);
+   
    if (LoadedImage.Success)
    {
     u64 RequestSize = LoadedImage.Width * LoadedImage.Height * 4;
@@ -3258,14 +3260,14 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
      PopTextureTransfer(Assets->TextureQueue, TextureOp);
     }
    }
+   
+   EndTemp(Temp);
   }
   
   if (!Success)
   {
    AddNotificationF(Editor, Notification_Error, "failed to open %S", OpenDialog.FilePath);
   }
-  
-  EndTemp(Temp);
  }
  
  if (QuitProject)

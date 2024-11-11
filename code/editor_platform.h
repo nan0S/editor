@@ -120,7 +120,7 @@ typedef PLATFORM_COMMIT_VIRTUAL_MEMORY(platform_commit_virtual_memory);
 #define PLATFORM_DEALLOC_VIRTUAL_MEMORY(Name) void Name(void *Memory, u64 Size)
 typedef PLATFORM_DEALLOC_VIRTUAL_MEMORY(platform_dealloc_virtual_memory);
 
-#define PLATFORM_OPEN_FILE_DIALOG(Name) platform_file_dialog_result Name(arena *Arena)
+#define PLATFORM_OPEN_FILE_DIALOG(Name) platform_file_dialog_result Name(void)
 typedef PLATFORM_OPEN_FILE_DIALOG(platform_open_file_dialog);
 
 #define PLATFORM_READ_ENTIRE_FILE(Name) string Name(arena *Arena, string FilePath)

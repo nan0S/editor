@@ -78,19 +78,19 @@ CompileProgram(b32 Debug)
   ImGui = OS_LaunchProcess(ImguiCmd);
  }
  
- string RendererObj = StrF(GlobalArena, "sfml_editor_sfml_renderer_%s.obj", Mode);
+ string RendererObj = StrF(GlobalArena, "win32_editor_opengl_%s.obj", Mode);
  process Renderer = {};
  {
   string_list RendererCmd = StrListCopy(GlobalArena, &BasicCompileCmd);
   StrListPush(GlobalArena, &RendererCmd, StrLit("/c"));
-  StrListPush(GlobalArena, &RendererCmd, CodePath(StrLit("sfml_editor_sfml_renderer.cpp")));
+  StrListPush(GlobalArena, &RendererCmd, CodePath(StrLit("win32_editor_opengl.cpp")));
   StrListPush(GlobalArena, &RendererCmd, StrF(GlobalArena, "/Fo:%S", RendererObj));
-  LogF("%s SFML renderer build command: %S", Mode, StrListJoin(GlobalArena, &RendererCmd, StrLit(" ")));
+  LogF("%s Win32 OpenGL renderer build command: %S", Mode, StrListJoin(GlobalArena, &RendererCmd, StrLit(" ")));
   Renderer = OS_LaunchProcess(RendererCmd);
  }
  
  string_list MainCmd = BasicCompileCmd;
- StrListPush(GlobalArena, &MainCmd, CodePath(StrLit("sfml_editor.cpp")));
+ StrListPush(GlobalArena, &MainCmd, CodePath(StrLit("win32_editor.cpp")));
  StrListPush(GlobalArena, &MainCmd, ImguiObj);
  StrListPush(GlobalArena, &MainCmd, RendererObj);
  StrListPush(GlobalArena, &MainCmd, StrF(GlobalArena, "/Fo:editor_%s.obj", Mode));
@@ -100,19 +100,12 @@ CompileProgram(b32 Debug)
  StrListPush(GlobalArena, &MainCmd, StrLit("Opengl32.lib"));
  StrListPush(GlobalArena, &MainCmd, StrLit("Comdlg32.lib"));
  StrListPush(GlobalArena, &MainCmd, StrLit("Gdi32.lib"));
- StrListPush(GlobalArena, &MainCmd, StrLit("sfml-graphics.lib"));
- StrListPush(GlobalArena, &MainCmd, StrLit("sfml-system.lib"));
- StrListPush(GlobalArena, &MainCmd, StrLit("sfml-window.lib"));
  
  OS_WaitForProcessToFinish(ImGui);
  OS_WaitForProcessToFinish(Renderer);
  
  LogF("%s build command: %S", Mode, StrListJoin(GlobalArena, &MainCmd, StrLit(" ")));
  process Build = OS_LaunchProcess(MainCmd);
- 
- OS_CopyFile(CodePath(StrLit("third_party/sfml/bin/sfml-graphics-2.dll")), StrLit("sfml-graphics-2.dll"));
- OS_CopyFile(CodePath(StrLit("third_party/sfml/bin/sfml-system-2.dll")),   StrLit("sfml-system-2.dll"));
- OS_CopyFile(CodePath(StrLit("third_party/sfml/bin/sfml-window-2.dll")),   StrLit("sfml-window-2.dll"));
  
  return Build;
 }

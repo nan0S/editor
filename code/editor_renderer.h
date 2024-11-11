@@ -124,6 +124,7 @@ struct texture_transfer_queue
 
 struct platform_renderer_limits
 {
+ u64 MaxCommandCount;
  u64 MaxTextureQueueMemorySize;
  u64 MaxTextureCount;
 };

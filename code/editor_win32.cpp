@@ -24,9 +24,7 @@ InitOS(void)
   QueryPerformanceFrequency(&Freq);
   OS_Layer.OSTimerFreq = Freq.QuadPart;
   
-  //#if EDITOR_PROFILER
   OS_Layer.CPUTimerFreq = EstimateCPUFreq(3);
-  //#endif
  }
 }
 

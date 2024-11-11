@@ -3,12 +3,16 @@
 
 enum platform_event_type
 {
+ PlatformEvent_None,
  PlatformEvent_Press,
  PlatformEvent_Release,
  PlatformEvent_MouseMove,
  PlatformEvent_Scroll,
  PlatformEvent_WindowClose,
+ PlatformEvent_Count,
 };
+read_only global char const *PlatformEventTypeNames[] = { "None", "Press", "Release", "MouseMove", "Scroll", "WindowClose" };
+StaticAssert(ArrayCount(PlatformEventTypeNames) == PlatformEvent_Count, PlatformEventNamesDefined);
 
 enum platform_key
 {

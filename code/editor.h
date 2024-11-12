@@ -214,7 +214,7 @@ struct camera
  f32 TargetZoom;
 };
 
-typedef u64 collision_flags;
+typedef u32 collision_flags;
 enum
 {
  Collision_CurvePoint   = (1<<0),
@@ -226,7 +226,7 @@ struct collision
  entity *Entity;
  collision_flags Flags;
  curve_point_index CurvePointIndex;
- u64 CurveLinePointIndex;
+ u32 CurveLinePointIndex;
 };
 
 enum animate_curve_animation_stage
@@ -256,7 +256,7 @@ struct curve_animation_state
  u64 SavedToCurveVersion;
  // NOTE(hbr): Number of points in ToCurve has to match number
  // of points in FromCurve in order to avoid animation artifacts.
- u64 LinePointCount;
+ u32 LinePointCount;
  v2 *ToLinePoints;
  vertex_array AnimatedLineVertices;
  
@@ -267,7 +267,7 @@ struct curve_animation_state
  f32 Blend;
 };
 
-enum curve_combination_type
+enum curve_combination_type : u32
 {
  CurveCombination_None,
  CurveCombination_Merge,
@@ -372,7 +372,7 @@ struct editor_middle_click_state
 struct texture_index
 {
  texture_index *Next;
- u64 Index;
+ u32 Index;
 };
 
 struct editor_assets
@@ -392,7 +392,7 @@ struct editor
  u64 EverIncreasingEntityCounter;
  
 #define MAX_NOTIFICATION_COUNT 16
- u64 NotificationCount;
+ u32 NotificationCount;
  notification Notifications[MAX_NOTIFICATION_COUNT];
  
  b32 HideUI;

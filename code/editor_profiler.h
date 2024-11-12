@@ -27,11 +27,11 @@ struct profiler
  u64 EndTSC;
 };
 global profiler GlobalProfiler;
-global u64 GlobalAnchorParentIndex;
+global u32 GlobalAnchorParentIndex;
 
 struct profile_block
 {
- profile_block(u64 AnchorIndex_, char const *Label_)
+ profile_block(u32 AnchorIndex_, char const *Label_)
  {
   profile_anchor *Anchor = GlobalProfiler.Anchors + AnchorIndex_;
   
@@ -61,10 +61,10 @@ struct profile_block
   GlobalAnchorParentIndex = ParentAnchorIndex;
  }
  
- u64 AnchorIndex;
+ u32 AnchorIndex;
+ u32 ParentAnchorIndex;
  char const *Label;
  u64 StartTSC;
- u64 ParentAnchorIndex;
  u64 OldTotalTSC;
 };
 

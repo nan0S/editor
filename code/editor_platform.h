@@ -75,7 +75,7 @@ enum platform_key
  PlatformKey_Count,
 };
 
-typedef u64 platform_event_flags;
+typedef u32 platform_event_flags;
 enum
 {
  PlatformEventFlag_Eaten    = (1<<0),
@@ -95,7 +95,7 @@ struct platform_event
 
 struct platform_input
 {
- u64 EventCount;
+ u32 EventCount;
  platform_event *Events;
  b32 Pressed[PlatformKey_Count];
  f32 dtForFrame;
@@ -144,7 +144,7 @@ struct editor_memory
  
  struct editor *Editor;
  
- u64 MaxTextureCount;
+ u32 MaxTextureCount;
  struct texture_transfer_queue *TextureQueue;
  
  platform_api PlatformAPI;

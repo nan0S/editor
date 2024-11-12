@@ -55,9 +55,27 @@ CompileProgram(b32 Debug)
  StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4996"));
  StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4100"));
  StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4505"));
- StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4244"));
- StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/EHsc"));
+ //StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4244"));
  StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4189"));
+ StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/EHsc"));
+ 
+#if 0
+ set CommonCompilerFlags=-diagnostics:column
+  -WL
+  -O2
+  -nologo
+  -fp:fast
+  -fp:except-
+  -Gm-
+  -GR-
+  -EHa-
+  -Zo
+  -Oi
+  -WX
+  -W4
+  -wd4201 -wd4100 -wd4189 -wd4505 -wd4127
+  -FC -Z7 -GS- -Gs9999999
+#endif
  StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4310"));
  StrListPush(GlobalArena, &BasicCompileCmd, StrLit("/wd4456"));
  StrListPush(GlobalArena, &BasicCompileCmd, StrF(GlobalArena, "/I%S", CodePath(StrLit("."))));
@@ -138,7 +156,7 @@ int main(int ArgCount, char *Argv[])
  string ExePath = OS_FullPathFromPath(GlobalArena, StrFromCStr(Argv[0]));
  b32 Debug = false;
  b32 Release = false;
- for (u64 ArgIndex = 1;
+ for (u32 ArgIndex = 1;
       ArgIndex < ArgCount;
       ++ArgIndex)
  {
@@ -226,7 +244,7 @@ int main(int ArgCount, char *Argv[])
    else
    {
     process Processes[2] = {};
-    u64 ProcessCount = 0;
+    u32 ProcessCount = 0;
     if (Debug)
     {
      Processes[ProcessCount++] = CompileProgram(true);
@@ -235,7 +253,7 @@ int main(int ArgCount, char *Argv[])
     {
      Processes[ProcessCount++] = CompileProgram(false);
     }
-    for (u64 ProcessIndex = 0;
+    for (u32 ProcessIndex = 0;
          ProcessIndex < ProcessCount;
          ++ProcessIndex)
     {

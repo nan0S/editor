@@ -13,11 +13,11 @@ enum
  WindowFlag_NoTitleBar         = (1<<1),
  WindowFlag_NoFocusOnAppearing = (1<<2),
 };
-typedef u64 window_flags;
+typedef u32 window_flags;
 
 internal void UI_PushLabel(string Label);
 internal void UI_PushLabelF(char const *Format, ...);
-internal void UI_PushId(u64 Id);
+internal void UI_PushId(u32 Id);
 internal void UI_PopLabel(void);
 internal void UI_PopId(void);
 internal void UI_BeginDisabled(b32 Disabled);
@@ -61,8 +61,6 @@ internal void              UI_EndTree(void);
 internal void              UI_NewRow(void);
 internal void              UI_SameRow(void);
 
-#define                    UI_Combo(Enum, EnumCount, EnumNames, Label) UI_Combo_(Cast(u8 *)(Enum), EnumCount, EnumNames, Label)
-#define                    UI_ComboF(Enum, EnumCount, EnumNames, Format, ...) UI_ComboF_(Cast(u8 *)(Enum), EnumCount, EnumNames, Format, __VA_ARGS__)
 internal changed_b32       UI_Checkbox(b32 *Enabled, string Label);
 internal changed_b32       UI_CheckboxF(b32 *Enabled, char const *Format, ...);
 internal clicked_b32       UI_Button(string Label);
@@ -71,10 +69,10 @@ internal changed_b32       UI_DragFloat(f32 *Value, f32 MinValue, f32 MaxValue, 
 internal changed_b32       UI_DragFloatF(f32 *Value, f32 MinValue, f32 MaxValue, char const *ValueFormat, char const *Format, ...);
 internal changed_b32       UI_DragFloat2(f32 Values[2], f32 MinValue, f32 MaxValue, char const *ValueFormat, string Label);
 internal changed_b32       UI_DragFloat2F(f32 Values[2], f32 MinValue, f32 MaxValue, char const *ValueFormat, char const *Format, ...);
+internal changed_b32       UI_SliderInteger(s32 *Value, s32 MinValue, s32 MaxValue, string Label);
+internal changed_b32       UI_SliderIntegerF(s32 *Value, s32 MinValue, s32 MaxValue, char const *Format, ...);
 internal changed_b32       UI_SliderFloat(f32 *Value, f32 MinValue, f32 MaxValue, string Label);
 internal changed_b32       UI_SliderFloatF(f32 *Value, f32 MinValue, f32 MaxValue, char const *Format, ...);
-#define                    UI_SliderInteger(Value, MinValue, MaxValue, Label) UI_SliderInteger_(Cast(s64 *)(Value), MinValue, MaxValue, Label)
-#define                    UI_SliderIntegerF(Value, MinValue, MaxValue, Format, ...) UI_SliderIntegerF_(Cast(s64 *)(Value), MinValue, MaxValue, Format, __VA_ARGS__)
 internal void              UI_AngleSlider(v2 *Rotation, string Label);
 internal void              UI_AngleSliderF(v2 *Rotation, char const *Format, ...);
 internal changed_b32       UI_ColorPicker(v4 *Color, string Label);

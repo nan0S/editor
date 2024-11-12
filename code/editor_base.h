@@ -250,6 +250,7 @@ struct m4x4
 #define QuickSort(Array, Count, Type, CmpFunc) qsort((Array), (Count), SizeOf(Type), Cast(int(*)(void const *, void const *))(CmpFunc))
 #define SafeDiv0(Num, Den) ((Den) == 0 ? 0 : (Num) / (Den))
 #define SafeDiv1(Num, Den) ((Den) == 0 ? 1 : (Num) / (Den))
+#define NoOp ((void)0)
 
 #define MemoryCopy(Dst, Src, NumBytes) memcpy(Dst, Src, NumBytes)
 #define MemoryMove(Dst, Src, NumBytes) memmove(Dst, Src, NumBytes)

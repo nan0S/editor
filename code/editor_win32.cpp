@@ -460,7 +460,7 @@ internal inline void LockMutex(mutex *Mutex) { EnterCriticalSection(Mutex); }
 internal inline void UnlockMutex(mutex *Mutex) { LeaveCriticalSection(Mutex); }
 internal inline void DestroyMutex(mutex *Mutex) { DeleteCriticalSection(Mutex); }
 
-internal inline void InitSemaphore(semaphore *Sem, u64 InitialCount, u64 MaxCount) { *Sem = CreateSemaphoreA(0, InitialCount, MaxCount, 0); }
+internal inline void InitSemaphore(semaphore *Sem, u32 InitialCount, u32 MaxCount) { *Sem = CreateSemaphoreA(0, InitialCount, MaxCount, 0); }
 internal inline void PostSemaphore(semaphore *Sem) { ReleaseSemaphore(*Sem, 1, 0); }
 internal inline void WaitSemaphore(semaphore *Sem) { WaitForSingleObject(*Sem, INFINITE); }
 internal inline void DestroySemaphore(semaphore *Sem) { CloseHandle(*Sem); }
@@ -469,7 +469,7 @@ internal inline u64 InterlockedIncr(u64 volatile *Value) { return InterlockedInc
 internal inline u64 InterlockedAdd(u64 volatile *Value, u64 Add) { return InterlockedAdd64(Cast(LONG64 volatile *)Value, Add); }
 internal inline u64 InterlockedCmpExch(u64 volatile *Value, u64 Cmp, u64 Exch) { return InterlockedCompareExchange64(Cast(LONG64 volatile *)Value, Exch, Cmp); }
 
-internal inline void InitBarrier(barrier *Barrier, u64 ThreadCount) { InitializeSynchronizationBarrier(Barrier, ThreadCount, 0); }
+internal inline void InitBarrier(barrier *Barrier, u32 ThreadCount) { InitializeSynchronizationBarrier(Barrier, ThreadCount, 0); }
 internal inline void DestroyBarrier(barrier *Barrier) { DeleteSynchronizationBarrier(Barrier); }
 internal inline void
 WaitBarrier(barrier *Barrier)

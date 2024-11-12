@@ -15,7 +15,7 @@ PushRenderCommand(render_group *Group, render_command_type Type, m3x3 Model, f32
 internal void
 PushVertexArray(render_group *Group,
                 vertex *Vertices,
-                u64 VertexCount,
+                u32 VertexCount,
                 render_primitive_type Primitive,
                 v4 Color,
                 f32 ZOffset)
@@ -88,7 +88,7 @@ PushTriangle(render_group *Group,
 }
 
 internal void
-PushImage(render_group *Group, v2 Dim, u64 TextureIndex)
+PushImage(render_group *Group, v2 Dim, u32 TextureIndex)
 {
  m3x3 Model = ModelTransform(V2(0, 0), Rotation2DZero(), Dim);
  render_command *Command = PushRenderCommand(Group, RenderCommand_Image, Model, 0.0f);

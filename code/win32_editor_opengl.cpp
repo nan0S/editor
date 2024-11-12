@@ -23,9 +23,9 @@ struct opengl
  render_frame RenderFrame;
  
  render_command *CommandBuffer;
- u64 MaxCommandCount;
+ u32 MaxCommandCount;
  
- u64 MaxTextureCount;
+ u32 MaxTextureCount;
  GLuint *Textures;
 };
 
@@ -72,13 +72,13 @@ WIN32_RENDERER_INIT()
  }
  
  //- allocate texutre indices
- u64 TextureCount = Limits->MaxTextureCount;
+ u32 TextureCount = Limits->MaxTextureCount;
  GLuint *Textures = PushArray(Arena, TextureCount, GLuint);
  OpenGL->MaxTextureCount = TextureCount;
  OpenGL->Textures = Textures;
  
- glGenTextures(TextureCount, Textures);
- for (u64 TextureIndex = 0;
+ glGenTextures(Cast(GLsizei)TextureCount, Textures);
+ for (u32 TextureIndex = 0;
       TextureIndex < TextureCount;
       ++TextureIndex)
  {
@@ -143,7 +143,7 @@ WIN32_RENDERER_END_FRAME()
  glViewport(0, 0, Frame->WindowDim.X, Frame->WindowDim.Y);
  
  //- uploads textures into GPU
- for (u64 OpIndex = 0;
+ for (u32 OpIndex = 0;
       OpIndex < Queue->OpCount;
       ++OpIndex)
  {
@@ -154,7 +154,8 @@ WIN32_RENDERER_END_FRAME()
   glTexImage2D(GL_TEXTURE_2D,
                0,
                GL_RGBA,
-               Op->Width, Op->Height,
+               Cast(u32)Op->Width,
+               Cast(u32)Op->Height,
                0,
                GL_RGBA,
                GL_UNSIGNED_BYTE,
@@ -165,7 +166,7 @@ WIN32_RENDERER_END_FRAME()
  
  //- draw
  QuickSort(Frame->Commands, Frame->CommandCount, render_command, RenderCommandCmp);
- for (u64 CommandIndex = 0;
+ for (u32 CommandIndex = 0;
       CommandIndex < Frame->CommandCount;
       ++CommandIndex)
  {
@@ -192,7 +193,7 @@ WIN32_RENDERER_END_FRAME()
     
     glBegin(glPrimitive);
     glColor4fv(Array->Color.E);
-    for (u64 VertexIndex = 0;
+    for (u32 VertexIndex = 0;
          VertexIndex < Array->VertexCount;
          ++VertexIndex)
     {
@@ -207,8 +208,8 @@ WIN32_RENDERER_END_FRAME()
     glBegin(GL_TRIANGLE_FAN);
     glColor4fv(Circle->Color.E);
     glVertex2f(0.0f, 0.0f);
-    u64 VertexCount = 30;
-    for (u64 VertexIndex = 0;
+    u32 VertexCount = 30;
+    for (u32 VertexIndex = 0;
          VertexIndex <= VertexCount;
          ++VertexIndex)
     {
@@ -220,7 +221,7 @@ WIN32_RENDERER_END_FRAME()
     
     glBegin(GL_TRIANGLE_STRIP);
     glColor4fv(Circle->OutlineColor.E);
-    for (u64 VertexIndex = 0;
+    for (u32 VertexIndex = 0;
          VertexIndex <= VertexCount;
          ++VertexIndex)
     {

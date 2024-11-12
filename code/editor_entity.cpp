@@ -13,12 +13,12 @@ struct points_soa
  f32 *Ys;
 };
 internal points_soa
-SplitPointsIntoComponents(arena *Arena, v2 *Points, u64 NumPoints)
+SplitPointsIntoComponents(arena *Arena, v2 *Points, u32 NumPoints)
 {
  points_soa Result = {};
  Result.Xs = PushArrayNonZero(Arena, NumPoints, f32);
  Result.Ys = PushArrayNonZero(Arena, NumPoints, f32);
- for (u64 I = 0; I < NumPoints; ++I)
+ for (u32 I = 0; I < NumPoints; ++I)
  {
   Result.Xs[I] = Points[I].X;
   Result.Ys[I] = Points[I].Y;
@@ -29,9 +29,9 @@ SplitPointsIntoComponents(arena *Arena, v2 *Points, u64 NumPoints)
 
 internal void
 CalcNewtonPolynomialLinePoints(v2 *ControlPoints,
-                               u64 ControlPointCount,
+                               u32 ControlPointCount,
                                f32 *Ti,
-                               u64 NumOutputLinePoints,
+                               u32 NumOutputLinePoints,
                                v2 *OutputLinePoints)
 {
  if (ControlPointCount > 0)
@@ -52,7 +52,7 @@ CalcNewtonPolynomialLinePoints(v2 *ControlPoints,
   f32 T = Begin;
   f32 Delta = (End - Begin) / (NumOutputLinePoints - 1);
   
-  for (u64 OutputIndex = 0;
+  for (u32 OutputIndex = 0;
        OutputIndex < NumOutputLinePoints;
        ++OutputIndex)
   {
@@ -69,10 +69,10 @@ CalcNewtonPolynomialLinePoints(v2 *ControlPoints,
 
 internal void
 CalcBarycentricPolynomialLinePoints(v2 *ControlPoints,
-                                    u64 ControlPointCount,
+                                    u32 ControlPointCount,
                                     point_spacing PointSpacing,
                                     f32 *Ti,
-                                    u64 NumOutputLinePoints,
+                                    u32 NumOutputLinePoints,
                                     v2 *OutputLinePoints)
 {
  if (ControlPointCount > 0)
@@ -102,7 +102,7 @@ CalcBarycentricPolynomialLinePoints(v2 *ControlPoints,
   f32 T = Begin;
   f32 Delta = (End - Begin) / (NumOutputLinePoints - 1);
   
-  for (u64 OutputIndex = 0;
+  for (u32 OutputIndex = 0;
        OutputIndex < NumOutputLinePoints;
        ++OutputIndex)
   {
@@ -119,9 +119,9 @@ CalcBarycentricPolynomialLinePoints(v2 *ControlPoints,
 
 internal void
 CalcCubicSplineLinePoints(v2 *ControlPoints,
-                          u64 ControlPointCount,
+                          u32 ControlPointCount,
                           cubic_spline_type CubicSpline,
-                          u64 NumOutputLinePoints,
+                          u32 NumOutputLinePoints,
                           v2 *OutputLinePoints)
 {
  if (ControlPointCount > 0)
@@ -168,7 +168,7 @@ CalcCubicSplineLinePoints(v2 *ControlPoints,
   f32 T = Begin;
   f32 Delta = (End - Begin) / (NumOutputLinePoints - 1);
   
-  for (u64 OutputIndex = 0;
+  for (u32 OutputIndex = 0;
        OutputIndex < NumOutputLinePoints;
        ++OutputIndex)
   {
@@ -186,13 +186,13 @@ CalcCubicSplineLinePoints(v2 *ControlPoints,
 
 internal void
 CalcNormalBezierLinePoints(v2 *ControlPoints,
-                           u64 ControlPointCount,
-                           u64 NumOutputLinePoints,
+                           u32 ControlPointCount,
+                           u32 NumOutputLinePoints,
                            v2 *OutputLinePoints)
 {
  f32 T = 0.0f;
  f32 Delta = 1.0f / (NumOutputLinePoints - 1);
- for (u64 OutputIndex = 0;
+ for (u32 OutputIndex = 0;
       OutputIndex < NumOutputLinePoints;
       ++OutputIndex)
  {
@@ -208,13 +208,13 @@ CalcNormalBezierLinePoints(v2 *ControlPoints,
 internal void
 CalcRegularBezierLinePoints(v2 *ControlPoints,
                             f32 *ControlPointWeights,
-                            u64 ControlPointCount,
-                            u64 NumOutputLinePoints,
+                            u32 ControlPointCount,
+                            u32 NumOutputLinePoints,
                             v2 *OutputLinePoints)
 {
  f32 T = 0.0f;
  f32 Delta = 1.0f / (NumOutputLinePoints - 1);
- for (u64 OutputIndex = 0;
+ for (u32 OutputIndex = 0;
       OutputIndex < NumOutputLinePoints;
       ++OutputIndex)
  {
@@ -230,11 +230,11 @@ CalcRegularBezierLinePoints(v2 *ControlPoints,
 
 struct cubic_bezier_curve_segment
 {
- u64 PointCount;
+ u32 PointCount;
  v2 *Points;
 };
 internal cubic_bezier_curve_segment
-GetCubicBezierCurveSegment(cubic_bezier_point *BezierPoints, u64 PointCount, u64 SegmentIndex)
+GetCubicBezierCurveSegment(cubic_bezier_point *BezierPoints, u32 PointCount, u32 SegmentIndex)
 {
  cubic_bezier_curve_segment Result = {};
  if (SegmentIndex < PointCount)
@@ -248,20 +248,20 @@ GetCubicBezierCurveSegment(cubic_bezier_point *BezierPoints, u64 PointCount, u64
 
 internal void
 CalcCubicBezierLinePoints(cubic_bezier_point *CubicBezierPoints,
-                          u64 ControlPointCount,
-                          u64 NumOutputLinePoints,
+                          u32 ControlPointCount,
+                          u32 NumOutputLinePoints,
                           v2 *OutputLinePoints)
 {
  if (ControlPointCount > 0)
  {
   f32 T = 0.0f;
   f32 Delta = 1.0f / (NumOutputLinePoints - 1);
-  for (u64 OutputIndex = 0;
+  for (u32 OutputIndex = 0;
        OutputIndex < NumOutputLinePoints;
        ++OutputIndex)
   {
    f32 Expanded_T = (ControlPointCount - 1) * T;
-   u64 SegmentIndex = Cast(u64)Expanded_T;
+   u32 SegmentIndex = Cast(u32)Expanded_T;
    f32 Segment_T = Expanded_T - SegmentIndex;
    
    Assert(SegmentIndex < ControlPointCount);
@@ -278,7 +278,7 @@ CalcCubicBezierLinePoints(cubic_bezier_point *CubicBezierPoints,
 }
 
 internal void
-EvaluateCurve(curve *Curve, u64 LinePointCount, v2 *LinePoints)
+EvaluateCurve(curve *Curve, u32 LinePointCount, v2 *LinePoints)
 {
  temp_arena Temp = TempArena(0);
  curve_params *CurveParams = &Curve->Params;
@@ -346,7 +346,7 @@ ActuallyRecomputeCurve(entity *Entity)
  curve *Curve = GetCurve(Entity);
  ClearArena(Entity->Arena);
  
- u64 LinePointCount = 0;
+ u32 LinePointCount = 0;
  if (Curve->ControlPointCount > 0)
  {
   LinePointCount = (Curve->ControlPointCount - 1) * Curve->Params.PointCountPerSegment + 1;
@@ -382,7 +382,7 @@ BeginCurvePointTracking(curve *Curve, b32 IsSplitting)
 
 internal void
 SetCurveControlPoints(entity *Entity,
-                      u64 ControlPointCount,
+                      u32 ControlPointCount,
                       v2 *ControlPoints,
                       f32 *ControlPointWeights,
                       cubic_bezier_point *CubicBezierPoints)
@@ -403,7 +403,7 @@ SetCurveControlPoints(entity *Entity,
 }
 
 internal void
-SetCurveControlPoint(entity *Entity, u64 PointIndex, v2 Point, f32 Weight)
+SetCurveControlPoint(entity *Entity, u32 PointIndex, v2 Point, f32 Weight)
 {
  curve *Curve = GetCurve(Entity);
  if (PointIndex < Curve->ControlPointCount)

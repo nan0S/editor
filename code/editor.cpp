@@ -60,20 +60,20 @@ MovePointAlongCurve(curve *Curve, v2 *TranslateInOut, f32 *PointFractionInOut, b
  v2 Translate = *TranslateInOut;
  f32 Fraction = *PointFractionInOut;
  
- u64 LinePointCount = Curve->LinePointCount;
+ u32 LinePointCount = Curve->LinePointCount;
  v2 *LinePoints = Curve->LinePoints;
  f32 DeltaFraction = 1.0f / (LinePointCount - 1);
  
  f32 PointIndexFloat = Fraction * (LinePointCount - 1);
- u64 PointIndex = Cast(u64)(Forward ? FloorF32(PointIndexFloat) : CeilF32(PointIndexFloat));
+ u32 PointIndex = Cast(u32)(Forward ? FloorF32(PointIndexFloat) : CeilF32(PointIndexFloat));
  PointIndex = ClampTop(PointIndex, LinePointCount - 1);
  
- s64 DirSign = (Forward ? 1 : -1);
+ s32 DirSign = (Forward ? 1 : -1);
  
  b32 Moving = true;
  while (Moving)
  {
-  u64 PrevPointIndex = PointIndex;
+  u32 PrevPointIndex = PointIndex;
   PointIndex += DirSign;
   if (PointIndex >= LinePointCount)
   {
@@ -125,15 +125,15 @@ DeallocateTextureIndex(editor_assets *Assets, texture_index *Index)
 struct line_collision
 {
  b32 Collided;
- u64 PointIndex;
+ u32 PointIndex;
 };
 internal line_collision
-CheckCollisionWithMultiLine(v2 LocalAtP, v2 *LinePoints, u64 PointCount, f32 Width, f32 Tolerance)
+CheckCollisionWithMultiLine(v2 LocalAtP, v2 *LinePoints, u32 PointCount, f32 Width, f32 Tolerance)
 {
  line_collision Result = {};
  
  f32 CheckWidth = Width + 2 * Tolerance;
- for (u64 PointIndex = 0;
+ for (u32 PointIndex = 0;
       PointIndex + 1 < PointCount;
       ++PointIndex)
  {
@@ -151,7 +151,7 @@ CheckCollisionWithMultiLine(v2 LocalAtP, v2 *LinePoints, u64 PointCount, f32 Wid
 }
 
 internal collision
-CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
+CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
 {
  collision Result = {};
  temp_arena Temp = TempArena(0);
@@ -161,7 +161,7 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
  EntityArray.Entities = Entities;
  sorted_entries Sorted = SortEntities(Temp.Arena, EntityArray);
  
- for (u64 Index = 0;
+ for (u32 Index = 0;
       Index < Sorted.Count;
       ++Index)
  {
@@ -175,7 +175,7 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
    {
     case Entity_Curve: {
      curve *Curve = &Entity->Curve;
-     u64 ControlPointCount = Curve->ControlPointCount;
+     u32 ControlPointCount = Curve->ControlPointCount;
      v2 *ControlPoints = Curve->ControlPoints;
      curve_params *Params = &Curve->Params;
      curve_point_tracking_state *Tracking = &Curve->PointTracking;
@@ -185,8 +185,8 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
       //- control points
       {
        f32 MinSignedDistance = F32_INF;
-       u64 MinPointIndex = 0;
-       for (u64 PointIndex = 0;
+       u32 MinPointIndex = 0;
+       for (u32 PointIndex = 0;
             PointIndex < ControlPointCount;
             ++PointIndex)
        {
@@ -216,7 +216,7 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
        f32 MinSignedDistance = F32_INF;
        cubic_bezier_point_index MinPointIndex = {};
        
-       for (u64 Index = 0;
+       for (u32 Index = 0;
             Index < VisibleBeziers.Count;
             ++Index)
        {
@@ -253,16 +253,16 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
       // anything to Flags.
       if (!Tracking->IsSplitting && !Result.Entity)
       {
-       u64 IterationCount = Tracking->Intermediate.IterationCount;
+       u32 IterationCount = Tracking->Intermediate.IterationCount;
        v2 *Points = Tracking->Intermediate.P;
        
-       u64 PointIndex = 0;
-       for (u64 Iteration = 0;
+       u32 PointIndex = 0;
+       for (u32 Iteration = 0;
             Iteration < IterationCount;
             ++Iteration)
        {
         v2 *LinePoints = Points + PointIndex;
-        u64 PointCount = IterationCount - Iteration;
+        u32 PointCount = IterationCount - Iteration;
         line_collision Line = CheckCollisionWithMultiLine(LocalAtP, LinePoints, PointCount,
                                                           Params->LineWidth, Tolerance);
         if (Line.Collided)
@@ -271,7 +271,7 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
          goto collided_label;
         }
         
-        for (u64 I = 0; I < PointCount; ++I)
+        for (u32 I = 0; I < PointCount; ++I)
         {
          if (PointCollision(LocalAtP, Points[PointIndex], Curve->Params.PointRadius + Tolerance))
          {
@@ -282,7 +282,7 @@ CheckCollisionWith(u64 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
         }
        }
        collided_label:
-       int x = 1;
+       NoOp;
       }
      }
      
@@ -384,7 +384,7 @@ AllocEntity(editor *Editor)
  entity *Entity = 0;
  
  entity *Entities = Editor->Entities;
- for (u64 EntityIndex = 0;
+ for (u32 EntityIndex = 0;
       EntityIndex < MAX_ENTITY_COUNT;
       ++EntityIndex)
  {
@@ -534,7 +534,7 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  curve *Curve = GetCurve(Entity);
  curve_point_tracking_state *Tracking = &Curve->PointTracking;
  
- u64 ControlPointCount = Curve->ControlPointCount;
+ u32 ControlPointCount = Curve->ControlPointCount;
  
  entity *LeftEntity = Entity;
  entity *RightEntity = AllocEntity(Editor);
@@ -624,7 +624,7 @@ LowerBezierCurveDegree(entity *Entity)
 {
  curve *Curve = GetCurve(Entity);
  curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
- u64 PointCount = Curve->ControlPointCount;
+ u32 PointCount = Curve->ControlPointCount;
  if (PointCount > 0)
  {
   Assert(Curve->Params.Interpolation == Interpolation_Bezier);
@@ -674,7 +674,7 @@ ElevateBezierCurveDegree(entity *Entity)
  Assert(Curve->Params.Interpolation == Interpolation_Bezier);
  temp_arena Temp = TempArena(0);
  
- u64 ControlPointCount = Curve->ControlPointCount;
+ u32 ControlPointCount = Curve->ControlPointCount;
  v2 *ElevatedControlPoints = PushArrayNonZero(Temp.Arena,
                                               ControlPointCount + 1,
                                               v2);
@@ -718,9 +718,9 @@ FocusCameraOnEntity(editor *Editor, entity *Entity)
   case Entity_Curve: {
    curve *Curve = &Entity->Curve;
    
-   u64 PointCount = Curve->ControlPointCount;
+   u32 PointCount = Curve->ControlPointCount;
    v2 *Points = Curve->ControlPoints;
-   for (u64 PointIndex = 0;
+   for (u32 PointIndex = 0;
         PointIndex < PointCount;
         ++PointIndex)
    {
@@ -762,8 +762,8 @@ SplitCurveOnControlPoint(entity *Entity, editor *Editor)
  {
   temp_arena Temp = TempArena(0);
   
-  u64 LeftPointCount = Curve->SelectedIndex.Index + 1;
-  u64 RightPointCount = Curve->ControlPointCount - Curve->SelectedIndex.Index;
+  u32 LeftPointCount = Curve->SelectedIndex.Index + 1;
+  u32 RightPointCount = Curve->ControlPointCount - Curve->SelectedIndex.Index;
   
   entity *LeftEntity = Entity;
   entity *RightEntity = AllocEntity(Editor);
@@ -1439,12 +1439,12 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
                                                          vertex_array);
       f32 LineWidth = Curve->Params.LineWidth;
       
-      u64 IterationPointsOffset = 0;
-      for (u64 Iteration = 0;
+      u32 IterationPointsOffset = 0;
+      for (u32 Iteration = 0;
            Iteration < Intermediate.IterationCount;
            ++Iteration)
       {
-       u64 CurrentIterationPointCount = Intermediate.IterationCount - Iteration;
+       u32 CurrentIterationPointCount = Intermediate.IterationCount - Iteration;
        LineVerticesPerIteration[Iteration] =
         ComputeVerticesOfThickLine(Tracking->Arena,
                                    CurrentIterationPointCount,
@@ -1459,7 +1459,7 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
       Tracking->LocalSpaceTrackedPoint = Intermediate.P[Intermediate.TotalPointCount - 1];
      }
      
-     u64 IterationCount = Tracking->Intermediate.IterationCount;
+     u32 IterationCount = Tracking->Intermediate.IterationCount;
      
      f32 P = 0.0f;
      f32 Delta_P = 1.0f / (IterationCount - 1);
@@ -1469,8 +1469,8 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
      
      f32 PointSize = CurveParams->PointRadius;
      
-     u64 PointIndex = 0;
-     for (u64 Iteration = 0;
+     u32 PointIndex = 0;
+     for (u32 Iteration = 0;
           Iteration < IterationCount;
           ++Iteration)
      {
@@ -1482,7 +1482,7 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
                       Tracking->LineVerticesPerIteration[Iteration].Primitive,
                       IterationColor, GetCurvePartZOffset(CurvePart_Special));
       
-      for (u64 I = 0; I < IterationCount - Iteration; ++I)
+      for (u32 I = 0; I < IterationCount - Iteration; ++I)
       {
        v2 Point = Tracking->Intermediate.P[PointIndex];
        PushCircle(Group, Point, PointSize, IterationColor, GetCurvePartZOffset(CurvePart_Special));
@@ -1570,7 +1570,7 @@ UpdateAndRenderDegreeLowering(render_group *RenderGroup, entity *Entity)
  if (Lowering->Active)
  {
   m3x3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
-  SetTransform(RenderGroup, Model, Entity->SortingLayer);
+  SetTransform(RenderGroup, Model, Cast(f32)Entity->SortingLayer);
   
   v4 Color = Curve->Params.LineColor;
   Color.A *= 0.5f;
@@ -1733,7 +1733,7 @@ UpdateAnimateCurveAnimation(editor *Editor, editor_input *Input, render_group *G
     entity *ToCurveEntity = Animation->ToCurveEntity;
     curve *FromCurve = &FromCurveEntity->Curve;
     curve *ToCurve = &ToCurveEntity->Curve;
-    u64 LinePointCount = FromCurve->LinePointCount;
+    u32 LinePointCount = FromCurve->LinePointCount;
     
     b32 ToLinePointsRecalculated = false;
     if (LinePointCount != Animation->LinePointCount ||
@@ -1758,7 +1758,7 @@ UpdateAnimateCurveAnimation(editor *Editor, editor_input *Input, render_group *G
      f32 Blend = CalculateAnimation(Animation->Animation, Animation->Blend);
      f32 T = 0.0f;
      f32 Delta_T = 1.0f / (LinePointCount - 1);
-     for (u64 VertexIndex = 0;
+     for (u32 VertexIndex = 0;
           VertexIndex < LinePointCount;
           ++VertexIndex)
      {
@@ -1799,13 +1799,13 @@ UpdateAnimateCurveAnimation(editor *Editor, editor_input *Input, render_group *G
 
 // TODO(hbr): Refactor this function
 internal void
-RenderEntityCombo(u64 EntityCount, entity *Entities, entity **InOutEntity, string Label)
+RenderEntityCombo(u32 EntityCount, entity *Entities, entity **InOutEntity, string Label)
 {
  entity *Entity = *InOutEntity;
  string Preview = (Entity ? Entity->Name : StrLit(""));
  if (UI_BeginCombo(Preview, Label))
  {
-  for (u64 EntityIndex = 0;
+  for (u32 EntityIndex = 0;
        EntityIndex < MAX_ENTITY_COUNT;
        ++EntityIndex)
   {
@@ -1839,7 +1839,7 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
    {
     RenderEntityCombo(MAX_ENTITY_COUNT, Editor->Entities, &State->SourceEntity, StrLit("Curve 1"));
     RenderEntityCombo(MAX_ENTITY_COUNT, Editor->Entities, &State->WithEntity,   StrLit("Curve 2"));
-    UI_ComboF(&State->CombinationType, CurveCombination_Count, CurveCombinationNames, "Method");
+    UI_ComboF(Cast(u32 *)&State->CombinationType, CurveCombination_Count, CurveCombinationNames, "Method");
    }
    
    b32 CanCombine = (State->CombinationType != CurveCombination_None);
@@ -1883,8 +1883,8 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
    entity *ToEntity   = State->WithEntity;
    curve  *From       = GetCurve(FromEntity);
    curve  *To         = GetCurve(ToEntity);
-   u64     FromCount  = From->ControlPointCount;
-   u64     ToCount    = To->ControlPointCount;
+   u32     FromCount  = From->ControlPointCount;
+   u32     ToCount    = To->ControlPointCount;
    
    if (State->SourceCurveLastControlPoint)
    {
@@ -1900,8 +1900,8 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
     ArrayReverse(To->CubicBezierPoints,   ToCount, cubic_bezier_point);
    }
    
-   u64 CombinedPointCount = ToCount;
-   u64 StartIndex = 0;
+   u32 CombinedPointCount = ToCount;
+   u32 StartIndex = 0;
    v2 Translation = {};
    switch (State->CombinationType)
    {
@@ -1939,15 +1939,15 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
    ArrayCopy(CombinedBeziers, To->CubicBezierPoints, ToCount);
    
    // TODO(hbr): SIMD?
-   for (u64 I = StartIndex; I < FromCount; ++I)
+   for (u32 I = StartIndex; I < FromCount; ++I)
    {
     v2 FromPoint = LocalEntityPositionToWorld(FromEntity, From->ControlPoints[I]);
     v2 ToPoint   = WorldToLocalEntityPosition(ToEntity, FromPoint + Translation);
     CombinedPoints[ToCount - StartIndex + I] = ToPoint;
    }
-   for (u64 I = StartIndex; I < FromCount; ++I)
+   for (u32 I = StartIndex; I < FromCount; ++I)
    {
-    for (u64 J = 0; J < 3; ++J)
+    for (u32 J = 0; J < 3; ++J)
     {
      v2 FromBezier = LocalEntityPositionToWorld(FromEntity, From->CubicBezierPoints[I].Ps[J]);
      v2 ToBezier   = WorldToLocalEntityPosition(ToEntity, FromBezier + Translation); 
@@ -2086,8 +2086,8 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
 struct loaded_image
 {
  b32 Success;
- u64 Width;
- u64 Height;
+ u32 Width;
+ u32 Height;
  char *Pixels;
 };
 internal loaded_image
@@ -2099,7 +2099,9 @@ LoadImageFromMemory(arena *Arena, char *ImageData, u64 Count)
  int Width, Height;
  int Components;
  int RequestComponents = 4;
- char *Data = Cast(char *)stbi_load_from_memory(Cast(stbi_uc const *)ImageData, Count, &Width, &Height, &Components, RequestComponents);
+ char *Data = Cast(char *)stbi_load_from_memory(Cast(stbi_uc const *)ImageData,
+                                                Cast(int)Count,
+                                                &Width, &Height, &Components, RequestComponents);
  if (Data)
  {
   u64 TotalSize = Cast(u64)Width * Height * RequestComponents;
@@ -2154,7 +2156,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   Editor->CurveAnimation.Arena = AllocArena();
   Editor->CurveAnimation.AnimationSpeed = 1.0f;
   
-  for (u64 EntityIndex = 0;
+  for (u32 EntityIndex = 0;
        EntityIndex < MAX_ENTITY_COUNT;
        ++EntityIndex)
   {
@@ -2188,8 +2190,8 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   }
   
   editor_assets *Assets = &Editor->Assets;
-  u64 TextureCount = Memory->MaxTextureCount;
-  for (u64 Index = 0;
+  u32 TextureCount = Memory->MaxTextureCount;
+  for (u32 Index = 0;
        Index < TextureCount;
        ++Index)
   {
@@ -2223,7 +2225,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   editor_left_click_state *LeftClick = &Editor->LeftClick;
   editor_right_click_state *RightClick = &Editor->RightClick;
   editor_middle_click_state *MiddleClick = &Editor->MiddleClick;
-  for (u64 EventIndex = 0;
+  for (u32 EventIndex = 0;
        EventIndex < Input->EventCount;
        ++EventIndex)
   {
@@ -2278,7 +2280,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
     else if (Collision.Flags & Collision_CurveLine)
     {
      control_point_index Index = CurveLinePointIndexToControlPointIndex(Curve, Collision.CurveLinePointIndex);
-     u64 InsertAt = Index.Index + 1;
+     u32 InsertAt = Index.Index + 1;
      InsertControlPoint(Collision.Entity, MouseP, InsertAt);
      
      LeftClick->Mode = EditorLeftClick_MovingCurvePoint;
@@ -2577,7 +2579,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
     // TODO(hbr): This is a little janky we call this function everytime
     // Either solve it somehow or remove this function and do it more manually
     m3x3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
-    SetTransform(RenderGroup, Model, Entity->SortingLayer);
+    SetTransform(RenderGroup, Model, Cast(f32)Entity->SortingLayer);
     
     PushVertexArray(RenderGroup,
                     LeftClick->OriginalLineVertices.Vertices,
@@ -2730,7 +2732,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
       UI_SeparatorTextF("Curve");
       UI_LabelF("Curve")
       {       
-       CurveChanged |= UI_ComboF(&CurveParams->Interpolation, Interpolation_Count, InterpolationNames, "Interpolation");
+       CurveChanged |= UI_ComboF(Cast(u32 *)&CurveParams->Interpolation, Interpolation_Count, InterpolationNames, "Interpolation");
        if (ResetCtxMenu(StrLit("InterpolationReset")))
        {
         CurveParams->Interpolation = DefaultParams->Interpolation;
@@ -2742,14 +2744,14 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
         case Interpolation_Polynomial: {
          polynomial_interpolation_params *Polynomial = &CurveParams->Polynomial;
          
-         CurveChanged |= UI_ComboF(&Polynomial->Type, PolynomialInterpolation_Count, PolynomialInterpolationNames, "Type");
+         CurveChanged |= UI_ComboF(Cast(u32 *)&Polynomial->Type, PolynomialInterpolation_Count, PolynomialInterpolationNames, "Type");
          if (ResetCtxMenu(StrLit("PolynomialReset")))
          {
           Polynomial->Type = DefaultParams->Polynomial.Type;
           CurveChanged = true;
          }
          
-         CurveChanged |= UI_ComboF(&Polynomial->PointSpacing, PointSpacing_Count, PointSpacingNames, "Point Spacing");
+         CurveChanged |= UI_ComboF(Cast(u32 *)&Polynomial->PointSpacing, PointSpacing_Count, PointSpacingNames, "Point Spacing");
          if (ResetCtxMenu(StrLit("PointSpacingReset")))
          {
           Polynomial->PointSpacing = DefaultParams->Polynomial.PointSpacing;
@@ -2758,7 +2760,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
         }break;
         
         case Interpolation_CubicSpline: {
-         CurveChanged |= UI_ComboF(&CurveParams->CubicSpline, CubicSpline_Count, CubicSplineNames, "Type");
+         CurveChanged |= UI_ComboF(Cast(u32 *)&CurveParams->CubicSpline, CubicSpline_Count, CubicSplineNames, "Type");
          if (ResetCtxMenu(StrLit("SplineReset")))
          {
           CurveParams->CubicSpline = DefaultParams->CubicSpline;
@@ -2767,7 +2769,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
         }break;
         
         case Interpolation_Bezier: {
-         CurveChanged |= UI_ComboF(&CurveParams->Bezier, Bezier_Count, BezierNames, "Type");
+         CurveChanged |= UI_ComboF(Cast(u32 *)&CurveParams->Bezier, Bezier_Count, BezierNames, "Type");
          if (ResetCtxMenu(StrLit("BezierReset")))
          {
           CurveParams->Bezier = DefaultParams->Bezier;
@@ -2802,7 +2804,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
          CurveChanged = true;
         }
         
-        CurveChanged |= UI_SliderIntegerF(&CurveParams->PointCountPerSegment, 1, 2000, "Detail");
+        CurveChanged |= UI_SliderIntegerF(Cast(s32 *)&CurveParams->PointCountPerSegment, 1, 2000, "Detail");
         if (ResetCtxMenu(StrLit("DetailReset")))
         {
          CurveParams->PointCountPerSegment = DefaultParams->PointCountPerSegment;
@@ -2837,10 +2839,10 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
         if (CurveParams->Interpolation == Interpolation_Bezier &&
             CurveParams->Bezier == Bezier_Regular)
         {
-         u64 PointCount = Curve->ControlPointCount;
+         u32 PointCount = Curve->ControlPointCount;
          f32 *Weights = Curve->ControlPointWeights;
          
-         u64 Selected = 0;
+         u32 Selected = 0;
          if (IsControlPointSelected(Curve))
          {
           Selected = Curve->SelectedIndex.Index;
@@ -2849,23 +2851,21 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
           {
            Weights[Selected] = 1.0f;
           }
-          
           ImGui::Spacing();
          }
-         
          
          if (UI_BeginTreeF("Weights"))
          {
           // NOTE(hbr): Limit the number of points displayed in the case
           // curve has A LOT of them
-          u64 ShowCount = 100;
-          u64 ToIndex = ClampTop(Selected + ShowCount/2, PointCount);
-          u64 FromIndex = Selected - Min(Selected, ShowCount/2);
-          u64 LeftCount = ShowCount - (ToIndex - FromIndex);
+          u32 ShowCount = 100;
+          u32 ToIndex = ClampTop(Selected + ShowCount/2, PointCount);
+          u32 FromIndex = Selected - Min(Selected, ShowCount/2);
+          u32 LeftCount = ShowCount - (ToIndex - FromIndex);
           ToIndex = ClampTop(ToIndex + LeftCount, PointCount);
           FromIndex = FromIndex - Min(FromIndex, LeftCount);
           
-          for (u64 PointIndex = FromIndex;
+          for (u32 PointIndex = FromIndex;
                PointIndex < ToIndex;
                ++PointIndex)
           {
@@ -3006,7 +3006,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    if (UI_BeginWindowF(&Editor->EntityListWindow, 0, "Entities"))
    {
     entity *Entities = Editor->Entities;
-    for (u64 EntityTypeIndex = 0;
+    for (u32 EntityTypeIndex = 0;
          EntityTypeIndex < Entity_Count;
          ++EntityTypeIndex)
     {
@@ -3021,7 +3021,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
      
      if (UI_CollapsingHeader(EntityTypeLabel))
      {
-      for (u64 EntityIndex = 0;
+      for (u32 EntityIndex = 0;
            EntityIndex < MAX_ENTITY_COUNT;
            ++EntityIndex)
       {
@@ -3099,7 +3099,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    f32 TargetPosY = WindowDim.Y - Padding;
    f32 WindowWidth = 0.1f * WindowDim.X;
    
-   for (u64 NotificationIndex = 0;
+   for (u32 NotificationIndex = 0;
         NotificationIndex < MAX_NOTIFICATION_COUNT;
         ++NotificationIndex)
    {
@@ -3137,7 +3137,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
       0.1f,  // invisible
      };
      f32 PhaseFraction = Notification->LifeTime;
-     u64 PhaseIndex = 0;
+     u32 PhaseIndex = 0;
      for (; PhaseIndex < NotificationPhase_Count; ++PhaseIndex)
      {
       if (PhaseFraction <= Phases[PhaseIndex])
@@ -3224,7 +3224,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    
    if (LoadedImage.Success)
    {
-    u64 RequestSize = LoadedImage.Width * LoadedImage.Height * 4;
+    u32 RequestSize = LoadedImage.Width * LoadedImage.Height * 4;
     editor_assets *Assets = &Editor->Assets;
     texture_transfer_op *TextureOp = PushTextureTransfer(Assets->TextureQueue, RequestSize);
     if (TextureOp)
@@ -3274,7 +3274,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
  }
  
  //- update and render entities
- for (u64 EntryIndex = 0;
+ for (u32 EntryIndex = 0;
       EntryIndex < MAX_ENTITY_COUNT;
       ++EntryIndex)
  {
@@ -3282,7 +3282,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   if ((Entity->Flags & EntityFlag_Active) && IsEntityVisible(Entity))
   {
    m3x3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
-   SetTransform(RenderGroup, Model, Entity->SortingLayer);
+   SetTransform(RenderGroup, Model, Cast(f32)Entity->SortingLayer);
    
    switch (Entity->Type)
    {
@@ -3328,7 +3328,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
      if (AreLinePointsVisible(Curve))
      {
       visible_cubic_bezier_points VisibleBeziers = GetVisibleCubicBezierPoints(Entity);
-      for (u64 Index = 0;
+      for (u32 Index = 0;
            Index < VisibleBeziers.Count;
            ++Index)
       {
@@ -3346,9 +3346,9 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
                   GetCurvePartZOffset(CurvePart_ControlPoint));
       }
       
-      u64 ControlPointCount = Curve->ControlPointCount;
+      u32 ControlPointCount = Curve->ControlPointCount;
       v2 *ControlPoints = Curve->ControlPoints;
-      for (u64 PointIndex = 0;
+      for (u32 PointIndex = 0;
            PointIndex < ControlPointCount;
            ++PointIndex)
       {

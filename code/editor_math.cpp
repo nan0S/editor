@@ -223,12 +223,12 @@ AngleCompareLess(v2 A, v2 B, v2 O)
 }
 
 internal void
-AngleSort(u64 NumPoints, v2 *Points)
+AngleSort(u32 NumPoints, v2 *Points)
 {
  if (NumPoints > 0)
  {
   v2 BottomLeftMostPoint = Points[0];
-  for (u64 PointIndex = 1;
+  for (u32 PointIndex = 1;
        PointIndex < NumPoints;
        ++PointIndex)
   {
@@ -242,12 +242,12 @@ AngleSort(u64 NumPoints, v2 *Points)
   
   //- Bubble sort
   b32 Sorting = true;
-  for (u64 Iteration = 0;
+  for (u32 Iteration = 0;
        Sorting;
        ++Iteration)
   {
    Sorting = false;
-   for (u64 J = 1; J < NumPoints - Iteration; ++J)
+   for (u32 J = 1; J < NumPoints - Iteration; ++J)
    {
     v2 A = Points[J-1];
     v2 B = Points[J];
@@ -262,14 +262,14 @@ AngleSort(u64 NumPoints, v2 *Points)
  }
 }
 
-internal u64
-RemoveDupliatesSorted(u64 NumPoints, v2 *Points)
+internal u32
+RemoveDupliatesSorted(u32 NumPoints, v2 *Points)
 {
- u64 NumUnique = 0;
+ u32 NumUnique = 0;
  if (NumPoints > 0)
  {
   NumUnique = 1;
-  for (u64 PointIndex = 1;
+  for (u32 PointIndex = 1;
        PointIndex < NumPoints;
        ++PointIndex)
   {
@@ -283,18 +283,18 @@ RemoveDupliatesSorted(u64 NumPoints, v2 *Points)
  return NumUnique;
 }
 
-internal u64
-CalcConvexHull(u64 PointCount, v2 *Points, v2 *OutPoints)
+internal u32
+CalcConvexHull(u32 PointCount, v2 *Points, v2 *OutPoints)
 {
- u64 HullPointCount = 0;
+ u32 HullPointCount = 0;
  if (PointCount > 0)
  {
   MemoryCopy(OutPoints, Points, PointCount * SizeOf(OutPoints[0]));
   AngleSort(PointCount, OutPoints);
-  u64 UniquePointCount = RemoveDupliatesSorted(PointCount, OutPoints);
+  u32 UniquePointCount = RemoveDupliatesSorted(PointCount, OutPoints);
   
   HullPointCount = 1;
-  for (u64 PointIndex = 1; PointIndex < UniquePointCount; ++PointIndex)
+  for (u32 PointIndex = 1; PointIndex < UniquePointCount; ++PointIndex)
   {
    v2 Point = OutPoints[PointIndex];
    while (HullPointCount >= 2)
@@ -324,17 +324,17 @@ CalcConvexHull(u64 PointCount, v2 *Points, v2 *OutPoints)
 // TODO(hbr): Loop logic is very ugly but works. Clean it up.
 // Might have only work because we need only loop on convex hull order points.
 internal vertex_array
-ComputeVerticesOfThickLine(arena *Arena, u64 PointCount, v2 *LinePoints, f32 Width, b32 Loop)
+ComputeVerticesOfThickLine(arena *Arena, u32 PointCount, v2 *LinePoints, f32 Width, b32 Loop)
 {
- u64 N = PointCount;
+ u32 N = PointCount;
  if (Loop) N += 2;
  
- u64 MaxVertexCount = 0;
+ u32 MaxVertexCount = 0;
  if (N >= 2) MaxVertexCount = 2*2 + 4 * N;
  
  vertex *Vertices = PushArrayNonZero(Arena, MaxVertexCount, vertex);
  
- u64 VertexIndex = 0;
+ u32 VertexIndex = 0;
  b32 IsLastInside = false;
  
  if (!Loop && PointCount >= 2)
@@ -354,7 +354,7 @@ ComputeVerticesOfThickLine(arena *Arena, u64 PointCount, v2 *LinePoints, f32 Wid
   IsLastInside = false;
  }
  
- for (u64 PointIndex = 1;
+ for (u32 PointIndex = 1;
       PointIndex + 1 < N;
       ++PointIndex)
  {
@@ -485,13 +485,13 @@ LerpColor(v4 From, v4 To, f32 T)
 }
 
 internal void
-EquidistantPoints(f32 *Ti, u64 N)
+EquidistantPoints(f32 *Ti, u32 N)
 {
  if (N > 1)
  {
   f32 TDelta = 1.0f / (N-1);
   f32 T = 0.0f;
-  for (u64 I = 0; I < N; ++I)
+  for (u32 I = 0; I < N; ++I)
   {
    Ti[I] = T;
    T += TDelta;
@@ -500,21 +500,21 @@ EquidistantPoints(f32 *Ti, u64 N)
 }
 
 internal void
-ChebyshevPoints(f32 *Ti, u64 N)
+ChebyshevPoints(f32 *Ti, u32 N)
 {
- for (u64 K = 0; K < N; ++K)
+ for (u32 K = 0; K < N; ++K)
  {
   Ti[K] = CosF32(Pi32 * (2*K+1) / (2*N));
  }
 }
 
 internal void
-BarycentricOmega(f32 *Omega, f32 *Ti, u64 N)
+BarycentricOmega(f32 *Omega, f32 *Ti, u32 N)
 {
- for (u64 I = 0; I < N; ++I)
+ for (u32 I = 0; I < N; ++I)
  {
   f32 W = 1.0f;
-  for (u64 J = 0; J < N; ++J)
+  for (u32 J = 0; J < N; ++J)
   {
    if (J != I)
    {
@@ -527,28 +527,28 @@ BarycentricOmega(f32 *Omega, f32 *Ti, u64 N)
 
 // TODO(hbr): Figure out with it doesn't work
 internal void
-BarycentricOmegaWerner(f32 *Omega, f32 *Ti, u64 N)
+BarycentricOmegaWerner(f32 *Omega, f32 *Ti, u32 N)
 {
  temp_arena Temp = TempArena(0);
  
  f32 *Mem = PushArrayNonZero(Temp.Arena, N*N, f32);
  
  Mem[Idx(0, 0, N)] = 1.0f;
- for (u64 K = 1; K < N; ++K)
+ for (u32 K = 1; K < N; ++K)
  {
   Mem[Idx(0, K, N)] = 0.0f;
  }
  
- for (u64 I = 1; I < N; ++I)
+ for (u32 I = 1; I < N; ++I)
  {
-  for (u64 K = 0; K <= N-I; ++K)
+  for (u32 K = 0; K <= N-I; ++K)
   {
    Mem[Idx(I, K, N)] = Mem[Idx(I-1, K, N)] / (Ti[K] - Ti[I]);
    Mem[Idx(K+1, I, N)] = Mem[Idx(K, I, N)] - Mem[Idx(I, K, N)];
   }
  }
  
- for (u64 I = 0; I < N; ++I)
+ for (u32 I = 0; I < N; ++I)
  {
   Omega[I] = Mem[Idx(N-1, I, N)];
  }
@@ -557,7 +557,7 @@ BarycentricOmegaWerner(f32 *Omega, f32 *Ti, u64 N)
 }
 
 internal void
-BarycentricOmegaEquidistant(f32 *Omega, f32 *Ti, u64 N)
+BarycentricOmegaEquidistant(f32 *Omega, f32 *Ti, u32 N)
 {
  if (N <= 1)
  {
@@ -566,7 +566,7 @@ BarycentricOmegaEquidistant(f32 *Omega, f32 *Ti, u64 N)
  else
  {
   f32 W0 = 1.0f;
-  for (u64 J = 1; J < N; ++J)
+  for (u32 J = 1; J < N; ++J)
   {
    W0 /= (Ti[0] - Ti[J]);
   }
@@ -574,9 +574,9 @@ BarycentricOmegaEquidistant(f32 *Omega, f32 *Ti, u64 N)
   Omega[0] = W0;
   
   f32 W = W0;
-  for (u64 I = 0; I < N-1; ++I)
+  for (u32 I = 0; I < N-1; ++I)
   {
-   s64 Num = I - N;
+   s32 Num = I - N;
    f32 Frac = Cast(f32)Num / (I + 1);
    W *= Frac;
    Omega[I+1] = W;
@@ -585,7 +585,7 @@ BarycentricOmegaEquidistant(f32 *Omega, f32 *Ti, u64 N)
 }
 
 inline internal f32
-PowerOf2(u64 K)
+PowerOf2(u32 K)
 {
  f32 Result = 1.0f;
  f32 A = 2.0f;
@@ -600,12 +600,12 @@ PowerOf2(u64 K)
 }
 
 internal void
-BarycentricOmegaChebychev(f32 *Omega, u64 N)
+BarycentricOmegaChebychev(f32 *Omega, u32 N)
 {
  if (N > 0)
  {
   f32 PowOf2 = PowerOf2(N-1);
-  for (u64 I = 0; I < N; ++I)
+  for (u32 I = 0; I < N; ++I)
   {
    f32 Num = PowOf2 * SinF32(Pi32 * (2*I+1) / (2*N));
    f32 Den = (N * SinF32(Pi32 * (2*I+1) * 0.5f));
@@ -615,9 +615,9 @@ BarycentricOmegaChebychev(f32 *Omega, u64 N)
 }
 
 internal f32
-BarycentricEvaluate(f32 T, f32 *Omega, f32 *Ti, f32 *Y, u64 N)
+BarycentricEvaluate(f32 T, f32 *Omega, f32 *Ti, f32 *Y, u32 N)
 {
- for (u64 I = 0; I < N; ++I)
+ for (u32 I = 0; I < N; ++I)
  {
   if (T == Ti[I])
   {
@@ -627,7 +627,7 @@ BarycentricEvaluate(f32 T, f32 *Omega, f32 *Ti, f32 *Y, u64 N)
  
  f32 Num = 0.0f;
  f32 Den = 0.0f;
- for (u64 I = 0; I < N; ++I)
+ for (u32 I = 0; I < N; ++I)
  {
   f32 Fraction = Omega[I] / (T - Ti[I]);
   Num += Y[I] * Fraction;
@@ -640,25 +640,25 @@ BarycentricEvaluate(f32 T, f32 *Omega, f32 *Ti, f32 *Y, u64 N)
 
 // NOTE(hbr): Compute directly from definition
 internal void
-NewtonBeta(f32 *Beta, f32 *Ti, f32 *Y, u64 N)
+NewtonBeta(f32 *Beta, f32 *Ti, f32 *Y, u32 N)
 {
  temp_arena Temp = TempArena(0);
  
  f32 *Mem = PushArrayNonZero(Temp.Arena, N*N, f32);
- for (u64 J = 0; J < N; ++J)
+ for (u32 J = 0; J < N; ++J)
  {
   Mem[J] = Y[J];
  }
  
- for (u64 I = 1; I < N; ++I)
+ for (u32 I = 1; I < N; ++I)
  {
-  for (u64 J = 0; J < N-I; ++J)
+  for (u32 J = 0; J < N-I; ++J)
   {
    Mem[I*N + J] = (Mem[(I-1)*N + J+1] - Mem[(I-1)*N + J]) / (Ti[J+I] - Ti[J]);
   }
  }
  
- for (u64 I = 0; I < N; ++I)
+ for (u32 I = 0; I < N; ++I)
  {
   Beta[I] = Mem[I*N + 0];
  }
@@ -668,17 +668,17 @@ NewtonBeta(f32 *Beta, f32 *Ti, f32 *Y, u64 N)
 
 // NOTE(hbr): Memory optimized version
 internal void
-NewtonBetaFast(f32 *Beta, f32 *Ti, f32 *Y, u64 N)
+NewtonBetaFast(f32 *Beta, f32 *Ti, f32 *Y, u32 N)
 {
- for (u64 J = 0; J < N; ++J)
+ for (u32 J = 0; J < N; ++J)
  {
   Beta[J] = Y[J];
  }
  
- for (u64 I = 1; I < N; ++I)
+ for (u32 I = 1; I < N; ++I)
  {
   f32 Save = Beta[I-1];
-  for (u64 J = 0; J < N-I; ++J)
+  for (u32 J = 0; J < N-I; ++J)
   {
    f32 Temp = Beta[I+J];
    Beta[I+J] = (Beta[I+J] - Save) / (Ti[I+J] - Ti[J]);
@@ -688,10 +688,10 @@ NewtonBetaFast(f32 *Beta, f32 *Ti, f32 *Y, u64 N)
 }
 
 internal f32
-NewtonEvaluate(f32 T, f32 *Beta, f32 *Ti, u64 N)
+NewtonEvaluate(f32 T, f32 *Beta, f32 *Ti, u32 N)
 {
  f32 Result = 0.0f;
- for (u64 I = N; I > 0; --I)
+ for (u32 I = N; I > 0; --I)
  {
   Result = Result * (T - Ti[I-1]) + Beta[I-1];
  }
@@ -700,10 +700,10 @@ NewtonEvaluate(f32 T, f32 *Beta, f32 *Ti, u64 N)
 }
 
 // NOTE(hbr): Those should be local conveniance internal, but impossible in C.
-inline internal f32 Hi(f32 *Ti, u64 I) { return Ti[I+1] - Ti[I]; }
-inline internal f32 Bi(f32 *Ti, f32 *Y, u64 I) { return 1.0f / Hi(Ti, I) * (Y[I+1] - Y[I]); }
-inline internal f32 Vi(f32 *Ti, u64 I) { return 2.0f * (Hi(Ti, I-1) + Hi(Ti, I)); }
-inline internal f32 Ui(f32 *Ti, f32 *Y, u64 I) { return 6.0f * (Bi(Ti, Y, I) - Bi(Ti, Y, I-1)); }
+inline internal f32 Hi(f32 *Ti, u32 I) { return Ti[I+1] - Ti[I]; }
+inline internal f32 Bi(f32 *Ti, f32 *Y, u32 I) { return 1.0f / Hi(Ti, I) * (Y[I+1] - Y[I]); }
+inline internal f32 Vi(f32 *Ti, u32 I) { return 2.0f * (Hi(Ti, I-1) + Hi(Ti, I)); }
+inline internal f32 Ui(f32 *Ti, f32 *Y, u32 I) { return 6.0f * (Bi(Ti, Y, I) - Bi(Ti, Y, I-1)); }
 
 #include <vector>
 // TODO(hbr): Temporary, remove
@@ -759,7 +759,7 @@ internal int gauss(vector<vector<ldb>> a, vector<ldb> &ans) { // O(n^3)
 }
 
 internal void
-CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u64 N)
+CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u32 N)
 {
  temp_arena Temp = TempArena(0);
  
@@ -771,13 +771,13 @@ CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u64 N)
   M[0] = M[N-1] = 0.0f;
   
   f32 *Diag = PushArrayNonZero(Temp.Arena, N, f32);
-  for (u64 I = 1; I < N-1; ++I)
+  for (u32 I = 1; I < N-1; ++I)
   {
    Diag[I] = Vi(Ti, I);
    M[I] = Ui(Ti, Y, I);
   }
   
-  for (u64 I = 1; I < N-2; ++I)
+  for (u32 I = 1; I < N-2; ++I)
   {
    // NOTE(hbr): Maybe optimize Hi
    f32 Multiplier = Hi(Ti, I) / Diag[I];
@@ -785,7 +785,7 @@ CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u64 N)
    M[I+1] -= Multiplier * M[I];
   }
   
-  for (u64 I = N-2; I > 1; --I)
+  for (u32 I = N-2; I > 1; --I)
   {
    f32 Multiplier = Hi(Ti, I-1) / Diag[I];
    M[I-1] -= Multiplier * M[I];
@@ -798,14 +798,14 @@ CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u64 N)
 }
 
 // NOTE(hbr): Those should be local conveniance internal, but impossible in C.
-inline internal f32 Hi(f32 *Ti, u64 I, u64 N) { if (I == N-1) I -= N-1; return Ti[I+1] - Ti[I]; }
-inline internal f32 Yi(f32 *Y, u64 I, u64 N) { if (I == N) I = 1; return Y[I]; }
-inline internal f32 Bi(f32 *Ti, f32 *Y, u64 I, u64 N) { return 1.0f / Hi(Ti, I, N) * (Yi(Y, I+1, N) - Yi(Y, I, N)); }
-inline internal f32 Vi(f32 *Ti, u64 I, u64 N) { return 2.0f * (Hi(Ti, I, N) + Hi(Ti, I+1, N)); }
-inline internal f32 Ui(f32 *Ti, f32 *Y, u64 I, u64 N) { return 6.0f * (Bi(Ti, Y, I+1, N) - Bi(Ti, Y, I, N)); }
+inline internal f32 Hi(f32 *Ti, u32 I, u32 N) { if (I == N-1) I -= N-1; return Ti[I+1] - Ti[I]; }
+inline internal f32 Yi(f32 *Y, u32 I, u32 N) { if (I == N) I = 1; return Y[I]; }
+inline internal f32 Bi(f32 *Ti, f32 *Y, u32 I, u32 N) { return 1.0f / Hi(Ti, I, N) * (Yi(Y, I+1, N) - Yi(Y, I, N)); }
+inline internal f32 Vi(f32 *Ti, u32 I, u32 N) { return 2.0f * (Hi(Ti, I, N) + Hi(Ti, I+1, N)); }
+inline internal f32 Ui(f32 *Ti, f32 *Y, u32 I, u32 N) { return 6.0f * (Bi(Ti, Y, I+1, N) - Bi(Ti, Y, I, N)); }
 
 internal void
-CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u64 N)
+CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u32 N)
 {
  if (N == 0) {} // NOTE(hbr): Nothing to calculate
  else if (N == 1) { M[0] = 0.0f; }
@@ -817,21 +817,21 @@ CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u64 N)
   temp_arena Temp = TempArena(0);
   
   f32 *A = PushArrayNonZero(Temp.Arena, (N-1) * N, f32);
-  for (u64 I = 0; I <= N-2; ++I)
+  for (u32 I = 0; I <= N-2; ++I)
   {
    A[Idx(I, I, N)] = Vi(Ti, I, N);
   }
-  for (u64 I = 1; I <= N-2; ++I)
+  for (u32 I = 1; I <= N-2; ++I)
   {
    A[Idx(I-1, I, N)] = Hi(Ti, I, N);
   }
-  for (u64 I = 1; I <= N-2; ++I)
+  for (u32 I = 1; I <= N-2; ++I)
   {
    A[Idx(I, I-1, N)] = Hi(Ti, I, N);
   }
   A[Idx(0, N-2, N)] = Hi(Ti, 0, N);
   A[Idx(N-2, 0, N)] = Hi(Ti, 0, N);
-  for (u64 I = 0; I <= N-2; ++I)
+  for (u32 I = 0; I <= N-2; ++I)
   {
    A[Idx(I, N-1, N)] = Ui(Ti, Y, I, N);
   }
@@ -842,28 +842,28 @@ CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u64 N)
   EndTemp(Temp);
 #else
   vector<vector<ldb>> a(N-1, vector<ldb>(N));
-  for (u64 I = 0; I <= N-2; ++I)
+  for (u32 I = 0; I <= N-2; ++I)
   {
    a[I][I] = Vi(Ti, I, N);
   }
-  for (u64 I = 1; I <= N-2; ++I)
+  for (u32 I = 1; I <= N-2; ++I)
   {
    a[I-1][I] = Hi(Ti, I, N);
   }
-  for (u64 I = 1; I <= N-2; ++I)
+  for (u32 I = 1; I <= N-2; ++I)
   {
    a[I][I-1] = Hi(Ti, I, N);
   }
   a[0][N-2] = Hi(Ti, 0, N);
   a[N-2][0] = Hi(Ti, 0, N);
-  for (u64 I = 0; I <= N-2; ++I)
+  for (u32 I = 0; I <= N-2; ++I)
   {
    a[I][N-1] = Ui(Ti, Y, I, N);
   }
   
   vector<ldb> ans;
   gauss(a, ans);
-  for (u64 I = 1; I < N; ++I)
+  for (u32 I = 1; I < N; ++I)
   {
    M[I] = ans[I-1];
   }
@@ -873,7 +873,7 @@ CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u64 N)
 }
 
 internal f32
-CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u64 N)
+CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N)
 {
  f32 Result = 0.0f;
  
@@ -883,13 +883,13 @@ CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u64 N)
  {
 #if 0
   // NOTE(hbr): Binary search to find correct range.
-  u64 I = 0;
+  u32 I = 0;
   {
    // NOTE(hbr): Maybe optimize to not use binary search
-   u64 Left = 0, Right = N-1;
+   u32 Left = 0, Right = N-1;
    while (Left + 1 < Right)
    {
-    u64 Middle = (Left + Right) >> 1;
+    u32 Middle = (Left + Right) >> 1;
     if (T >= Ti[Middle]) Left = Middle;
     else Right = Middle;
    }
@@ -899,7 +899,7 @@ CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u64 N)
   }
 #else
   // NOTE(hbr): Just linearly search
-  u64 I = 0;
+  u32 I = 0;
   for (I = N-2; I > 0; --I)
   {
    if (T >= Ti[I]) break;
@@ -920,16 +920,16 @@ CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u64 N)
 #if 0
 // NOTE(hbr): O(n^2) time, O(n) memory versions for reference
 internal v2
-BezierCurveEvaluate(f32 T, v2 *P, u64 N)
+BezierCurveEvaluate(f32 T, v2 *P, u32 N)
 {
  temp_arena Temp = TempArena(0);
  
  v2 *E = PushArrayNonZero(Temp.Arena, N, v2);
  MemoryCopy(E, P, N * SizeOf(E[0]));
  
- for (u64 I = 1; I < N; ++I)
+ for (u32 I = 1; I < N; ++I)
  {
-  for (u64 J = 0; J < N-I; ++J)
+  for (u32 J = 0; J < N-I; ++J)
   {
    E[J] = (1-T)*E[J] + T*E[J+1];
   }
@@ -942,7 +942,7 @@ BezierCurveEvaluate(f32 T, v2 *P, u64 N)
 }
 
 internal v2
-BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u64 N)
+BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u32 N)
 {
  temp_arena Temp = TempArena(0);
  
@@ -951,9 +951,9 @@ BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u64 N)
  MemoryCopy(EP, P, N * SizeOf(EP[0]));
  MemoryCopy(EW, W, N * SizeOf(EW[0]));
  
- for (u64 I = 1; I < N; ++I)
+ for (u32 I = 1; I < N; ++I)
  {
-  for (u64 J = 0; J < N-I; ++J)
+  for (u32 J = 0; J < N-I; ++J)
   {
    f32 EWJ = (1-T)*EW[J] + T*EW[J+1];
    
@@ -973,13 +973,13 @@ BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u64 N)
 #else
 // NOTE(hbr): O(n) time, O(1) memory versions
 internal v2
-BezierCurveEvaluate(f32 T, v2 *P, u64 N)
+BezierCurveEvaluate(f32 T, v2 *P, u32 N)
 {
  f32 H = 1.0f;
  f32 U = 1 - T;
  v2 Q = P[0];
  
- for (u64 K = 1; K < N; ++K)
+ for (u32 K = 1; K < N; ++K)
  {
   H = H * T * (N - K);
   H = H / (K * U + H);
@@ -990,13 +990,13 @@ BezierCurveEvaluate(f32 T, v2 *P, u64 N)
 }
 
 internal v2
-BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u64 N)
+BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u32 N)
 {
  f32 H = 1.0f;
  f32 U = 1 - T;
  v2 Q = P[0];
  
- for (u64 K = 1; K < N; ++K)
+ for (u32 K = 1; K < N; ++K)
  {
   H = H * T * (N - K) * W[K];
   H = H / (K * U * W[K-1] + H);
@@ -1008,13 +1008,13 @@ BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u64 N)
 #endif
 
 internal void
-BezierCurveElevateDegree(v2 *P, u64 N)
+BezierCurveElevateDegree(v2 *P, u32 N)
 {
  if (N > 0)
  {
   v2 PN = P[N-1];
   f32 Inv_N = 1.0f / N;
-  for (u64 I = N-1; I >= 1; --I)
+  for (u32 I = N-1; I >= 1; --I)
   {
    f32 Mix= I * Inv_N;
    P[I] = Mix * P[I-1] + (1 - Mix) * P[I];
@@ -1025,14 +1025,14 @@ BezierCurveElevateDegree(v2 *P, u64 N)
 }
 
 internal void
-BezierCurveElevateDegreeWeighted(v2 *P, f32 *W, u64 N)
+BezierCurveElevateDegreeWeighted(v2 *P, f32 *W, u32 N)
 {
  if (N > 0)
  {
   f32 WN = W[N-1];
   v2 PN = P[N-1];
   f32 Inv_N = 1.0f / N;
-  for (u64 I = N-1; I >= 1; --I)
+  for (u32 I = N-1; I >= 1; --I)
   {
    f32 Mix = I * Inv_N;
    
@@ -1053,17 +1053,17 @@ BezierCurveElevateDegreeWeighted(v2 *P, f32 *W, u64 N)
 #if 1
 // NOTE(hbr): Optimized, O(1) memory version
 internal bezier_lower_degree
-BezierCurveLowerDegree(v2 *P, f32 *W, u64 N)
+BezierCurveLowerDegree(v2 *P, f32 *W, u32 N)
 {
  bezier_lower_degree Result = {};
  
  if (N >= 2)
  {
-  u64 H = ((N-1) >> 1) + 1;
+  u32 H = ((N-1) >> 1) + 1;
   
   f32 Prev_Front_W = 0.0f;
   v2 Prev_Front_P = {};
-  for (u64 K = 0; K < H; ++K)
+  for (u32 K = 0; K < H; ++K)
   {
    f32 Alpha = Cast(f32)K / (N-1-K);
    
@@ -1087,7 +1087,7 @@ BezierCurveLowerDegree(v2 *P, f32 *W, u64 N)
   v2 Prev_Back_P = {};
   f32 Save_W = W[N-1];
   v2 Save_P = P[N-1];
-  for (u64 K = N-1; K >= H; --K)
+  for (u32 K = N-1; K >= H; --K)
   {
    f32 Alpha = Cast(f32)(N-1) / K;
    
@@ -1127,7 +1127,7 @@ BezierCurveLowerDegree(v2 *P, f32 *W, u64 N)
 #else
 // NOTE(hbr): Non-optimzed, O(N) memory version for reference
 internal void
-BezierCurveLowerDegree(v2 *P, f32 *W, u64 N)
+BezierCurveLowerDegree(v2 *P, f32 *W, u32 N)
 {
  if (N >= 1)
  {
@@ -1139,7 +1139,7 @@ BezierCurveLowerDegree(v2 *P, f32 *W, u64 N)
   
   {
    f32 Prev_Front_W = 0.0f;
-   for (u64 K = 0; K < N-1; ++K)
+   for (u32 K = 0; K < N-1; ++K)
    {
     f32 Alpha = Cast(f32)K / (N-1-K);
     Front_W[K] = (1 + Alpha) * W[K] - Alpha * Prev_Front_W;
@@ -1149,7 +1149,7 @@ BezierCurveLowerDegree(v2 *P, f32 *W, u64 N)
   
   {   
    f32 Prev_Back_W = 0.0f;
-   for (u64 K = N-1; K >= 1; --K)
+   for (u32 K = N-1; K >= 1; --K)
    {
     f32 Alpha = Cast(f32)(N-1-K) / K;
     Back_W[K-1] = (1 + Alpha) * W[K] - Alpha * Prev_Back_W;
@@ -1163,7 +1163,7 @@ BezierCurveLowerDegree(v2 *P, f32 *W, u64 N)
   {   
    f32 Prev_Front_W = 0.0f;
    v2 Prev_Front_P = {};
-   for (u64 K = 0; K < N-1; ++K)
+   for (u32 K = 0; K < N-1; ++K)
    {
     f32 Alpha = Cast(f32)K / (N-1-K);
     Front_P[K] = (1 + Alpha) * W[K]/Front_W[K] * P[K] - Alpha * Prev_Front_W/Front_W[K] * Prev_Front_P;
@@ -1175,7 +1175,7 @@ BezierCurveLowerDegree(v2 *P, f32 *W, u64 N)
   {
    f32 Prev_Back_W = 0.0f;
    v2 Prev_Back_P = {};
-   for (u64 K = N-1; K >= 1; --K)
+   for (u32 K = N-1; K >= 1; --K)
    {
     f32 Alpha = Cast(f32)(N-1-K) / K;
     Back_P[K-1] = (1 + Alpha) * W[K]/Back_W[K-1] * P[K] - Alpha * Prev_Back_W/Back_W[K-1] * Prev_Back_P;
@@ -1184,7 +1184,7 @@ BezierCurveLowerDegree(v2 *P, f32 *W, u64 N)
    }
   }
   
-  u64 H = (N >> 1) + 1;
+  u32 H = (N >> 1) + 1;
   MemoryCopy(W, Front_W, H * SizeOf(W[0]));
   MemoryCopy(W+H, Back_W+H, (N-1-H) * SizeOf(W[0]));
   MemoryCopy(P, Front_P, H * SizeOf(P[0]));
@@ -1198,7 +1198,7 @@ BezierCurveLowerDegree(v2 *P, f32 *W, u64 N)
 #endif
 
 internal inline void
-CalculateBezierCubicPointAt(u64 N, v2 *P, cubic_bezier_point *Out, u64 At)
+CalculateBezierCubicPointAt(u32 N, v2 *P, cubic_bezier_point *Out, u32 At)
 {
  // NOTE(hbr): All of these equations assume that all t_i are equidistant.
  // Otherwise equations are more complicated. Either way, this is the current
@@ -1216,7 +1216,7 @@ s_(i)))
 #define c(i) (SafeDiv0(1, dt) * (w(i+1) - w(i)))
  
  f32 dt = SafeDiv0(1.0f, N-1);
- u64 i = At;
+ u32 i = At;
  
  Out[At].P0 = (N > 2 ? (w(i) - 1.0f/3.0f * dt * s(i)) : w(i));
  Out[At].P1 = w(i);
@@ -1229,16 +1229,16 @@ s_(i)))
 }
 
 internal void
-BezierCubicCalculateAllControlPoints(u64 N, v2 *P, cubic_bezier_point *Out)
+BezierCubicCalculateAllControlPoints(u32 N, v2 *P, cubic_bezier_point *Out)
 {
- for (u64 I = 0; I < N; ++I)
+ for (u32 I = 0; I < N; ++I)
  {
   CalculateBezierCubicPointAt(N, P, Out, I);
  }
 }
 
 internal void
-BezierCurveSplit(f32 T, u64 N, v2 *P, f32 *W, 
+BezierCurveSplit(f32 T, u32 N, v2 *P, f32 *W, 
                  v2 *LeftPoints, f32 *LeftWeights,
                  v2 *RightPoints, f32 *RightWeights)
 {
@@ -1247,8 +1247,8 @@ BezierCurveSplit(f32 T, u64 N, v2 *P, f32 *W,
  all_de_casteljau_intermediate_results Intermediate = DeCasteljauAlgorithm(Temp.Arena, T, P, W, N);
  
  {   
-  u64 Index = 0;
-  for (u64 I = 0; I < N; ++I)
+  u32 Index = 0;
+  for (u32 I = 0; I < N; ++I)
   {
    LeftPoints[I] = Intermediate.P[Index];
    LeftWeights[I] = Intermediate.W[Index];
@@ -1257,8 +1257,8 @@ BezierCurveSplit(f32 T, u64 N, v2 *P, f32 *W,
  }
  
  {
-  u64 Index = Intermediate.TotalPointCount - 1;
-  for (u64 I = 0; I < N; ++I)
+  u32 Index = Intermediate.TotalPointCount - 1;
+  for (u32 I = 0; I < N; ++I)
   {
    RightPoints[I] = Intermediate.P[Index];
    RightWeights[I] = Intermediate.W[Index];
@@ -1270,26 +1270,26 @@ BezierCurveSplit(f32 T, u64 N, v2 *P, f32 *W,
 }
 
 internal all_de_casteljau_intermediate_results
-DeCasteljauAlgorithm(arena *Arena, f32 T, v2 *P, f32 *W, u64 N)
+DeCasteljauAlgorithm(arena *Arena, f32 T, v2 *P, f32 *W, u32 N)
 {
  all_de_casteljau_intermediate_results Result = {};
  
- u64 TotalPointCount = N * (N+1) / 2;
+ u32 TotalPointCount = N * (N+1) / 2;
  v2 *OutP = PushArrayNonZero(Arena, TotalPointCount, v2);
  f32   *OutW = PushArrayNonZero(Arena, TotalPointCount, f32);
  
  MemoryCopy(OutW, W, N * SizeOf(OutW[0]));
  MemoryCopy(OutP, P, N * SizeOf(OutP[0]));
  
- u64 Index = N;
- for (u64 Iteration = 1;
+ u32 Index = N;
+ for (u32 Iteration = 1;
       Iteration < N;
       ++Iteration)
  {
-  for (u64 J = 0; J < N-Iteration; ++J)
+  for (u32 J = 0; J < N-Iteration; ++J)
   {
-   u64 IndexLeft = Index - (N-Iteration)-1;
-   u64 IndexRight = Index - (N-Iteration);
+   u32 IndexLeft = Index - (N-Iteration)-1;
+   u32 IndexRight = Index - (N-Iteration);
    
    f32 WeightLeft = (1-T) * OutW[IndexLeft];
    f32 WeightRight = T * OutW[IndexRight];
@@ -1315,19 +1315,19 @@ DeCasteljauAlgorithm(arena *Arena, f32 T, v2 *P, f32 *W, u64 N)
 }
 
 internal void
-GaussianElimination(f32 *A, u64 N, f32 *Solution)
+GaussianElimination(f32 *A, u32 N, f32 *Solution)
 {
  temp_arena Temp = TempArena(0);
  
- s64 *Pos = PushArrayNonZero(Temp.Arena, N, s64);
+ s32 *Pos = PushArrayNonZero(Temp.Arena, N, s32);
  MemorySet(Pos, -1, N * SizeOf(Pos[0]));
  
- for (u64 Col = 0, Row = 0;
+ for (u32 Col = 0, Row = 0;
       Col < N && Row < N;
       ++Col)
  {
-  u64 Max = Row;
-  for (u64 I = Row; I < N; ++I)
+  u32 Max = Row;
+  for (u32 I = Row; I < N; ++I)
   {
    if (Abs(A[Idx(I, Col, N+1)]) > Abs(A[Idx(Max, Col, N+1)]))
    {
@@ -1338,7 +1338,7 @@ GaussianElimination(f32 *A, u64 N, f32 *Solution)
   {
    continue;
   }
-  for (u64 I = Col; I <= N; ++I)
+  for (u32 I = Col; I <= N; ++I)
   {
    // TODO(hbr): Make sure swap is ok here
    f32 X = A[Idx(Row, I, N+1)];
@@ -1346,12 +1346,12 @@ GaussianElimination(f32 *A, u64 N, f32 *Solution)
    A[Idx(Max, I, N+1)] = X;
   }
   Pos[Col] = Row;
-  for (u64 I = 0; I < N; ++I)
+  for (u32 I = 0; I < N; ++I)
   {
    if (I != Row && Abs(A[Idx(I, Col, N+1)]) > F32_EPS)
    {
     f32 C = A[Idx(I, Col, N+1)] / A[Idx(Row, Col, N+1)];
-    for (u64 J = Col; J <= N; ++J)
+    for (u32 J = Col; J <= N; ++J)
     {
      A[Idx(I, J, N+1)] -= C * A[Idx(Row, J, N+1)];
     }
@@ -1360,12 +1360,12 @@ GaussianElimination(f32 *A, u64 N, f32 *Solution)
   ++Row;
  }
  
- for (u64 I = 0; I < N; ++I)
+ for (u32 I = 0; I < N; ++I)
  {
   if (Pos[I] != -1)
   {
    Assert(Pos[I] >= 0);
-   u64 P = Pos[I];
+   u32 P = Pos[I];
    Solution[I] = A[Idx(P, N, N+1)] / A[Idx(P, I, N+1)];
   }
   else

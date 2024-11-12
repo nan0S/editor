@@ -27,23 +27,23 @@ internal u64 GetPageSize(void);
 //- files
 enum
 {
-   FileAccess_Read  = (1<<0),
-   FileAccess_Write = (1<<1),
+ FileAccess_Read  = (1<<0),
+ FileAccess_Write = (1<<1),
 };
 typedef u64 file_access_flags;
 
 struct file_attrs
 {
-   timestamp64 CreateTime;
-   timestamp64 ModifyTime;
-   u64 FileSize;
-   b32 Dir;
+ timestamp64 CreateTime;
+ timestamp64 ModifyTime;
+ u64 FileSize;
+ b32 Dir;
 };
 
 struct dir_entry
 {
-   string FileName;
-   file_attrs Attrs;
+ string FileName;
+ file_attrs Attrs;
 };
 
 internal file        OS_OpenFile(string Path, file_access_flags Access);
@@ -111,7 +111,7 @@ internal void LockMutex(mutex *Mutex);
 internal void UnlockMutex(mutex *Mutex);
 internal void DestroyMutex(mutex *Mutex);
 
-internal void InitSemaphore(semaphore *Sem, u64 InitialCount, u64 MaxCount);
+internal void InitSemaphore(semaphore *Sem, u32 InitialCount, u32 MaxCount);
 internal void PostSemaphore(semaphore *Sem);
 internal void WaitSemaphore(semaphore *Sem);
 internal void DestroySemaphore(semaphore *Sem);
@@ -130,20 +130,20 @@ internal u64 InterlockedCmpExch(u64 volatile *Value, u64 Cmp, u64 Exch);
 #endif
 struct work_queue_entry
 {
-   void (*Func)(void *Data);
-   void *Data;
+ void (*Func)(void *Data);
+ void *Data;
 #if TEST_WORK_QUEUE
-   b32 Completed;
+ b32 Completed;
 #endif
 };
 struct work_queue
 {
-   work_queue_entry Entries[1024];
-   u64 volatile NextEntryToWrite;
-   u64 volatile NextEntryToRead;
-   u64 volatile CompletionCount;
-   u64 EntryCount;
-   semaphore Semaphore;
+ work_queue_entry Entries[1024];
+ u64 volatile NextEntryToWrite;
+ u64 volatile NextEntryToRead;
+ u64 volatile CompletionCount;
+ u64 EntryCount;
+ semaphore Semaphore;
 };
 internal void InitWorkQueue(work_queue *Queue, u64 ThreadCount);
 internal void PutWork(work_queue *Queue, void (*Func)(void *Data), void *Data);

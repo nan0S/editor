@@ -3,7 +3,7 @@
 
 struct win32_platform_input
 {
- u64 EventCount;
+ u32 EventCount;
 #define WIN32_MAX_EVENT_COUNT 128
  platform_event Events[WIN32_MAX_EVENT_COUNT];
 };

@@ -1,7 +1,7 @@
 #ifndef EDITOR_ENTITY2_H
 #define EDITOR_ENTITY2_H
 
-enum interpolation_type
+enum interpolation_type : u32
 {
  Interpolation_CubicSpline,
  Interpolation_Bezier,
@@ -12,7 +12,7 @@ enum interpolation_type
 read_only global char const *InterpolationNames[] = { "Cubic Spline", "Bezier", "Polynomial" };
 StaticAssert(ArrayCount(InterpolationNames) == Interpolation_Count, InterpolationNamesDefined);
 
-enum polynomial_interpolation_type
+enum polynomial_interpolation_type : u32
 {
  PolynomialInterpolation_Barycentric,
  PolynomialInterpolation_Newton,
@@ -21,7 +21,7 @@ enum polynomial_interpolation_type
 read_only global char const *PolynomialInterpolationNames[] = { "Barycentric", "Newton" };
 StaticAssert(ArrayCount(PolynomialInterpolationNames) == PolynomialInterpolation_Count, PolynomialInterpolationNamesDefined);
 
-enum point_spacing
+enum point_spacing : u32
 {
  PointSpacing_Chebychev,
  PointSpacing_Equidistant,
@@ -36,7 +36,7 @@ struct polynomial_interpolation_params
  point_spacing PointSpacing;
 };
 
-enum cubic_spline_type
+enum cubic_spline_type : u32
 {
  CubicSpline_Natural,
  CubicSpline_Periodic,
@@ -45,7 +45,7 @@ enum cubic_spline_type
 read_only global char const *CubicSplineNames[] = { "Natural", "Periodic" };
 StaticAssert(ArrayCount(CubicSplineNames) == CubicSpline_Count, CubicSplineNamesDefined);
 
-enum bezier_type
+enum bezier_type : u32
 {
  Bezier_Regular,
  Bezier_Cubic,
@@ -77,16 +77,16 @@ struct curve_params
  v4 ConvexHullColor;
  f32 ConvexHullWidth;
  
- u64 PointCountPerSegment;
+ u32 PointCountPerSegment;
 };
 
 struct control_point_index
 {
- u64 Index;
+ u32 Index;
 };
 struct cubic_bezier_point_index
 {
- u64 Index;
+ u32 Index;
 };
 enum curve_point_type
 {
@@ -104,7 +104,7 @@ struct curve_point_index
 
 struct visible_cubic_bezier_points
 {
- u64 Count;
+ u32 Count;
  cubic_bezier_point_index Indices[4];
 };
 
@@ -140,7 +140,7 @@ struct curve_degree_lowering_state
  f32 MixParameter;
 };
 
-typedef u64 translate_curve_point_flags;
+typedef u32 translate_curve_point_flags;
 enum
 {
  TranslateCurvePoint_MatchBezierTwinDirection = (1<<0),
@@ -152,7 +152,7 @@ struct curve
  curve_params Params;
  
  // all points here are in local space
- u64 ControlPointCount;
+ u32 ControlPointCount;
 #define MAX_CONTROL_POINT_COUNT 1024
  v2 ControlPoints[MAX_CONTROL_POINT_COUNT];
  f32 ControlPointWeights[MAX_CONTROL_POINT_COUNT];
@@ -162,10 +162,10 @@ struct curve
  
  translate_curve_point_flags CubicBezierTranslateFlags;
  
- u64 LinePointCount;
+ u32 LinePointCount;
  v2 *LinePoints;
  
- u64 ConvexHullCount;
+ u32 ConvexHullCount;
  v2 *ConvexHullPoints;
  
  vertex_array LineVertices;
@@ -198,7 +198,7 @@ enum
  EntityFlag_Hidden   = (1<<1),
  EntityFlag_Selected = (1<<2),
 };
-typedef u64 entity_flags;
+typedef u32 entity_flags;
 
 struct entity
 {
@@ -211,7 +211,7 @@ struct entity
  char NameBuffer[64];
  string Name;
  
- s64 SortingLayer;
+ s32 SortingLayer;
  entity_flags Flags;
  
  entity_type Type;
@@ -221,7 +221,7 @@ struct entity
 
 struct entity_array
 {
- u64 Count;
+ u32 Count;
  entity *Entities;
 };
 
@@ -237,7 +237,7 @@ internal b32 IsEntityVisible(entity *Entity);
 internal b32 IsEntitySelected(entity *Entity);
 internal b32 IsControlPointSelected(curve *Curve);
 internal b32 AreLinePointsVisible(curve *Curve);
-internal point_info GetCurveControlPointInfo(entity *Curve, u64 PointIndex);
+internal point_info GetCurveControlPointInfo(entity *Curve, u32 PointIndex);
 internal f32 GetCurveTrackedPointRadius(curve *Curve);
 internal f32 GetCurveCubicBezierPointRadius(curve *Curve);
 internal visible_cubic_bezier_points GetVisibleCubicBezierPoints(entity *Entity);
@@ -272,7 +272,7 @@ CubicBezierPointIndexFromControlPointIndex(control_point_index Index)
 }
 
 inline internal control_point_index
-MakeControlPointIndex(u64 Index)
+MakeControlPointIndex(u32 Index)
 {
  control_point_index Result = {};
  Result.Index = Index;
@@ -296,7 +296,7 @@ inline internal v2
 GetCenterPointFromCubicBezierPointIndex(curve *Curve, cubic_bezier_point_index Index)
 {
  v2 Result = {};
- u64 ControlPointIndex = Index.Index / 3;
+ u32 ControlPointIndex = Index.Index / 3;
  if (ControlPointIndex < Curve->ControlPointCount)
  {
   Result = Curve->ControlPoints[ControlPointIndex];
@@ -306,9 +306,9 @@ GetCenterPointFromCubicBezierPointIndex(curve *Curve, cubic_bezier_point_index I
 }
 
 inline internal control_point_index
-CurveLinePointIndexToControlPointIndex(curve *Curve, u64 CurveLinePointIndex)
+CurveLinePointIndexToControlPointIndex(curve *Curve, u32 CurveLinePointIndex)
 {
- u64 Index = SafeDiv0(CurveLinePointIndex, Curve->Params.PointCountPerSegment);
+ u32 Index = SafeDiv0(CurveLinePointIndex, Curve->Params.PointCountPerSegment);
  Assert(Index < Curve->ControlPointCount);
  control_point_index Result = {};
  Result.Index = ClampTop(Index, Curve->ControlPointCount - 1);
@@ -317,9 +317,9 @@ CurveLinePointIndexToControlPointIndex(curve *Curve, u64 CurveLinePointIndex)
 }
 
 internal void SetCurvePoint(entity *Entity, curve_point_index Index, v2 P, translate_curve_point_flags Flags);
-internal void RemoveControlPoint(entity *Entity, u64 Index);
+internal void RemoveControlPoint(entity *Entity, u32 Index);
 internal control_point_index AppendControlPoint(entity *Entity, v2 Point);
-internal void InsertControlPoint(entity *Entity, v2 Point, u64 At);
+internal void InsertControlPoint(entity *Entity, v2 Point, u32 At);
 internal void SelectControlPoint(curve *Curve, control_point_index Index);
 internal void SelectControlPointFromCurvePointIndex(curve *Curve, curve_point_index Index);
 internal void UnselectControlPoint(curve *Curve);

@@ -177,7 +177,7 @@ InitThreadCtx(void)
 {
  if (!GlobalCtx.Initialized)
  {
-  for (u64 ArenaIndex = 0;
+  for (u32 ArenaIndex = 0;
        ArenaIndex < ArrayCount(GlobalCtx.Arenas);
        ++ArenaIndex)
   {
@@ -191,7 +191,7 @@ internal temp_arena
 TempArena(arena *Conflict)
 {
  temp_arena Result = {};
- for (u64 Index = 0;
+ for (u32 Index = 0;
       Index < ArrayCount(GlobalCtx.Arenas);
       ++Index)
  {

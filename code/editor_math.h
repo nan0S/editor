@@ -68,8 +68,8 @@ internal f32 Dot(v2 U, v2 V);
 internal f32 Cross(v2 U, v2 V);
 internal v2 Hadamard(v2 A, v2 B);
 
-typedef u64 hull_point_count64;
-internal hull_point_count64 CalcConvexHull(u64 PointCount, v2 *Points, v2 *OutPoints);
+typedef u32 hull_point_count32;
+internal hull_point_count32 CalcConvexHull(u32 PointCount, v2 *Points, v2 *OutPoints);
 
 internal v2 Rotation2D(f32 X, f32 Y);
 internal v2 Rotation2DZero(void);
@@ -96,28 +96,28 @@ internal v3 Transform3x3(m3x3 A, v3 P);
 internal m3x3 Diag3x3(f32 X, f32 Y);
 
 //~ Interpolation
-internal void EquidistantPoints(f32 *Ti, u64 N);
-internal void ChebychevPoints(f32 *Ti, u64 N);
+internal void EquidistantPoints(f32 *Ti, u32 N);
+internal void ChebychevPoints(f32 *Ti, u32 N);
 
-internal void BarycentricOmega(f32 *Omega, f32 *Ti, u64 N);
-internal void BarycentricOmegaWerner(f32 *Omega, f32 *Ti, u64 N);
-internal void BarycentricOmegaEquidistant(f32 *Omega, f32 *Ti, u64 N);
-internal void BarycentricOmegaChebychev(f32 *Omega, u64 N);
-internal f32  BarycentricEvaluate(f32 T, f32 *Omega, f32 *Ti, f32 *Y, u64 N);
+internal void BarycentricOmega(f32 *Omega, f32 *Ti, u32 N);
+internal void BarycentricOmegaWerner(f32 *Omega, f32 *Ti, u32 N);
+internal void BarycentricOmegaEquidistant(f32 *Omega, f32 *Ti, u32 N);
+internal void BarycentricOmegaChebychev(f32 *Omega, u32 N);
+internal f32  BarycentricEvaluate(f32 T, f32 *Omega, f32 *Ti, f32 *Y, u32 N);
 
-internal void NewtonBeta(f32 *Beta, f32 *Ti, f32 *Y, u64 N);
-internal void NewtonBetaFast(f32 *Beta, f32 *Ti, f32 *Y, u64 N);
-internal f32  NewtonEvaluate(f32 T, f32 *Beta, f32 *Ti, u64 N);
+internal void NewtonBeta(f32 *Beta, f32 *Ti, f32 *Y, u32 N);
+internal void NewtonBetaFast(f32 *Beta, f32 *Ti, f32 *Y, u32 N);
+internal f32  NewtonEvaluate(f32 T, f32 *Beta, f32 *Ti, u32 N);
 
-internal void CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u64 N);
-internal void CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u64 N);
-internal f32  CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u64 N);
+internal void CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u32 N);
+internal void CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u32 N);
+internal f32  CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N);
 
 struct bezier_lower_degree
 {
  b32 Failure;
  
- u64 MiddlePointIndex;
+ u32 MiddlePointIndex;
  
  v2 P_I;
  v2 P_II;
@@ -136,27 +136,27 @@ union cubic_bezier_point
  v2 Ps[3];
 };
 
-internal v2                  BezierCurveEvaluate(f32 T, v2 *P, u64 N);
-internal v2                  BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u64 N);
-internal void                BezierCurveElevateDegree(v2 *P, u64 N);
-internal void                BezierCurveElevateDegreeWeighted(v2 *P, f32 *W, u64 N);
-internal bezier_lower_degree BezierCurveLowerDegree(v2 *P, f32 *W, u64 N);
-internal void                BezierCubicCalculateAllControlPoints(u64 N, v2 *P, cubic_bezier_point *Out);
-internal void                BezierCurveSplit(f32 T, u64 N, v2 *P, f32 *W, 
+internal v2                  BezierCurveEvaluate(f32 T, v2 *P, u32 N);
+internal v2                  BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u32 N);
+internal void                BezierCurveElevateDegree(v2 *P, u32 N);
+internal void                BezierCurveElevateDegreeWeighted(v2 *P, f32 *W, u32 N);
+internal bezier_lower_degree BezierCurveLowerDegree(v2 *P, f32 *W, u32 N);
+internal void                BezierCubicCalculateAllControlPoints(u32 N, v2 *P, cubic_bezier_point *Out);
+internal void                BezierCurveSplit(f32 T, u32 N, v2 *P, f32 *W, 
                                               v2 *LeftPoints, f32 *LeftWeights,
                                               v2 *RightPoints, f32 *RightWeights);
 
 struct all_de_casteljau_intermediate_results
 {
- u64 IterationCount;
- u64 TotalPointCount;
+ u32 IterationCount;
+ u32 TotalPointCount;
  // NOTE(hbr): Packed points: P1,P2,P3, Q1,Q2, R1
  v2 *P;
  f32 *W;
 };
-internal all_de_casteljau_intermediate_results DeCasteljauAlgorithm(arena *Arena, f32 T, v2 *P, f32 *W, u64 N);
+internal all_de_casteljau_intermediate_results DeCasteljauAlgorithm(arena *Arena, f32 T, v2 *P, f32 *W, u32 N);
 
-internal void GaussianElimination(f32 *A, u64 N, f32 *Solution);
+internal void GaussianElimination(f32 *A, u32 N, f32 *Solution);
 
 //~ Collisions, intersections, geometry
 struct line_intersection

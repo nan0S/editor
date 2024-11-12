@@ -14,7 +14,7 @@ enum render_primitive_type
 
 struct vertex_array
 {
- u64 VertexCount;
+ u32 VertexCount;
  vertex *Vertices;
  render_primitive_type Primitive;
 };
@@ -35,7 +35,7 @@ struct render_command_clear
 
 struct render_command_vertex_array
 {
- u64 VertexCount;
+ u32 VertexCount;
  vertex *Vertices;
  render_primitive_type Primitive;
  v4 Color;
@@ -63,7 +63,7 @@ struct render_command_triangle
 
 struct render_command_image
 {
- u64 TextureIndex;
+ u32 TextureIndex;
 };
 
 struct render_command
@@ -82,9 +82,9 @@ struct render_command
 
 struct render_frame
 {
- u64 CommandCount;
+ u32 CommandCount;
  render_command *Commands;
- u64 MaxCommandCount;
+ u32 MaxCommandCount;
  
  v2u WindowDim;
  
@@ -106,15 +106,15 @@ struct render_group
 
 struct texture_transfer_op
 {
- u64 TextureIndex;
- u64 Width;
- u64 Height;
+ u32 TextureIndex;
+ u32 Width;
+ u32 Height;
  char *Pixels;
 };
 
 struct texture_transfer_queue
 {
- u64 OpCount;
+ u32 OpCount;
  texture_transfer_op Ops[32];
  
  char *TransferMemory;
@@ -124,9 +124,9 @@ struct texture_transfer_queue
 
 struct platform_renderer_limits
 {
- u64 MaxCommandCount;
- u64 MaxTextureQueueMemorySize;
- u64 MaxTextureCount;
+ u32 MaxCommandCount;
+ u32 MaxTextureQueueMemorySize;
+ u32 MaxTextureCount;
 };
 
 struct platform_renderer

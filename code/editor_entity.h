@@ -31,11 +31,11 @@ CurveRotateAround(entity *CurveEntity, v2 Center, v2 Rotation)
 struct entity_sort_entry
 {
  entity *Entity;
- u64 OriginalOrder;
+ u32 OriginalOrder;
 };
 struct sorted_entity_array
 {
- u64 EntityCount;
+ u32 EntityCount;
  entity_sort_entry *Entries;
 };
 
@@ -72,7 +72,7 @@ InitEntity(entity *Entity,
            v2 Scale,
            v2 Rotation,
            string Name,
-           s64 SortingLayer)
+           s32 SortingLayer)
 {
  Entity->P = P;
  Entity->Scale = Scale;
@@ -81,7 +81,7 @@ InitEntity(entity *Entity,
  Entity->SortingLayer = SortingLayer;
 }
 
-internal void SetCurveControlPoints(entity *Entity, u64 ControlPointCount, v2 *ControlPoints,
+internal void SetCurveControlPoints(entity *Entity, u32 ControlPointCount, v2 *ControlPoints,
                                     f32 *ControlPointWeights, cubic_bezier_point *CubicBezierPoints);
 
 // TODO(hbr): remove this
@@ -104,7 +104,7 @@ InitImage(entity *Entity)
 }
 
 internal b32
-BeginLinePoints(curve *Curve, u64 ControlPointCount)
+BeginLinePoints(curve *Curve, u32 ControlPointCount)
 {
  b32 Result = false;
  if (ControlPointCount <= MAX_CONTROL_POINT_COUNT)
@@ -147,6 +147,6 @@ RecomputeCurve(entity *Entity)
 }
 
 // TODO(hbr): remove this
-internal void CalculateBezierCubicPointAt(u64 N, v2 *P, cubic_bezier_point *Out, u64 At);
+internal void CalculateBezierCubicPointAt(u32 N, v2 *P, cubic_bezier_point *Out, u32 At);
 
 #endif //EDITOR_ENTITY_H

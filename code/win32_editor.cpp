@@ -102,7 +102,7 @@ PLATFORM_READ_ENTIRE_FILE(Win32ReadEntireFile)
  u64 Left = FileSize;
  while (Left > 0)
  {
-  DWORD ToRead = Min(U32_MAX, Left);
+  DWORD ToRead = Cast(DWORD)Min(U32_MAX, Left);
   DWORD Read = 0;
   ReadFile(File, Buffer, ToRead, &Read, 0);
   
@@ -255,7 +255,7 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
    
    case WM_PAINT: {
     PAINTSTRUCT Paint;
-    HDC DeviceContext = BeginPaint(Window, &Paint);
+    HDC DC = BeginPaint(Window, &Paint);
     EndPaint(Window, &Paint);
    }break;
    
@@ -300,10 +300,8 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
    
    case WM_KEYUP:
    case WM_KEYDOWN: {
-    platform_event_type Type = PlatformEvent_None;
     b32 Pressed = (Msg == WM_KEYDOWN);
     platform_key Key = Win32KeyToPlatformKey(wParam);
-    
     platform_event *Event = Win32PushPlatformEvent(Pressed ? PlatformEvent_Press : PlatformEvent_Release);
     if (Event)
     {
@@ -327,7 +325,7 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
     if (Event)
     {
      s32 MouseDelta = Cast(s16)HIWORD(wParam);
-     Event->ScrollDelta = MouseDelta / WHEEL_DELTA;
+     Event->ScrollDelta = Cast(f32)(MouseDelta / WHEEL_DELTA);
      Event->ClipSpaceMouseP = Win32ClipSpaceMousePFromLParam(Window, lParam);
     }
    }break;

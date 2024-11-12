@@ -69,7 +69,6 @@ GetVisibleCubicBezierPoints(entity *Entity)
      Curve->Params.Interpolation == Interpolation_Bezier &&
      Curve->Params.Bezier == Bezier_Cubic)
  {
-  cubic_bezier_point *Beziers = Curve->CubicBezierPoints;
   cubic_bezier_point_index StartIndex = CubicBezierPointIndexFromControlPointIndex(Curve->SelectedIndex);
   
   cubic_bezier_point_index PrevIndex = StartIndex;
@@ -97,7 +96,7 @@ GetVisibleCubicBezierPoints(entity *Entity)
 }
 
 internal point_info
-GetCurveControlPointInfo(entity *Entity, u64 PointIndex)
+GetCurveControlPointInfo(entity *Entity, u32 PointIndex)
 {
  point_info Result = {};
  
@@ -138,7 +137,7 @@ GetCurveCubicBezierPointRadius(curve *Curve)
 internal void
 ExtractControlPointIndexAndBezierOffsetFromCurvePointIndex(curve_point_index Index,
                                                            control_point_index *ControlPointIndex,
-                                                           u64 *BezierOffset)
+                                                           u32 *BezierOffset)
 {
  switch (Index.Type)
  {
@@ -160,7 +159,7 @@ SetCurvePoint(entity *Entity, curve_point_index Index, v2 P, translate_curve_poi
  curve *Curve = GetCurve(Entity);
  
  control_point_index ControlPointIndex;
- u64 BezierOffset;
+ u32 BezierOffset;
  ExtractControlPointIndexAndBezierOffsetFromCurvePointIndex(Index, &ControlPointIndex, &BezierOffset);
  
  if (ControlPointIndex.Index < Curve->ControlPointCount)
@@ -229,7 +228,7 @@ SelectControlPointFromCurvePointIndex(curve *Curve, curve_point_index Index)
  if (Curve)
  {
   control_point_index ControlPointIndex;
-  u64 BezierOffset;
+  u32 BezierOffset;
   ExtractControlPointIndexAndBezierOffsetFromCurvePointIndex(Index, &ControlPointIndex, &BezierOffset);
   Curve->SelectedIndex = ControlPointIndex;
  }
@@ -275,7 +274,7 @@ UnselectControlPoint(curve *Curve)
 {
  if (Curve)
  {
-  Curve->SelectedIndex.Index = U64_MAX;
+  Curve->SelectedIndex.Index = U32_MAX;
  }
 }
 
@@ -294,8 +293,8 @@ internal sorted_entries
 SortEntities(arena *Arena, entity_array Entities)
 {
  sort_entry *Entries = PushArrayNonZero(Arena, Entities.Count, sort_entry);
- u64 EntryCount = 0;
- for (u64 EntityIndex = 0;
+ u32 EntryCount = 0;
+ for (u32 EntityIndex = 0;
       EntityIndex < Entities.Count;
       ++EntityIndex)
  {
@@ -339,14 +338,14 @@ AppendControlPoint(entity *Entity, v2 Point)
 }
 
 internal void
-InsertControlPoint(entity *Entity, v2 Point, u64 At)
+InsertControlPoint(entity *Entity, v2 Point, u32 At)
 {
  curve *Curve = GetCurve(Entity);
  if (Curve &&
      Curve->ControlPointCount < MAX_CONTROL_POINT_COUNT &&
      At <= Curve->ControlPointCount)
  {
-  u64 N = Curve->ControlPointCount;
+  u32 N = Curve->ControlPointCount;
   v2 *P = Curve->ControlPoints;
   f32 *W = Curve->ControlPointWeights;
   cubic_bezier_point *B = Curve->CubicBezierPoints;

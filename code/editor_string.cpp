@@ -172,7 +172,8 @@ FmtFloat(out_buf *Out, f64 F, char const *Inf, char const *Nan, u64 Precision,
    IntegerPart = (BaseDigit << Exponent) | (Mantissa >> AdjustMantissa);
   }
   
-  FmtNumber(Out, IntegerPart, 10, "0123456789", "", false, false, false, false);
+  char DecChars[] = "0123456789";
+  FmtNumber(Out, IntegerPart, 10, DecChars, "", false, false, false, false);
   OutC(Out, '.');
   
   // TODO(hbr): extracting decimal part isn't perfect, maybe improve
@@ -182,9 +183,9 @@ FmtFloat(out_buf *Out, f64 F, char const *Inf, char const *Nan, u64 Precision,
   u64 DecimalsWritten = 0;
   do {
    F *= 10;
-   u64 Digit = Cast(u64)F;
-   OutC(Out, Digit + '0');
-   F -= Digit;
+   u32 Int = Cast(u32)F;
+   OutC(Out, DecChars[Int]);
+   F -= Int;
    ++DecimalsWritten;
   } while (DecimalsWritten < Precision && F != 0);
  }
@@ -323,7 +324,7 @@ FmtV(char *Buf, u64 BufSize, char const *Format, va_list Args)
      }
      
      // NOTE(hbr): float gets automatically promoted to double by the compiler
-     f64 F = (LongDouble ? va_arg(Args, long double) : va_arg(Args, f64));
+     f64 F = (LongDouble ? Cast(f64)va_arg(Args, long double) : va_arg(Args, f64));
      FmtFloat(&Out, F, Inf, Nan, Precision, ForceSign, SpaceAsSign);
     } break;
     
@@ -342,7 +343,7 @@ FmtV(char *Buf, u64 BufSize, char const *Format, va_list Args)
     
     case 'n': {
      u32 *WrittenSoFar = va_arg(Args, u32 *);
-     *WrittenSoFar = BufSize - Out.Count;
+     *WrittenSoFar = Cast(u32)(BufSize - Out.Count);
     } break;
     
     case 'g':

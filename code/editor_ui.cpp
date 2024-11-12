@@ -1,5 +1,5 @@
 internal b32
-UI_Combo_(u8 *Enum, u8 EnumCount, char const *EnumNames[], string Label)
+UI_Combo(u32 *Enum, u32 EnumCount, char const *EnumNames[], string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
@@ -12,13 +12,13 @@ UI_Combo_(u8 *Enum, u8 EnumCount, char const *EnumNames[], string Label)
 }
 
 internal b32
-UI_ComboF_(u8 *Enum, u8 EnumCount, char const *EnumNames[], char const *Format, ...)
+UI_ComboF(u32 *Enum, u32 EnumCount, char const *EnumNames[], char const *Format, ...)
 {
  temp_arena Temp = TempArena(0);
  va_list  Args;
  va_start(Args, Format);
  string Label = StrFV(Temp.Arena, Format, Args);
- b32 Result = UI_Combo_(Enum, EnumCount, EnumNames, Label);
+ b32 Result = UI_Combo(Enum, EnumCount, EnumNames, Label);
  va_end(Args);
  EndTemp(Temp);
  
@@ -172,7 +172,7 @@ UI_PushLabelF(char const *Format, ...)
  EndTemp(Temp);
 }
 
-internal void UI_PushId(u64 Id) { ImGui::PushID(Id); }
+internal void UI_PushId(u32 Id) { ImGui::PushID(Id); }
 internal void UI_PopId(void) { ImGui::PopID(); }
 internal void UI_PopLabel(void) { UI_PopId(); }
 internal void UI_BeginDisabled(b32 Disabled) { ImGui::BeginDisabled(Cast(bool)Disabled); }
@@ -320,7 +320,7 @@ SafeCastInt(s64 Value)
 }
 
 internal b32
-UI_SliderInteger_(s64 *Value, s64 MinValue, s64 MaxValue, string Label)
+UI_SliderInteger(s32 *Value, s32 MinValue, s32 MaxValue, string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
@@ -333,7 +333,7 @@ UI_SliderInteger_(s64 *Value, s64 MinValue, s64 MaxValue, string Label)
 }
 
 internal b32
-UI_SliderIntegerF_(s64 *Value, s64 MinValue, s64 MaxValue, char const *Format, ...)
+UI_SliderIntegerF(s32 *Value, s32 MinValue, s32 MaxValue, char const *Format, ...)
 {
  va_list Args;
  va_start(Args, Format);

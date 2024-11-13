@@ -1,7 +1,5 @@
 #include <windows.h>
 
-#include "imgui_inc.h"
-
 #include "editor_base.h"
 #include "editor_memory.h"
 #include "editor_string.h"
@@ -11,22 +9,15 @@
 #include "win32_editor.h"
 #include "win32_editor_renderer.h"
 
-// TODO(hbr): uncomment once editor core code will be dynamically loaded
-//#include "editor_memory.cpp"
-//#include "editor_string.cpp"
-
-#include "editor.h"
-#include "editor.cpp"
+#include "editor_memory.cpp"
+#include "editor_string.cpp"
 
 global u64 GlobalProcCount;
 global u64 GlobalPageSize;
 global win32_platform_input *GlobalWin32Input;
 global u64 GlobalWin32ClockFrequency;
 global platform_input *GlobalInput;
-
-WIN32_RENDERER_INIT();
-WIN32_RENDERER_BEGIN_FRAME();
-WIN32_RENDERER_END_FRAME();
+platform_api Platform;
 
 PLATFORM_ALLOC_VIRTUAL_MEMORY(Win32AllocMemory)
 {
@@ -121,7 +112,7 @@ PLATFORM_READ_ENTIRE_FILE(Win32ReadEntireFile)
  return Result;
 }
 
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+//extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 internal platform_event *
 Win32PushPlatformEvent(platform_event_type Type)
@@ -240,13 +231,17 @@ internal LRESULT
 Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
 {
  LRESULT Result = 0;
+#if 0
  if (ImGui_ImplWin32_WndProcHandler(Window, Msg, wParam, lParam))
  {
   Result = 1;
  }
  else
+#endif
  {
+#if 0
   ImGuiIO &ImGuiInput = ImGui::GetIO();
+#endif
   switch (Msg)
   {
    case WM_CLOSE: {
@@ -285,7 +280,9 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
      case WM_RBUTTONUP: {Key = PlatformKey_RightMouseButton;}break;
     }
     
+#if 0
     if (!ImGuiInput.WantCaptureMouse)
+#endif
     {
      platform_event *Event = Win32PushPlatformEvent(Pressed ? PlatformEvent_Press : PlatformEvent_Release);
      if (Event)
@@ -383,7 +380,9 @@ WinMain(HINSTANCE Instance,
  Platform.ReadEntireFile = Win32ReadEntireFile;
  
  InitThreadCtx();
+#if 0
  ImGui::CreateContext();
+#endif
  // TODO(hbr): Maybe set ImGui IO flags
  
  //- create window
@@ -425,13 +424,42 @@ WinMain(HINSTANCE Instance,
    ShowWindow(Window, nShowCmd);
    InitSuccess = true;
    
+   //- load editor code
+   // TODO(hbr): Don't hardcore "debug" suffix here as well
+   HMODULE EditorCodeLibrary = LoadLibrary("editor_debug.dll");
+   editor_update_and_render *EditorUpdateAndRender = 0;
+   editor_get_imgui_bindings *EditorGetImGuiBindings = 0;
+   if (EditorCodeLibrary)
+   {
+    // TODO(hbr): And this function name - don't hardcode it
+    EditorUpdateAndRender = Cast(editor_update_and_render *)GetProcAddress(EditorCodeLibrary, "EditorUpdateAndRender");
+    EditorGetImGuiBindings = Cast(editor_get_imgui_bindings *)GetProcAddress(EditorCodeLibrary, "EditorGetImGuiBindings");
+   }
+   imgui_bindings ImGuiBindings = EditorGetImGuiBindings();
+   
+   //- load renderer code
+   // TODO(hbr): Don't hardcode the fact that it has to be suffixed with _debug - either remove suffixes from the
+   // build system or #if BUILD_DEBUG or maybe input these things through build system
+   HMODULE RendererCodeLibrary = LoadLibrary("win32_editor_opengl_debug.dll");
+   win32_renderer_init *Win32RendererInit = 0;
+   renderer_begin_frame *Win32RendererBeginFrame = 0;
+   renderer_end_frame *Win32RendererEndFrame = 0;
+   if (RendererCodeLibrary)
+   {
+    // TODO(hbr): Don't hardcode these strings here, instead define them in one place
+    Win32RendererInit = Cast(win32_renderer_init *)GetProcAddress(RendererCodeLibrary, "Win32RendererInit");
+    Win32RendererBeginFrame = Cast(renderer_begin_frame *)GetProcAddress(RendererCodeLibrary, "Win32RendererBeginFrame");
+    Win32RendererEndFrame = Cast(renderer_end_frame *)GetProcAddress(RendererCodeLibrary, "Win32RendererEndFrame");
+   }
+   
    //- init renderer
    platform_renderer_limits Limits = {};
    Limits.MaxCommandCount = 4096;
    Limits.MaxTextureQueueMemorySize = Megabytes(100);
    Limits.MaxTextureCount = 256;
    arena *RendererArena = AllocArena();
-   platform_renderer *Renderer = Win32RendererInit(RendererArena, &Limits, Window);
+   HDC WindowDC = GetDC(Window);
+   platform_renderer *Renderer = Win32RendererInit(RendererArena, &Limits, Platform, Window, WindowDC, ImGuiBindings);
    
    editor_memory Memory = {};
    Memory.PermamentArena = AllocArena();
@@ -476,13 +504,13 @@ WinMain(HINSTANCE Instance,
      Input.ClipSpaceMouseP = Win32ScreenToClip(CursorP.x, CursorP.y, WindowDim);
     }
     
-    render_frame *Frame = Win32BeginFrame(Renderer, WindowDim);
+    render_frame *Frame = Win32RendererBeginFrame(Renderer, WindowDim);
     
     LARGE_INTEGER EndClock = Win32GetClock();
     Input.dtForFrame = Win32SecondsElapsed(LastClock, EndClock);
     EditorUpdateAndRender(&Memory, &Input, Frame);
     
-    Win32EndFrame(Renderer, Frame);
+    Win32RendererEndFrame(Renderer, Frame);
     
     if (Input.QuitRequested)
     {

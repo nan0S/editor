@@ -857,6 +857,22 @@ StrListPush(arena *Arena, string_list *List, string Str)
  List->TotalSize += Str.Count;
 }
 
+internal void
+StrListPushF(arena *Arena, string_list *List, char const *Format, ...)
+{
+ va_list Args;
+ va_start(Args, Format);
+ StrListPushFV(Arena, List, Format, Args);
+ va_end(Args);
+}
+
+internal void
+StrListPushFV(arena *Arena, string_list *List, char const *Format, va_list Args)
+{
+ string S = StrFV(Arena, Format, Args);
+ StrListPush(Arena, List, S);
+}
+
 internal string_list
 StrListCopy(arena *Arena, string_list *List)
 {
@@ -875,7 +891,7 @@ StrListConcatInPlace(string_list *List, string_list *ToPush)
  if (List->Tail)
  {
   List->Tail->Next = ToPush->Head;
-  List->Tail = ToPush->Tail;
+  if (ToPush->Tail) List->Tail = ToPush->Tail;
   List->NodeCount += ToPush->NodeCount;
   List->TotalSize += ToPush->TotalSize;
  }

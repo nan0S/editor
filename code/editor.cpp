@@ -1,5 +1,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "third_party/stb/stb_image.h"
+#include "imgui_inc.h"
+
+#include "editor.h"
 
 #include "editor_math.cpp"
 #include "editor_memory.cpp"
@@ -161,11 +164,11 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
  EntityArray.Entities = Entities;
  sorted_entries Sorted = SortEntities(Temp.Arena, EntityArray);
  
- for (u32 Index = 0;
-      Index < Sorted.Count;
-      ++Index)
+ for (u32 SortedIndex = 0;
+      SortedIndex < Sorted.Count;
+      ++SortedIndex)
  {
-  entity *Entity = EntityArray.Entities + Sorted.Entries[Index].Index;
+  entity *Entity = EntityArray.Entities + Sorted.Entries[SortedIndex].Index;
   if (IsEntityVisible(Entity))
   {
    v2 LocalAtP = WorldToLocalEntityPosition(Entity, AtP);
@@ -2119,11 +2122,50 @@ LoadImageFromMemory(arena *Arena, char *ImageData, u64 Count)
  return Result;
 }
 
+platform_api Platform;
+
+IMGUI_INIT(ImGuiInit)
+{
+ ImGui::CreateContext();
+ ImGui_ImplWin32_Init(Window);
+ ImGui_ImplOpenGL3_Init();
+}
+
+IMGUI_NEW_FRAME(ImGuiNewFrame)
+{
+ ImGui_ImplOpenGL3_NewFrame();
+ ImGui_ImplWin32_NewFrame();
+ ImGui::NewFrame();
+}
+
+IMGUI_RENDER(ImGuiRender)
+{
+ ImGui::Render();
+ ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
+extern "C"
+EDITOR_GET_IMGUI_BINDINGS(EditorGetImGuiBindings)
+{
+ imgui_bindings Bindings = {};
+ Bindings.Init = ImGuiInit;
+ Bindings.NewFrame = ImGuiNewFrame;
+ Bindings.Render = ImGuiRender;
+ 
+ return Bindings;
+}
+
+extern "C"
 EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 {
+ Platform = Memory->PlatformAPI;
+ 
  editor *Editor = Memory->Editor;
  if (!Editor)
  {
+  // TODO(hbr): remove this from here, init in platform layer if anything
+  InitThreadCtx();
+  
   Editor = Memory->Editor = PushStruct(Memory->PermamentArena, editor);
   
   Editor->BackgroundColor = Editor->DefaultBackgroundColor = RGBA_Color(21, 21, 21);

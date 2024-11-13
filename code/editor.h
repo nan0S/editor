@@ -423,6 +423,4 @@ struct editor
  curve_combining_state CurveCombining;
 };
 
-EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender);
-
 #endif //EDITOR_H

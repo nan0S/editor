@@ -293,6 +293,9 @@ if ((Node)->Next) (Node)->Next->Prev = (Node)->Prev; \
 } \
 } while (0)
 
+inline internal u32 SafeCastU32(u64 X) { Assert(X <= U32_MAX); return Cast(u32)X; }
+inline internal u8 SafeCastU8(u64 X) { Assert(X <= U8_MAX); return Cast(u8)X; }
+
 inline internal v2  V2(f32 X, f32 Y) { return {X,Y}; }
 inline internal v2s V2S(s32 X, s32 Y) { return {X,Y}; }
 inline internal v2u V2U(u32 X, u32 Y) { return {X,Y}; }

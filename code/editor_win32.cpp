@@ -108,10 +108,10 @@ OS_FileOperation(file_op_func *Op, file File, char *Buf, u64 Target, u64 Offset)
  u64 OffsetAt = Offset;
  while (Left)
  {
-  u64 ToProcess = Min(Left, U32_MAX);
+  u32 ToProcess = SafeCastU32(ClampTop(Left, U32_MAX));
   
   OVERLAPPED Overlapped = {};
-  Overlapped.Offset = OffsetAt;
+  Overlapped.Offset = Cast(u32)OffsetAt;
   Overlapped.OffsetHigh = OffsetAt >> 32;
   
   DWORD ActuallyProcessed = 0;
@@ -184,11 +184,11 @@ Win32SysTimeToDateTime(SYSTEMTIME SysTime)
 {
  date_time Date = {};
  Date.Ms = SysTime.wMilliseconds;
- Date.Sec = SysTime.wSecond;
- Date.Mins = SysTime.wMinute;
- Date.Hour = SysTime.wHour;
- Date.Day = SysTime.wDay - 1;
- Date.Month = SysTime.wMonth - 1;
+ Date.Sec = SafeCastU8(SysTime.wSecond);
+ Date.Mins = SafeCastU8(SysTime.wMinute);
+ Date.Hour = SafeCastU8(SysTime.wHour);
+ Date.Day = SafeCastU8(SysTime.wDay - 1);
+ Date.Month = SafeCastU8(SysTime.wMonth - 1);
  Date.Year = SysTime.wYear;
  
  return Date;

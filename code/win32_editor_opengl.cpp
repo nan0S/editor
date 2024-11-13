@@ -16,6 +16,7 @@
 
 platform_api Platform;
 
+// TODO(hbr): Move this struct definition into .h file
 struct opengl
 {
  platform_renderer PlatformHeader;
@@ -27,15 +28,20 @@ struct opengl
  
  u32 MaxTextureCount;
  GLuint *Textures;
+ 
+ imgui_bindings ImGuiBindings;
 };
 
-WIN32_RENDERER_INIT()
+extern "C"
+WIN32_RENDERER_INIT(Win32RendererInit)
 {
+ Platform = PlatformAPI;
+ 
  opengl *OpenGL = PushStruct(Arena, opengl);
- HDC WindowDC = GetDC(Window);
  
  OpenGL->CommandBuffer = PushArrayNonZero(Arena, Limits->MaxCommandCount, render_command);
  OpenGL->MaxCommandCount = Limits->MaxCommandCount;
+ OpenGL->ImGuiBindings = ImGuiBindings;
  
  //- set pixel format
  {
@@ -89,14 +95,13 @@ WIN32_RENDERER_INIT()
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
  }
  
- //- initialize ImGui
- ImGui_ImplWin32_Init(Window);
- ImGui_ImplOpenGL3_Init();
+ ImGuiBindings.Init(Window);
  
  return Cast(platform_renderer *)OpenGL;
 }
 
-WIN32_RENDERER_BEGIN_FRAME()
+extern "C"
+RENDERER_BEGIN_FRAME(Win32RendererBeginFrame)
 {
  opengl *OpenGL = Cast(opengl *)Renderer;
  
@@ -106,9 +111,7 @@ WIN32_RENDERER_BEGIN_FRAME()
  RenderFrame->MaxCommandCount = OpenGL->MaxCommandCount;
  RenderFrame->WindowDim = WindowDim;
  
- ImGui_ImplOpenGL3_NewFrame();
- ImGui_ImplWin32_NewFrame();
- ImGui::NewFrame();
+ OpenGL->ImGuiBindings.NewFrame();
  
  return RenderFrame;
 }
@@ -130,7 +133,8 @@ M3x3ToM4x4OpenGL(m3x3 M)
  return R;
 }
 
-WIN32_RENDERER_END_FRAME()
+extern "C"
+RENDERER_END_FRAME(Win32RendererEndFrame)
 {
  opengl *OpenGL = Cast(opengl *)Renderer;
  texture_transfer_queue *Queue = &OpenGL->PlatformHeader.TextureQueue;
@@ -284,7 +288,6 @@ WIN32_RENDERER_END_FRAME()
   }
  }
  
- ImGui::Render();
- ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+ OpenGL->ImGuiBindings.Render();
  SwapBuffers(wglGetCurrentDC());
 }

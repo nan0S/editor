@@ -145,7 +145,7 @@ struct work_queue
  u64 EntryCount;
  semaphore Semaphore;
 };
-internal void InitWorkQueue(work_queue *Queue, u64 ThreadCount);
+internal void InitWorkQueue(work_queue *Queue, u32 ThreadCount);
 internal void PutWork(work_queue *Queue, void (*Func)(void *Data), void *Data);
 internal void CompleteAllWork(work_queue *Queue);
 

@@ -135,6 +135,9 @@ struct platform_renderer
 };
 
 #define RENDERER_BEGIN_FRAME(Name) render_frame *Name(platform_renderer *Renderer, v2u WindowDim)
+typedef RENDERER_BEGIN_FRAME(renderer_begin_frame);
+
 #define RENDERER_END_FRAME(Name) void Name(platform_renderer *Renderer, render_frame *Frame)
+typedef RENDERER_END_FRAME(renderer_end_frame);
 
 #endif //EDITOR_RENDERER_H

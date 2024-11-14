@@ -150,28 +150,8 @@ struct editor_memory
  platform_api PlatformAPI;
 };
 
-struct render_frame;
-
-#define EDITOR_UPDATE_AND_RENDER(Name) void Name(editor_memory *Memory, platform_input *Input, render_frame *Frame)
+#define EDITOR_UPDATE_AND_RENDER(Name) void Name(editor_memory *Memory, platform_input *Input, struct render_frame *Frame)
 typedef EDITOR_UPDATE_AND_RENDER(editor_update_and_render);
-
-// TODO(hbr): Windows header shouldn't be here
-#include <windows.h>
-#define IMGUI_INIT(Name) void Name(HWND Window)
-typedef IMGUI_INIT(imgui_init);
-
-#define IMGUI_NEW_FRAME(Name) void Name(void)
-typedef IMGUI_NEW_FRAME(imgui_new_frame);
-
-#define IMGUI_RENDER(Name) void Name(void)
-typedef IMGUI_RENDER(imgui_render);
-
-struct imgui_bindings
-{
- imgui_init *Init;
- imgui_new_frame *NewFrame;
- imgui_render *Render;
-};
 
 #define EDITOR_GET_IMGUI_BINDINGS(Name) imgui_bindings Name(void)
 typedef EDITOR_GET_IMGUI_BINDINGS(editor_get_imgui_bindings);

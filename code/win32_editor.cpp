@@ -1,13 +1,16 @@
 #include <windows.h>
 
+#include "editor_ctx_crack.h"
 #include "editor_base.h"
 #include "editor_memory.h"
 #include "editor_string.h"
+#include "imgui_bindings.h"
 #include "editor_platform.h"
 #include "editor_renderer.h"
 
 #include "win32_editor.h"
 #include "win32_editor_renderer.h"
+#include "win32_imgui_bindings.h"
 
 #include "editor_memory.cpp"
 #include "editor_string.cpp"
@@ -17,7 +20,18 @@ global u64 GlobalPageSize;
 global win32_platform_input *GlobalWin32Input;
 global u64 GlobalWin32ClockFrequency;
 global platform_input *GlobalInput;
-platform_api Platform;
+
+IMGUI_INIT(Win32ImGuiInitStub) {}
+IMGUI_NEW_FRAME(Win32ImGuiNewFrameStub) {}
+IMGUI_RENDER(Win32ImGuiRenderStub) {}
+IMGUI_MAYBE_CAPTURE_INPUT(Win32ImGuiMaybeCaptureInputStub) { return {}; }
+
+global imgui_bindings GlobalImGuiBindings = {
+ Win32ImGuiInitStub,
+ Win32ImGuiNewFrameStub,
+ Win32ImGuiRenderStub,
+ Win32ImGuiMaybeCaptureInputStub,
+};
 
 PLATFORM_ALLOC_VIRTUAL_MEMORY(Win32AllocMemory)
 {
@@ -112,7 +126,13 @@ PLATFORM_READ_ENTIRE_FILE(Win32ReadEntireFile)
  return Result;
 }
 
-//extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+platform_api Platform = {
+ Win32AllocMemory,
+ Win32DeallocMemory,
+ Win32CommitMemory,
+ Win32OpenFileDialog,
+ Win32ReadEntireFile,
+};
 
 internal platform_event *
 Win32PushPlatformEvent(platform_event_type Type)
@@ -231,17 +251,20 @@ internal LRESULT
 Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
 {
  LRESULT Result = 0;
-#if 0
- if (ImGui_ImplWin32_WndProcHandler(Window, Msg, wParam, lParam))
+ 
+ imgui_maybe_capture_input_data ImGuiData = {};
+ ImGuiData.Window = Window;
+ ImGuiData.Msg = Msg;
+ ImGuiData.wParam = wParam;
+ ImGuiData.lParam = lParam;
+ imgui_maybe_capture_input_result ImGuiResult = GlobalImGuiBindings.MaybeCaptureInput(&ImGuiData);
+ 
+ if (ImGuiResult.CapturedInput)
  {
   Result = 1;
  }
  else
-#endif
  {
-#if 0
-  ImGuiIO &ImGuiInput = ImGui::GetIO();
-#endif
   switch (Msg)
   {
    case WM_CLOSE: {
@@ -280,9 +303,7 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
      case WM_RBUTTONUP: {Key = PlatformKey_RightMouseButton;}break;
     }
     
-#if 0
-    if (!ImGuiInput.WantCaptureMouse)
-#endif
+    if (!ImGuiResult.ImGuiWantCaptureMouse)
     {
      platform_event *Event = Win32PushPlatformEvent(Pressed ? PlatformEvent_Press : PlatformEvent_Release);
      if (Event)
@@ -373,12 +394,6 @@ WinMain(HINSTANCE Instance,
  QueryPerformanceFrequency(&PerfCounterFrequency);
  GlobalWin32ClockFrequency = PerfCounterFrequency.QuadPart;
  
- Platform.AllocVirtualMemory = Win32AllocMemory;
- Platform.CommitVirtualMemory = Win32CommitMemory;
- Platform.DeallocVirtualMemory = Win32DeallocMemory;
- Platform.OpenFileDialog = Win32OpenFileDialog;
- Platform.ReadEntireFile = Win32ReadEntireFile;
- 
  InitThreadCtx();
 #if 0
  ImGui::CreateContext();
@@ -435,12 +450,12 @@ WinMain(HINSTANCE Instance,
     EditorUpdateAndRender = Cast(editor_update_and_render *)GetProcAddress(EditorCodeLibrary, "EditorUpdateAndRender");
     EditorGetImGuiBindings = Cast(editor_get_imgui_bindings *)GetProcAddress(EditorCodeLibrary, "EditorGetImGuiBindings");
    }
-   imgui_bindings ImGuiBindings = EditorGetImGuiBindings();
+   GlobalImGuiBindings = EditorGetImGuiBindings();
    
    //- load renderer code
    // TODO(hbr): Don't hardcode the fact that it has to be suffixed with _debug - either remove suffixes from the
    // build system or #if BUILD_DEBUG or maybe input these things through build system
-   HMODULE RendererCodeLibrary = LoadLibrary("win32_editor_opengl_debug.dll");
+   HMODULE RendererCodeLibrary = LoadLibrary("win32_editor_renderer_opengl_debug.dll");
    win32_renderer_init *Win32RendererInit = 0;
    renderer_begin_frame *Win32RendererBeginFrame = 0;
    renderer_end_frame *Win32RendererEndFrame = 0;
@@ -459,7 +474,7 @@ WinMain(HINSTANCE Instance,
    Limits.MaxTextureCount = 256;
    arena *RendererArena = AllocArena();
    HDC WindowDC = GetDC(Window);
-   platform_renderer *Renderer = Win32RendererInit(RendererArena, &Limits, Platform, Window, WindowDC, ImGuiBindings);
+   platform_renderer *Renderer = Win32RendererInit(RendererArena, &Limits, Platform, GlobalImGuiBindings, Window, WindowDC);
    
    editor_memory Memory = {};
    Memory.PermamentArena = AllocArena();

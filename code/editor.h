@@ -1,9 +1,12 @@
 #ifndef EDITOR_H
 #define EDITOR_H
 
+#include "editor_ctx_crack.h"
 #include "editor_base.h"
 #include "editor_string.h"
 #include "editor_memory.h"
+#include "editor_third_party_inc.h"
+#include "imgui_bindings.h"
 #include "editor_platform.h"
 #include "editor_renderer.h"
 #include "editor_math.h"

@@ -1,5 +1,8 @@
+#include "editor_ctx_crack.h"
 #include "editor_base.h"
 #include "editor_string.h"
+// TODO(hbr): This absolutely shouldn't be here
+#include "imgui_bindings.h"
 #include "editor_platform.h"
 #include "editor_memory.h"
 #include "editor_os.h"
@@ -109,7 +112,6 @@ Compile(compiler_setup Setup, compilation_target Target)
   string TargetFullName = StrAfterLastSlash(Target.SourcePathRel);
   string TargetNameBase = StrChopLastDot(TargetFullName);
   TargetName = StrF(Arena, "%S_%s", TargetNameBase, BuildTargetSuffix);
-  
  }
  
  // TODO(hbr): I think this is only true for MSVC actually
@@ -229,10 +231,6 @@ Compile(compiler_setup Setup, compilation_target Target)
    case GCC: {NotImplemented;}break;
   }
   
-  // TODO(hbr): Remove this
-  string JoinCmp = StrListJoin(Arena, Cmd, StrLit(" "));
-  OutputF("%S\n", JoinCmp);
-  
   Result.CompileProcess = OS_LaunchProcess(*Cmd);
  }
  
@@ -269,7 +267,7 @@ int main(int ArgCount, char *Argv[])
  InitThreadCtx();
  InitOS();
  
- BuildArena = TempArena(0).Arena;
+ BuildArena = AllocArena();
  arena *Arena = BuildArena;
  
  string ThisProgramExePath = {};
@@ -284,6 +282,7 @@ int main(int ArgCount, char *Argv[])
  
  b32 Debug = false;
  b32 Release = false;
+ b32 ForceRecompile = false;
  for (int ArgIndex = 1;
       ArgIndex < ArgCount;
       ++ArgIndex)
@@ -296,6 +295,10 @@ int main(int ArgCount, char *Argv[])
   if (StrMatch(Arg, StrLit("debug"), true))
   {
    Debug = true;
+  }
+  if (StrMatch(Arg, StrLit("force-recompile"), true))
+  {
+   ForceRecompile = true;
   }
  }
  if (!Debug && !Release)
@@ -331,6 +334,7 @@ int main(int ArgCount, char *Argv[])
    // NOTE(hbr): Basically just #include directives at the top of this file
    string_list ThisProgramDeps = {};
    StrListPush(Arena, &ThisProgramDeps, ThisProgramSourcePath);
+   StrListPush(Arena, &ThisProgramDeps, CodePath(StrLit("editor_ctx_crack.h")));
    StrListPush(Arena, &ThisProgramDeps, CodePath(StrLit("editor_base.h")));
    StrListPush(Arena, &ThisProgramDeps, CodePath(StrLit("editor_base.cpp")));
    StrListPush(Arena, &ThisProgramDeps, CodePath(StrLit("editor_memory.h")));
@@ -340,6 +344,7 @@ int main(int ArgCount, char *Argv[])
    StrListPush(Arena, &ThisProgramDeps, CodePath(StrLit("editor_os.h")));
    StrListPush(Arena, &ThisProgramDeps, CodePath(StrLit("editor_os.cpp")));
    StrListPush(Arena, &ThisProgramDeps, CodePath(StrLit("editor_platform.h")));
+   StrListPush(Arena, &ThisProgramDeps, CodePath(StrLit("imgui_bindings.h")));
    StrListPush(Arena, &ThisProgramDeps, CodePath(StrLit("build.h")));
    
    u64 LatestModifyTime = 0;
@@ -380,7 +385,7 @@ int main(int ArgCount, char *Argv[])
     
     //- compile renderer into library
     {
-     compilation_target Target = MakeTarget(Lib, StrLit("win32_editor_opengl.cpp"), 0);
+     compilation_target Target = MakeTarget(Lib, StrLit("win32_editor_renderer_opengl.cpp"), 0);
      ExportFunction(&Target, "Win32RendererInit");
      ExportFunction(&Target, "Win32RendererBeginFrame");
      ExportFunction(&Target, "Win32RendererEndFrame");
@@ -400,12 +405,12 @@ int main(int ArgCount, char *Argv[])
     }
     
     //- precompile imgui code into obj
-    compile_result ImGui = {};
+    compile_result ThirdParty = {};
     {
-     compilation_target Target = MakeTarget(Obj, StrLit("imgui_unity.cpp"),
-                                            CompilationFlag_DontRecompileIfAlreadyExists);
-     ImGui = Compile(Setup, Target);
-     OS_WaitForProcessToFinish(ImGui.CompileProcess);
+     compilation_flags Flags = (ForceRecompile ? 0 : CompilationFlag_DontRecompileIfAlreadyExists);
+     compilation_target Target = MakeTarget(Obj, StrLit("editor_third_party_unity.cpp"), Flags);
+     ThirdParty = Compile(Setup, Target);
+     OS_WaitForProcessToFinish(ThirdParty.CompileProcess);
     }
     
     //- compile editor code into library
@@ -413,7 +418,7 @@ int main(int ArgCount, char *Argv[])
      compilation_target Target = MakeTarget(Lib, StrLit("editor.cpp"), 0);
      ExportFunction(&Target, "EditorUpdateAndRender");
      ExportFunction(&Target, "EditorGetImGuiBindings");
-     StaticLink(&Target, ImGui.OutputTarget);
+     StaticLink(&Target, ThirdParty.OutputTarget);
      compile_result Editor = Compile(Setup, Target);
      EnqueueProcess(&ProcessQueue, Editor.CompileProcess);
     }

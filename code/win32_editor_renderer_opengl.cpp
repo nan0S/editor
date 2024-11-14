@@ -1,36 +1,23 @@
 #include <windows.h>
 #include <gl/gl.h>
 
-#include "imgui_inc.h"
-
+#include "editor_ctx_crack.h"
 #include "editor_base.h"
 #include "editor_memory.h"
 #include "editor_string.h"
 #include "editor_math.h"
+#include "imgui_bindings.h"
 #include "editor_platform.h"
 #include "editor_renderer.h"
+
 #include "win32_editor_renderer.h"
+#include "win32_editor_renderer_opengl.h"
+#include "win32_imgui_bindings.h"
 
 #include "editor_memory.cpp"
 #include "editor_math.cpp"
 
 platform_api Platform;
-
-// TODO(hbr): Move this struct definition into .h file
-struct opengl
-{
- platform_renderer PlatformHeader;
- 
- render_frame RenderFrame;
- 
- render_command *CommandBuffer;
- u32 MaxCommandCount;
- 
- u32 MaxTextureCount;
- GLuint *Textures;
- 
- imgui_bindings ImGuiBindings;
-};
 
 extern "C"
 WIN32_RENDERER_INIT(Win32RendererInit)
@@ -95,7 +82,9 @@ WIN32_RENDERER_INIT(Win32RendererInit)
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
  }
  
- ImGuiBindings.Init(Window);
+ imgui_init_data Init = {};
+ Init.Window = Window;
+ ImGuiBindings.Init(&Init);
  
  return Cast(platform_renderer *)OpenGL;
 }

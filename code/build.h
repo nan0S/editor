@@ -1,6 +1,10 @@
 #ifndef BUILD_H
 #define BUILD_H
 
+/*
+- Path with [Rel] suffix/part are relative to code directory where all source code should be contained
+*/
+
 // TODO(hbr): Move all of this into separate "core_build.h" file or sth like that
 enum compiler
 {

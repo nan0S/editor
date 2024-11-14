@@ -1,7 +1,3 @@
-#define STB_IMAGE_IMPLEMENTATION
-#include "third_party/stb/stb_image.h"
-#include "imgui_inc.h"
-
 #include "editor.h"
 
 #include "editor_math.cpp"
@@ -2124,37 +2120,6 @@ LoadImageFromMemory(arena *Arena, char *ImageData, u64 Count)
 
 platform_api Platform;
 
-IMGUI_INIT(ImGuiInit)
-{
- ImGui::CreateContext();
- ImGui_ImplWin32_Init(Window);
- ImGui_ImplOpenGL3_Init();
-}
-
-IMGUI_NEW_FRAME(ImGuiNewFrame)
-{
- ImGui_ImplOpenGL3_NewFrame();
- ImGui_ImplWin32_NewFrame();
- ImGui::NewFrame();
-}
-
-IMGUI_RENDER(ImGuiRender)
-{
- ImGui::Render();
- ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-}
-
-extern "C"
-EDITOR_GET_IMGUI_BINDINGS(EditorGetImGuiBindings)
-{
- imgui_bindings Bindings = {};
- Bindings.Init = ImGuiInit;
- Bindings.NewFrame = ImGuiNewFrame;
- Bindings.Render = ImGuiRender;
- 
- return Bindings;
-}
-
 extern "C"
 EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 {
@@ -3444,4 +3409,21 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    ResetTransform(RenderGroup);
   }
  }
+}
+
+IMGUI_INIT_FUNC();
+IMGUI_NEW_FRAME_FUNC();
+IMGUI_RENDER_FUNC();
+IMGUI_MAYBE_CAPTURE_INPUT_FUNC();
+
+extern "C"
+EDITOR_GET_IMGUI_BINDINGS(EditorGetImGuiBindings)
+{
+ imgui_bindings Bindings = {};
+ Bindings.Init = ImGuiInit;
+ Bindings.NewFrame = ImGuiNewFrame;
+ Bindings.Render = ImGuiRender;
+ Bindings.MaybeCaptureInput = ImGuiMaybeCaptureInput;
+ 
+ return Bindings;
 }

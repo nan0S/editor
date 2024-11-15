@@ -1,8 +1,11 @@
 #include "editor.h"
 
-#include "editor_math.cpp"
+#include "base_core.cpp"
+#include "base_string.cpp"
+
 #include "editor_memory.cpp"
-#include "editor_string.cpp"
+#include "editor_thread_ctx.cpp"
+#include "editor_math.cpp"
 #include "editor_renderer.cpp"
 #include "editor_entity.cpp"
 #include "editor_entity2.cpp"

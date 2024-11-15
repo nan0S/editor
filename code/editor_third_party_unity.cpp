@@ -13,8 +13,8 @@
 #include "third_party/imgui/imgui_widgets.cpp"
 
 //- editor imgui bindings
-#include "editor_ctx_crack.h"
-#include "editor_base.h"
+#include "base_ctx_crack.h"
+#include "base_core.h"
 #include "imgui_bindings.h"
 
 #if OS_WINDOWS

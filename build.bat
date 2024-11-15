@@ -3,7 +3,7 @@
 IF NOT EXIST build mkdir build
 pushd build
 
-REM cl /nologo ..\code\build.cpp /link /out:build.exe
+REM cl /nologo /FC /Z7 ..\code\build.cpp /link /out:build.exe
 REM build.exe %*
 
 REM cl /Z7 /Od /nologo ..\code\build.cpp /link /out:build.exe

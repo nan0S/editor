@@ -1,5 +1,5 @@
-#ifndef EDITOR_STRING_H
-#define EDITOR_STRING_H
+#ifndef BASE_STRING_H
+#define BASE_STRING_H
 
 struct string
 {
@@ -30,6 +30,7 @@ internal b32         CharIsUpper(char C);
 internal char        CharToLower(char C);
 internal char        CharToUpper(char C);
 internal b32         CharIsDigit(char C);
+internal b32         CharIsWhiteSpace(char C);
 
 internal string      MakeStr(char *Data, u64 Count);
 #define              StrLit(Lit) MakeStr(Cast(char *)Lit, ArrayCount(Lit) - 1)
@@ -69,4 +70,4 @@ internal string      StrListJoin(arena *Arena, string_list *List, string Sep);
 internal string_list StrListCopy(arena *Arena, string_list *List);
 internal void        StrListConcatInPlace(string_list *List, string_list *ToPush);
 
-#endif //EDITOR_STRING_H
+#endif //BASE_STRING_H

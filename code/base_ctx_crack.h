@@ -1,5 +1,5 @@
-#ifndef EDITOR_CTX_CRACK_H
-#define EDITOR_CTX_CRACK_H
+#ifndef BASE_CTX_CRACK_H
+#define BASE_CTX_CRACK_H
 
 #if defined(_WIN32)
 # define OS_WINDOWS 1
@@ -38,4 +38,4 @@
 # define BUILD_DEBUG 0
 #endif
 
-#endif //EDITOR_CTX_CRACK_H
+#endif //BASE_CTX_CRACK_H

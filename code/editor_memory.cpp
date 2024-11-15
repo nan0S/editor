@@ -1,7 +1,7 @@
 internal arena *
 AllocArenaSize(u64 Size, u64 Align)
 {
- u64 Header = AlignPow2(SizeOf(arena), Align);
+ u64 Header = AlignForwardPow2(SizeOf(arena), Align);
  u64 Capacity = Max(Header + Size, Megabytes(1));
  void *Memory = Platform.AllocVirtualMemory(Capacity, true);
  Assert(Cast(umm)Memory % Align == 0);
@@ -38,7 +38,7 @@ PushSizeNonZero(arena *Arena, u64 Size)
  for (arena *Cur = Arena->Cur; Cur; Cur = Cur->Next)
  {
   umm Mem = Cast(umm)Cur->Memory;
-  umm Addr = AlignPow2(Mem + Cur->Used, Cur->Align);
+  umm Addr = AlignForwardPow2(Mem + Cur->Used, Cur->Align);
   u64 NewUsed = (Addr - Mem) + Size;
   if (NewUsed <= Cur->Capacity)
   {
@@ -56,7 +56,7 @@ PushSizeNonZero(arena *Arena, u64 Size)
   Last->Next = NewArena;
   Arena->Cur = NewArena;
   umm Addr = Cast(umm)NewArena->Memory + NewArena->Used;
-  umm AddrAligned = AlignPow2(Addr, NewArena->Align);
+  umm AddrAligned = AlignForwardPow2(Addr, NewArena->Align);
   Result = Cast(void *)AddrAligned;
   NewArena->Used += Size + (AddrAligned - Addr);
   Assert(NewArena->Used <= NewArena->Capacity);
@@ -112,96 +112,4 @@ EndTemp(temp_arena Temp)
 {
  Temp.Arena->Cur = Temp.SavedCur;
  Temp.SavedCur->Used = Temp.SavedUsed;
-}
-
-internal pool *
-AllocPoolImpl(u64 ChunkSize, u64 Align)
-{
- AssertAlways(SizeOf(pool_chunk) <= ChunkSize);
- arena *Arena = AllocArenaAlign(Align);
- pool *Pool = PushStruct(Arena, pool);
- Pool->BackingArena = Arena;
- Pool->ChunkSize = ChunkSize;
- 
- return Pool;
-}
-
-internal void *
-RequestChunkNonZeroImpl(pool *Pool)
-{
- void *Result = 0;
- if (Pool->FirstFreeChunk)
- {
-  Result = Pool->FirstFreeChunk;
-  StackPop(Pool->FirstFreeChunk);
- }
- else
- {
-  Result = PushSizeNonZero(Pool->BackingArena, Pool->ChunkSize);
- }
- 
- return Result;
-}
-
-internal void *
-RequestChunkImpl(pool *Pool)
-{
- void *Result = RequestChunkNonZeroImpl(Pool);
- MemoryZero(Result, Pool->ChunkSize);
- return Result;
-}
-
-internal void
-ReleaseChunk(pool *Pool, void *Chunk)
-{
- pool_chunk *PoolChunk = Cast(pool_chunk *)Chunk;
- PoolChunk->Next = Pool->FirstFreeChunk;
- Pool->FirstFreeChunk = PoolChunk;
-}
-
-internal void
-DeallocPool(pool *Pool)
-{
- DeallocArena(Pool->BackingArena);
-}
-
-struct thread_ctx
-{
- b32 Initialized;
- arena *Arenas[2];
-};
-global thread_static thread_ctx GlobalCtx;
-
-internal void
-InitThreadCtx(void)
-{
- if (!GlobalCtx.Initialized)
- {
-  for (u32 ArenaIndex = 0;
-       ArenaIndex < ArrayCount(GlobalCtx.Arenas);
-       ++ArenaIndex)
-  {
-   GlobalCtx.Arenas[ArenaIndex] = AllocArena();
-  }
-  GlobalCtx.Initialized = true;
- }
-}
-
-internal temp_arena
-TempArena(arena *Conflict)
-{
- temp_arena Result = {};
- for (u32 Index = 0;
-      Index < ArrayCount(GlobalCtx.Arenas);
-      ++Index)
- {
-  arena *Arena = GlobalCtx.Arenas[Index];
-  if (Arena != Conflict)
-  {
-   Result = BeginTemp(Arena);
-   break;
-  }
- }
- 
- return Result;
 }

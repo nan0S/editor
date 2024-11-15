@@ -1,5 +1,5 @@
-#ifndef EDITOR_BASE_H
-#define EDITOR_BASE_H
+#ifndef BASE_CORE_H
+#define BASE_CORE_H
 
 #include <stdint.h>
 #include <stdarg.h>
@@ -32,12 +32,12 @@ typedef intptr_t  smm;
 #define U32_MAX ((u32)-1)
 #define U64_MAX ((u64)-1)
 
-#define S8_MIN  ((s8)0x80)
+#define S8_MIN  (( s8)0x80)
 #define S16_MIN ((s16)0x8000)
 #define S32_MIN ((s32)0x80000000)
 #define S64_MIN ((s64)0x8000000000000000ll)
 
-#define S8_MAX  ((s8)0x7f)
+#define S8_MAX  (( s8)0x7f)
 #define S16_MAX ((s16)0x7fff)
 #define S32_MAX ((s32)0x7fffffff)
 #define S64_MAX ((s64)0x7fffffffffffffffll)
@@ -204,7 +204,8 @@ struct m4x4
 #define ApproxEq64(X, Y) (Abs(X - Y) <= F64_EPS)
 #define Cmp(X, Y) (((X) < (Y)) ? -1 : (((X) == (Y)) ? 0 : 1))
 #define Swap(A, B, Type) do { Type NameConcat(Temp, __LINE__) = (A); (A) = (B); (B) = NameConcat(Temp, __LINE__); } while (0)
-#define AlignPow2(Align, Pow2) (((Align)+((Pow2)-1)) & (~((Pow2)-1)))
+#define AlignForwardPow2(Align, Pow2) (((Align)+((Pow2)-1)) & (~((Pow2)-1)))
+#define AlignForward(Value, Align) ((Value) - (((Value) + (Align) - 1) % (Align)))
 #define IsPow2(X) (((X) & (X-1)) == 0)
 #define Lerp(A, B, T) (((A)*(1-(T))) + ((B)*(T)))
 #define Map(Value, ValueMin, ValueMax, TargetMin, TargetMax) (((Value)-(ValueMin))/((ValueMax)-(ValueMin)) * ((TargetMax)-(TargetMin)) + (TargetMin))
@@ -256,7 +257,13 @@ if ((Node)->Next) (Node)->Next->Prev = (Node)->Prev; \
 } while (0)
 
 inline internal u32 SafeCastU32(u64 X) { Assert(X <= U32_MAX); return Cast(u32)X; }
-inline internal u8 SafeCastU8(u64 X) { Assert(X <= U8_MAX); return Cast(u8)X; }
+inline internal u16 SafeCastU16(u64 X) { Assert(X <= U16_MAX); return Cast(u16)X; }
+inline internal  u8  SafeCastU8(u64 X) { Assert(X <=  U8_MAX); return Cast( u8)X; }
+
+inline internal u64 SafeSubtractU64(u64 A, u64 B) { Assert(A >= B); return A-B; }
+inline internal u32 SafeSubtractU32(u32 A, u32 B) { Assert(A >= B); return A-B; }
+inline internal u16 SafeSubtractU16(u16 A, u16 B) { Assert(A >= B); return A-B; }
+inline internal  u8  SafeSubtractU8( u8 A,  u8 B) { Assert(A >= B); return A-B; }
 
 inline internal v2  V2(f32 X, f32 Y) { return {X,Y}; }
 inline internal v2s V2S(s32 X, s32 Y) { return {X,Y}; }
@@ -280,4 +287,4 @@ struct date_time
 internal date_time   TimestampToDateTime(timestamp64 Ts);
 internal timestamp64 DateTimeToTimestamp(date_time Dt);
 
-#endif //EDITOR_BASE_H
+#endif //BASE_CORE_H

@@ -418,6 +418,20 @@ CharIsDigit(char C)
 }
 
 internal b32
+CharIsWhiteSpace(char C)
+{
+ b32 Result = false;
+ switch (C)
+ {
+  case '\t':
+  case '\n':
+  case ' ':
+  case '\r': {Result = true;}break;
+ }
+ return Result;
+}
+
+internal b32
 CharIsUpper(char C)
 {
  b32 Result = ('A' <= C && C <= 'Z');

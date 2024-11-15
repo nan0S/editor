@@ -1,0 +1,703 @@
+internal void *
+OS_Reserve(u64 Reserve)
+{
+ void *Result = VirtualAlloc(0, Reserve, MEM_RESERVE, PAGE_READWRITE);
+ return Result;
+}
+
+internal void
+OS_Release(void *Memory, u64 Size)
+{
+ VirtualFree(Memory, 0, MEM_RELEASE);
+}
+
+internal void
+OS_Commit(void *Memory, u64 Size)
+{
+ VirtualAlloc(Memory, Size, MEM_COMMIT, PAGE_READWRITE);
+}
+
+internal date_time
+Win32SysTimeToDateTime(SYSTEMTIME SysTime)
+{
+ date_time Date = {};
+ Date.Ms = SysTime.wMilliseconds;
+ Date.Sec = SafeCastU8(SysTime.wSecond);
+ Date.Mins = SafeCastU8(SysTime.wMinute);
+ Date.Hour = SafeCastU8(SysTime.wHour);
+ Date.Day = SafeCastU8(SysTime.wDay - 1);
+ Date.Month = SafeCastU8(SysTime.wMonth - 1);
+ Date.Year = SysTime.wYear;
+ 
+ return Date;
+}
+
+internal timestamp64
+Win32FileTimeToTimestamp(FILETIME FileTime)
+{
+ SYSTEMTIME SysTime = {};
+ FileTimeToSystemTime(&FileTime, &SysTime);
+ date_time DateTime = Win32SysTimeToDateTime(SysTime);
+ timestamp64 Ts = DateTimeToTimestamp(DateTime);
+ 
+ return Ts;
+}
+
+internal b32
+OS_IterDir(string Path, dir_iter *Iter, dir_entry *OutEntry)
+{
+ b32 Found = false;
+ 
+ b32 Looking = true;
+ while (Looking)
+ {
+  WIN32_FIND_DATAA Win32FindData = {};
+  b32 HasNext = false;
+  if (Iter->NotFirstTime)
+  {
+   HasNext = Cast(b32)FindNextFileA(Iter->Handle, &Win32FindData);
+  }
+  else
+  {
+   temp_arena Temp = TempArena(0);
+   string PathWithWild = StrF(Temp.Arena, "%S\\*", Path);
+   Iter->Handle = FindFirstFileA(PathWithWild.Data, &Win32FindData);
+   HasNext = (Iter->Handle != INVALID_HANDLE_VALUE);
+   Iter->NotFirstTime = true;
+   EndTemp(Temp);
+  }
+  
+  if (HasNext)
+  {
+   string EntryName = StrFromCStr(Win32FindData.cFileName);
+   if (StrEqual(EntryName, StrLit(".")) || StrEqual(EntryName, StrLit("..")))
+   {
+    // NOTE(hbr): Skip
+   }
+   else
+   {
+    OutEntry->FileName = StrFromCStr(Win32FindData.cFileName);
+    OutEntry->Attrs.FileSize = (((Cast(u64)Win32FindData.nFileSizeHigh) << 32) | Win32FindData.nFileSizeLow);
+    OutEntry->Attrs.CreateTime = Win32FileTimeToTimestamp(Win32FindData.ftCreationTime);
+    OutEntry->Attrs.ModifyTime = Win32FileTimeToTimestamp(Win32FindData.ftLastWriteTime);
+    OutEntry->Attrs.Dir = (Win32FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+    
+    Found = true;
+    Looking = false;
+   }
+  }
+  else
+  {
+   Looking = false;
+  }
+ }
+ 
+ if (!Found)
+ {
+  CloseHandle(Iter->Handle);
+ }
+ 
+ return Found;
+}
+
+internal os_file_handle
+OS_FileOpen(string Path, file_access_flags Access)
+{
+ temp_arena Temp = TempArena(0);
+ 
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ 
+ DWORD DesiredAccess = 0;
+ if (Access & FileAccess_Read) DesiredAccess |= GENERIC_READ;
+ if (Access & FileAccess_Write) DesiredAccess |= GENERIC_WRITE;
+ 
+ DWORD CreationDisposition = OPEN_EXISTING;
+ if (Access & FileAccess_Write) CreationDisposition = CREATE_ALWAYS;
+ 
+ HANDLE Result = CreateFileA(CPath.Data, DesiredAccess, FILE_SHARE_READ, 0,
+                             CreationDisposition, FILE_ATTRIBUTE_NORMAL, 0);
+ 
+ EndTemp(Temp);
+ 
+ return Result;
+}
+
+internal void
+OS_FileClose(os_file_handle File)
+{
+ CloseHandle(File);
+}
+
+typedef BOOL win32_file_op_func(HANDLE       hFile,
+                                LPCVOID      lpBuffer,
+                                DWORD        nNumberOfBytesToWrite,
+                                LPDWORD      lpNumberOfBytesWritten,
+                                LPOVERLAPPED lpOverlapped);
+
+internal u64
+OS_FileOperation(win32_file_op_func *Op, os_file_handle File, char *Buf, u64 Target, u64 Offset)
+{
+ u64 Processed = 0;
+ 
+ u64 Left = Target;
+ char *At = Buf;
+ u64 OffsetAt = Offset;
+ while (Left)
+ {
+  u32 ToProcess = SafeCastU32(ClampTop(Left, U32_MAX));
+  
+  OVERLAPPED Overlapped = {};
+  Overlapped.Offset = Cast(u32)OffsetAt;
+  Overlapped.OffsetHigh = OffsetAt >> 32;
+  
+  DWORD ActuallyProcessed = 0;
+  Op(File, At, ToProcess, &ActuallyProcessed, &Overlapped);
+  
+  Left -= ActuallyProcessed;
+  At += ActuallyProcessed;
+  OffsetAt += ActuallyProcessed;
+  Processed += ActuallyProcessed;
+  
+  if (ActuallyProcessed != ToProcess)
+  {
+   break;
+  }
+ }
+ 
+ return Processed;
+}
+
+internal u64 OS_FileRead(os_file_handle File, char *Buf, u64 Read, u64 Offset) { return OS_FileOperation(Cast(win32_file_op_func *)ReadFile, File, Buf, Read, Offset); }
+internal u64 OS_FileWrite(os_file_handle File, char *Buf, u64 Write, u64 Offset) { return OS_FileOperation(WriteFile, File, Buf, Write, Offset); }
+
+internal u64
+OS_FileSize(os_file_handle File)
+{
+ u64 Result = 0;
+ LARGE_INTEGER FileSize = {};
+ if (GetFileSizeEx(File, &FileSize))
+ {
+  Result = FileSize.QuadPart;
+ }
+ return Result;
+}
+
+internal file_attrs
+OS_FileAttributes(string Path)
+{
+ file_attrs Result = {};
+ temp_arena Temp = TempArena(0);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ WIN32_FILE_ATTRIBUTE_DATA Attrs = {};
+ if (GetFileAttributesExA(CPath.Data, GetFileExInfoStandard, &Attrs))
+ {
+  Result.FileSize = (((Cast(u64)Attrs.nFileSizeHigh) << 32) | Attrs.nFileSizeLow);
+  Result.CreateTime = Win32FileTimeToTimestamp(Attrs.ftCreationTime);
+  Result.ModifyTime = Win32FileTimeToTimestamp(Attrs.ftLastWriteTime);
+  Result.Dir = (Attrs.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY);
+ }
+ EndTemp(Temp);
+ 
+ return Result;
+}
+
+inline internal os_file_handle
+OS_StdOut(void)
+{
+ HANDLE Std = GetStdHandle(STD_OUTPUT_HANDLE);
+ return Std;
+}
+
+inline internal os_file_handle
+OS_StdError(void)
+{
+ HANDLE Err = GetStdHandle(STD_ERROR_HANDLE);
+ return Err;
+}
+
+inline internal void
+OS_PrintFile(os_file_handle File, string Str)
+{
+ OS_FileWrite(File, Str.Data, Str.Count);
+}
+
+inline internal void
+OS_Print(string Str)
+{
+ OS_PrintFile(OS_StdOut(), Str);
+}
+
+inline internal void
+OS_PrintError(string Str)
+{
+ OS_PrintFile(OS_StdError(), Str);
+}
+
+inline internal void
+OS_PrintDebug(string Str)
+{
+ temp_arena Temp = TempArena(0);
+ string CStr = CStrFromStr(Temp.Arena, Str);
+ OutputDebugString(CStr.Data);
+ EndTemp(Temp);
+}
+
+inline internal void
+OS_PrintF(char const *Format, ...)
+{
+ va_list Args;
+ va_start(Args, Format);
+ OS_PrintFV(Format, Args);
+ va_end(Args);
+}
+
+inline internal void
+OS_PrintErrorF(char const *Format, ...)
+{
+ va_list Args;
+ va_start(Args, Format);
+ OS_PrintErrorFV(Format, Args);
+ va_end(Args);
+}
+
+inline internal void
+OS_PrintDebugF(char const *Format, ...)
+{
+ va_list Args;
+ va_start(Args, Format);
+ OS_PrintDebugFV(Format, Args);
+ va_end(Args);
+}
+
+inline internal void
+OS_PrintFileF(os_file_handle File, char const *Format, ...)
+{
+ va_list Args;
+ va_start(Args, Format);
+ OS_PrintFileFV(File, Format, Args);
+ va_end(Args);
+}
+
+inline internal void
+OS_PrintFV(char const *Format, va_list Args)
+{
+ temp_arena Temp = TempArena(0);
+ string Str = StrFV(Temp.Arena, Format, Args);
+ OS_Print(Str);
+ EndTemp(Temp);
+}
+
+inline internal void
+OS_PrintErrorFV(char const *Format, va_list Args)
+{
+ temp_arena Temp = TempArena(0);
+ string Str = StrFV(Temp.Arena, Format, Args);
+ OS_Print(Str);
+ EndTemp(Temp);
+}
+
+inline internal void
+OS_PrintDebugFV(char const *Format, va_list Args)
+{
+ temp_arena Temp = TempArena(0);
+ string Str = StrFV(Temp.Arena, Format, Args);
+ OS_PrintDebug(Str);
+ EndTemp(Temp);
+}
+
+inline internal void
+OS_PrintFileFV(os_file_handle File, char const *Format, va_list Args)
+{
+ temp_arena Temp = TempArena(0);
+ string Str = StrFV(Temp.Arena, Format, Args);
+ OS_PrintFile(File, Str);
+ EndTemp(Temp);
+}
+
+internal void
+OS_FileDelete(string Path)
+{
+ temp_arena Temp = TempArena(0);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ DeleteFileA(CPath.Data);
+ EndTemp(Temp);
+}
+
+internal b32
+OS_FileMove(string Src, string Dest)
+{
+ temp_arena Temp = TempArena(0);
+ string CSrc  = CStrFromStr(Temp.Arena, Src);
+ string CDest = CStrFromStr(Temp.Arena, Dest);
+ b32 Success = (MoveFileA(CSrc.Data, CDest.Data) != 0);
+ EndTemp(Temp);
+ 
+ return Success;
+}
+
+internal b32
+OS_FileCopy(string Src, string Dest)
+{
+ temp_arena Temp = TempArena(0);
+ string CSrc  = CStrFromStr(Temp.Arena, Src);
+ string CDest = CStrFromStr(Temp.Arena, Dest);
+ b32 Success = (CopyFileA(CSrc.Data, CDest.Data, 0) != 0);
+ EndTemp(Temp);
+ 
+ return Success;
+}
+
+internal b32
+OS_FileExists(string Path)
+{
+ temp_arena Temp = TempArena(0);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ DWORD Attributes = GetFileAttributesA(CPath.Data);
+ b32 Result = (Attributes != INVALID_FILE_ATTRIBUTES) && !(Attributes & FILE_ATTRIBUTE_DIRECTORY);
+ EndTemp(Temp);
+ 
+ return Result;
+}
+
+internal b32
+OS_DirMake(string Path)
+{
+ temp_arena Temp = TempArena(0);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ b32 Success = (CreateDirectoryA(CPath.Data, 0) != 0);
+ EndTemp(Temp);
+ 
+ return Success;
+}
+
+internal b32
+OS_DirRemove(string Path)
+{
+ temp_arena Temp = TempArena(0);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ b32 Success = (RemoveDirectoryA(CPath.Data) != 0);
+ EndTemp(Temp);
+ 
+ return Success;
+}
+
+internal b32
+OS_DirChange(string Path)
+{
+ temp_arena Temp = TempArena(0);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ b32 Success = (SetCurrentDirectoryA(CPath.Data) != 0);
+ EndTemp(Temp);
+ 
+ return Success;
+}
+
+internal string
+OS_CurrentDir(arena *Arena)
+{
+ string Result = {};
+ DWORD RequiredSize = GetCurrentDirectory(0, 0);
+ Result.Data = PushArrayNonZero(Arena, RequiredSize, char);
+ Result.Count = GetCurrentDirectory(RequiredSize, Result.Data);
+ Assert(Result.Count == RequiredSize - 1);
+ 
+ return Result;
+}
+
+internal string
+OS_FullPathFromPath(arena *Arena, string Path)
+{
+ string Result = {};
+ 
+ temp_arena Temp = TempArena(Arena);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ DWORD BufferLength = MAX_PATH + 1;
+ Result.Data = PushArrayNonZero(Arena, BufferLength, char);
+ Result.Count = GetFullPathNameA(CPath.Data, BufferLength, Result.Data, 0);
+ if (Result.Count < BufferLength)
+ {
+  Result.Data[Result.Count] = 0;
+ }
+ EndTemp(Temp);
+ 
+ return Result;
+}
+
+internal os_library_handle
+OS_LibraryLoad(char const *Name)
+{
+ HMODULE Lib = LoadLibraryA(Name);
+ return Lib;
+}
+
+internal void *
+OS_LibraryProc(os_library_handle Lib, char const *ProcName)
+{
+ void *Proc = GetProcAddress(Lib, ProcName);
+ return Proc;
+}
+
+internal void
+OS_LibraryUnload(os_library_handle Lib)
+{
+ FreeLibrary(Lib);
+}
+
+internal os_process_handle
+OS_ProcessLaunch(string_list CmdList)
+{
+ temp_arena Temp = TempArena(0);
+ 
+ os_process_handle Handle = {};
+ Handle.StartupInfo.cb = SizeOf(Handle.StartupInfo);
+ DWORD CreationFlags = 0;
+ string Cmd = StrListJoin(Temp.Arena, &CmdList, StrLit(" "));
+ CreateProcessA(0, Cmd.Data, 0, 0, 0, CreationFlags, 0, 0,
+                &Handle.StartupInfo, &Handle.ProcessInfo);
+ EndTemp(Temp);
+ 
+ return Handle;
+}
+
+internal b32
+OS_ProcessWait(os_process_handle Process)
+{
+ b32 Success = (WaitForSingleObject(Process.ProcessInfo.hProcess, INFINITE) == WAIT_OBJECT_0);
+ return Success;
+}
+
+internal void
+OS_ProcessCleanup(os_process_handle Handle)
+{
+ CloseHandle(Handle.StartupInfo.hStdInput);
+ CloseHandle(Handle.StartupInfo.hStdOutput);
+ CloseHandle(Handle.StartupInfo.hStdError);
+ CloseHandle(Handle.ProcessInfo.hProcess);
+ CloseHandle(Handle.ProcessInfo.hThread);
+}
+
+internal os_thread_handle
+OS_ThreadLaunch(os_thread_func *Func, void *Data)
+{
+ HANDLE Handle = CreateThread(0, 0, Func, Data, 0, 0);
+ return Handle;
+}
+
+internal void
+OS_ThreadWait(os_thread_handle Thread)
+{
+ WaitForSingleObject(Thread, INFINITE);
+}
+
+internal void
+OS_ThreadRelease(os_thread_handle Thread)
+{
+ CloseHandle(Thread);
+}
+
+inline internal void
+OS_MutexAlloc(os_mutex_handle *Mutex)
+{
+ InitializeCriticalSection(Mutex);
+}
+
+inline internal void
+OS_MutexLock(os_mutex_handle *Mutex)
+{
+ EnterCriticalSection(Mutex);
+}
+
+inline internal void
+OS_MutexUnlock(os_mutex_handle *Mutex)
+{
+ LeaveCriticalSection(Mutex);
+}
+
+inline internal void
+OS_MutexDealloc(os_mutex_handle *Mutex)
+{
+ DeleteCriticalSection(Mutex);
+}
+
+inline internal void
+OS_SemaphoreAlloc(os_semaphore_handle *Sem, u32 InitialCount, u32 MaxCount)
+{
+ *Sem = CreateSemaphoreA(0, InitialCount, MaxCount, 0);
+}
+
+inline internal void
+PostSemaphore(os_semaphore_handle *Sem)
+{
+ ReleaseSemaphore(*Sem, 1, 0);
+}
+
+inline internal void
+WaitSemaphore(os_semaphore_handle *Sem)
+{
+ WaitForSingleObject(*Sem, INFINITE);
+}
+
+inline internal void
+DestroySemaphore(os_semaphore_handle *Sem)
+{
+ CloseHandle(*Sem);
+}
+
+inline internal u64 OS_AtomicIncr(u64 volatile *Value)
+{
+ return InterlockedIncrement64(Cast(LONG64 volatile *)Value);
+}
+
+inline internal u64
+OS_AtomicAdd(u64 volatile *Value, u64 Add)
+{
+ return InterlockedAdd64(Cast(LONG64 volatile *)Value, Add);
+}
+
+inline internal u64
+OS_AtomicCmpExch(u64 volatile *Value, u64 Cmp, u64 Exch)
+{
+ return InterlockedCompareExchange64(Cast(LONG64 volatile *)Value, Exch, Cmp);
+}
+
+inline internal void
+OS_BarrierAlloc(os_barrier_handle *Barrier, u32 ThreadCount)
+{
+ InitializeSynchronizationBarrier(Barrier, ThreadCount, 0);
+}
+
+inline internal void
+OS_BarrierWait(os_barrier_handle *Barrier)
+{
+ // NOTE(hbr): Consider using [SYNCHRONIZATION_BARRIER_FLAGS_NO_DELETE] to improve performance when barrier is never deleted
+ EnterSynchronizationBarrier(Barrier, SYNCHRONIZATION_BARRIER_FLAGS_BLOCK_ONLY);
+}
+
+inline internal void
+OS_BarrierDealloc(os_barrier_handle *Barrier)
+{
+ DeleteSynchronizationBarrier(Barrier);
+}
+
+inline internal u64
+OS_ReadCPUTimer(void)
+{
+ return __rdtsc();
+}
+
+inline internal u64
+OS_CPUTimerFreq(void)
+{
+ local u64 TSCFreq = 0;
+ if (!TSCFreq)
+ {
+  // Fast path: Load kernel-mapped memory page
+  HMODULE NTDLL = LoadLibraryA("ntdll.dll");
+  if (NTDLL)
+  {
+   int (*NtQuerySystemInformation)(int, void *, unsigned int, unsigned int *) =
+   (int (*)(int, void *, unsigned int, unsigned int *))GetProcAddress(NTDLL, "NtQuerySystemInformation");
+   
+   if (NtQuerySystemInformation)
+   {
+    volatile u64 *HypervisorSharedPage = NULL;
+    unsigned int Size = 0;
+    
+    // SystemHypervisorSharedPageInformation == 0xc5
+    int Result = (NtQuerySystemInformation)(0xc5, Cast(void *)&HypervisorSharedPage, SizeOf(HypervisorSharedPage), &Size);
+    
+    // success
+    if (Size == SizeOf(HypervisorSharedPage) && Result >= 0)
+    {
+     // docs say ReferenceTime = ((VirtualTsc * TscScale) >> 64)
+     //      set ReferenceTime = 10000000 = 1 second @ 10MHz, solve for VirtualTsc
+     //       =>    VirtualTsc = 10000000 / (TscScale >> 64)
+     TSCFreq = (10000000ull << 32) / (HypervisorSharedPage[1] >> 32);
+     // If your build configuration supports 128 bit arithmetic, do this:
+     // TSCFreq = ((unsigned __int128)10000000ull << (unsigned __int128)64ull) / HypervisorSharedPage[1];
+    }
+   }
+   FreeLibrary(NTDLL);
+  }
+  
+  // Slow path
+  if (!TSCFreq)
+  {
+   // Get time before sleep
+   u64 OSBegin = 0;
+   QueryPerformanceCounter((LARGE_INTEGER *)&OSBegin);
+   u64 TSCBegin = __rdtsc();
+   
+   Sleep(2);
+   
+   // Get time after sleep
+   u64 OSEnd = 0;
+   QueryPerformanceCounter((LARGE_INTEGER *)&OSEnd);
+   u64 TSCEnd = __rdtsc();
+   
+   // Do the math to extrapolate the RDTSC ticks elapsed in 1 second
+   u64 OSFreq = 0;
+   QueryPerformanceFrequency((LARGE_INTEGER *)&OSFreq);
+   TSCFreq = (TSCEnd - TSCBegin) * OSFreq / (OSEnd - OSBegin);
+  }
+  
+  // Failure case
+  if (!TSCFreq)
+  {
+   TSCFreq = 1000000000;
+  }
+ }
+ 
+ return TSCFreq;
+}
+
+inline internal u64
+OS_ReadOSTimer(void)
+{
+ LARGE_INTEGER Counter;
+ QueryPerformanceCounter(&Counter);
+ return Counter.QuadPart;
+}
+
+internal u64
+OS_TimerFreq(void)
+{
+ local u64 Frequency = 0;
+ if (Frequency == 0)
+ {
+  LARGE_INTEGER Freq;
+  QueryPerformanceFrequency(&Freq);
+  Frequency = Freq.QuadPart;
+ }
+ return Frequency;
+}
+
+inline internal SYSTEM_INFO
+Win32GetInfo(void)
+{
+ SYSTEM_INFO Info = {};
+ GetSystemInfo(&Info);
+ return Info;
+}
+
+internal u64
+OS_ProcCount(void)
+{
+ local u64 ProcCount = 0;
+ if (ProcCount == 0)
+ {
+  ProcCount = Win32GetInfo().dwNumberOfProcessors;
+ }
+ return ProcCount;
+}
+
+internal u64
+OS_PageSize(void)
+{
+ local u64 PageSize = 0;
+ if (PageSize == 0)
+ {
+  PageSize = Win32GetInfo().dwPageSize;
+ }
+ return PageSize;
+}

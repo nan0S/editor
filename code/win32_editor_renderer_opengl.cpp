@@ -1,28 +1,70 @@
 #include <windows.h>
 #include <gl/gl.h>
 
-#include "editor_ctx_crack.h"
-#include "editor_base.h"
-#include "editor_memory.h"
-#include "editor_string.h"
-#include "editor_math.h"
+#include "base_ctx_crack.h"
+#include "base_core.h"
+#include "base_string.h"
+
 #include "imgui_bindings.h"
+
+#include "editor_memory.h"
+#include "editor_thread_ctx.h"
+#include "editor_math.h"
 #include "editor_platform.h"
 #include "editor_renderer.h"
+
+#include "os_core.h"
 
 #include "win32_editor_renderer.h"
 #include "win32_editor_renderer_opengl.h"
 #include "win32_imgui_bindings.h"
 
+#include "base_core.cpp"
+#include "base_string.cpp"
+#include "os_core.cpp"
+
 #include "editor_memory.cpp"
+#include "editor_thread_ctx.cpp"
 #include "editor_math.cpp"
 
 platform_api Platform;
+
+internal LARGE_INTEGER
+Win32GetClock()
+{
+ LARGE_INTEGER Result;
+ QueryPerformanceCounter(&Result);
+ return Result;
+}
+
+global u64 GlobalWin32ClockFrequency;
+internal f32
+Win32SecondsElapsed(LARGE_INTEGER Begin, LARGE_INTEGER End)
+{
+ f32 Result = Cast(f32)(End.QuadPart - Begin.QuadPart) / GlobalWin32ClockFrequency;
+ return Result;
+}
+
+#define WIN32_BEGIN_DEBUG_BLOCK(Name) LARGE_INTEGER Name##Begin = Win32GetClock();
+#define WIN32_END_DEBUG_BLOCK(Name) do { \
+LARGE_INTEGER EndClock = Win32GetClock(); \
+f32 Elapsed = Win32SecondsElapsed(Name##Begin, EndClock); \
+OS_PrintDebugF("%s: %fms\n", #Name, Elapsed * 1000.0f); \
+LARGE_INTEGER Name##Begin = Win32GetClock(); \
+} while(0)
+
+typedef void wgl_swap_interval_ext(int);
 
 extern "C"
 WIN32_RENDERER_INIT(Win32RendererInit)
 {
  Platform = PlatformAPI;
+ {
+  LARGE_INTEGER PerfCounterFrequency;
+  QueryPerformanceFrequency(&PerfCounterFrequency);
+  GlobalWin32ClockFrequency = PerfCounterFrequency.QuadPart;
+ }
+ InitThreadCtx();
  
  opengl *OpenGL = PushStruct(Arena, opengl);
  
@@ -55,6 +97,12 @@ WIN32_RENDERER_INIT(Win32RendererInit)
  {
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glEnable(GL_BLEND);
+  //wglSwapIntervalEXT(0);
+  
+  wgl_swap_interval_ext *wglSwapIntervalEXT = Cast(wgl_swap_interval_ext *)wglGetProcAddress("wglSwapIntervalEXT");
+  wglSwapIntervalEXT(0);
+  
+  Trap;
  }
  
  //- allocate texture transfer queue
@@ -84,7 +132,9 @@ WIN32_RENDERER_INIT(Win32RendererInit)
  
  imgui_init_data Init = {};
  Init.Window = Window;
+ WIN32_BEGIN_DEBUG_BLOCK(ImGuiInit);
  ImGuiBindings.Init(&Init);
+ WIN32_END_DEBUG_BLOCK(ImGuiInit);
  
  return Cast(platform_renderer *)OpenGL;
 }

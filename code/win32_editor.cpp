@@ -1,19 +1,27 @@
 #include <windows.h>
 
-#include "editor_ctx_crack.h"
-#include "editor_base.h"
-#include "editor_memory.h"
-#include "editor_string.h"
+#include "base_ctx_crack.h"
+#include "base_core.h"
+#include "base_string.h"
+
 #include "imgui_bindings.h"
+
+#include "editor_memory.h"
+#include "editor_thread_ctx.h"
 #include "editor_platform.h"
 #include "editor_renderer.h"
+
+#include "os_core.h"
 
 #include "win32_editor.h"
 #include "win32_editor_renderer.h"
 #include "win32_imgui_bindings.h"
 
+#include "base_core.cpp"
+#include "base_string.cpp"
 #include "editor_memory.cpp"
-#include "editor_string.cpp"
+#include "editor_thread_ctx.cpp"
+#include "os_core.cpp"
 
 global u64 GlobalProcCount;
 global u64 GlobalPageSize;
@@ -44,7 +52,7 @@ PLATFORM_ALLOC_VIRTUAL_MEMORY(Win32AllocMemory)
 
 PLATFORM_COMMIT_VIRTUAL_MEMORY(Win32CommitMemory)
 {
- u64 PageSnappedSize = AlignPow2(Size, GlobalPageSize);
+ u64 PageSnappedSize = AlignForwardPow2(Size, GlobalPageSize);
  VirtualAlloc(Memory, PageSnappedSize, MEM_COMMIT, PAGE_READWRITE);
 }
 
@@ -376,6 +384,14 @@ Win32SecondsElapsed(LARGE_INTEGER Begin, LARGE_INTEGER End)
  return Result;
 }
 
+#define WIN32_BEGIN_DEBUG_BLOCK(Name) LARGE_INTEGER Name##Begin = Win32GetClock();
+#define WIN32_END_DEBUG_BLOCK(Name) do { \
+LARGE_INTEGER EndClock = Win32GetClock(); \
+f32 Elapsed = Win32SecondsElapsed(Name##Begin, EndClock); \
+OS_PrintDebugF("%s: %fms\n", #Name, Elapsed * 1000.0f); \
+LARGE_INTEGER Name##Begin = Win32GetClock(); \
+} while(0)
+
 int
 WinMain(HINSTANCE Instance,
         HINSTANCE PrevInstance,
@@ -384,21 +400,21 @@ WinMain(HINSTANCE Instance,
 {
  b32 InitSuccess = false;
  
- //- init platform API and some global variables
- SYSTEM_INFO Info = {};
- GetSystemInfo(&Info);
- GlobalProcCount = Info.dwNumberOfProcessors;
- GlobalPageSize = Info.dwPageSize;
+ WIN32_BEGIN_DEBUG_BLOCK(FromInit);
  
- LARGE_INTEGER PerfCounterFrequency;
- QueryPerformanceFrequency(&PerfCounterFrequency);
- GlobalWin32ClockFrequency = PerfCounterFrequency.QuadPart;
+ //- init platform API and some global variables
+ {
+  SYSTEM_INFO Info = {};
+  GetSystemInfo(&Info);
+  GlobalProcCount = Info.dwNumberOfProcessors;
+  GlobalPageSize = Info.dwPageSize;
+  
+  LARGE_INTEGER PerfCounterFrequency;
+  QueryPerformanceFrequency(&PerfCounterFrequency);
+  GlobalWin32ClockFrequency = PerfCounterFrequency.QuadPart;
+ }
  
  InitThreadCtx();
-#if 0
- ImGui::CreateContext();
-#endif
- // TODO(hbr): Maybe set ImGui IO flags
  
  //- create window
  WNDCLASSEXA WindowClass = {};
@@ -439,7 +455,10 @@ WinMain(HINSTANCE Instance,
    ShowWindow(Window, nShowCmd);
    InitSuccess = true;
    
+   WIN32_END_DEBUG_BLOCK(FromInit);
+   
    //- load editor code
+   WIN32_BEGIN_DEBUG_BLOCK(LoadEditorCode);
    // TODO(hbr): Don't hardcore "debug" suffix here as well
    HMODULE EditorCodeLibrary = LoadLibrary("editor_debug.dll");
    editor_update_and_render *EditorUpdateAndRender = 0;
@@ -451,8 +470,10 @@ WinMain(HINSTANCE Instance,
     EditorGetImGuiBindings = Cast(editor_get_imgui_bindings *)GetProcAddress(EditorCodeLibrary, "EditorGetImGuiBindings");
    }
    GlobalImGuiBindings = EditorGetImGuiBindings();
+   WIN32_END_DEBUG_BLOCK(LoadEditorCode);
    
    //- load renderer code
+   WIN32_BEGIN_DEBUG_BLOCK(LoadRendererCode);
    // TODO(hbr): Don't hardcode the fact that it has to be suffixed with _debug - either remove suffixes from the
    // build system or #if BUILD_DEBUG or maybe input these things through build system
    HMODULE RendererCodeLibrary = LoadLibrary("win32_editor_renderer_opengl_debug.dll");
@@ -466,6 +487,7 @@ WinMain(HINSTANCE Instance,
     Win32RendererBeginFrame = Cast(renderer_begin_frame *)GetProcAddress(RendererCodeLibrary, "Win32RendererBeginFrame");
     Win32RendererEndFrame = Cast(renderer_end_frame *)GetProcAddress(RendererCodeLibrary, "Win32RendererEndFrame");
    }
+   WIN32_END_DEBUG_BLOCK(LoadRendererCode);
    
    //- init renderer
    platform_renderer_limits Limits = {};
@@ -474,7 +496,9 @@ WinMain(HINSTANCE Instance,
    Limits.MaxTextureCount = 256;
    arena *RendererArena = AllocArena();
    HDC WindowDC = GetDC(Window);
+   WIN32_BEGIN_DEBUG_BLOCK(RendererInit);
    platform_renderer *Renderer = Win32RendererInit(RendererArena, &Limits, Platform, GlobalImGuiBindings, Window, WindowDC);
+   WIN32_END_DEBUG_BLOCK(RendererInit);
    
    editor_memory Memory = {};
    Memory.PermamentArena = AllocArena();
@@ -519,13 +543,25 @@ WinMain(HINSTANCE Instance,
      Input.ClipSpaceMouseP = Win32ScreenToClip(CursorP.x, CursorP.y, WindowDim);
     }
     
+    local b32 FirstFrame = true;
+    
+    WIN32_BEGIN_DEBUG_BLOCK(RendererBeginFrame);
     render_frame *Frame = Win32RendererBeginFrame(Renderer, WindowDim);
+    if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererBeginFrame);}
     
     LARGE_INTEGER EndClock = Win32GetClock();
     Input.dtForFrame = Win32SecondsElapsed(LastClock, EndClock);
+    WIN32_BEGIN_DEBUG_BLOCK(EditorUpdateAndRender);
     EditorUpdateAndRender(&Memory, &Input, Frame);
+    if (FirstFrame) {WIN32_END_DEBUG_BLOCK(EditorUpdateAndRender);}
     
+    WIN32_BEGIN_DEBUG_BLOCK(RendererEndFrame);
     Win32RendererEndFrame(Renderer, Frame);
+    if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererEndFrame);}
+    
+    
+    if (FirstFrame) {WIN32_END_DEBUG_BLOCK(FromInit);}
+    FirstFrame = false;
     
     if (Input.QuitRequested)
     {

@@ -11,7 +11,7 @@ enum platform_event_type
  PlatformEvent_WindowClose,
  PlatformEvent_Count,
 };
-read_only global char const *PlatformEventTypeNames[] = { "None", "Press", "Release", "MouseMove", "Scroll", "WindowClose" };
+global char const *PlatformEventTypeNames[] = { "None", "Press", "Release", "MouseMove", "Scroll", "WindowClose" };
 StaticAssert(ArrayCount(PlatformEventTypeNames) == PlatformEvent_Count, PlatformEventNamesDefined);
 
 enum platform_key
@@ -155,5 +155,20 @@ typedef EDITOR_UPDATE_AND_RENDER(editor_update_and_render);
 
 #define EDITOR_GET_IMGUI_BINDINGS(Name) imgui_bindings Name(void)
 typedef EDITOR_GET_IMGUI_BINDINGS(editor_get_imgui_bindings);
+
+union editor_function_table
+{
+ struct {
+  editor_update_and_render *UpdateAndRender;
+  editor_get_imgui_bindings *GetImGuiBindings;
+ };
+ void *Functions[2];
+};
+global char const *EditorFunctionTableNames[] = {
+ "EditorUpdateAndRender",
+ "EditorGetImGuiBindings",
+};
+StaticAssert(SizeOf(editor_function_table) == SizeOf(editor_function_table::Functions), EditorFunctionTableLayoutIsCorrect);
+StaticAssert(ArrayCount(editor_function_table::Functions) == ArrayCount(EditorFunctionTableNames), EditorFunctionTableNamesDefined);
 
 #endif //EDITOR_PLATFORM_H

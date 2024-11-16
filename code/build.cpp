@@ -63,27 +63,6 @@ int main(int ArgCount, char *Argv[])
   compiler_setup Setup = MakeCompilerSetup(Compiler_Default, Debug, true, Verbose);
   IncludePath(&Setup, StrLit("../code/third_party/imgui"));
   
-  //- compile renderer into library
-  {
-   compilation_target Target = MakeTarget(Lib, StrLit("../code/win32_editor_renderer_opengl.cpp"), 0);
-   ExportFunction(&Target, "Win32RendererInit");
-   ExportFunction(&Target, "Win32RendererBeginFrame");
-   ExportFunction(&Target, "Win32RendererEndFrame");
-   LinkLibrary(&Target, "Opengl32.lib"); // wgl,glEnable,...
-   LinkLibrary(&Target, "Gdi32.lib"); // SwapBuffers,SetPixelFormat,...
-   compile_result Renderer = Compile(Setup, Target);
-   EnqueueProcess(&ProcessQueue, Renderer.CompileProcess);
-  }
-  
-  //- compile platform layer into executable
-  {
-   compilation_target Target = MakeTarget(Exe, StrLit("../code/win32_editor.cpp"), 0);
-   LinkLibrary(&Target, "User32.lib"); // CreateWindowExA,...
-   LinkLibrary(&Target, "Comdlg32.lib"); // GetOpenFileName,...
-   compile_result Win32PlatformExe = Compile(Setup, Target);
-   EnqueueProcess(&ProcessQueue, Win32PlatformExe.CompileProcess);
-  }
-  
   //- precompile third part code into obj
   compile_result ThirdParty = {};
   {
@@ -94,13 +73,33 @@ int main(int ArgCount, char *Argv[])
   }
   
   //- compile editor code into library
+  compile_result Editor = {};
   {
    compilation_target Target = MakeTarget(Lib, StrLit("../code/editor.cpp"), 0);
-   ExportFunction(&Target, "EditorUpdateAndRender");
-   ExportFunction(&Target, "EditorGetImGuiBindings");
    StaticLink(&Target, ThirdParty.OutputTarget);
-   compile_result Editor = Compile(Setup, Target);
+   Editor = Compile(Setup, Target);
    EnqueueProcess(&ProcessQueue, Editor.CompileProcess);
+  }
+  
+  //- compile renderer into library
+  compile_result Renderer = {};
+  {
+   compilation_target Target = MakeTarget(Lib, StrLit("../code/win32_editor_renderer_opengl.cpp"), 0);
+   LinkLibrary(&Target, "Opengl32.lib"); // wgl,glEnable,...
+   LinkLibrary(&Target, "Gdi32.lib"); // SwapBuffers,SetPixelFormat,...
+   Renderer = Compile(Setup, Target);
+   EnqueueProcess(&ProcessQueue, Renderer.CompileProcess);
+  }
+  
+  //- compile platform layer into executable
+  {
+   compilation_target Target = MakeTarget(Exe, StrLit("../code/win32_editor.cpp"), 0);
+   LinkLibrary(&Target, "User32.lib"); // CreateWindowExA,...
+   LinkLibrary(&Target, "Comdlg32.lib"); // GetOpenFileName,...
+   DefineMacro(&Target, StrLit("EDITOR_DLL"), Editor.OutputTarget);
+   DefineMacro(&Target, StrLit("EDITOR_RENDERER_DLL"), Renderer.OutputTarget);
+   compile_result Win32PlatformExe = Compile(Setup, Target);
+   EnqueueProcess(&ProcessQueue, Win32PlatformExe.CompileProcess);
   }
   
   WaitProcesses(&ProcessQueue);

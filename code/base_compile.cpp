@@ -62,9 +62,12 @@ StaticLink(compilation_target *Target, string Link)
 }
 
 internal void
-ExportFunction(compilation_target *Target, char const *ExportFunc)
+DefineMacro(compilation_target *Target, string Name, string Value)
 {
- StrListPushF(BuildArena, &Target->ExportFunctions, "%s", ExportFunc);
+ Assert(Target->DefineMacroCount < ArrayCount(Target->DefineMacros));
+ define_variable *Define = Target->DefineMacros + Target->DefineMacroCount++;
+ Define->Name = Name;
+ Define->Value = Value;
 }
 
 internal compile_result
@@ -93,7 +96,7 @@ Compile(compiler_setup Setup, compilation_target Target)
   TargetName = StrF(Arena, "%S_%s", TargetNameBase, BuildTargetSuffix);
  }
  
- // TODO(hbr): I think this is only true for MSVC actually
+ // TODO(hbr): maybe this is true only on OS_WINDOWS - especially dll part, maybe I have to use .so instead, idk
  char const *TargetExt = 0;
  switch (Target.TargetType)
  {
@@ -148,10 +151,41 @@ Compile(compiler_setup Setup, compilation_target Target)
     StrListPushF(Arena, Cmd, "-EHa-"); // disables exceptions
    }break;
    
-   case Clang:
+   case Clang: {
+    StrListPushF(Arena, Cmd, "clang");
+    if (Setup.DebugBuild)
+    {
+     StrListPushF(Arena, Cmd, "-O0");
+    }
+    else
+    {
+     StrListPushF(Arena, Cmd, "-Ofast");
+    }
+    if (Setup.GenerateDebuggerInfo)
+    {
+     StrListPushF(Arena, Cmd, "-g");
+    }
+    StrListPushF(Arena, Cmd, "-fdiagnostics-absolute-paths");
+    StrListPushF(Arena, Cmd, "-Wall");
+    StrListPushF(Arena, Cmd, "-Wno-missing-braces");
+    StrListPushF(Arena, Cmd, "-Wno-unused-but-set-variable");
+    StrListPushF(Arena, Cmd, "-Wno-unused-variable");
+    StrListPushF(Arena, Cmd, "-Wno-unused-function");
+    StrListPushF(Arena, Cmd, "-Wno-char-subscripts");
+   }break;
+   
    case GCC: {NotImplemented;}break;
   }
+  
+  //- define variables
   StrListPushF(Arena, Cmd, Setup.DebugBuild ? "-DBUILD_DEBUG=1" : "-DBUILD_DEBUG=0");
+  for (u32 MacroIndex = 0;
+       MacroIndex < Target.DefineMacroCount;
+       ++MacroIndex)
+  {
+   define_variable *Macro = Target.DefineMacros + MacroIndex;
+   StrListPushF(Arena, Cmd, "-D%S=%S", Macro->Name, Macro->Value);
+  }
   
   //- include paths
   {
@@ -189,12 +223,6 @@ Compile(compiler_setup Setup, compilation_target Target)
       StrListPushF(Arena, Cmd, "-incremental:no"); // don't prepare file for incremental linking
       StrListPushF(Arena, Cmd, "-out:%S", OutputTarget);
       
-      ListIter(Node, Target.ExportFunctions.Head, string_list_node)
-      {
-       string ExportFunc = Node->Str;
-       StrListPushF(Arena, Cmd, "-EXPORT:%S", ExportFunc);
-      }
-      
       StrListConcatInPlace(Cmd, &Target.DynamicLinkLibraries);
      }break;
      
@@ -204,7 +232,29 @@ Compile(compiler_setup Setup, compilation_target Target)
     }
    }break;
    
-   case Clang:
+   case Clang: {
+    switch (Target.TargetType)
+    {
+     case Lib:
+     case Exe: {
+      if (Target.TargetType == Lib)
+      {
+       StrListPushF(Arena, Cmd, "-shared");
+      }
+      ListIter(Node, Target.DynamicLinkLibraries.Head, string_list_node)
+      {
+       string LinkLib = Node->Str;
+       StrListPushF(Arena, Cmd, "-l%S", LinkLib);
+      }
+     }break;
+     
+     case Obj: {
+      StrListPushF(Arena, Cmd, "-c");
+     }break;
+    }
+    StrListPushF(Arena, Cmd, "-o%S", OutputTarget);
+   }break;
+   
    case GCC: {NotImplemented;}break;
   }
   

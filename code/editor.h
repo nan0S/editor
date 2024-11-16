@@ -248,7 +248,7 @@ enum animation_type
  Animation_Linear,
  Animation_Count,
 };
-read_only global char const *AnimationNames[] = { "Smooth", "Linear" };
+global char const *AnimationNames[] = { "Smooth", "Linear" };
 StaticAssert(ArrayCount(AnimationNames) == Animation_Count, AllAnimationNamesDefined);
 
 struct curve_animation_state
@@ -283,7 +283,7 @@ enum curve_combination_type : u32
  CurveCombination_G1,
  CurveCombination_Count,
 };
-read_only global char const *CurveCombinationNames[] = { "None", "Merge", "C0", "C1", "C2", "G1" };
+global char const *CurveCombinationNames[] = { "None", "Merge", "C0", "C1", "C2", "G1" };
 StaticAssert(ArrayCount(CurveCombinationNames) == CurveCombination_Count, CurveCombinationNamesDefined);
 
 struct curve_combining_state

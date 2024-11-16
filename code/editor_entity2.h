@@ -9,7 +9,7 @@ enum interpolation_type : u32
  Interpolation_Count
 };
 // TODO(hbr): Try to add designated array intializers
-read_only global char const *InterpolationNames[] = { "Cubic Spline", "Bezier", "Polynomial" };
+global char const *InterpolationNames[] = { "Cubic Spline", "Bezier", "Polynomial" };
 StaticAssert(ArrayCount(InterpolationNames) == Interpolation_Count, InterpolationNamesDefined);
 
 enum polynomial_interpolation_type : u32
@@ -18,7 +18,7 @@ enum polynomial_interpolation_type : u32
  PolynomialInterpolation_Newton,
  PolynomialInterpolation_Count,
 };
-read_only global char const *PolynomialInterpolationNames[] = { "Barycentric", "Newton" };
+global char const *PolynomialInterpolationNames[] = { "Barycentric", "Newton" };
 StaticAssert(ArrayCount(PolynomialInterpolationNames) == PolynomialInterpolation_Count, PolynomialInterpolationNamesDefined);
 
 enum point_spacing : u32
@@ -27,7 +27,7 @@ enum point_spacing : u32
  PointSpacing_Equidistant,
  PointSpacing_Count,
 };
-read_only global char const *PointSpacingNames[] = { "Chebychev", "Equidistant" };
+global char const *PointSpacingNames[] = { "Chebychev", "Equidistant" };
 StaticAssert(ArrayCount(PointSpacingNames) == PointSpacing_Count, PointSpacingNamesDefined);
 
 struct polynomial_interpolation_params
@@ -42,7 +42,7 @@ enum cubic_spline_type : u32
  CubicSpline_Periodic,
  CubicSpline_Count,
 };
-read_only global char const *CubicSplineNames[] = { "Natural", "Periodic" };
+global char const *CubicSplineNames[] = { "Natural", "Periodic" };
 StaticAssert(ArrayCount(CubicSplineNames) == CubicSpline_Count, CubicSplineNamesDefined);
 
 enum bezier_type : u32
@@ -51,7 +51,7 @@ enum bezier_type : u32
  Bezier_Cubic,
  Bezier_Count,
 };
-read_only global char const *BezierNames[] = { "Regular", "Cubic" };
+global char const *BezierNames[] = { "Regular", "Cubic" };
 StaticAssert(ArrayCount(BezierNames) == Bezier_Count, BezierNamesDefined);
 
 struct curve_params

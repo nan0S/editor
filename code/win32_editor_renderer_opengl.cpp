@@ -55,7 +55,7 @@ LARGE_INTEGER Name##Begin = Win32GetClock(); \
 
 typedef void wgl_swap_interval_ext(int);
 
-extern "C"
+DLL_EXPORT
 WIN32_RENDERER_INIT(Win32RendererInit)
 {
  Platform = PlatformAPI;
@@ -70,7 +70,7 @@ WIN32_RENDERER_INIT(Win32RendererInit)
  
  OpenGL->CommandBuffer = PushArrayNonZero(Arena, Limits->MaxCommandCount, render_command);
  OpenGL->MaxCommandCount = Limits->MaxCommandCount;
- OpenGL->ImGuiBindings = ImGuiBindings;
+ OpenGL->PlatformHeader.ImGuiBindings = ImGuiBindings;
  
  //- set pixel format
  {
@@ -101,8 +101,6 @@ WIN32_RENDERER_INIT(Win32RendererInit)
   
   wgl_swap_interval_ext *wglSwapIntervalEXT = Cast(wgl_swap_interval_ext *)wglGetProcAddress("wglSwapIntervalEXT");
   wglSwapIntervalEXT(0);
-  
-  Trap;
  }
  
  //- allocate texture transfer queue
@@ -139,7 +137,7 @@ WIN32_RENDERER_INIT(Win32RendererInit)
  return Cast(platform_renderer *)OpenGL;
 }
 
-extern "C"
+DLL_EXPORT
 RENDERER_BEGIN_FRAME(Win32RendererBeginFrame)
 {
  opengl *OpenGL = Cast(opengl *)Renderer;
@@ -150,7 +148,7 @@ RENDERER_BEGIN_FRAME(Win32RendererBeginFrame)
  RenderFrame->MaxCommandCount = OpenGL->MaxCommandCount;
  RenderFrame->WindowDim = WindowDim;
  
- OpenGL->ImGuiBindings.NewFrame();
+ OpenGL->PlatformHeader.ImGuiBindings.NewFrame();
  
  return RenderFrame;
 }
@@ -172,7 +170,7 @@ M3x3ToM4x4OpenGL(m3x3 M)
  return R;
 }
 
-extern "C"
+DLL_EXPORT
 RENDERER_END_FRAME(Win32RendererEndFrame)
 {
  opengl *OpenGL = Cast(opengl *)Renderer;
@@ -327,6 +325,6 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
   }
  }
  
- OpenGL->ImGuiBindings.Render();
+ OpenGL->PlatformHeader.ImGuiBindings.Render();
  SwapBuffers(wglGetCurrentDC());
 }

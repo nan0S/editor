@@ -351,7 +351,7 @@ UI_Text(string Text)
 {
  temp_arena Temp = TempArena(0);
  string CText = CStrFromStr(Temp.Arena, Text);
- ImGui::Text(CText.Data);
+ ImGui::Text("%s", CText.Data);
  EndTemp(Temp);
 }
 

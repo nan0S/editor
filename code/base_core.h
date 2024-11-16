@@ -114,14 +114,6 @@ struct m4x4
  f32 M[4][4];
 };
 
-#if OS_WINDOWS
-# pragma section(".roglob", read)
-# define read_only __declspec(allocate(".roglob"))
-#elif (OS_LINUX && COMPILER_CLANG)
-# define read_only __attribute__((section(".rodata")))
-#else
-# define read_only
-#endif
 
 #if OS_WINDOWS
 # define thread_static __declspec(thread)
@@ -132,6 +124,9 @@ struct m4x4
 #if !defined(thread_static)
 # error thread_static not defined
 #endif
+
+#define DLL_EXPORT extern "C" __declspec(dllexport)
+#define DLL_IMPORT extern "C" __declspec(dllimport)
 
 #define Bytes(N)      ((Cast(u64)(N)) << 0)
 #define Kilobytes(N)  ((Cast(u64)(N)) << 10)
@@ -155,6 +150,8 @@ struct m4x4
 #define DeferBlock(Start, End) for (int _i_ = ((Start), 0); _i_ == 0; ++_i_, (End))
 #define NameConcat_(A, B) A##B
 #define NameConcat(A, B) NameConcat_(A, B)
+#define ConvertNameToString_(Name) #Name
+#define ConvertNameToString(Name) ConvertNameToString_(Name) // convert CustomName -> "CustomName"
 
 #if defined(BUILD_DEBUG)
 # define Assert(Expr) AssertAlways(Expr)

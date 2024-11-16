@@ -38,6 +38,12 @@ enum
 };
 typedef u32 compilation_flags;
 
+struct define_variable
+{
+ string Name;
+ string Value;
+};
+
 struct compilation_target
 {
  compilation_target_type TargetType;
@@ -45,7 +51,8 @@ struct compilation_target
  compilation_flags Flags;
  string_list StaticLinks;
  string_list DynamicLinkLibraries;
- string_list ExportFunctions;
+ u32 DefineMacroCount;
+ define_variable DefineMacros[16];
 };
 
 struct compile_result
@@ -62,15 +69,13 @@ struct process_queue
 };
 
 internal void InitBuild(void);
-internal compiler DefaultCompiler(void);
 
 internal compiler_setup MakeCompilerSetup(compiler_choice Compiler, b32 DebugBuild, b32 GenerateDebuggerInfo, b32 Verbose);
-internal void IncludePath(compiler_setup *Setup, string IncludePath);
-
 internal compilation_target MakeTarget(compilation_target_type TargetType, string SourcePath, compilation_flags Flags);
-internal void ExportFunction(compilation_target *Target, char const *ExportFunc);
+internal void IncludePath(compiler_setup *Setup, string IncludePath);
 internal void LinkLibrary(compilation_target *Target, char const *Library);
 internal void StaticLink(compilation_target *Target, string Link);
+internal void DefineVariable(compilation_target *Target, string Name, string Value);
 
 internal compile_result Compile(compiler_setup Setup, compilation_target Target);
 

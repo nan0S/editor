@@ -337,8 +337,8 @@ FmtV(char *Buf, u64 BufSize, char const *Format, va_list Args)
      OutStr(&Out, Str);
     } break;
     case 'c': {
-     char C = va_arg(Args, char);
-     OutC(&Out, C);
+     int C = va_arg(Args, int);
+     OutC(&Out, Cast(char)C);
     } break;
     
     case 'n': {

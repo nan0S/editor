@@ -44,13 +44,13 @@ internal v4 RGBA_Color(u8 R, u8 G, u8 B, u8 A = 255);
 internal v4 BrightenColor(v4 Color, f32 BrightenByRatio);
 internal v4 DarkenColor(v4 Color, f32 DarkenByRatio);
 
-read_only global v4 BlackColor       = V4(0.0f, 0.0f, 0.0f, 1.0f);
-read_only global v4 WhiteColor       = V4(1.0f, 1.0f, 1.0f, 1.0f);
-read_only global v4 GreenColor       = V4(0.0f, 1.0f, 0.0f, 1.0f);
-read_only global v4 RedColor         = V4(1.0f, 0.0f, 0.0f, 1.0f);
-read_only global v4 BlueColor        = V4(0.0f, 0.0f, 1.0f, 1.0f);
-read_only global v4 YellowColor      = V4(1.0f, 1.0f, 0.0f, 1.0f);
-read_only global v4 TransparentColor = V4(0.0f, 0.0f, 0.0f, 0.0f);
+global v4 BlackColor       = V4(0.0f, 0.0f, 0.0f, 1.0f);
+global v4 WhiteColor       = V4(1.0f, 1.0f, 1.0f, 1.0f);
+global v4 GreenColor       = V4(0.0f, 1.0f, 0.0f, 1.0f);
+global v4 RedColor         = V4(1.0f, 0.0f, 0.0f, 1.0f);
+global v4 BlueColor        = V4(0.0f, 0.0f, 1.0f, 1.0f);
+global v4 YellowColor      = V4(1.0f, 1.0f, 0.0f, 1.0f);
+global v4 TransparentColor = V4(0.0f, 0.0f, 0.0f, 0.0f);
 
 internal rectangle2 EmptyAABB(void);
 internal void AddPointAABB(rectangle2 *AABB, v2 P);

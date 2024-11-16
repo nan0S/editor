@@ -2123,7 +2123,7 @@ LoadImageFromMemory(arena *Arena, char *ImageData, u64 Count)
 
 platform_api Platform;
 
-extern "C"
+DLL_EXPORT
 EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 {
  Platform = Memory->PlatformAPI;
@@ -3419,7 +3419,7 @@ IMGUI_NEW_FRAME_FUNC();
 IMGUI_RENDER_FUNC();
 IMGUI_MAYBE_CAPTURE_INPUT_FUNC();
 
-extern "C"
+DLL_EXPORT
 EDITOR_GET_IMGUI_BINDINGS(EditorGetImGuiBindings)
 {
  imgui_bindings Bindings = {};

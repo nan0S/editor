@@ -9,12 +9,12 @@
 # error unsupported OS
 #endif
 
-#if defined(_MSC_VER)
-# define COMPILER_MSVC 1
+#if defined(__clang__)
+# define COMPILER_CLANG 1
 #elif defined(__GNUC__) || defined(__GNUG__)
 # define COMPILER_GCC 1
-#elif defined(__clang__)
-# define COMPILER_CLANG 1
+#elif defined(_MSC_VER)
+# define COMPILER_MSVC 1
 #else
 # error unsupported compiler
 #endif

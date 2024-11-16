@@ -132,6 +132,7 @@ struct platform_renderer_limits
 struct platform_renderer
 {
  texture_transfer_queue TextureQueue;
+ imgui_bindings ImGuiBindings;
 };
 
 #define RENDERER_BEGIN_FRAME(Name) render_frame *Name(platform_renderer *Renderer, v2u WindowDim)

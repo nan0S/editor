@@ -23,6 +23,16 @@
 #include "editor_thread_ctx.cpp"
 #include "os_core.cpp"
 
+#ifndef EDITOR_DLL
+# error EDITOR_DLL with path to editor DLL code is not defined
+#endif
+#ifndef EDITOR_RENDERER_DLL
+# error EDITOR_RENDERER_DLL with path to editor renderer DLL code is not defined
+#endif
+
+#define EDITOR_DLL_PATH ConvertNameToString(EDITOR_DLL)
+#define EDITOR_RENDERER_DLL_PATH ConvertNameToString(EDITOR_RENDERER_DLL)
+
 global u64 GlobalProcCount;
 global u64 GlobalPageSize;
 global win32_platform_input *GlobalWin32Input;
@@ -392,6 +402,22 @@ OS_PrintDebugF("%s: %fms\n", #Name, Elapsed * 1000.0f); \
 LARGE_INTEGER Name##Begin = Win32GetClock(); \
 } while(0)
 
+internal void
+Win32LoadCode(char const *DLL, char const **FunctionNames, void **FunctionTable, u32 FunctionCount)
+{
+ HMODULE LoadedLib = LoadLibrary(DLL);
+ if (LoadedLib)
+ {
+  for (u32 FunctionIndex = 0;
+       FunctionIndex < FunctionCount;
+       ++FunctionIndex)
+  {
+   char const *FunctionName = FunctionNames[FunctionIndex];
+   FunctionTable[FunctionIndex] = Cast(void *)GetProcAddress(LoadedLib, FunctionName);
+  }
+ }
+}
+
 int
 WinMain(HINSTANCE Instance,
         HINSTANCE PrevInstance,
@@ -459,34 +485,18 @@ WinMain(HINSTANCE Instance,
    
    //- load editor code
    WIN32_BEGIN_DEBUG_BLOCK(LoadEditorCode);
-   // TODO(hbr): Don't hardcore "debug" suffix here as well
-   HMODULE EditorCodeLibrary = LoadLibrary("editor_debug.dll");
-   editor_update_and_render *EditorUpdateAndRender = 0;
-   editor_get_imgui_bindings *EditorGetImGuiBindings = 0;
-   if (EditorCodeLibrary)
-   {
-    // TODO(hbr): And this function name - don't hardcode it
-    EditorUpdateAndRender = Cast(editor_update_and_render *)GetProcAddress(EditorCodeLibrary, "EditorUpdateAndRender");
-    EditorGetImGuiBindings = Cast(editor_get_imgui_bindings *)GetProcAddress(EditorCodeLibrary, "EditorGetImGuiBindings");
-   }
-   GlobalImGuiBindings = EditorGetImGuiBindings();
+   editor_function_table EditorCode = {};
+   Win32LoadCode(EDITOR_DLL_PATH, EditorFunctionTableNames, EditorCode.Functions, ArrayCount(EditorCode.Functions));
+   GlobalImGuiBindings = EditorCode.GetImGuiBindings();
    WIN32_END_DEBUG_BLOCK(LoadEditorCode);
    
    //- load renderer code
    WIN32_BEGIN_DEBUG_BLOCK(LoadRendererCode);
-   // TODO(hbr): Don't hardcode the fact that it has to be suffixed with _debug - either remove suffixes from the
-   // build system or #if BUILD_DEBUG or maybe input these things through build system
-   HMODULE RendererCodeLibrary = LoadLibrary("win32_editor_renderer_opengl_debug.dll");
-   win32_renderer_init *Win32RendererInit = 0;
-   renderer_begin_frame *Win32RendererBeginFrame = 0;
-   renderer_end_frame *Win32RendererEndFrame = 0;
-   if (RendererCodeLibrary)
-   {
-    // TODO(hbr): Don't hardcode these strings here, instead define them in one place
-    Win32RendererInit = Cast(win32_renderer_init *)GetProcAddress(RendererCodeLibrary, "Win32RendererInit");
-    Win32RendererBeginFrame = Cast(renderer_begin_frame *)GetProcAddress(RendererCodeLibrary, "Win32RendererBeginFrame");
-    Win32RendererEndFrame = Cast(renderer_end_frame *)GetProcAddress(RendererCodeLibrary, "Win32RendererEndFrame");
-   }
+   win32_renderer_function_table RendererCode = {};
+   Win32LoadCode(EDITOR_RENDERER_DLL_PATH,
+                 Win32RendererFunctionTableNames,
+                 RendererCode.Functions,
+                 ArrayCount(RendererCode.Functions));
    WIN32_END_DEBUG_BLOCK(LoadRendererCode);
    
    //- init renderer
@@ -497,7 +507,7 @@ WinMain(HINSTANCE Instance,
    arena *RendererArena = AllocArena();
    HDC WindowDC = GetDC(Window);
    WIN32_BEGIN_DEBUG_BLOCK(RendererInit);
-   platform_renderer *Renderer = Win32RendererInit(RendererArena, &Limits, Platform, GlobalImGuiBindings, Window, WindowDC);
+   platform_renderer *Renderer = RendererCode.Init(RendererArena, &Limits, Platform, GlobalImGuiBindings, Window, WindowDC);
    WIN32_END_DEBUG_BLOCK(RendererInit);
    
    editor_memory Memory = {};
@@ -543,20 +553,21 @@ WinMain(HINSTANCE Instance,
      Input.ClipSpaceMouseP = Win32ScreenToClip(CursorP.x, CursorP.y, WindowDim);
     }
     
+    // TODO(hbr): Temporary
     local b32 FirstFrame = true;
     
     WIN32_BEGIN_DEBUG_BLOCK(RendererBeginFrame);
-    render_frame *Frame = Win32RendererBeginFrame(Renderer, WindowDim);
+    render_frame *Frame = RendererCode.BeginFrame(Renderer, WindowDim);
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererBeginFrame);}
     
     LARGE_INTEGER EndClock = Win32GetClock();
     Input.dtForFrame = Win32SecondsElapsed(LastClock, EndClock);
     WIN32_BEGIN_DEBUG_BLOCK(EditorUpdateAndRender);
-    EditorUpdateAndRender(&Memory, &Input, Frame);
+    EditorCode.UpdateAndRender(&Memory, &Input, Frame);
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(EditorUpdateAndRender);}
     
     WIN32_BEGIN_DEBUG_BLOCK(RendererEndFrame);
-    Win32RendererEndFrame(Renderer, Frame);
+    RendererCode.EndFrame(Renderer, Frame);
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererEndFrame);}
     
     

@@ -154,7 +154,7 @@ internal void
 SetTransform(render_group *RenderGroup, m3x3 Model, f32 ZOffset)
 {
  RenderGroup->ModelXForm = Model;
- RenderGroup->ZOffset;
+ RenderGroup->ZOffset = ZOffset;
 }
 
 internal void

@@ -433,7 +433,7 @@ OS_LibraryLoad(char const *Name)
 internal void *
 OS_LibraryProc(os_library_handle Lib, char const *ProcName)
 {
- void *Proc = GetProcAddress(Lib, ProcName);
+ void *Proc = Cast(void *)GetProcAddress(Lib, ProcName);
  return Proc;
 }
 

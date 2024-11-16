@@ -97,6 +97,7 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
   
   while (Queue.Head)
   {
+   //- find all includes
    string_list_node *Current = Queue.Head;
    QueuePop(Queue.Head, Queue.Tail);
    
@@ -128,11 +129,28 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
        u64 Length = Parser->At - SaveAt;
        if (ParserCharMatchAndEat(Parser, '"'))
        {
-        string_list_node *Node = PushStruct(Arena, string_list_node);
         string DependencyFile = MakeStr(SaveAt, Length);
         string DependencyPath = PathConcat(Arena, CodeDir, DependencyFile);
-        Node->Str = DependencyPath;
-        QueuePush(Queue.Head, Queue.Tail, Node);
+        
+        // NOTE(hbr): make sure we do not recurse
+        b32 AlreadyExists = false;
+        ListIter(Node, AllFilesInvolved.Head, string_list_node)
+        {
+         string Current = Node->Str;
+         if (StrMatch(Current, DependencyPath, false))
+         {
+          AlreadyExists = true;
+          break;
+         }
+        }
+        
+        if (!AlreadyExists)
+        {
+         string_list_node *Node = PushStruct(Arena, string_list_node);
+         
+         Node->Str = DependencyPath;
+         QueuePush(Queue.Head, Queue.Tail, Node);
+        }
        }
       }
      }
@@ -144,6 +162,7 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
    }
   }
   
+  //- maybe recompile
   u64 LatestModifyTime = 0;
   ListIter(DependencyFile, AllFilesInvolved.Head, string_list_node)
   {
@@ -153,12 +172,10 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
   file_attrs ExeAttrs = OS_FileAttributes(InvokePathAbs);
   if (ExeAttrs.ModifyTime < LatestModifyTime)
   {
-   OS_PrintF("recompiling myself\n");
+   OS_PrintF("[recompiling myself]\n");
    
    // NOTE(hbr): Always debug and never debug info to be fast
-   // TODO(hbr): Remove debug info generation below here
-   // TODO(hbr): Choose compiler based on OS
-   compiler_setup Setup = MakeCompilerSetup(MSVC, true, true);
+   compiler_setup Setup = MakeCompilerSetup(Compiler_Default, true, true, false);
    compilation_target Target = MakeTarget(Exe, SourceCodePath, CompilationFlag_TemporaryTarget);
    compile_result BuildCompile = Compile(Setup, Target);
    OS_ProcessWait(BuildCompile.CompileProcess);
@@ -166,6 +183,14 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
    //- run this program again, this time with up to date binary
    string_list InvokeBuild = {};
    StrListPush(Arena, &InvokeBuild, BuildCompile.OutputTarget);
+   for (int ArgIndex = 1;
+        ArgIndex < ArgCount;
+        ++ArgIndex)
+   {
+    string Arg = StrFromCStr(Argv[ArgIndex]);
+    StrListPush(Arena, &InvokeBuild, Arg);
+   }
+   
    os_process_handle BuildProcess = OS_ProcessLaunch(InvokeBuild);
    OS_ProcessWait(BuildProcess);
    

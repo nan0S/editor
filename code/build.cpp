@@ -5,13 +5,13 @@
 #include "base_thread_ctx.h"
 #include "os_core.h"
 #include "base_nobuild.h"
-#include "base_build.h"
+#include "base_compile.h"
 
 #include "base_core.cpp"
 #include "base_arena.cpp"
 #include "base_string.cpp"
 #include "base_thread_ctx.cpp"
-#include "base_build.cpp"
+#include "base_compile.cpp"
 #include "os_core.cpp"
 #include "base_nobuild.cpp"
 
@@ -30,6 +30,7 @@ int main(int ArgCount, char *Argv[])
   b32 Debug = false;
   b32 Release = false;
   b32 ForceRecompile = false;
+  b32 Verbose = false;
   for (int ArgIndex = 1;
        ArgIndex < ArgCount;
        ++ArgIndex)
@@ -47,6 +48,10 @@ int main(int ArgCount, char *Argv[])
    {
     ForceRecompile = true;
    }
+   if (StrMatch(Arg, StrLit("verbose"), true))
+   {
+    Verbose = true;
+   }
   }
   if (!Debug && !Release)
   {
@@ -54,9 +59,8 @@ int main(int ArgCount, char *Argv[])
    Debug = true;
   }
   
-  compiler Compiler = MSVC;
   process_queue ProcessQueue = {};
-  compiler_setup Setup = MakeCompilerSetup(Compiler, Debug, true);
+  compiler_setup Setup = MakeCompilerSetup(Compiler_Default, Debug, true, Verbose);
   IncludePath(&Setup, StrLit("../code/third_party/imgui"));
   
   //- compile renderer into library
@@ -71,7 +75,7 @@ int main(int ArgCount, char *Argv[])
    EnqueueProcess(&ProcessQueue, Renderer.CompileProcess);
   }
   
-  //- compile into main executable
+  //- compile platform layer into executable
   {
    compilation_target Target = MakeTarget(Exe, StrLit("../code/win32_editor.cpp"), 0);
    LinkLibrary(&Target, "User32.lib"); // CreateWindowExA,...
@@ -80,7 +84,7 @@ int main(int ArgCount, char *Argv[])
    EnqueueProcess(&ProcessQueue, Win32PlatformExe.CompileProcess);
   }
   
-  //- precompile imgui code into obj
+  //- precompile third part code into obj
   compile_result ThirdParty = {};
   {
    compilation_flags Flags = (ForceRecompile ? 0 : CompilationFlag_DontRecompileIfAlreadyExists);

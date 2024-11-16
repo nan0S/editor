@@ -7,12 +7,27 @@ InitBuild(int ArgCount, char *Argv[])
 }
 
 internal compiler_setup
-MakeCompilerSetup(compiler Compiler, b32 DebugBuild, b32 GenerateDebuggerInfo)
+MakeCompilerSetup(compiler_choice Compiler, b32 DebugBuild, b32 GenerateDebuggerInfo, b32 Verbose)
 {
  compiler_setup Result = {};
- Result.Compiler = Compiler;
+ switch (Compiler)
+ {
+  case Compiler_MSVC: {Result.Compiler = MSVC;}break;
+  case Compiler_GCC: {Result.Compiler = GCC;}break;
+  case Compiler_Clang: {Result.Compiler = Clang;}break;
+  case Compiler_Default: {
+#if OS_WINDOWS
+   Result.Compiler = MSVC;
+#elif OS_LINUX
+   Result.Compiler = GCC;
+#else
+   Result.Compiler = GCC;
+#endif
+  }break;
+ }
  Result.DebugBuild = DebugBuild;
  Result.GenerateDebuggerInfo = GenerateDebuggerInfo;
+ Result.Verbose = Verbose;
  
  return Result;
 }
@@ -191,6 +206,12 @@ Compile(compiler_setup Setup, compilation_target Target)
    
    case Clang:
    case GCC: {NotImplemented;}break;
+  }
+  
+  if (Setup.Verbose)
+  {
+   string CmdStr = StrListJoin(Arena, Cmd, StrLit(" "));
+   OS_PrintF("%S\n", CmdStr);
   }
   
   Result.CompileProcess = OS_ProcessLaunch(*Cmd);

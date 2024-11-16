@@ -1,6 +1,13 @@
-#ifndef BASE_BUILD_H
-#define BASE_BUILD_H
+#ifndef BASE_COMPILE_H
+#define BASE_COMPILE_H
 
+enum compiler_choice
+{
+ Compiler_Default,
+ Compiler_MSVC,
+ Compiler_GCC,
+ Compiler_Clang,
+};
 enum compiler
 {
  MSVC,
@@ -19,6 +26,7 @@ struct compiler_setup
 {
  b32 DebugBuild;
  b32 GenerateDebuggerInfo;
+ b32 Verbose; // NOTE(hbr): print commands
  compiler Compiler;
  string_list IncludePaths;
 };
@@ -54,8 +62,9 @@ struct process_queue
 };
 
 internal void InitBuild(void);
+internal compiler DefaultCompiler(void);
 
-internal compiler_setup MakeCompilerSetup(compiler Compiler, b32 DebugBuild, b32 GenerateDebuggerInfo);
+internal compiler_setup MakeCompilerSetup(compiler_choice Compiler, b32 DebugBuild, b32 GenerateDebuggerInfo, b32 Verbose);
 internal void IncludePath(compiler_setup *Setup, string IncludePath);
 
 internal compilation_target MakeTarget(compilation_target_type TargetType, string SourcePath, compilation_flags Flags);
@@ -68,4 +77,4 @@ internal compile_result Compile(compiler_setup Setup, compilation_target Target)
 internal void EnqueueProcess(process_queue *Queue, os_process_handle Process);
 internal void WaitProcesses(process_queue *Queue);
 
-#endif //BASE_BUILD_H
+#endif //BASE_COMPILE_H

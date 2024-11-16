@@ -1,6 +1,8 @@
 #ifndef BASE_ARENA_H
 #define BASE_ARENA_H
 
+#include "base_core.h"
+
 struct arena
 {
  void *Memory;

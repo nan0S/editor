@@ -379,27 +379,19 @@ Win32DisplayErrorBox(char const *Msg)
  MessageBoxA(0, Msg, 0, MB_OK);
 }
 
-internal LARGE_INTEGER
-Win32GetClock()
-{
- LARGE_INTEGER Result;
- QueryPerformanceCounter(&Result);
- return Result;
-}
-
 internal f32
-Win32SecondsElapsed(LARGE_INTEGER Begin, LARGE_INTEGER End)
+Win32SecondsElapsed(u64 BeginTSC, u64 EndTSC)
 {
- f32 Result = Cast(f32)(End.QuadPart - Begin.QuadPart) / GlobalWin32ClockFrequency;
+ u64 ElapsedTSC = EndTSC - BeginTSC;
+ f32 Result = Cast(f32)ElapsedTSC / OS_CPUTimerFreq();
  return Result;
 }
 
-#define WIN32_BEGIN_DEBUG_BLOCK(Name) LARGE_INTEGER Name##Begin = Win32GetClock();
+#define WIN32_BEGIN_DEBUG_BLOCK(Name) u64 Name##BeginTSC = OS_ReadCPUTimer()
 #define WIN32_END_DEBUG_BLOCK(Name) do { \
-LARGE_INTEGER EndClock = Win32GetClock(); \
-f32 Elapsed = Win32SecondsElapsed(Name##Begin, EndClock); \
+u64 EndTSC = OS_ReadCPUTimer(); \
+f32 Elapsed = Win32SecondsElapsed(Name##BeginTSC, EndTSC); \
 OS_PrintDebugF("%s: %fms\n", #Name, Elapsed * 1000.0f); \
-LARGE_INTEGER Name##Begin = Win32GetClock(); \
 } while(0)
 
 internal void
@@ -457,8 +449,11 @@ WinMain(HINSTANCE Instance,
  {
   int ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
   int ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
-  int WindowWidth =  ScreenWidth * 9/10;
-  int WindowHeight = ScreenHeight * 9/10;
+  // TODO(hbr): restore window sizes
+  int WindowWidth =  ScreenWidth * 1/2;
+  //int WindowWidth =  ScreenWidth * 9/10;
+  int WindowHeight = ScreenHeight * 1/2;
+  //int WindowHeight = ScreenHeight * 9/10;
   int WindowX = (ScreenWidth - WindowWidth) / 2;
   int WindowY = (ScreenHeight - WindowHeight) / 2;
   if (WindowWidth == 0 || WindowHeight == 0)
@@ -516,7 +511,7 @@ WinMain(HINSTANCE Instance,
    Memory.TextureQueue = &Renderer->TextureQueue;
    Memory.PlatformAPI = Platform;
    
-   LARGE_INTEGER LastClock = Win32GetClock();
+   u64 LastTSC = OS_ReadCPUTimer();
    
    platform_input Input = {};
    GlobalInput = &Input;
@@ -525,6 +520,21 @@ WinMain(HINSTANCE Instance,
    b32 Running = true;
    while (Running)
    {
+#if 0
+    {
+     file_attrs DLLAttrs = OS_FileAttributes(StrLit(EDITOR_DLL_PATH));
+     LARGE_INTEGER Now = OS_ReadCPUTimer();
+     f32 Elapsed = Win32SecondsElapsed(LastCodeReload, Now);
+     if (Elapsed > 2)
+     {
+      OS_PrintDebugF("Realoding " EDITOR_DLL_PATH "\n");
+      Win32LoadCode(EDITOR_DLL_PATH, EditorFunctionTableNames, EditorCode.Functions, ArrayCount(EditorCode.Functions));
+      GlobalImGuiBindings = EditorCode.GetImGuiBindings();
+      LastCodeReload = Now;
+     }
+    }
+#endif
+    
     //- process input events
     win32_platform_input Win32Input = {};
     GlobalWin32Input = &Win32Input;
@@ -560,8 +570,12 @@ WinMain(HINSTANCE Instance,
     render_frame *Frame = RendererCode.BeginFrame(Renderer, WindowDim);
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererBeginFrame);}
     
-    LARGE_INTEGER EndClock = Win32GetClock();
-    Input.dtForFrame = Win32SecondsElapsed(LastClock, EndClock);
+    {
+     u64 NowTSC = OS_ReadCPUTimer();
+     Input.dtForFrame = Win32SecondsElapsed(LastTSC, NowTSC);
+     LastTSC = NowTSC;
+    }
+    
     WIN32_BEGIN_DEBUG_BLOCK(EditorUpdateAndRender);
     EditorCode.UpdateAndRender(&Memory, &Input, Frame);
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(EditorUpdateAndRender);}
@@ -579,7 +593,7 @@ WinMain(HINSTANCE Instance,
      Running = false;
     }
     
-    LastClock = EndClock;
+    
    }
   }
  }

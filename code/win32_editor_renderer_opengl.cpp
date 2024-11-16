@@ -45,13 +45,18 @@ Win32SecondsElapsed(LARGE_INTEGER Begin, LARGE_INTEGER End)
  return Result;
 }
 
-#define WIN32_BEGIN_DEBUG_BLOCK(Name) LARGE_INTEGER Name##Begin = Win32GetClock();
+#define WIN32_BEGIN_DEBUG_BLOCK(Name)
+#define WIN32_END_DEBUG_BLOCK(Name)
+
+#if 0
+#define WIN32_BEGIN_DEBUG_BLOCK(Name) u64 Name##BeginTSC = OS_ReadCPUTimer();
 #define WIN32_END_DEBUG_BLOCK(Name) do { \
-LARGE_INTEGER EndClock = Win32GetClock(); \
-f32 Elapsed = Win32SecondsElapsed(Name##Begin, EndClock); \
+u64 EndTSC = OS_ReadCPUTimer(); \
+f32 Elapsed = Win32SecondsElapsed(Name##BeginTSC, EndTSC); \
 OS_PrintDebugF("%s: %fms\n", #Name, Elapsed * 1000.0f); \
 LARGE_INTEGER Name##Begin = Win32GetClock(); \
 } while(0)
+#endif
 
 typedef void wgl_swap_interval_ext(int);
 

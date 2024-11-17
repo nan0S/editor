@@ -117,6 +117,9 @@ typedef PLATFORM_ALLOC_VIRTUAL_MEMORY(platform_alloc_virtual_memory);
 #define PLATFORM_DEALLOC_VIRTUAL_MEMORY(Name) void Name(void *Memory, u64 Size)
 typedef PLATFORM_DEALLOC_VIRTUAL_MEMORY(platform_dealloc_virtual_memory);
 
+#define PLATFORM_GET_SCRATCH_ARENA(Name) temp_arena Name(arena *Conflict)
+typedef PLATFORM_GET_SCRATCH_ARENA(platform_get_scratch_arena);
+
 #define PLATFORM_OPEN_FILE_DIALOG(Name) platform_file_dialog_result Name(void)
 typedef PLATFORM_OPEN_FILE_DIALOG(platform_open_file_dialog);
 
@@ -127,6 +130,7 @@ struct platform_api
 {
  platform_alloc_virtual_memory *AllocVirtualMemory;
  platform_dealloc_virtual_memory *DeallocVirtualMemory;
+ platform_get_scratch_arena *GetScratchArena;
  
  platform_open_file_dialog *OpenFileDialog;
  

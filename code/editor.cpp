@@ -4,7 +4,6 @@
 #include "base_string.cpp"
 
 #include "editor_memory.cpp"
-#include "editor_thread_ctx.cpp"
 #include "editor_math.cpp"
 #include "editor_renderer.cpp"
 #include "editor_entity.cpp"
@@ -2127,12 +2126,6 @@ DLL_EXPORT
 EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 {
  Platform = Memory->PlatformAPI;
- 
- // TODO(hbr): remove this
- if (Memory->EditorCodeReloaded)
- {
-  InitThreadCtx();
- }
  
  editor *Editor = Memory->Editor;
  if (!Editor)

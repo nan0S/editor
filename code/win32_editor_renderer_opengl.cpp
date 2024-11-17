@@ -8,7 +8,6 @@
 #include "imgui_bindings.h"
 
 #include "editor_memory.h"
-#include "editor_thread_ctx.h"
 #include "editor_math.h"
 #include "editor_platform.h"
 #include "editor_renderer.h"
@@ -24,7 +23,6 @@
 #include "os_core.cpp"
 
 #include "editor_memory.cpp"
-#include "editor_thread_ctx.cpp"
 #include "editor_math.cpp"
 
 platform_api Platform;
@@ -69,7 +67,6 @@ WIN32_RENDERER_INIT(Win32RendererInit)
   QueryPerformanceFrequency(&PerfCounterFrequency);
   GlobalWin32ClockFrequency = PerfCounterFrequency.QuadPart;
  }
- InitThreadCtx();
  
  opengl *OpenGL = PushStruct(Arena, opengl);
  OpenGL->Window = Window;
@@ -137,7 +134,6 @@ RENDERER_BEGIN_FRAME(Win32RendererBeginFrame)
   LARGE_INTEGER PerfCounterFrequency;
   QueryPerformanceFrequency(&PerfCounterFrequency);
   GlobalWin32ClockFrequency = PerfCounterFrequency.QuadPart;
-  InitThreadCtx();
  }
  
  render_frame *RenderFrame = &OpenGL->RenderFrame;
@@ -323,7 +319,7 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
   }
  }
  
-#if 0
+#if 1
  m3x3 I = Identity3x3();
  m4x4 Model = M3x3ToM4x4OpenGL(I);
  glMatrixMode(GL_MODELVIEW);

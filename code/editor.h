@@ -8,7 +8,6 @@
 #include "imgui_bindings.h"
 
 #include "editor_memory.h"
-#include "editor_thread_ctx.h"
 #include "editor_third_party_inc.h"
 #include "editor_platform.h"
 #include "editor_renderer.h"

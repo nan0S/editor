@@ -113,3 +113,10 @@ EndTemp(temp_arena Temp)
  Temp.Arena->Cur = Temp.SavedCur;
  Temp.SavedCur->Used = Temp.SavedUsed;
 }
+
+inline internal temp_arena
+TempArena(arena *Conflict)
+{
+ temp_arena Result = Platform.GetScratchArena(Conflict);
+ return Result;
+}

@@ -7,7 +7,6 @@
 #include "imgui_bindings.h"
 
 #include "editor_memory.h"
-#include "editor_thread_ctx.h"
 #include "editor_platform.h"
 #include "editor_renderer.h"
 
@@ -23,7 +22,6 @@
 #include "base_string.cpp"
 #include "base_hot_reload.cpp"
 #include "editor_memory.cpp"
-#include "editor_thread_ctx.cpp"
 #include "os_core.cpp"
 
 #ifndef EDITOR_DLL
@@ -40,6 +38,7 @@ global u64 GlobalProcCount;
 global u64 GlobalPageSize;
 global win32_platform_input GlobalWin32Input;
 global platform_input *GlobalInput;
+global thread_static win32_thread_ctx GlobalThreadCtx;
 
 IMGUI_INIT(Win32ImGuiInitStub) {}
 IMGUI_NEW_FRAME(Win32ImGuiNewFrameStub) {}
@@ -64,6 +63,24 @@ PLATFORM_ALLOC_VIRTUAL_MEMORY(Win32AllocMemory)
 PLATFORM_DEALLOC_VIRTUAL_MEMORY(Win32DeallocMemory)
 {
  OS_Release(Memory, Size);
+}
+
+PLATFORM_GET_SCRATCH_ARENA(Win32GetScratchArena)
+{
+ temp_arena Result = {};
+ for (u32 Index = 0;
+      Index < ArrayCount(GlobalThreadCtx.Arenas);
+      ++Index)
+ {
+  arena *Arena = GlobalThreadCtx.Arenas[Index];
+  if (Arena != Conflict)
+  {
+   Result = BeginTemp(Arena);
+   break;
+  }
+ }
+ 
+ return Result;
 }
 
 PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
@@ -142,6 +159,7 @@ PLATFORM_READ_ENTIRE_FILE(Win32ReadEntireFile)
 platform_api Platform = {
  Win32AllocMemory,
  Win32DeallocMemory,
+ Win32GetScratchArena,
  Win32OpenFileDialog,
  Win32ReadEntireFile,
 };
@@ -398,7 +416,7 @@ WinMain(HINSTANCE Instance,
  
  WIN32_BEGIN_DEBUG_BLOCK(FromInit);
  
- //- init platform API and some global variables
+ //- init thread context and some global variables
  {
   SYSTEM_INFO Info = {};
   GetSystemInfo(&Info);
@@ -406,7 +424,12 @@ WinMain(HINSTANCE Instance,
   GlobalPageSize = Info.dwPageSize;
  }
  
- InitThreadCtx();
+ for (u32 ArenaIndex = 0;
+      ArenaIndex < ArrayCount(GlobalThreadCtx.Arenas);
+      ++ArenaIndex)
+ {
+  GlobalThreadCtx.Arenas[ArenaIndex] = AllocArena();
+ }
  
  //- create window
  WNDCLASSEXA WindowClass = {};

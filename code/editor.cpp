@@ -2129,7 +2129,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
  Platform = Memory->PlatformAPI;
  
  // TODO(hbr): remove this
- if (Input->LibraryReloaded)
+ if (Memory->EditorCodeReloaded)
  {
   InitThreadCtx();
  }
@@ -2137,9 +2137,6 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
  editor *Editor = Memory->Editor;
  if (!Editor)
  {
-  // TODO(hbr): remove this from here, init in platform layer if anything
-  InitThreadCtx();
-  
   Editor = Memory->Editor = PushStruct(Memory->PermamentArena, editor);
   
   Editor->BackgroundColor = Editor->DefaultBackgroundColor = RGBA_Color(21, 21, 21);
@@ -2719,8 +2716,10 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
        Entity->Scale = V2(1.0f, 1.0f);
       }
       
+#if 1
       local b32 Enabled = false;
       UI_CheckboxF(&Enabled, "hello hot reloaad");
+#endif
       
       {
        UI_PushLabelF("DragMe");

@@ -3,12 +3,7 @@
 
 struct opengl
 {
- platform_renderer PlatformHeader;
- 
  render_frame RenderFrame;
- 
- render_command *CommandBuffer;
- u32 MaxCommandCount;
  
  u32 MaxTextureCount;
  GLuint *Textures;

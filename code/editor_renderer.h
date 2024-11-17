@@ -124,21 +124,31 @@ struct texture_transfer_queue
 
 struct platform_renderer_limits
 {
- u32 MaxCommandCount;
- u32 MaxTextureQueueMemorySize;
  u32 MaxTextureCount;
 };
 
-struct platform_renderer
+struct renderer;
+
+struct renderer_memory
 {
  texture_transfer_queue TextureQueue;
+ 
+ platform_renderer_limits Limits;
+ 
+ render_command *CommandBuffer;
+ u32 MaxCommandCount;
+ 
+ b32 RendererCodeReloaded;
+ 
  imgui_bindings ImGuiBindings;
+ 
+ platform_api PlatformAPI;
 };
 
-#define RENDERER_BEGIN_FRAME(Name) render_frame *Name(platform_renderer *Renderer, v2u WindowDim)
+#define RENDERER_BEGIN_FRAME(Name) render_frame *Name(renderer *Renderer, renderer_memory *Memory, v2u WindowDim)
 typedef RENDERER_BEGIN_FRAME(renderer_begin_frame);
 
-#define RENDERER_END_FRAME(Name) void Name(platform_renderer *Renderer, render_frame *Frame)
+#define RENDERER_END_FRAME(Name) void Name(renderer *Renderer, renderer_memory *Memory, render_frame *Frame)
 typedef RENDERER_END_FRAME(renderer_end_frame);
 
 #endif //EDITOR_RENDERER_H

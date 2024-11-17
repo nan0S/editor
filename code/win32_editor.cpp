@@ -467,19 +467,7 @@ WinMain(HINSTANCE Instance,
    
    arena *PermamentArena = AllocArena();
    
-   //- load editor code
-   WIN32_BEGIN_DEBUG_BLOCK(LoadEditorCode);
-   editor_function_table EditorFunctionTable = {};
-   editor_function_table TempEditorFunctionTable = {};
-   hot_reload_library EditorCode = InitHotReloadableLibrary(PermamentArena,
-                                                            EDITOR_DLL_PATH,
-                                                            EditorFunctionTableNames,
-                                                            EditorFunctionTable.Functions,
-                                                            TempEditorFunctionTable.Functions,
-                                                            ArrayCount(EditorFunctionTable.Functions));
-   WIN32_END_DEBUG_BLOCK(LoadEditorCode);
-   
-   //- load renderer code
+   //- init renderer stuff
    WIN32_BEGIN_DEBUG_BLOCK(LoadRendererCode);
    win32_renderer_function_table RendererFunctionTable = {};
    win32_renderer_function_table TempRendererFunctionTable = {};
@@ -492,22 +480,45 @@ WinMain(HINSTANCE Instance,
    HotReloadIfRecompiled(&RendererCode);
    WIN32_END_DEBUG_BLOCK(LoadRendererCode);
    
-   //- init renderer
-   platform_renderer_limits Limits = {};
-   Limits.MaxCommandCount = 4096;
-   Limits.MaxTextureQueueMemorySize = Megabytes(100);
-   Limits.MaxTextureCount = 256;
-   arena *RendererArena = AllocArena();
+   renderer_memory RendererMemory = {};
+   {
+    RendererMemory.PlatformAPI = Platform;
+    
+    platform_renderer_limits *Limits = &RendererMemory.Limits;
+    Limits->MaxTextureCount = 256;
+    
+    texture_transfer_queue *Queue = &RendererMemory.TextureQueue;
+    Queue->TransferMemorySize = Megabytes(100);
+    Queue->TransferMemory = PushArrayNonZero(PermamentArena, Queue->TransferMemorySize, char);
+    
+    RendererMemory.MaxCommandCount = 4096;
+    RendererMemory.CommandBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxCommandCount, render_command);
+   }
+   
    HDC WindowDC = GetDC(Window);
+   arena *RendererArena = AllocArena();
+   
    WIN32_BEGIN_DEBUG_BLOCK(RendererInit);
-   platform_renderer *Renderer = RendererFunctionTable.Init(RendererArena, &Limits, Platform, Window, WindowDC);
+   renderer *Renderer = RendererFunctionTable.Init(RendererArena, &RendererMemory, Window, WindowDC);
    WIN32_END_DEBUG_BLOCK(RendererInit);
    
-   editor_memory Memory = {};
-   Memory.PermamentArena = PermamentArena;
-   Memory.MaxTextureCount = Limits.MaxTextureCount;
-   Memory.TextureQueue = &Renderer->TextureQueue;
-   Memory.PlatformAPI = Platform;
+   //- init editor stuff
+   WIN32_BEGIN_DEBUG_BLOCK(LoadEditorCode);
+   editor_function_table EditorFunctionTable = {};
+   editor_function_table TempEditorFunctionTable = {};
+   hot_reload_library EditorCode = InitHotReloadableLibrary(PermamentArena,
+                                                            EDITOR_DLL_PATH,
+                                                            EditorFunctionTableNames,
+                                                            EditorFunctionTable.Functions,
+                                                            TempEditorFunctionTable.Functions,
+                                                            ArrayCount(EditorFunctionTable.Functions));
+   WIN32_END_DEBUG_BLOCK(LoadEditorCode);
+   
+   editor_memory EditorMemory = {};
+   EditorMemory.PermamentArena = PermamentArena;
+   EditorMemory.MaxTextureCount = RendererMemory.Limits.MaxTextureCount;
+   EditorMemory.TextureQueue = &RendererMemory.TextureQueue;
+   EditorMemory.PlatformAPI = Platform;
    
    u64 LastTSC = OS_ReadCPUTimer();
    
@@ -518,18 +529,20 @@ WinMain(HINSTANCE Instance,
    b32 Running = true;
    while (Running)
    {
-    //- hot reload editor code
-    b32 EditorCodeReloaded = HotReloadIfRecompiled(&EditorCode);
-    if (EditorCodeReloaded)
+    //- hot reload
+    EditorMemory.EditorCodeReloaded = HotReloadIfRecompiled(&EditorCode);
+    if (EditorMemory.EditorCodeReloaded)
     {
      imgui_bindings Bindings = EditorFunctionTable.GetImGuiBindings();
      GlobalImGuiBindings = Bindings;
-     Renderer->ImGuiBindings = Bindings;
+     RendererMemory.ImGuiBindings = Bindings;
      
      imgui_init_data Init = {};
      Init.Window = Window;
      Bindings.Init(&Init);
     }
+    
+    RendererMemory.RendererCodeReloaded = HotReloadIfRecompiled(&RendererCode);
     
     //- process input events
     win32_platform_input Win32Input = {};
@@ -564,7 +577,7 @@ WinMain(HINSTANCE Instance,
     local b32 FirstFrame = true;
     
     WIN32_BEGIN_DEBUG_BLOCK(RendererBeginFrame);
-    render_frame *Frame = RendererFunctionTable.BeginFrame(Renderer, WindowDim);
+    render_frame *Frame = RendererFunctionTable.BeginFrame(Renderer, &RendererMemory, WindowDim);
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererBeginFrame);}
     
     {
@@ -573,14 +586,12 @@ WinMain(HINSTANCE Instance,
      LastTSC = NowTSC;
     }
     
-    Input.LibraryReloaded = EditorCodeReloaded;
-    
     WIN32_BEGIN_DEBUG_BLOCK(EditorUpdateAndRender);
-    EditorFunctionTable.UpdateAndRender(&Memory, &Input, Frame);
+    EditorFunctionTable.UpdateAndRender(&EditorMemory, &Input, Frame);
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(EditorUpdateAndRender);}
     
     WIN32_BEGIN_DEBUG_BLOCK(RendererEndFrame);
-    RendererFunctionTable.EndFrame(Renderer, Frame);
+    RendererFunctionTable.EndFrame(Renderer, &RendererMemory, Frame);
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererEndFrame);}
     
     

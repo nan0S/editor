@@ -1,7 +1,7 @@
 #ifndef WIN32_EDITOR_RENDERER_H
 #define WIN32_EDITOR_RENDERER_H
 
-#define WIN32_RENDERER_INIT(Name) platform_renderer *Name(arena *Arena, platform_renderer_limits *Limits, platform_api PlatformAPI, HWND Window, HDC WindowDC)
+#define WIN32_RENDERER_INIT(Name) renderer *Name(arena *Arena, renderer_memory *Memory, HWND Window, HDC WindowDC)
 typedef WIN32_RENDERER_INIT(win32_renderer_init);
 
 union win32_renderer_function_table

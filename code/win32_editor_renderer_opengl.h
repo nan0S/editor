@@ -12,6 +12,8 @@ struct opengl
  
  u32 MaxTextureCount;
  GLuint *Textures;
+ 
+ HWND Window;
 };
 
 #endif //WIN32_EDITOR_RENDERER_OPENGL_H

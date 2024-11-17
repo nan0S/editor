@@ -75,7 +75,7 @@ WIN32_RENDERER_INIT(Win32RendererInit)
  
  OpenGL->CommandBuffer = PushArrayNonZero(Arena, Limits->MaxCommandCount, render_command);
  OpenGL->MaxCommandCount = Limits->MaxCommandCount;
- OpenGL->PlatformHeader.ImGuiBindings = ImGuiBindings;
+ OpenGL->Window = Window;
  
  //- set pixel format
  {
@@ -132,12 +132,6 @@ WIN32_RENDERER_INIT(Win32RendererInit)
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
  }
- 
- imgui_init_data Init = {};
- Init.Window = Window;
- WIN32_BEGIN_DEBUG_BLOCK(ImGuiInit);
- ImGuiBindings.Init(&Init);
- WIN32_END_DEBUG_BLOCK(ImGuiInit);
  
  return Cast(platform_renderer *)OpenGL;
 }

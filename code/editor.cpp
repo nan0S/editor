@@ -2128,6 +2128,12 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 {
  Platform = Memory->PlatformAPI;
  
+ // TODO(hbr): remove this
+ if (Input->LibraryReloaded)
+ {
+  InitThreadCtx();
+ }
+ 
  editor *Editor = Memory->Editor;
  if (!Editor)
  {
@@ -2712,6 +2718,9 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
       {
        Entity->Scale = V2(1.0f, 1.0f);
       }
+      
+      local b32 Enabled = false;
+      UI_CheckboxF(&Enabled, "hello hot reloaad");
       
       {
        UI_PushLabelF("DragMe");

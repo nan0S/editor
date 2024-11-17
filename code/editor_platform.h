@@ -101,6 +101,8 @@ struct platform_input
  f32 dtForFrame;
  v2 ClipSpaceMouseP;
  
+ b32 LibraryReloaded;
+ 
  // NOTE(hbr): Set by application
  b32 QuitRequested;
 };

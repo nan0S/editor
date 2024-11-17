@@ -87,7 +87,7 @@ internal string      OS_CurrentDir(arena *Arena);
 internal string      OS_FullPathFromPath(arena *Arena, string Path);
 
 //- libraries
-internal os_library_handle OS_LibraryLoad(char const *Name);
+internal os_library_handle OS_LibraryLoad(string Path);
 internal void *            OS_LibraryProc(os_library_handle Lib, char const *ProcName);
 internal void              OS_LibraryUnload(os_library_handle Lib);
 

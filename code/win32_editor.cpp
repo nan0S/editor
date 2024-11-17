@@ -13,12 +13,15 @@
 
 #include "os_core.h"
 
+#include "base_hot_reload.h"
+
 #include "win32_editor.h"
 #include "win32_editor_renderer.h"
 #include "win32_imgui_bindings.h"
 
 #include "base_core.cpp"
 #include "base_string.cpp"
+#include "base_hot_reload.cpp"
 #include "editor_memory.cpp"
 #include "editor_thread_ctx.cpp"
 #include "os_core.cpp"
@@ -394,22 +397,6 @@ f32 Elapsed = Win32SecondsElapsed(Name##BeginTSC, EndTSC); \
 OS_PrintDebugF("%s: %fms\n", #Name, Elapsed * 1000.0f); \
 } while(0)
 
-internal void
-Win32LoadCode(char const *DLL, char const **FunctionNames, void **FunctionTable, u32 FunctionCount)
-{
- HMODULE LoadedLib = LoadLibrary(DLL);
- if (LoadedLib)
- {
-  for (u32 FunctionIndex = 0;
-       FunctionIndex < FunctionCount;
-       ++FunctionIndex)
-  {
-   char const *FunctionName = FunctionNames[FunctionIndex];
-   FunctionTable[FunctionIndex] = Cast(void *)GetProcAddress(LoadedLib, FunctionName);
-  }
- }
-}
-
 int
 WinMain(HINSTANCE Instance,
         HINSTANCE PrevInstance,
@@ -478,20 +465,31 @@ WinMain(HINSTANCE Instance,
    
    WIN32_END_DEBUG_BLOCK(FromInit);
    
+   arena *PermamentArena = AllocArena();
+   
    //- load editor code
    WIN32_BEGIN_DEBUG_BLOCK(LoadEditorCode);
-   editor_function_table EditorCode = {};
-   Win32LoadCode(EDITOR_DLL_PATH, EditorFunctionTableNames, EditorCode.Functions, ArrayCount(EditorCode.Functions));
-   GlobalImGuiBindings = EditorCode.GetImGuiBindings();
+   editor_function_table EditorFunctionTable = {};
+   editor_function_table TempEditorFunctionTable = {};
+   hot_reload_library EditorCode = InitHotReloadableLibrary(PermamentArena,
+                                                            EDITOR_DLL_PATH,
+                                                            EditorFunctionTableNames,
+                                                            EditorFunctionTable.Functions,
+                                                            TempEditorFunctionTable.Functions,
+                                                            ArrayCount(EditorFunctionTable.Functions));
    WIN32_END_DEBUG_BLOCK(LoadEditorCode);
    
    //- load renderer code
    WIN32_BEGIN_DEBUG_BLOCK(LoadRendererCode);
-   win32_renderer_function_table RendererCode = {};
-   Win32LoadCode(EDITOR_RENDERER_DLL_PATH,
-                 Win32RendererFunctionTableNames,
-                 RendererCode.Functions,
-                 ArrayCount(RendererCode.Functions));
+   win32_renderer_function_table RendererFunctionTable = {};
+   win32_renderer_function_table TempRendererFunctionTable = {};
+   hot_reload_library RendererCode = InitHotReloadableLibrary(PermamentArena,
+                                                              EDITOR_RENDERER_DLL_PATH,
+                                                              Win32RendererFunctionTableNames,
+                                                              RendererFunctionTable.Functions,
+                                                              TempRendererFunctionTable.Functions,
+                                                              ArrayCount(RendererFunctionTable.Functions));
+   HotReloadIfRecompiled(&RendererCode);
    WIN32_END_DEBUG_BLOCK(LoadRendererCode);
    
    //- init renderer
@@ -502,11 +500,11 @@ WinMain(HINSTANCE Instance,
    arena *RendererArena = AllocArena();
    HDC WindowDC = GetDC(Window);
    WIN32_BEGIN_DEBUG_BLOCK(RendererInit);
-   platform_renderer *Renderer = RendererCode.Init(RendererArena, &Limits, Platform, GlobalImGuiBindings, Window, WindowDC);
+   platform_renderer *Renderer = RendererFunctionTable.Init(RendererArena, &Limits, Platform, Window, WindowDC);
    WIN32_END_DEBUG_BLOCK(RendererInit);
    
    editor_memory Memory = {};
-   Memory.PermamentArena = AllocArena();
+   Memory.PermamentArena = PermamentArena;
    Memory.MaxTextureCount = Limits.MaxTextureCount;
    Memory.TextureQueue = &Renderer->TextureQueue;
    Memory.PlatformAPI = Platform;
@@ -520,20 +518,18 @@ WinMain(HINSTANCE Instance,
    b32 Running = true;
    while (Running)
    {
-#if 0
+    //- hot reload editor code
+    b32 EditorCodeReloaded = HotReloadIfRecompiled(&EditorCode);
+    if (EditorCodeReloaded)
     {
-     file_attrs DLLAttrs = OS_FileAttributes(StrLit(EDITOR_DLL_PATH));
-     LARGE_INTEGER Now = OS_ReadCPUTimer();
-     f32 Elapsed = Win32SecondsElapsed(LastCodeReload, Now);
-     if (Elapsed > 2)
-     {
-      OS_PrintDebugF("Realoding " EDITOR_DLL_PATH "\n");
-      Win32LoadCode(EDITOR_DLL_PATH, EditorFunctionTableNames, EditorCode.Functions, ArrayCount(EditorCode.Functions));
-      GlobalImGuiBindings = EditorCode.GetImGuiBindings();
-      LastCodeReload = Now;
-     }
+     imgui_bindings Bindings = EditorFunctionTable.GetImGuiBindings();
+     GlobalImGuiBindings = Bindings;
+     Renderer->ImGuiBindings = Bindings;
+     
+     imgui_init_data Init = {};
+     Init.Window = Window;
+     Bindings.Init(&Init);
     }
-#endif
     
     //- process input events
     win32_platform_input Win32Input = {};
@@ -563,11 +559,12 @@ WinMain(HINSTANCE Instance,
      Input.ClipSpaceMouseP = Win32ScreenToClip(CursorP.x, CursorP.y, WindowDim);
     }
     
+    //- update and render
     // TODO(hbr): Temporary
     local b32 FirstFrame = true;
     
     WIN32_BEGIN_DEBUG_BLOCK(RendererBeginFrame);
-    render_frame *Frame = RendererCode.BeginFrame(Renderer, WindowDim);
+    render_frame *Frame = RendererFunctionTable.BeginFrame(Renderer, WindowDim);
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererBeginFrame);}
     
     {
@@ -576,12 +573,14 @@ WinMain(HINSTANCE Instance,
      LastTSC = NowTSC;
     }
     
+    Input.LibraryReloaded = EditorCodeReloaded;
+    
     WIN32_BEGIN_DEBUG_BLOCK(EditorUpdateAndRender);
-    EditorCode.UpdateAndRender(&Memory, &Input, Frame);
+    EditorFunctionTable.UpdateAndRender(&Memory, &Input, Frame);
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(EditorUpdateAndRender);}
     
     WIN32_BEGIN_DEBUG_BLOCK(RendererEndFrame);
-    RendererCode.EndFrame(Renderer, Frame);
+    RendererFunctionTable.EndFrame(Renderer, Frame);
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererEndFrame);}
     
     
@@ -592,8 +591,6 @@ WinMain(HINSTANCE Instance,
     {
      Running = false;
     }
-    
-    
    }
   }
  }

@@ -1,0 +1,80 @@
+internal hot_reload_library
+InitHotReloadableLibrary(arena *Arena, char const *DLL, char const **FunctionNames,
+                         void **FunctionTable, void **TempFunctionTable, u32 FunctionCount)
+{
+ hot_reload_library Result = {};
+ 
+ string LibraryPath = StrFromCStr(DLL);
+ string BaseLibraryPath = StrChopLastDot(LibraryPath);
+ string LibraryExt = StrAfterLastDot(LibraryPath);
+ string TempName1 = StrF(Arena, "%S_temp.%S", BaseLibraryPath, LibraryExt);
+ string TempName2 = StrF(Arena, "%S_temp2.%S", BaseLibraryPath, LibraryExt);
+ 
+ Result.LibraryPath = LibraryPath;
+ Result.UsedTempLibraryPath = TempName2;
+ Result.FreeTempLibraryPath = TempName1;
+ 
+ Result.FunctionNames = FunctionNames;
+ Result.FunctionTable = FunctionTable;
+ Result.TempFunctionTable = TempFunctionTable;
+ Result.FunctionCount = FunctionCount;
+ 
+ return Result;
+}
+
+internal b32
+HotReloadIfRecompiled(hot_reload_library *Code)
+{
+ b32 Reloaded = false;
+ 
+ file_attrs DLLAttrs = OS_FileAttributes(Code->LibraryPath);
+ if (DLLAttrs.ModifyTime > Code->LoadedModifyTime)
+ {
+  if (OS_FileCopy(Code->LibraryPath, Code->FreeTempLibraryPath))
+  {
+   os_library_handle NewLibrary = OS_LibraryLoad(Code->FreeTempLibraryPath);
+   if (NewLibrary)
+   {
+    b32 AllFunctionsLoaded = true;
+    for (u32 FunctionIndex = 0;
+         FunctionIndex < Code->FunctionCount;
+         ++FunctionIndex)
+    {
+     char const *FunctionName = Code->FunctionNames[FunctionIndex];
+     void *LoadedFunction = OS_LibraryProc(NewLibrary, FunctionName);
+     if (LoadedFunction)
+     {
+      Code->TempFunctionTable[FunctionIndex] = LoadedFunction;
+     }
+     else
+     {
+      AllFunctionsLoaded = false;
+      break;
+     }
+    }
+    
+    if (AllFunctionsLoaded)
+    {
+     if (Code->Library)
+     {
+      OS_LibraryUnload(Code->Library);
+     }
+     
+     ArrayCopy(Code->FunctionTable, Code->TempFunctionTable, Code->FunctionCount);
+     Code->Library = NewLibrary;
+     Code->LoadedModifyTime = DLLAttrs.ModifyTime;
+     Swap(Code->UsedTempLibraryPath, Code->FreeTempLibraryPath, string);
+     
+     OS_PrintDebugF("%S reloaded\n", Code->LibraryPath);
+     Reloaded = true;
+    }
+    else
+    {
+     OS_LibraryUnload(NewLibrary);
+    }
+   }
+  }
+ }
+ 
+ return Reloaded;
+}

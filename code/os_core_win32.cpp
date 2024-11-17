@@ -424,9 +424,12 @@ OS_FullPathFromPath(arena *Arena, string Path)
 }
 
 internal os_library_handle
-OS_LibraryLoad(char const *Name)
+OS_LibraryLoad(string Path)
 {
- HMODULE Lib = LoadLibraryA(Name);
+ temp_arena Temp = TempArena(0);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ HMODULE Lib = LoadLibraryA(CPath.Data);
+ EndTemp(Temp);
  return Lib;
 }
 

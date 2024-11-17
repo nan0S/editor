@@ -96,7 +96,6 @@ WIN32_RENDERER_INIT(Win32RendererInit)
  {
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glEnable(GL_BLEND);
-  //wglSwapIntervalEXT(0);
   
   wgl_swap_interval_ext *wglSwapIntervalEXT = Cast(wgl_swap_interval_ext *)wglGetProcAddress("wglSwapIntervalEXT");
   wglSwapIntervalEXT(0);

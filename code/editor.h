@@ -193,9 +193,6 @@ Bugs:
 Stack:
  - add sorting to rendering - this then will allow to draw things out of order and will simplify the code a lot
 - don't always require to specify model matrix - do something like SetModel(transform_inv)
-- uninline some UpdateAndRender* functions
-- get rid of sf::Sprite in editor code - move it to renderer
-- split renderer into generic renderer and sfml renderer
 - check why editor type is so fucking big - probably compress it a little
  - remove world_position, screen_position, clip_space and camera_position
 - try to remove multiple transform_invs from render_group
@@ -207,8 +204,6 @@ Stack:
 - antialiasing
 - loading opengl dynamically
 - multithreading - can start with multithreading loading DLLs
- - input handling on Win32
-- get rid of InitThreadCtx
 */
 
 struct camera

@@ -59,12 +59,9 @@ enum platform_key
  PlatformKey_Z,
  
  PlatformKey_Escape,
- PlatformKey_LeftShift,
- PlatformKey_RightShift,
- PlatformKey_LeftCtrl,
- PlatformKey_RightCtrl,
- PlatformKey_LeftAlt,
- PlatformKey_RightAlt,
+ PlatformKey_Shift,
+ PlatformKey_Ctrl,
+ PlatformKey_Alt,
  PlatformKey_Space,
  PlatformKey_Tab,
  
@@ -103,6 +100,11 @@ struct platform_input
  
  // NOTE(hbr): Set by application
  b32 QuitRequested;
+ 
+ // NOTE(hbr): If set, then platform event processing will be non-blocking. Otherwise it
+ // will be blocking thus EditorUpdateAndRender will be called only after the first user
+ // event (MouseMove, KeyPressed, ...) has been received.
+ b32 RefreshRequested; 
 };
 
 struct platform_file_dialog_result

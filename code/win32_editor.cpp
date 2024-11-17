@@ -128,7 +128,9 @@ PLATFORM_READ_ENTIRE_FILE(Win32ReadEntireFile)
   if (GetFileSizeEx(File, &Win32FileSize))
   {
    FileSize = Win32FileSize.QuadPart;
-  }
+   {
+    
+   }}
  }
  
  char *Buffer = PushArrayNonZero(Arena, FileSize, char);
@@ -164,6 +166,26 @@ platform_api Platform = {
  Win32ReadEntireFile,
 };
 
+internal platform_event_flags
+Win32GetEventFlags(void)
+{
+ platform_event_flags Flags = 0;
+ if (GetKeyState(VK_CONTROL) & 0x8000)
+ {
+  Flags |= PlatformEventFlag_Ctrl;
+ }
+ if (GetKeyState(VK_SHIFT) & 0x8000)
+ {
+  Flags |= PlatformEventFlag_Shift;
+ }
+ if (GetKeyState(VK_MENU) & 0x8000)
+ {
+  Flags |= PlatformEventFlag_Alt;
+ }
+ 
+ return Flags;
+}
+
 internal platform_event *
 Win32PushPlatformEvent(platform_event_type Type)
 {
@@ -172,6 +194,7 @@ Win32PushPlatformEvent(platform_event_type Type)
  {
   Result = GlobalWin32Input.Events + GlobalWin32Input.EventCount++;
   Result->Type = Type;
+  Result->Flags = Win32GetEventFlags();
  }
  return Result;
 }
@@ -257,12 +280,9 @@ Win32KeyToPlatformKey(WPARAM Key)
   
   KeyTable[VK_ESCAPE] = PlatformKey_Escape;
   
-  KeyTable[VK_LSHIFT] = PlatformKey_LeftShift;
-  KeyTable[VK_RSHIFT] = PlatformKey_RightShift;
-  KeyTable[VK_LCONTROL] = PlatformKey_LeftCtrl;
-  KeyTable[VK_RCONTROL] = PlatformKey_RightCtrl;
-  KeyTable[VK_LMENU] = PlatformKey_LeftAlt;
-  KeyTable[VK_RMENU] = PlatformKey_RightAlt;
+  KeyTable[VK_SHIFT] = PlatformKey_Shift;
+  KeyTable[VK_CONTROL] = PlatformKey_Ctrl;
+  KeyTable[VK_MENU] = PlatformKey_Alt;
   KeyTable[VK_SPACE] = PlatformKey_Space;
   KeyTable[VK_TAB] = PlatformKey_Tab;
   
@@ -346,6 +366,15 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
     GlobalInput->Pressed[Key] = Pressed;
    }break;
    
+   case WM_SYSKEYUP:
+   case WM_SYSKEYDOWN: {
+    // NOTE(hbr): took it from Ryan Fleury's Radbg, didn't really dive into it.
+    // I know that it makes Alt+F4 work. Otherwise we would capture it entirely.
+    if(wParam != VK_MENU && (wParam < VK_F1 || VK_F24 < wParam || wParam == VK_F4))
+    {
+     Result = DefWindowProc(Window, Msg, wParam, lParam);
+    }
+   } // fallthrough
    case WM_KEYUP:
    case WM_KEYDOWN: {
     b32 Pressed = (Msg == WM_KEYDOWN);
@@ -354,7 +383,9 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
     if (Event)
     {
      Event->Key = Key;
-     // TODO(hbr): Flags
+     if (Key == PlatformKey_Ctrl && (Event->Flags & PlatformEventFlag_Ctrl)) Event->Flags &= ~PlatformEventFlag_Ctrl;
+     if (Key == PlatformKey_Shift && (Event->Flags & PlatformEventFlag_Shift)) Event->Flags &= ~PlatformEventFlag_Shift;
+     if (Key == PlatformKey_Alt && (Event->Flags & PlatformEventFlag_Alt)) Event->Flags &= ~PlatformEventFlag_Alt;
     }
     
     GlobalInput->Pressed[Key] = Pressed;
@@ -532,6 +563,7 @@ WinMain(HINSTANCE Instance,
    
    //- main loop
    b32 Running = true;
+   b32 RefreshRequested = true;
    while (Running)
    {
     //- hot reload
@@ -560,15 +592,23 @@ WinMain(HINSTANCE Instance,
     v2u WindowDim = {};
     {
      MSG Msg;
-     while (PeekMessage(&Msg, 0, 0, 0, PM_REMOVE))
+     BOOL MsgReceived = 0;
+     if (!RefreshRequested)
      {
-      TranslateMessage(&Msg);
-      DispatchMessage(&Msg);
+      MsgReceived = GetMessage(&Msg, 0, 0, 0);
      }
-     if (Msg.message == WM_QUIT)
+     do
      {
-      Win32PushPlatformEvent(PlatformEvent_WindowClose);
-     }
+      if (MsgReceived)
+      {
+       TranslateMessage(&Msg);
+       DispatchMessage(&Msg);
+       if (Msg.message == WM_QUIT)
+       {
+        Win32PushPlatformEvent(PlatformEvent_WindowClose);
+       }
+      }
+     } while((MsgReceived = PeekMessage(&Msg, 0, 0, 0, PM_REMOVE)));
      
      Input.EventCount = GlobalWin32Input.EventCount;
      Input.Events = GlobalWin32Input.Events;
@@ -598,6 +638,7 @@ WinMain(HINSTANCE Instance,
     
     WIN32_BEGIN_DEBUG_BLOCK(EditorUpdateAndRender);
     EditorFunctionTable.UpdateAndRender(&EditorMemory, &Input, Frame);
+    RefreshRequested = Input.RefreshRequested;
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(EditorUpdateAndRender);}
     
     WIN32_BEGIN_DEBUG_BLOCK(RendererEndFrame);

@@ -2127,6 +2127,9 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 {
  Platform = Memory->PlatformAPI;
  
+ // TODO(hbr): don't always set this
+ Input->RefreshRequested = true;
+ 
  editor *Editor = Memory->Editor;
  if (!Editor)
  {
@@ -2249,7 +2252,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
     LeftClick->LastMouseP = MouseP;
     
     collision Collision = {};
-    if (Input->Pressed[PlatformKey_LeftAlt])
+    if (Event->Flags & PlatformEventFlag_Alt)
     {
      // NOTE(hbr): Force no collision, so that user can add control point wherever they want
     }
@@ -2263,7 +2266,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
     
     curve *Curve = &Collision.Entity->Curve;
     curve_point_tracking_state *Tracking = &Curve->PointTracking;
-    if (Collision.Entity && Input->Pressed[PlatformKey_LeftCtrl])
+    if (Collision.Entity && (Event->Flags & PlatformEventFlag_Ctrl))
     {
      // NOTE(hbr): just move entity if ctrl is pressed
      LeftClick->Mode = EditorLeftClick_MovingEntity;
@@ -2368,11 +2371,11 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
       }
       
       translate_curve_point_flags Flags = 0;
-      if (Input->Pressed[PlatformKey_LeftShift])
+      if (Event->Flags & PlatformEventFlag_Shift)
       {
        Flags |= TranslateCurvePoint_MatchBezierTwinDirection;
       }
-      if (Input->Pressed[PlatformKey_LeftCtrl])
+      if (Event->Flags & PlatformEventFlag_Ctrl)
       {
        Flags |= TranslateCurvePoint_MatchBezierTwinLength;
       }
@@ -2462,7 +2465,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    {
     Eat = true;
     MiddleClick->Active = true;
-    MiddleClick->Rotate = (Input->Pressed[PlatformKey_LeftCtrl]);
+    MiddleClick->Rotate = (Event->Flags & PlatformEventFlag_Ctrl);
     MiddleClick->ClipSpaceLastMouseP = Event->ClipSpaceMouseP;
    }
    if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_MiddleMouseButton)

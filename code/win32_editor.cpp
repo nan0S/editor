@@ -38,8 +38,7 @@
 
 global u64 GlobalProcCount;
 global u64 GlobalPageSize;
-global win32_platform_input *GlobalWin32Input;
-global u64 GlobalWin32ClockFrequency;
+global win32_platform_input GlobalWin32Input;
 global platform_input *GlobalInput;
 
 IMGUI_INIT(Win32ImGuiInitStub) {}
@@ -56,22 +55,15 @@ global imgui_bindings GlobalImGuiBindings = {
 
 PLATFORM_ALLOC_VIRTUAL_MEMORY(Win32AllocMemory)
 {
- DWORD AllocationType = (MEM_RESERVE | (Commit ? MEM_COMMIT : 0));
- DWORD Protect = (Commit ? PAGE_READWRITE : PAGE_NOACCESS);
- void *Result = VirtualAlloc(0, Size, AllocationType, Protect);
+ void *Memory = OS_Reserve(Size);
+ OS_Commit(Memory, Size);
  
- return Result;
-}
-
-PLATFORM_COMMIT_VIRTUAL_MEMORY(Win32CommitMemory)
-{
- u64 PageSnappedSize = AlignForwardPow2(Size, GlobalPageSize);
- VirtualAlloc(Memory, PageSnappedSize, MEM_COMMIT, PAGE_READWRITE);
+ return Memory;
 }
 
 PLATFORM_DEALLOC_VIRTUAL_MEMORY(Win32DeallocMemory)
 {
- VirtualFree(Memory, 0, MEM_RELEASE);
+ OS_Release(Memory, Size);
 }
 
 PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
@@ -150,7 +142,6 @@ PLATFORM_READ_ENTIRE_FILE(Win32ReadEntireFile)
 platform_api Platform = {
  Win32AllocMemory,
  Win32DeallocMemory,
- Win32CommitMemory,
  Win32OpenFileDialog,
  Win32ReadEntireFile,
 };
@@ -159,9 +150,9 @@ internal platform_event *
 Win32PushPlatformEvent(platform_event_type Type)
 {
  platform_event *Result = 0;
- if (GlobalWin32Input->EventCount < WIN32_MAX_EVENT_COUNT)
+ if (GlobalWin32Input.EventCount < WIN32_MAX_EVENT_COUNT)
  {
-  Result = GlobalWin32Input->Events + GlobalWin32Input->EventCount++;
+  Result = GlobalWin32Input.Events + GlobalWin32Input.EventCount++;
   Result->Type = Type;
  }
  return Result;
@@ -413,10 +404,6 @@ WinMain(HINSTANCE Instance,
   GetSystemInfo(&Info);
   GlobalProcCount = Info.dwNumberOfProcessors;
   GlobalPageSize = Info.dwPageSize;
-  
-  LARGE_INTEGER PerfCounterFrequency;
-  QueryPerformanceFrequency(&PerfCounterFrequency);
-  GlobalWin32ClockFrequency = PerfCounterFrequency.QuadPart;
  }
  
  InitThreadCtx();
@@ -477,8 +464,6 @@ WinMain(HINSTANCE Instance,
                                                               RendererFunctionTable.Functions,
                                                               TempRendererFunctionTable.Functions,
                                                               ArrayCount(RendererFunctionTable.Functions));
-   HotReloadIfRecompiled(&RendererCode);
-   WIN32_END_DEBUG_BLOCK(LoadRendererCode);
    
    renderer_memory RendererMemory = {};
    {
@@ -497,10 +482,7 @@ WinMain(HINSTANCE Instance,
    
    HDC WindowDC = GetDC(Window);
    arena *RendererArena = AllocArena();
-   
-   WIN32_BEGIN_DEBUG_BLOCK(RendererInit);
-   renderer *Renderer = RendererFunctionTable.Init(RendererArena, &RendererMemory, Window, WindowDC);
-   WIN32_END_DEBUG_BLOCK(RendererInit);
+   renderer *Renderer = 0;
    
    //- init editor stuff
    WIN32_BEGIN_DEBUG_BLOCK(LoadEditorCode);
@@ -530,6 +512,14 @@ WinMain(HINSTANCE Instance,
    while (Running)
    {
     //- hot reload
+    RendererMemory.RendererCodeReloaded = HotReloadIfRecompiled(&RendererCode);
+    if (RendererMemory.RendererCodeReloaded && !Renderer)
+    {
+     WIN32_BEGIN_DEBUG_BLOCK(RendererInit);
+     Renderer = RendererFunctionTable.Init(RendererArena, &RendererMemory, Window, WindowDC);
+     WIN32_END_DEBUG_BLOCK(RendererInit);
+    }
+    
     EditorMemory.EditorCodeReloaded = HotReloadIfRecompiled(&EditorCode);
     if (EditorMemory.EditorCodeReloaded)
     {
@@ -542,11 +532,8 @@ WinMain(HINSTANCE Instance,
      Bindings.Init(&Init);
     }
     
-    RendererMemory.RendererCodeReloaded = HotReloadIfRecompiled(&RendererCode);
-    
     //- process input events
-    win32_platform_input Win32Input = {};
-    GlobalWin32Input = &Win32Input;
+    GlobalWin32Input = {};
     v2u WindowDim = {};
     {
      MSG Msg;
@@ -560,8 +547,8 @@ WinMain(HINSTANCE Instance,
       Win32PushPlatformEvent(PlatformEvent_WindowClose);
      }
      
-     Input.EventCount = Win32Input.EventCount;
-     Input.Events = Win32Input.Events;
+     Input.EventCount = GlobalWin32Input.EventCount;
+     Input.Events = GlobalWin32Input.Events;
      
      // NOTE(hbr): get window dim after processing events
      WindowDim = Win32GetWindowDim(Window);

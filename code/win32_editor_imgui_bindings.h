@@ -1,5 +1,5 @@
-#ifndef WIN32_IMGUI_BINDINGS_H
-#define WIN32_IMGUI_BINDINGS_H
+#ifndef WIN32_EDITOR_IMGUI_BINDINGS_H
+#define WIN32_EDITOR_IMGUI_BINDINGS_H
 
 struct imgui_init_data
 {
@@ -14,4 +14,4 @@ struct imgui_maybe_capture_input_data
  LPARAM lParam;
 };
 
-#endif //WIN32_IMGUI_BINDINGS_H
+#endif //WIN32_EDITOR_IMGUI_BINDINGS_H

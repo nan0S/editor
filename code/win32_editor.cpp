@@ -3,26 +3,28 @@
 #include "base_ctx_crack.h"
 #include "base_core.h"
 #include "base_string.h"
-
-#include "imgui_bindings.h"
+#include "base_os.h"
+#include "base_hot_reload.h"
 
 #include "editor_memory.h"
+#include "editor_imgui_bindings.h"
 #include "editor_platform.h"
 #include "editor_renderer.h"
-
-#include "os_core.h"
-
-#include "base_hot_reload.h"
+#include "editor_thread_ctx.h"
+#include "editor_work_queue.h"
 
 #include "win32_editor.h"
 #include "win32_editor_renderer.h"
-#include "win32_imgui_bindings.h"
+#include "win32_editor_imgui_bindings.h"
 
 #include "base_core.cpp"
 #include "base_string.cpp"
 #include "base_hot_reload.cpp"
+#include "base_os.cpp"
+
 #include "editor_memory.cpp"
-#include "os_core.cpp"
+#include "editor_thread_ctx.cpp"
+#include "editor_work_queue.cpp"
 
 #ifndef EDITOR_DLL
 # error EDITOR_DLL with path to editor DLL code is not defined
@@ -37,7 +39,6 @@ global u64 GlobalProcCount;
 global u64 GlobalPageSize;
 global win32_platform_input GlobalWin32Input;
 global platform_input *GlobalInput;
-global thread_static win32_thread_ctx GlobalThreadCtx;
 
 IMGUI_INIT(Win32ImGuiInitStub) {}
 IMGUI_NEW_FRAME(Win32ImGuiNewFrameStub) {}
@@ -55,7 +56,6 @@ PLATFORM_ALLOC_VIRTUAL_MEMORY(Win32AllocMemory)
 {
  void *Memory = OS_Reserve(Size);
  OS_Commit(Memory, Size);
- 
  return Memory;
 }
 
@@ -66,19 +66,7 @@ PLATFORM_DEALLOC_VIRTUAL_MEMORY(Win32DeallocMemory)
 
 PLATFORM_GET_SCRATCH_ARENA(Win32GetScratchArena)
 {
- temp_arena Result = {};
- for (u32 Index = 0;
-      Index < ArrayCount(GlobalThreadCtx.Arenas);
-      ++Index)
- {
-  arena *Arena = GlobalThreadCtx.Arenas[Index];
-  if (Arena != Conflict)
-  {
-   Result = BeginTemp(Arena);
-   break;
-  }
- }
- 
+ temp_arena Result = ThreadCtxTempArena(Conflict);
  return Result;
 }
 
@@ -127,9 +115,7 @@ PLATFORM_READ_ENTIRE_FILE(Win32ReadEntireFile)
   if (GetFileSizeEx(File, &Win32FileSize))
   {
    FileSize = Win32FileSize.QuadPart;
-   {
-    
-   }}
+  }
  }
  
  char *Buffer = PushArrayNonZero(Arena, FileSize, char);
@@ -436,6 +422,13 @@ f32 Elapsed = Win32SecondsElapsed(Name##BeginTSC, EndTSC); \
 OS_PrintDebugF("%s: %fms\n", #Name, Elapsed * 1000.0f); \
 } while(0)
 
+internal void
+Win32PrintString(void *UserData)
+{
+ string *StringToPrint = Cast(string *)UserData;
+ OS_PrintDebug(*StringToPrint);
+}
+
 int
 WinMain(HINSTANCE Instance,
         HINSTANCE PrevInstance,
@@ -443,7 +436,6 @@ WinMain(HINSTANCE Instance,
         int       nShowCmd)
 {
  b32 InitSuccess = false;
- 
  WIN32_BEGIN_DEBUG_BLOCK(FromInit);
  
  //- init thread context and some global variables
@@ -453,13 +445,7 @@ WinMain(HINSTANCE Instance,
   GlobalProcCount = Info.dwNumberOfProcessors;
   GlobalPageSize = Info.dwPageSize;
  }
- 
- for (u32 ArenaIndex = 0;
-      ArenaIndex < ArrayCount(GlobalThreadCtx.Arenas);
-      ++ArenaIndex)
- {
-  GlobalThreadCtx.Arenas[ArenaIndex] = AllocArena();
- }
+ ThreadCtxAlloc();
  
  //- create window
  WNDCLASSEXA WindowClass = {};
@@ -559,6 +545,39 @@ WinMain(HINSTANCE Instance,
    
    platform_input Input = {};
    GlobalInput = &Input;
+   
+   work_queue _Queue = {};
+   work_queue *Queue = &_Queue;
+   u32 ThreadCount = 8;
+   InitWorkQueue(Queue, ThreadCount);
+   
+   WIN32_BEGIN_DEBUG_BLOCK(Thread);
+   string StringsToPrint[1024];
+   for (u32 StringIndex = 0;
+        StringIndex < ArrayCount(StringsToPrint);
+        ++StringIndex)
+   {
+    string *StringToPrint = StringsToPrint + StringIndex;
+    *StringToPrint = StrF(PermamentArena, "String%lu\n", StringIndex);
+    AddEntry(Queue, Win32PrintString, StringToPrint);
+   }
+   CompleteAllWork(Queue);
+   WIN32_END_DEBUG_BLOCK(Thread);
+   
+   for (u32 EntryIndex = 0;
+        EntryIndex < Queue->EntryCount;
+        ++EntryIndex)
+   {
+    work_queue_entry *Entry = Queue->Entries + EntryIndex;
+    Assert(Entry->ExecutedCount == 1);
+   }
+   
+   b32 X = true;
+   if (X)
+   {
+    return 0;
+    //for (;;) {}
+   }
    
    //- main loop
    b32 Running = true;

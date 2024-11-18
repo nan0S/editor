@@ -5,10 +5,9 @@
 #include "base_core.h"
 #include "base_string.h"
 
-#include "imgui_bindings.h"
-
 #include "editor_memory.h"
 #include "editor_third_party_inc.h"
+#include "editor_imgui_bindings.h"
 #include "editor_platform.h"
 #include "editor_renderer.h"
 #include "editor_math.h"

@@ -1,10 +1,10 @@
-#ifndef OS_CORE_H
-#define OS_CORE_H
+#ifndef BASE_OS_H
+#define BASE_OS_H
 
 #if OS_WINDOWS
-# include "os_core_win32.h"
+# include "base_os_win32.h"
 #elif OS_LINUX
-# include "os_core_linux.h"
+# include "base_os_linux.h"
 #else
 # error unsupported OS
 #endif
@@ -120,9 +120,13 @@ internal void OS_BarrierWait(os_barrier_handle *Barrier);
 internal void OS_BarrierDealloc(os_barrier_handle *Barrier);
 
 //- atomics
-internal u64 OS_AtomicIncr(u64 volatile *Value);
-internal u64 OS_AtomicAdd(u64 volatile *Value, u64 Add);
-internal u64 OS_AtomicCmpExch(u64 volatile *Value, u64 Cmp, u64 Exch);
+internal u64 OS_AtomicIncr64(u64 volatile *Value);
+internal u64 OS_AtomicAdd64(u64 volatile *Value, u64 Add);
+internal u64 OS_AtomicCmpExch64(u64 volatile *Value, u64 Cmp, u64 Exch); // returns incre
+
+internal u32 OS_AtomicIncr32(u32 volatile *Value);
+internal u32 OS_AtomicAdd32(u32 volatile *Value, u32 Add);
+internal u32 OS_AtomicCmpExch32(u32 volatile *Value, u32 Cmp, u32 Exch);
 
 //- misc
 internal u64 OS_ReadCPUTimer(void);
@@ -132,4 +136,4 @@ internal u64 OS_OSTimerFreq(void);
 internal u64 OS_ProcCount(void);
 internal u64 OS_PageSize(void);
 
-#endif //OS_CORE_H
+#endif //BASE_OS_H

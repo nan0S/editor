@@ -529,38 +529,57 @@ OS_SemaphoreAlloc(os_semaphore_handle *Sem, u32 InitialCount, u32 MaxCount)
 }
 
 inline internal void
-PostSemaphore(os_semaphore_handle *Sem)
+OS_SemaphorePost(os_semaphore_handle *Sem)
 {
  ReleaseSemaphore(*Sem, 1, 0);
 }
 
 inline internal void
-WaitSemaphore(os_semaphore_handle *Sem)
+OS_SemaphoreWait(os_semaphore_handle *Sem)
 {
  WaitForSingleObject(*Sem, INFINITE);
 }
 
 inline internal void
-DestroySemaphore(os_semaphore_handle *Sem)
+OS_SemaphoreDealloc(os_semaphore_handle *Sem)
 {
  CloseHandle(*Sem);
 }
 
-inline internal u64 OS_AtomicIncr(u64 volatile *Value)
+inline internal u64
+OS_AtomicIncr64(u64 volatile *Value)
 {
  return InterlockedIncrement64(Cast(LONG64 volatile *)Value);
 }
 
 inline internal u64
-OS_AtomicAdd(u64 volatile *Value, u64 Add)
+OS_AtomicAdd64(u64 volatile *Value, u64 Add)
 {
  return InterlockedAdd64(Cast(LONG64 volatile *)Value, Add);
 }
 
 inline internal u64
-OS_AtomicCmpExch(u64 volatile *Value, u64 Cmp, u64 Exch)
+OS_AtomicCmpExch64(u64 volatile *Value, u64 Cmp, u64 Exch)
 {
  return InterlockedCompareExchange64(Cast(LONG64 volatile *)Value, Exch, Cmp);
+}
+
+inline internal u32
+OS_AtomicIncr32(u32 volatile *Value)
+{
+ return InterlockedIncrement(Cast(LONG volatile *)Value);
+}
+
+inline internal u32
+OS_AtomicAdd32(u32 volatile *Value, u32 Add)
+{
+ return InterlockedAdd(Cast(LONG volatile *)Value, Add);
+}
+
+inline internal u32
+OS_AtomicCmpExch32(u32 volatile *Value, u32 Cmp, u32 Exch)
+{
+ return InterlockedCompareExchange(Cast(LONG volatile *)Value, Exch, Cmp);
 }
 
 inline internal void

@@ -1,7 +1,7 @@
 #if OS_WINDOWS
-# include "os_core_win32.cpp"
+# include "base_os_win32.cpp"
 #elif OS_LINUX
-# include "os_core_linux.cpp"
+# include "base_os_linux.cpp"
 #else
 # error unsupported OS
 #endif

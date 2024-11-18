@@ -8,9 +8,4 @@ struct win32_platform_input
  platform_event Events[WIN32_MAX_EVENT_COUNT];
 };
 
-struct win32_thread_ctx
-{
- arena *Arenas[2];
-};
-
 #endif //WIN32_EDITOR_H

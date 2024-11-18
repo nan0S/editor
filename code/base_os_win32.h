@@ -1,5 +1,5 @@
-#ifndef OS_CORE_WIN32_H
-#define OS_CORE_WIN32_H
+#ifndef BASE_OS_WIN32_H
+#define BASE_OS_WIN32_H
 
 #include <windows.h>
 #include <intrin.h>
@@ -11,7 +11,7 @@ typedef HANDLE os_semaphore_handle;
 typedef SYNCHRONIZATION_BARRIER os_barrier_handle;
 typedef HANDLE os_thread_handle;
 
-#define OS_THREAD_FUNC(Name) DWORD WINAPI Name(LPVOID Data)
+#define OS_THREAD_FUNC(Name) DWORD WINAPI Name(LPVOID ThreadEntryDataPtr)
 
 struct os_process_handle
 {
@@ -25,4 +25,4 @@ struct dir_iter
  HANDLE Handle;
 };
 
-#endif //OS_CORE_WIN32_H
+#endif //BASE_OS_WIN32_H

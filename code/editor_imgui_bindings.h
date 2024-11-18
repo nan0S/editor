@@ -1,5 +1,5 @@
-#ifndef IMGUI_BINDINGS_H
-#define IMGUI_BINDINGS_H
+#ifndef EDITOR_IMGUI_BINDINGS_H
+#define EDITOR_IMGUI_BINDINGS_H
 
 #define IMGUI_INIT(Name) void Name(struct imgui_init_data *Init)
 #define IMGUI_INIT_FUNC() IMGUI_INIT(ImGuiInit)
@@ -30,4 +30,4 @@ struct imgui_bindings
  imgui_maybe_capture_input *MaybeCaptureInput;
 };
 
-#endif //IMGUI_BINDINGS_H
+#endif //EDITOR_IMGUI_BINDINGS_H

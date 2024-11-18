@@ -44,7 +44,7 @@ OS_THREAD_FUNC(WorkQueueThreadEntry)
 }
 
 internal void
-AddEntry(work_queue *Queue, work_queue_func *Func, void *UserData)
+WorkQueueAddEntry(work_queue *Queue, work_queue_func *Func, void *UserData)
 {
  u32 EntryIndex = Queue->NextEntryToWrite;
  
@@ -58,7 +58,7 @@ AddEntry(work_queue *Queue, work_queue_func *Func, void *UserData)
 }
 
 internal void
-CompleteAllWork(work_queue *Queue)
+WorkQueueCompleteAllWork(work_queue *Queue)
 {
  while (Queue->CompletionCount != Queue->EntryCount)
  {
@@ -67,7 +67,7 @@ CompleteAllWork(work_queue *Queue)
 }
 
 internal void
-InitWorkQueue(work_queue *Queue, u32 ThreadCount)
+WorkQueueInit(work_queue *Queue, u32 ThreadCount)
 {
  OS_SemaphoreAlloc(&Queue->Semaphore, 0, ThreadCount);
  for (u32 ThreadIndex = 0;

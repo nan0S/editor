@@ -549,7 +549,7 @@ WinMain(HINSTANCE Instance,
    work_queue _Queue = {};
    work_queue *Queue = &_Queue;
    u32 ThreadCount = 8;
-   InitWorkQueue(Queue, ThreadCount);
+   WorkQueueInit(Queue, ThreadCount);
    
    WIN32_BEGIN_DEBUG_BLOCK(Thread);
    string StringsToPrint[1024];
@@ -559,9 +559,9 @@ WinMain(HINSTANCE Instance,
    {
     string *StringToPrint = StringsToPrint + StringIndex;
     *StringToPrint = StrF(PermamentArena, "String%lu\n", StringIndex);
-    AddEntry(Queue, Win32PrintString, StringToPrint);
+    WorkQueueAddEntry(Queue, Win32PrintString, StringToPrint);
    }
-   CompleteAllWork(Queue);
+   WorkQueueCompleteAllWork(Queue);
    WIN32_END_DEBUG_BLOCK(Thread);
    
    for (u32 EntryIndex = 0;

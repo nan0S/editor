@@ -30,7 +30,6 @@
 #ifndef EDITOR_RENDERER_DLL
 # error EDITOR_RENDERER_DLL with path to editor renderer DLL code is not defined
 #endif
-
 #define EDITOR_DLL_PATH ConvertNameToString(EDITOR_DLL)
 #define EDITOR_RENDERER_DLL_PATH ConvertNameToString(EDITOR_RENDERER_DLL)
 

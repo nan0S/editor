@@ -76,15 +76,15 @@ internal void OS_PrintDebugFV(char const *Format, va_list Args);
 internal void OS_PrintFileFV(os_file_handle File, char const *Format, va_list Args);
 
 //- file system, paths
-internal void        OS_FileDelete(string Path);
-internal b32         OS_FileMove(string Src, string Dest);
-internal b32         OS_FileCopy(string Src, string Dest);
-internal b32         OS_FileExists(string Path);
-internal b32         OS_DirMake(string Path);
-internal b32         OS_DirRemove(string Path);
-internal b32         OS_DirChange(string Path);
-internal string      OS_CurrentDir(arena *Arena);
-internal string      OS_FullPathFromPath(arena *Arena, string Path);
+internal void   OS_FileDelete(string Path);
+internal b32    OS_FileMove(string Src, string Dest);
+internal b32    OS_FileCopy(string Src, string Dest);
+internal b32    OS_FileExists(string Path);
+internal b32    OS_DirMake(string Path);
+internal b32    OS_DirRemove(string Path);
+internal b32    OS_DirChange(string Path);
+internal string OS_CurrentDir(arena *Arena);
+internal string OS_FullPathFromPath(arena *Arena, string Path);
 
 //- libraries
 internal os_library_handle OS_LibraryLoad(string Path);

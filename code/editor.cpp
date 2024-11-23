@@ -2712,7 +2712,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
        Entity->Scale = V2(1.0f, 1.0f);
       }
       
-#if 1
+#if 0
       local b32 Enabled = false;
       UI_CheckboxF(&Enabled, "hello hot reloaad");
 #endif

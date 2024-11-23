@@ -133,7 +133,9 @@ internal u64 OS_ReadCPUTimer(void);
 internal u64 OS_CPUTimerFreq(void);
 internal u64 OS_ReadOSTimer(void);
 internal u64 OS_OSTimerFreq(void);
-internal u64 OS_ProcCount(void);
-internal u64 OS_PageSize(void);
+
+internal u32 OS_ProcCount(void);
+internal u32 OS_PageSize(void);
+internal u32 OS_ThreadGetID(void);
 
 #endif //BASE_OS_H

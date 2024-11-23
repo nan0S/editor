@@ -65,6 +65,7 @@ HotReloadIfRecompiled(hot_reload_library *Code)
      Code->LoadedModifyTime = DLLAttrs.ModifyTime;
      Swap(Code->UsedTempLibraryPath, Code->FreeTempLibraryPath, string);
      
+     // TODO(hbr): maybe remove this
      OS_PrintDebugF("%S reloaded\n", Code->LibraryPath);
      Reloaded = true;
     }

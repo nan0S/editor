@@ -73,7 +73,7 @@ internal void InitBuild(void);
 internal compiler_setup MakeCompilerSetup(compiler_choice Compiler, b32 DebugBuild, b32 GenerateDebuggerInfo, b32 Verbose);
 internal compilation_target MakeTarget(compilation_target_type TargetType, string SourcePath, compilation_flags Flags);
 internal void IncludePath(compiler_setup *Setup, string IncludePath);
-internal void LinkLibrary(compilation_target *Target, char const *Library);
+internal void LinkLibrary(compilation_target *Target, string Library);
 internal void StaticLink(compilation_target *Target, string Link);
 internal void DefineVariable(compilation_target *Target, string Name, string Value);
 

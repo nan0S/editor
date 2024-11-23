@@ -697,29 +697,34 @@ OS_TimerFreq(void)
 inline internal SYSTEM_INFO
 Win32GetInfo(void)
 {
- SYSTEM_INFO Info = {};
- GetSystemInfo(&Info);
+ local SYSTEM_INFO Info = {};
+ local b32 Computed = false;
+ if (!Computed)
+ {
+  GetSystemInfo(&Info);
+  Computed = true;
+ }
  return Info;
 }
 
-internal u64
+internal u32
 OS_ProcCount(void)
 {
- local u64 ProcCount = 0;
- if (ProcCount == 0)
- {
-  ProcCount = Win32GetInfo().dwNumberOfProcessors;
- }
- return ProcCount;
+ u32 Result = Win32GetInfo().dwNumberOfProcessors;
+ return Result;
 }
 
-internal u64
+internal u32
 OS_PageSize(void)
 {
- local u64 PageSize = 0;
- if (PageSize == 0)
- {
-  PageSize = Win32GetInfo().dwPageSize;
- }
- return PageSize;
+ u32 Result = Win32GetInfo().dwPageSize;
+ return Result;
+}
+
+internal u32
+OS_ThreadGetID(void)
+{
+ DWORD ID = GetCurrentThreadId();
+ u32 Result = Cast(u32)ID;
+ return Result;
 }

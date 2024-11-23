@@ -8,4 +8,10 @@ struct win32_platform_input
  platform_event Events[WIN32_MAX_EVENT_COUNT];
 };
 
+struct win32_hot_reload_task
+{
+ hot_reload_library *Code;
+ b32 CodeReloaded;
+};
+
 #endif //WIN32_EDITOR_H

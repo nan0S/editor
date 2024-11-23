@@ -16,6 +16,7 @@
 #include "win32_editor.h"
 #include "win32_editor_renderer.h"
 #include "win32_editor_imgui_bindings.h"
+#include "win32_shared.h"
 
 #include "base_core.cpp"
 #include "base_string.cpp"
@@ -35,10 +36,9 @@
 #define EDITOR_DLL_PATH ConvertNameToString(EDITOR_DLL)
 #define EDITOR_RENDERER_DLL_PATH ConvertNameToString(EDITOR_RENDERER_DLL)
 
-global u64 GlobalProcCount;
-global u64 GlobalPageSize;
 global win32_platform_input GlobalWin32Input;
 global platform_input *GlobalInput;
+global arena *InputArena;
 
 IMGUI_INIT(Win32ImGuiInitStub) {}
 IMGUI_NEW_FRAME(Win32ImGuiNewFrameStub) {}
@@ -394,6 +394,30 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
     }
    }break;
    
+   case WM_DROPFILES: {
+    platform_event *Event = Win32PushPlatformEvent(PlatformEvent_FilesDrop);
+    if (Event)
+    {
+     HDROP DropHandle = Cast(HDROP)wParam;
+     // NOTE(hbr): 0xFFFFFFFF queries file count
+     UINT FileCount = DragQueryFileA(DropHandle, 0xFFFFFFFF, 0, 0);
+     string *Files = PushArray(InputArena, FileCount, string);
+     for (UINT FileIndex = 0;
+          FileIndex < FileCount;
+          ++FileIndex)
+     {
+      UINT RequiredCount = DragQueryFileA(DropHandle, FileIndex, 0, 0);
+      string File = PushString(InputArena, RequiredCount + 1);
+      UINT CopiedCount = DragQueryFileA(DropHandle, FileIndex, File.Data, Cast(UINT)File.Count);
+      Assert(RequiredCount == CopiedCount);
+      Files[FileIndex] = File;
+     }
+     
+     Event->FilePaths = Files;
+     Event->FileCount = FileCount;
+    }
+   }break;
+   
    default: { Result = DefWindowProc(Window, Msg, wParam, lParam); }break;
   }
  }
@@ -407,26 +431,11 @@ Win32DisplayErrorBox(char const *Msg)
  MessageBoxA(0, Msg, 0, MB_OK);
 }
 
-internal f32
-Win32SecondsElapsed(u64 BeginTSC, u64 EndTSC)
-{
- u64 ElapsedTSC = EndTSC - BeginTSC;
- f32 Result = Cast(f32)ElapsedTSC / OS_CPUTimerFreq();
- return Result;
-}
-
-#define WIN32_BEGIN_DEBUG_BLOCK(Name) u64 Name##BeginTSC = OS_ReadCPUTimer()
-#define WIN32_END_DEBUG_BLOCK(Name) do { \
-u64 EndTSC = OS_ReadCPUTimer(); \
-f32 Elapsed = Win32SecondsElapsed(Name##BeginTSC, EndTSC); \
-OS_PrintDebugF("%s: %fms\n", #Name, Elapsed * 1000.0f); \
-} while(0)
-
 internal void
-Win32PrintString(void *UserData)
+Win32HotReloadTask(void *UserData)
 {
- string *StringToPrint = Cast(string *)UserData;
- OS_PrintDebug(*StringToPrint);
+ win32_hot_reload_task *Task = Cast(win32_hot_reload_task *)UserData;
+ Task->CodeReloaded = HotReloadIfRecompiled(Task->Code);
 }
 
 int
@@ -436,18 +445,11 @@ WinMain(HINSTANCE Instance,
         int       nShowCmd)
 {
  b32 InitSuccess = false;
- WIN32_BEGIN_DEBUG_BLOCK(FromInit);
- 
- //- init thread context and some global variables
- {
-  SYSTEM_INFO Info = {};
-  GetSystemInfo(&Info);
-  GlobalProcCount = Info.dwNumberOfProcessors;
-  GlobalPageSize = Info.dwPageSize;
- }
+ WIN32_BEGIN_DEBUG_BLOCK(FromBegin);
  ThreadCtxAlloc();
  
  //- create window
+ WIN32_BEGIN_DEBUG_BLOCK(Win32WindowInit);
  WNDCLASSEXA WindowClass = {};
  { 
   WindowClass.cbSize = SizeOf(WindowClass);
@@ -489,20 +491,15 @@ WinMain(HINSTANCE Instance,
    ShowWindow(Window, nShowCmd);
    InitSuccess = true;
    
-   WIN32_END_DEBUG_BLOCK(FromInit);
+   WIN32_END_DEBUG_BLOCK(Win32WindowInit);
    
+   WIN32_BEGIN_DEBUG_BLOCK(LoopInit);
    arena *PermamentArena = AllocArena();
    
    //- init renderer stuff
-   WIN32_BEGIN_DEBUG_BLOCK(LoadRendererCode);
-   win32_renderer_function_table RendererFunctionTable = {};
-   win32_renderer_function_table TempRendererFunctionTable = {};
-   hot_reload_library RendererCode = InitHotReloadableLibrary(PermamentArena,
-                                                              EDITOR_RENDERER_DLL_PATH,
-                                                              Win32RendererFunctionTableNames,
-                                                              RendererFunctionTable.Functions,
-                                                              TempRendererFunctionTable.Functions,
-                                                              ArrayCount(RendererFunctionTable.Functions));
+   renderer *Renderer = 0;
+   HDC WindowDC = GetDC(Window);
+   arena *RendererArena = AllocArena();
    
    renderer_memory RendererMemory = {};
    {
@@ -519,12 +516,16 @@ WinMain(HINSTANCE Instance,
     RendererMemory.CommandBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxCommandCount, render_command);
    }
    
-   HDC WindowDC = GetDC(Window);
-   arena *RendererArena = AllocArena();
-   renderer *Renderer = 0;
+   win32_renderer_function_table RendererFunctionTable = {};
+   win32_renderer_function_table TempRendererFunctionTable = {};
+   hot_reload_library RendererCode = InitHotReloadableLibrary(PermamentArena,
+                                                              EDITOR_RENDERER_DLL_PATH,
+                                                              Win32RendererFunctionTableNames,
+                                                              RendererFunctionTable.Functions,
+                                                              TempRendererFunctionTable.Functions,
+                                                              ArrayCount(RendererFunctionTable.Functions));
    
    //- init editor stuff
-   WIN32_BEGIN_DEBUG_BLOCK(LoadEditorCode);
    editor_function_table EditorFunctionTable = {};
    editor_function_table TempEditorFunctionTable = {};
    hot_reload_library EditorCode = InitHotReloadableLibrary(PermamentArena,
@@ -533,7 +534,6 @@ WinMain(HINSTANCE Instance,
                                                             EditorFunctionTable.Functions,
                                                             TempEditorFunctionTable.Functions,
                                                             ArrayCount(EditorFunctionTable.Functions));
-   WIN32_END_DEBUG_BLOCK(LoadEditorCode);
    
    editor_memory EditorMemory = {};
    EditorMemory.PermamentArena = PermamentArena;
@@ -545,55 +545,60 @@ WinMain(HINSTANCE Instance,
    
    platform_input Input = {};
    GlobalInput = &Input;
+   InputArena = AllocArena();
    
    work_queue _Queue = {};
    work_queue *Queue = &_Queue;
-   u32 ThreadCount = 8;
-   WorkQueueInit(Queue, ThreadCount);
-   
-   WIN32_BEGIN_DEBUG_BLOCK(Thread);
-   string StringsToPrint[1024];
-   for (u32 StringIndex = 0;
-        StringIndex < ArrayCount(StringsToPrint);
-        ++StringIndex)
    {
-    string *StringToPrint = StringsToPrint + StringIndex;
-    *StringToPrint = StrF(PermamentArena, "String%lu\n", StringIndex);
-    WorkQueueAddEntry(Queue, Win32PrintString, StringToPrint);
-   }
-   WorkQueueCompleteAllWork(Queue);
-   WIN32_END_DEBUG_BLOCK(Thread);
-   
-   for (u32 EntryIndex = 0;
-        EntryIndex < Queue->EntryCount;
-        ++EntryIndex)
-   {
-    work_queue_entry *Entry = Queue->Entries + EntryIndex;
-    Assert(Entry->ExecutedCount == 1);
+    u32 ThreadCount = Cast(u32)OS_ProcCount() - 1;
+    Assert(ThreadCount > 0);
+    WorkQueueInit(Queue, ThreadCount);
    }
    
-   b32 X = true;
-   if (X)
-   {
-    return 0;
-    //for (;;) {}
-   }
+   WIN32_END_DEBUG_BLOCK(LoopInit);
    
    //- main loop
    b32 Running = true;
    b32 RefreshRequested = true;
+   // TODO(hbr): Temporary
+   b32 FirstFrame = true;
    while (Running)
    {
     //- hot reload
-    RendererMemory.RendererCodeReloaded = HotReloadIfRecompiled(&RendererCode);
+    WIN32_BEGIN_DEBUG_BLOCK(HotReload);
+    {
+     win32_hot_reload_task RendererTask = {};
+     RendererTask.Code = &RendererCode;
+     
+     win32_hot_reload_task EditorTask = {};
+     EditorTask.Code = &EditorCode;
+     
+#if 1
+     // TODO(hbr): Unfortunately multithreaded path doesn't improve performance. It seems as
+     // OS_LoadLibrary (LoadLibrary from Win32 API) grabs mutex or something, making the calls
+     // serial in practice.
+     WorkQueueAddEntry(Queue, Win32HotReloadTask, &RendererTask);
+     WorkQueueAddEntry(Queue, Win32HotReloadTask, &EditorTask);
+     
+     WorkQueueCompleteAllWork(Queue);
+#else
+     Win32HotReloadTask(&RendererTask);
+     Win32HotReloadTask(&EditorTask);
+#endif
+     
+     RendererMemory.RendererCodeReloaded = RendererTask.CodeReloaded;
+     EditorMemory.EditorCodeReloaded = EditorTask.CodeReloaded;
+    }
+    if (FirstFrame) {WIN32_END_DEBUG_BLOCK(HotReload);}
+    
+    WIN32_BEGIN_DEBUG_BLOCK(RendererInit);
     if (RendererMemory.RendererCodeReloaded && !Renderer)
     {
-     WIN32_BEGIN_DEBUG_BLOCK(RendererInit);
      Renderer = RendererFunctionTable.Init(RendererArena, &RendererMemory, Window, WindowDC);
-     WIN32_END_DEBUG_BLOCK(RendererInit);
     }
+    if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererInit);}
     
-    EditorMemory.EditorCodeReloaded = HotReloadIfRecompiled(&EditorCode);
+    WIN32_BEGIN_DEBUG_BLOCK(ImGuiInit);
     if (EditorMemory.EditorCodeReloaded)
     {
      imgui_bindings Bindings = EditorFunctionTable.GetImGuiBindings();
@@ -604,11 +609,15 @@ WinMain(HINSTANCE Instance,
      Init.Window = Window;
      Bindings.Init(&Init);
     }
+    if (FirstFrame) {WIN32_BEGIN_DEBUG_BLOCK(ImGuiInit);}
     
     //- process input events
-    GlobalWin32Input = {};
+    WIN32_BEGIN_DEBUG_BLOCK(InputHandling);
     v2u WindowDim = {};
     {
+     GlobalWin32Input = {};
+     ClearArena(InputArena);
+     
      MSG Msg;
      BOOL MsgReceived = 0;
      if (!RefreshRequested)
@@ -639,11 +648,9 @@ WinMain(HINSTANCE Instance,
      ScreenToClient(Window, &CursorP);
      Input.ClipSpaceMouseP = Win32ScreenToClip(CursorP.x, CursorP.y, WindowDim);
     }
+    if (FirstFrame) {WIN32_END_DEBUG_BLOCK(InputHandling);}
     
     //- update and render
-    // TODO(hbr): Temporary
-    local b32 FirstFrame = true;
-    
     WIN32_BEGIN_DEBUG_BLOCK(RendererBeginFrame);
     render_frame *Frame = RendererFunctionTable.BeginFrame(Renderer, &RendererMemory, WindowDim);
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererBeginFrame);}
@@ -664,7 +671,7 @@ WinMain(HINSTANCE Instance,
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererEndFrame);}
     
     
-    if (FirstFrame) {WIN32_END_DEBUG_BLOCK(FromInit);}
+    if (FirstFrame) {WIN32_END_DEBUG_BLOCK(FromBegin);}
     FirstFrame = false;
     
     if (Input.QuitRequested)

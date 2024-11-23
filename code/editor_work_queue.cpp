@@ -4,14 +4,14 @@ DoWork(work_queue *Queue)
  b32 ShouldSleep = false;
  
  u32 EntryIndex = Queue->NextEntryToRead;
- u32 NextEntryIndex = EntryIndex + 1;
- if (EntryIndex != Queue->NextEntryToWrite)
+ u32 NextEntryIndex = (EntryIndex + 1) % ArrayCount(Queue->Entries);
+ u32 NextEntryToWrite = Queue->NextEntryToWrite;
+ if (EntryIndex != NextEntryToWrite)
  {
   if (OS_AtomicCmpExch32(&Queue->NextEntryToRead, EntryIndex, NextEntryIndex) == EntryIndex)
   {
-   work_queue_entry *Entry = Queue->Entries + EntryIndex;
-   Entry->Func(Entry->UserData);
-   ++Entry->ExecutedCount;
+   work_queue_entry Entry = Queue->Entries[EntryIndex];
+   Entry.Func(Entry.UserData);
    OS_AtomicIncr32(&Queue->CompletionCount);
   }
  }
@@ -47,12 +47,15 @@ internal void
 WorkQueueAddEntry(work_queue *Queue, work_queue_func *Func, void *UserData)
 {
  u32 EntryIndex = Queue->NextEntryToWrite;
+ u32 NextEntryIndex = (EntryIndex + 1) % ArrayCount(Queue->Entries);
  
  work_queue_entry *Entry = Queue->Entries + EntryIndex;
  Entry->Func = Func;
  Entry->UserData = UserData;
  
- Queue->NextEntryToWrite = EntryIndex + 1;
+ CompilerWriteBarrier;
+ 
+ Queue->NextEntryToWrite = NextEntryIndex;
  ++Queue->EntryCount;
  OS_SemaphorePost(&Queue->Semaphore);
 }
@@ -64,6 +67,9 @@ WorkQueueCompleteAllWork(work_queue *Queue)
  {
   DoWork(Queue);
  }
+ 
+ Queue->CompletionCount = 0;
+ Queue->EntryCount = 0;
 }
 
 internal void

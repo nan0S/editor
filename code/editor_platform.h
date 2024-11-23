@@ -9,9 +9,10 @@ enum platform_event_type
  PlatformEvent_MouseMove,
  PlatformEvent_Scroll,
  PlatformEvent_WindowClose,
+ PlatformEvent_FilesDrop,
  PlatformEvent_Count,
 };
-global char const *PlatformEventTypeNames[] = { "None", "Press", "Release", "MouseMove", "Scroll", "WindowClose" };
+global char const *PlatformEventTypeNames[] = { "None", "Press", "Release", "MouseMove", "Scroll", "WindowClose", "FilesDrop" };
 StaticAssert(ArrayCount(PlatformEventTypeNames) == PlatformEvent_Count, PlatformEventNamesDefined);
 
 enum platform_key
@@ -88,6 +89,9 @@ struct platform_event
  platform_event_flags Flags;
  v2 ClipSpaceMouseP;
  f32 ScrollDelta;
+ 
+ u32 FileCount;
+ string *FilePaths; // absolute paths
 };
 
 struct platform_input

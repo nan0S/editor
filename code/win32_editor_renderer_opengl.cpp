@@ -15,6 +15,7 @@
 #include "win32_editor_renderer.h"
 #include "win32_editor_renderer_opengl.h"
 #include "win32_editor_imgui_bindings.h"
+#include "win32_shared.h"
 
 #include "base_core.cpp"
 #include "base_string.cpp"
@@ -25,51 +26,17 @@
 
 platform_api Platform;
 
-internal LARGE_INTEGER
-Win32GetClock()
-{
- LARGE_INTEGER Result;
- QueryPerformanceCounter(&Result);
- return Result;
-}
-
-global u64 GlobalWin32ClockFrequency;
-internal f32
-Win32SecondsElapsed(LARGE_INTEGER Begin, LARGE_INTEGER End)
-{
- f32 Result = Cast(f32)(End.QuadPart - Begin.QuadPart) / GlobalWin32ClockFrequency;
- return Result;
-}
-
-#define WIN32_BEGIN_DEBUG_BLOCK(Name)
-#define WIN32_END_DEBUG_BLOCK(Name)
-
-#if 0
-#define WIN32_BEGIN_DEBUG_BLOCK(Name) u64 Name##BeginTSC = OS_ReadCPUTimer();
-#define WIN32_END_DEBUG_BLOCK(Name) do { \
-u64 EndTSC = OS_ReadCPUTimer(); \
-f32 Elapsed = Win32SecondsElapsed(Name##BeginTSC, EndTSC); \
-OS_PrintDebugF("%s: %fms\n", #Name, Elapsed * 1000.0f); \
-LARGE_INTEGER Name##Begin = Win32GetClock(); \
-} while(0)
-#endif
-
-typedef void wgl_swap_interval_ext(int);
-
 DLL_EXPORT
 WIN32_RENDERER_INIT(Win32RendererInit)
 {
  Platform = Memory->PlatformAPI;
- {
-  LARGE_INTEGER PerfCounterFrequency;
-  QueryPerformanceFrequency(&PerfCounterFrequency);
-  GlobalWin32ClockFrequency = PerfCounterFrequency.QuadPart;
- }
  
  opengl *OpenGL = PushStruct(Arena, opengl);
  OpenGL->Window = Window;
+ OpenGL->WindowDC = WindowDC;
  
  //- set pixel format
+ WIN32_BEGIN_DEBUG_BLOCK(SetPixelFormat);
  {
   PIXELFORMATDESCRIPTOR DesiredPixelFormat = {};
   DesiredPixelFormat.nSize = SizeOf(DesiredPixelFormat);
@@ -87,6 +54,7 @@ WIN32_RENDERER_INIT(Win32RendererInit)
   DescribePixelFormat(WindowDC, SuggestedPixelFormatIndex, SizeOf(SuggestedPixelFormat), &SuggestedPixelFormat);
   SetPixelFormat(WindowDC, SuggestedPixelFormatIndex, &SuggestedPixelFormat);
  }
+ WIN32_END_DEBUG_BLOCK(SetPixelFormat);
  
  //- create opengl context
  HGLRC OpenGLRC = wglCreateContext(WindowDC);
@@ -95,8 +63,40 @@ WIN32_RENDERER_INIT(Win32RendererInit)
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glEnable(GL_BLEND);
   
-  wgl_swap_interval_ext *wglSwapIntervalEXT = Cast(wgl_swap_interval_ext *)wglGetProcAddress("wglSwapIntervalEXT");
-  wglSwapIntervalEXT(0);
+#define Win32OpenGLFunction(Name) OpenGL->Name = Cast(func_##Name *)wglGetProcAddress(#Name);
+  Win32OpenGLFunction(wglSwapIntervalEXT);
+  Win32OpenGLFunction(glGenVertexArrays);
+  Win32OpenGLFunction(glBindVertexArray);
+  Win32OpenGLFunction(glEnableVertexAttribArray);
+  Win32OpenGLFunction(glDisableVertexAttribArray);
+  Win32OpenGLFunction(glVertexAttribPointer);
+  Win32OpenGLFunction(glActiveTexture);
+  Win32OpenGLFunction(glGenBuffers);
+  Win32OpenGLFunction(glBindBuffer);
+  Win32OpenGLFunction(glBufferData);
+  Win32OpenGLFunction(glDrawBuffers);
+  Win32OpenGLFunction(glCreateProgram);
+  Win32OpenGLFunction(glCreateShader);
+  Win32OpenGLFunction(glAttachShader);
+  Win32OpenGLFunction(glCompileShader);
+  Win32OpenGLFunction(glShaderSource);
+  Win32OpenGLFunction(glLinkProgram);
+  Win32OpenGLFunction(glGetProgramInfoLog);
+  Win32OpenGLFunction(glGetShaderInfoLog);
+  Win32OpenGLFunction(glUseProgram);
+  Win32OpenGLFunction(glGetUniformLocation);
+  Win32OpenGLFunction(glUniform1f);
+  Win32OpenGLFunction(glUniform2fv);
+  Win32OpenGLFunction(glUniform3fv);
+  Win32OpenGLFunction(glUniform4fv);
+  Win32OpenGLFunction(glUniformMatrix4fv);
+  Win32OpenGLFunction(glGetAttribLocation);
+  Win32OpenGLFunction(glValidateProgram);
+  Win32OpenGLFunction(glGetProgramiv);
+  Win32OpenGLFunction(glDeleteProgram);
+  Win32OpenGLFunction(glDeleteShader);
+  Win32OpenGLFunction(glDrawArrays);
+#undef Win32OpenGLFunction
  }
  
  //- allocate texutre indices
@@ -126,12 +126,6 @@ RENDERER_BEGIN_FRAME(Win32RendererBeginFrame)
  Platform = Memory->PlatformAPI;
  
  opengl *OpenGL = Cast(opengl *)Renderer;
- if (Memory->RendererCodeReloaded)
- {
-  LARGE_INTEGER PerfCounterFrequency;
-  QueryPerformanceFrequency(&PerfCounterFrequency);
-  GlobalWin32ClockFrequency = PerfCounterFrequency.QuadPart;
- }
  
  render_frame *RenderFrame = &OpenGL->RenderFrame;
  RenderFrame->CommandCount = 0;
@@ -161,13 +155,66 @@ M3x3ToM4x4OpenGL(m3x3 M)
  return R;
 }
 
+internal opengl_program
+Win32OpenGLCreateProgram(opengl *OpenGL, char *VertexCode, char *FragmentCode)
+{
+ opengl_program Result = {};
+ 
+ GLuint VertexShaderID = OpenGL->glCreateShader(GL_VERTEX_SHADER);
+ GLchar *VertexShaderCode[] =
+ {
+  VertexCode,
+ };
+ OpenGL->glShaderSource(VertexShaderID, ArrayCount(VertexShaderCode), VertexShaderCode, 0);
+ OpenGL->glCompileShader(VertexShaderID);
+ 
+ GLuint FragmentShaderID = OpenGL->glCreateShader(GL_FRAGMENT_SHADER);
+ GLchar *FragmentShaderCode[] =
+ {
+  FragmentCode,
+ };
+ OpenGL->glShaderSource(FragmentShaderID, ArrayCount(FragmentShaderCode), FragmentShaderCode, 0);
+ OpenGL->glCompileShader(FragmentShaderID);
+ 
+ GLuint ProgramID = OpenGL->glCreateProgram();
+ OpenGL->glAttachShader(ProgramID, VertexShaderID);
+ OpenGL->glAttachShader(ProgramID, FragmentShaderID);
+ OpenGL->glLinkProgram(ProgramID);
+ 
+ OpenGL->glValidateProgram(ProgramID);
+ GLint Linked = false;
+ OpenGL->glGetProgramiv(ProgramID, GL_LINK_STATUS, &Linked);
+ if(!Linked)
+ {
+  GLsizei Ignored;
+  char VertexErrors[4096];
+  char FragmentErrors[4096];
+  char ProgramErrors[4096];
+  OpenGL->glGetShaderInfoLog(VertexShaderID, sizeof(VertexErrors), &Ignored, VertexErrors);
+  OpenGL->glGetShaderInfoLog(FragmentShaderID, sizeof(FragmentErrors), &Ignored, FragmentErrors);
+  OpenGL->glGetProgramInfoLog(ProgramID, sizeof(ProgramErrors), &Ignored, ProgramErrors);
+  
+  Assert(!"Shader validation failed");
+ }
+ 
+ OpenGL->glDeleteShader(VertexShaderID);
+ OpenGL->glDeleteShader(FragmentShaderID);
+ 
+ Result.ProgramHandle = ProgramID;
+ Result.VertP_AttrLoc = OpenGL->glGetAttribLocation(ProgramID, "VertP");
+ Result.Transform_UniformLoc = OpenGL->glGetUniformLocation(ProgramID, "Transform");
+ Result.Color_UniformLoc = OpenGL->glGetUniformLocation(ProgramID, "Color");
+ 
+ return Result;
+}
+
 DLL_EXPORT
 RENDERER_END_FRAME(Win32RendererEndFrame)
 {
  opengl *OpenGL = Cast(opengl *)Renderer;
  texture_transfer_queue *Queue = &Memory->TextureQueue;
  GLuint *Textures = OpenGL->Textures;
- m4x4 M = M3x3ToM4x4OpenGL(Frame->Proj);
+ m4x4 Projection = M3x3ToM4x4OpenGL(Frame->Proj);
  
  v4 Clear = Frame->ClearColor;
  glClearColor(Clear.R, Clear.G, Clear.B, Clear.A);
@@ -197,6 +244,7 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
  Queue->TransferMemoryUsed = 0;
  
  //- draw
+#if 0
  QuickSort(Frame->Commands, Frame->CommandCount, render_command, RenderCommandCmp);
  for (u32 CommandIndex = 0;
       CommandIndex < Frame->CommandCount;
@@ -205,7 +253,7 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
   render_command *Command = Frame->Commands + CommandIndex;
   
   glMatrixMode(GL_PROJECTION);
-  glLoadMatrixf(Cast(f32 *)M.M);
+  glLoadMatrixf(Cast(f32 *)Projection.M);
   
   m4x4 Model = M3x3ToM4x4OpenGL(Command->ModelXForm);
   glMatrixMode(GL_MODELVIEW);
@@ -315,20 +363,78 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
    }break;
   }
  }
- 
-#if 1
- m3x3 I = Identity3x3();
- m4x4 Model = M3x3ToM4x4OpenGL(I);
- glMatrixMode(GL_MODELVIEW);
- glLoadMatrixf(Cast(f32 *)Model.M);
- glBegin(GL_TRIANGLES);
- glColor4f(1, 0, 0, 1);
- glVertex2f(-0.5f, -0.5f);
- glVertex2f(+0.5f, -0.5f);
- glVertex2f( 0.0f, +0.5f);
- glEnd();
 #endif
  
+ {
+  v2 Vertices[] = {
+   {-0.5f, -0.5f},
+   {+0.5f, -0.5f},
+   {+0.0f, +0.5f},
+  };
+  v4 Color = V4(1, 0, 1, 1);
+  m4x4 Transform = Projection;
+  
+  char const *VertexCode = R"FOO(
+#version 330
+
+in vec2 VertP;
+in vec2 VertUV;
+
+uniform mat4 Transform;
+
+void main(void) {
+ gl_Position = Transform * vec4(VertP, 0, 1);
+}
+
+)FOO";
+  
+  char const *FragmentCode = R"FOO(
+#version 330
+
+out vec4 FragColor;
+
+uniform vec4 Color;
+
+
+void main(void) {
+FragColor = Color;
+}
+
+)FOO";
+  
+  local b32 Init = false;
+  local GLuint VAO = 0;
+  local GLuint VBO = 0;
+  local opengl_program Program = {};
+  
+  if (!Init)
+  {
+   Program = Win32OpenGLCreateProgram(OpenGL, Cast(char *)VertexCode, Cast(char *)FragmentCode);
+   OpenGL->glGenVertexArrays(1, &VAO);
+   OpenGL->glGenBuffers(1, &VBO);
+   Init = true;
+  }
+  
+#if 1
+  OpenGL->glBindVertexArray(VAO);
+  OpenGL->glBindBuffer(GL_ARRAY_BUFFER, VBO);
+  OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_DYNAMIC_DRAW);
+  
+  OpenGL->glEnableVertexAttribArray(Program.VertP_AttrLoc);
+  OpenGL->glVertexAttribPointer(Program.VertP_AttrLoc, 2, GL_FLOAT, GL_FALSE, SizeOf(v2), 0);
+  
+  OpenGL->glUseProgram(Program.ProgramHandle);
+  OpenGL->glUniformMatrix4fv(Program.Transform_UniformLoc, 1, GL_FALSE, Cast(f32 *)Transform.M);
+  OpenGL->glUniform4fv(Program.Color_UniformLoc, 1, Cast(f32 *)Color.E);
+  
+  OpenGL->glDrawArrays(GL_TRIANGLES, 0, 3);
+  
+  OpenGL->glUseProgram(0);
+  OpenGL->glBindBuffer(GL_ARRAY_BUFFER, 0);
+  OpenGL->glBindVertexArray(0);
+#endif
+ }
+ 
  Memory->ImGuiBindings.Render();
- SwapBuffers(wglGetCurrentDC());
+ SwapBuffers(OpenGL->WindowDC);
 }

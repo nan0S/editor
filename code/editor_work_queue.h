@@ -7,7 +7,6 @@ struct work_queue_entry
 {
  work_queue_func *Func;
  void *UserData;
- u32 ExecutedCount;
 };
 
 struct work_queue

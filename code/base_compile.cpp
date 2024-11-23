@@ -50,9 +50,9 @@ IncludePath(compiler_setup *Setup, string IncludePath)
 }
 
 internal void
-LinkLibrary(compilation_target *Target, char const *Library)
+LinkLibrary(compilation_target *Target, string Library)
 {
- StrListPushF(BuildArena, &Target->DynamicLinkLibraries, "%s", Library);
+ StrListPush(BuildArena, &Target->DynamicLinkLibraries, Library);
 }
 
 internal void

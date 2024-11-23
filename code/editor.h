@@ -202,7 +202,6 @@ Stack:
  - try to highlight entity that is about to be removed - maybe even in general - highlight stuff upon sliding mouse into its collider
 - antialiasing
 - loading opengl dynamically
-- multithreading - can start with multithreading loading DLLs
 */
 
 struct camera

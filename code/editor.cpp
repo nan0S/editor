@@ -10,6 +10,8 @@
 #include "editor_entity2.cpp"
 #include "editor_ui.cpp"
 
+platform_api Platform;
+
 // NOTE(hbr): this is code that is
 
 internal void
@@ -2120,7 +2122,65 @@ LoadImageFromMemory(arena *Arena, char *ImageData, u64 Count)
  return Result;
 }
 
-platform_api Platform;
+internal void
+TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths)
+{
+ temp_arena Temp = TempArena(0);
+ 
+ for (u32 FileIndex = 0;
+      FileIndex < FileCount;
+      ++FileIndex)
+ {  
+  string FilePath = FilePaths[FileIndex];
+  b32 Success = false;
+  string FileData = Platform.ReadEntireFile(Temp.Arena, FilePath);
+  loaded_image LoadedImage = LoadImageFromMemory(Temp.Arena, FileData.Data, FileData.Count);
+  
+  if (LoadedImage.Success)
+  {
+   u32 RequestSize = LoadedImage.Width * LoadedImage.Height * 4;
+   editor_assets *Assets = &Editor->Assets;
+   texture_transfer_op *TextureOp = PushTextureTransfer(Assets->TextureQueue, RequestSize);
+   if (TextureOp)
+   {
+    texture_index *TextureIndex = AllocateTextureIndex(Assets);
+    if (TextureIndex)
+    {
+     MemoryCopy(TextureOp->Pixels, LoadedImage.Pixels, RequestSize);
+     TextureOp->Width = LoadedImage.Width;
+     TextureOp->Height = LoadedImage.Height;
+     TextureOp->TextureIndex = TextureIndex->Index;
+     
+     string FileName = PathLastPart(FilePath);
+     string FileNameNoExt = StrChopLastDot(FileName);
+     
+     entity *Entity = AllocEntity(Editor);
+     InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), FileNameNoExt, 0);
+     Entity->Type = Entity_Image;
+     
+     image *Image = &Entity->Image;
+     Image->Dim.X = Cast(f32)LoadedImage.Width / LoadedImage.Height;
+     Image->Dim.Y = 1.0f;
+     Image->TextureIndex = TextureIndex;
+     
+     Success = true;
+    }
+   }
+   
+   if (!Success && TextureOp)
+   {
+    PopTextureTransfer(Assets->TextureQueue, TextureOp);
+   }
+  }
+  
+  if (!Success)
+  {
+   AddNotificationF(Editor, Notification_Error, "failed to open %S", FilePath);
+  }
+  
+  EndTemp(Temp);
+ }
+}
 
 DLL_EXPORT
 EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
@@ -2544,6 +2604,13 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    {
     Eat = true;
     QuitProject = true;
+   }
+   
+   //- misc
+   if (!Eat && Event->Type == PlatformEvent_FilesDrop)
+   {
+    Eat = true;
+    TryLoadImages(Editor, Event->FileCount, Event->FilePaths);
    }
    
 #if BUILD_DEBUG
@@ -3225,61 +3292,10 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
  
  if (OpenFileDialog)
  {
-  b32 Success = false;
-  
-  platform_file_dialog_result OpenDialog = Platform.OpenFileDialog();
-  if (OpenDialog.Success)
-  {
-   temp_arena Temp = TempArena(0);
-   
-   string FilePath = OpenDialog.FilePath;
-   string FileData = Platform.ReadEntireFile(Temp.Arena, FilePath);
-   loaded_image LoadedImage = LoadImageFromMemory(Temp.Arena, FileData.Data, FileData.Count);
-   
-   if (LoadedImage.Success)
-   {
-    u32 RequestSize = LoadedImage.Width * LoadedImage.Height * 4;
-    editor_assets *Assets = &Editor->Assets;
-    texture_transfer_op *TextureOp = PushTextureTransfer(Assets->TextureQueue, RequestSize);
-    if (TextureOp)
-    {
-     texture_index *TextureIndex = AllocateTextureIndex(Assets);
-     if (TextureIndex)
-     {
-      MemoryCopy(TextureOp->Pixels, LoadedImage.Pixels, RequestSize);
-      TextureOp->Width = LoadedImage.Width;
-      TextureOp->Height = LoadedImage.Height;
-      TextureOp->TextureIndex = TextureIndex->Index;
-      
-      string FileName = PathLastPart(FilePath);
-      string FileNameNoExt = StrChopLastDot(FileName);
-      
-      entity *Entity = AllocEntity(Editor);
-      InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), FileNameNoExt, 0);
-      Entity->Type = Entity_Image;
-      
-      image *Image = &Entity->Image;
-      Image->Dim.X = Cast(f32)LoadedImage.Width / LoadedImage.Height;
-      Image->Dim.Y = 1.0f;
-      Image->TextureIndex = TextureIndex;
-      
-      Success = true;
-     }
-    }
-    
-    if (!Success && TextureOp)
-    {
-     PopTextureTransfer(Assets->TextureQueue, TextureOp);
-    }
-   }
-   
-   EndTemp(Temp);
-  }
-  
-  if (!Success)
-  {
-   AddNotificationF(Editor, Notification_Error, "failed to open %S", OpenDialog.FilePath);
-  }
+  temp_arena Temp = TempArena(0);
+  platform_file_dialog_result OpenDialog = Platform.OpenFileDialog(Temp.Arena);
+  TryLoadImages(Editor, OpenDialog.FileCount, OpenDialog.FilePaths);
+  EndTemp(Temp);
  }
  
  if (QuitProject)

@@ -113,8 +113,8 @@ struct platform_input
 
 struct platform_file_dialog_result
 {
- b32 Success;
- string FilePath;
+ u32 FileCount;
+ string *FilePaths;
 };
 
 #define PLATFORM_ALLOC_VIRTUAL_MEMORY(Name) void *Name(u64 Size, b32 Commit)
@@ -126,7 +126,7 @@ typedef PLATFORM_DEALLOC_VIRTUAL_MEMORY(platform_dealloc_virtual_memory);
 #define PLATFORM_GET_SCRATCH_ARENA(Name) temp_arena Name(arena *Conflict)
 typedef PLATFORM_GET_SCRATCH_ARENA(platform_get_scratch_arena);
 
-#define PLATFORM_OPEN_FILE_DIALOG(Name) platform_file_dialog_result Name(void)
+#define PLATFORM_OPEN_FILE_DIALOG(Name) platform_file_dialog_result Name(arena *Arena)
 typedef PLATFORM_OPEN_FILE_DIALOG(platform_open_file_dialog);
 
 #define PLATFORM_READ_ENTIRE_FILE(Name) string Name(arena *Arena, string FilePath)

@@ -74,7 +74,7 @@ PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
 {
  platform_file_dialog_result Result = {};
  
- local char Buffer[256];
+ local char Buffer[2048];
  OPENFILENAME Open = {};
  Open.lStructSize = SizeOf(Open);
  Open.lpstrFile = Buffer;
@@ -87,12 +87,43 @@ PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
   "Windows BMP File (*.bmp)\0" "*.bmp\0"
   ;
  Open.nFilterIndex = 1;
- Open.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+ Open.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_ALLOWMULTISELECT | OFN_EXPLORER;
  
  if (GetOpenFileName(&Open) == TRUE)
  {
-  Result.Success = true;
-  Result.FilePath = StrFromCStr(Buffer);
+  char *At = Buffer;
+  u32 FileCount = 0;
+  while (At[0])
+  {
+   At += CStrLen(At) + 1;
+   ++FileCount;
+  }
+  
+  At = Buffer;
+  string BasePath = StrFromCStr(At);
+  At += BasePath.Count + 1;
+  
+  string *FilePaths = PushArrayNonZero(Arena, FileCount, string);
+  if (FileCount == 1)
+  {
+   FilePaths[0] = BasePath;
+  }
+  else
+  {
+   Assert(FileCount > 0);
+   --FileCount;
+   for (u32 FileIndex = 0;
+        FileIndex < FileCount;
+        ++FileIndex)
+   {
+    string FileName = StrFromCStr(At);
+    At += FileName.Count + 1;
+    FilePaths[FileIndex] = PathConcat(Arena, BasePath, FileName);
+   }
+  }
+  
+  Result.FileCount = FileCount;
+  Result.FilePaths = FilePaths;
  }
  
  return Result;

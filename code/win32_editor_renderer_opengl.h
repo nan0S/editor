@@ -15,6 +15,7 @@ typedef void WINAPI func_glDisableVertexAttribArray(GLuint index);
 typedef void WINAPI func_glVertexAttribPointer(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer);
 
 typedef void WINAPI func_glActiveTexture(GLenum texture);
+typedef void WINAPI func_glGenerateMipmap(GLenum texture);
 
 typedef void WINAPI func_glGenBuffers(GLsizei n, GLuint *buffers);
 typedef void WINAPI func_glBindBuffer(GLenum target, GLuint buffer);
@@ -42,6 +43,13 @@ typedef void WINAPI func_glUniform2fv(GLint location, GLsizei count, const GLflo
 typedef void WINAPI func_glUniform3fv(GLint location, GLsizei count, const GLfloat *value);
 typedef void WINAPI func_glUniform4fv(GLint location, GLsizei count, const GLfloat *value);
 typedef void WINAPI func_glUniformMatrix4fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+
+typedef BOOL WINAPI func_wglChoosePixelFormatARB(HDC hdc,
+                                                 const int *piAttribIList,
+                                                 const FLOAT *pfAttribFList,
+                                                 UINT nMaxFormats,
+                                                 int *piFormats,
+                                                 UINT *nNumFormats);
 
 #define GL_NUM_EXTENSIONS                 0x821D
 
@@ -172,7 +180,6 @@ typedef void WINAPI func_glUniformMatrix4fv(GLint location, GLsizei count, GLboo
 #define GL_RG32UI                         0x823C
 #define GL_R11F_G11F_B10F                 0x8C3A
 
-
 #define GL_MULTISAMPLE                    0x809D
 #define GL_SAMPLE_ALPHA_TO_COVERAGE       0x809E
 #define GL_SAMPLE_ALPHA_TO_ONE            0x809F
@@ -185,6 +192,37 @@ typedef void WINAPI func_glUniformMatrix4fv(GLint location, GLsizei count, GLboo
 #define GL_MAX_SAMPLES                    0x8D57
 #define GL_MAX_COLOR_TEXTURE_SAMPLES      0x910E
 #define GL_MAX_DEPTH_TEXTURE_SAMPLES      0x910F
+
+#define WGL_DRAW_TO_WINDOW_ARB                  0x2001
+#define WGL_ACCELERATION_ARB                    0x2003
+#define WGL_SUPPORT_OPENGL_ARB                  0x2010
+#define WGL_DOUBLE_BUFFER_ARB                   0x2011
+#define WGL_PIXEL_TYPE_ARB                      0x2013
+
+#define WGL_TYPE_RGBA_ARB                       0x202B
+#define WGL_FULL_ACCELERATION_ARB               0x2027
+
+#define WGL_COLOR_BITS_ARB                      0x2014
+#define WGL_RED_BITS_ARB                        0x2015
+#define WGL_GREEN_BITS_ARB                      0x2017
+#define WGL_BLUE_BITS_ARB                       0x2019
+#define WGL_ALPHA_BITS_ARB                      0x201B
+#define WGL_DEPTH_BITS_ARB                      0x2022
+
+#define WGL_DRAW_TO_WINDOW_ARB                  0x2001
+#define WGL_ACCELERATION_ARB                    0x2003
+#define WGL_SUPPORT_OPENGL_ARB                  0x2010
+#define WGL_DOUBLE_BUFFER_ARB                   0x2011
+#define WGL_PIXEL_TYPE_ARB                      0x2013
+#define WGL_SAMPLES_ARB                         0x2042
+
+#define WGL_TYPE_RGBA_ARB                       0x202B
+
+#define WGL_RED_BITS_ARB                        0x2015
+#define WGL_GREEN_BITS_ARB                      0x2017
+#define WGL_BLUE_BITS_ARB                       0x2019
+#define WGL_ALPHA_BITS_ARB                      0x201B
+#define WGL_DEPTH_BITS_ARB                      0x2022
 
 struct opengl
 {
@@ -229,6 +267,8 @@ struct opengl
  Win32OpenGLFunction(glDeleteProgram);
  Win32OpenGLFunction(glDeleteShader);
  Win32OpenGLFunction(glDrawArrays);
+ Win32OpenGLFunction(wglChoosePixelFormatARB);
+ Win32OpenGLFunction(glGenerateMipmap);
 #undef Win32OpenGLFunction
 };
 
@@ -236,6 +276,7 @@ struct opengl_program
 {
  GLuint ProgramHandle;
  GLuint VertP_AttrLoc;
+ GLuint VertUV_AttrLoc;
  GLuint Transform_UniformLoc;
  GLuint Color_UniformLoc;
 };

@@ -24,19 +24,46 @@
 #include "editor_memory.cpp"
 #include "editor_math.cpp"
 
+#include "editor_third_party_inc.h"
+
 platform_api Platform;
 
-DLL_EXPORT
-WIN32_RENDERER_INIT(Win32RendererInit)
+internal void
+Win32SetPixelFormat(opengl *OpenGL, HDC WindowDC)
 {
- Platform = Memory->PlatformAPI;
- 
- opengl *OpenGL = PushStruct(Arena, opengl);
- OpenGL->Window = Window;
- OpenGL->WindowDC = WindowDC;
- 
- //- set pixel format
  WIN32_BEGIN_DEBUG_BLOCK(SetPixelFormat);
+ 
+ int SuggestedPixelFormatIndex = 0;
+ UINT ExtendedPicked = 0;
+ 
+ if (OpenGL->wglChoosePixelFormatARB)
+ {
+  int AttribIList[] =
+  {
+   WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
+   WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
+   WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
+   WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
+   WGL_COLOR_BITS_ARB, 32,
+   WGL_ALPHA_BITS_ARB, 8,
+   WGL_DEPTH_BITS_ARB, 24,
+   // NOTE(hbr): When I set WGL_SAMPLES_ARB to some values (e.g. 16), ImGui text becomes blurry.
+   // I don't know why that is.
+   WGL_SAMPLES_ARB, 8,
+   // NOTE(hbr): I don't know if this is really needed, but Casey uses it
+   WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
+   0
+  };
+  
+  OpenGL->wglChoosePixelFormatARB(WindowDC,
+                                  AttribIList,
+                                  0,
+                                  1,
+                                  &SuggestedPixelFormatIndex,
+                                  &ExtendedPicked);
+ }
+ 
+ if (!ExtendedPicked)
  {
   PIXELFORMATDESCRIPTOR DesiredPixelFormat = {};
   DesiredPixelFormat.nSize = SizeOf(DesiredPixelFormat);
@@ -48,22 +75,78 @@ WIN32_RENDERER_INIT(Win32RendererInit)
   DesiredPixelFormat.cDepthBits = 24;
   DesiredPixelFormat.iLayerType = PFD_MAIN_PLANE;
   
-  int SuggestedPixelFormatIndex = ChoosePixelFormat(WindowDC, &DesiredPixelFormat);
-  
-  PIXELFORMATDESCRIPTOR SuggestedPixelFormat;
-  DescribePixelFormat(WindowDC, SuggestedPixelFormatIndex, SizeOf(SuggestedPixelFormat), &SuggestedPixelFormat);
-  SetPixelFormat(WindowDC, SuggestedPixelFormatIndex, &SuggestedPixelFormat);
+  SuggestedPixelFormatIndex = ChoosePixelFormat(WindowDC, &DesiredPixelFormat);
  }
+ 
+ PIXELFORMATDESCRIPTOR SuggestedPixelFormat;
+ DescribePixelFormat(WindowDC, SuggestedPixelFormatIndex, SizeOf(SuggestedPixelFormat), &SuggestedPixelFormat);
+ SetPixelFormat(WindowDC, SuggestedPixelFormatIndex, &SuggestedPixelFormat);
+ 
  WIN32_END_DEBUG_BLOCK(SetPixelFormat);
  
+}
+
+#define Win32OpenGLFunction(Name) OpenGL->Name = Cast(func_##Name *)wglGetProcAddress(#Name);
+DLL_EXPORT
+WIN32_RENDERER_INIT(Win32RendererInit)
+{
+ Platform = Memory->PlatformAPI;
+ 
+ opengl *OpenGL = PushStruct(Arena, opengl);
+ OpenGL->Window = Window;
+ OpenGL->WindowDC = WindowDC;
+ 
+ //- create false context to retrieve extensions pointers
+ {
+  WNDCLASSA WindowClass = {};
+  { 
+   WindowClass.lpfnWndProc = DefWindowProcA;
+   WindowClass.hInstance = GetModuleHandle(0);
+   WindowClass.lpszClassName = "Win32EditorWGLLoader";
+  }
+  
+  if (RegisterClassA(&WindowClass))
+  {
+   HWND FalseWindow =
+    CreateWindowExA(0,
+                    WindowClass.lpszClassName,
+                    "Parametric Curves Editor",
+                    0,
+                    CW_USEDEFAULT,
+                    CW_USEDEFAULT,
+                    CW_USEDEFAULT,
+                    CW_USEDEFAULT,
+                    0,
+                    0,
+                    WindowClass.hInstance,
+                    0);
+   
+   HDC FalseWindowDC = GetWindowDC(FalseWindow);
+   Win32SetPixelFormat(OpenGL, FalseWindowDC);
+   
+   HGLRC FalseOpenGLRC = wglCreateContext(FalseWindowDC);
+   if (wglMakeCurrent(FalseWindowDC, FalseOpenGLRC))
+   {
+    Win32OpenGLFunction(wglChoosePixelFormatARB);
+   }
+   
+   wglDeleteContext(FalseOpenGLRC);
+   ReleaseDC(FalseWindow, FalseWindowDC);
+   DestroyWindow(FalseWindow);
+  }
+ }
+ 
  //- create opengl context
+ Win32SetPixelFormat(OpenGL, WindowDC);
  HGLRC OpenGLRC = wglCreateContext(WindowDC);
  if (wglMakeCurrent(WindowDC, OpenGLRC))
  {
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glEnable(GL_BLEND);
+  glEnable(GL_MULTISAMPLE);
+  // NOTE(hbr): So that glEnable,glEnd with glBindTexture works. When using shaders it is not needed.
+  glEnable(GL_TEXTURE_2D);
   
-#define Win32OpenGLFunction(Name) OpenGL->Name = Cast(func_##Name *)wglGetProcAddress(#Name);
   Win32OpenGLFunction(wglSwapIntervalEXT);
   Win32OpenGLFunction(glGenVertexArrays);
   Win32OpenGLFunction(glBindVertexArray);
@@ -96,7 +179,13 @@ WIN32_RENDERER_INIT(Win32RendererInit)
   Win32OpenGLFunction(glDeleteProgram);
   Win32OpenGLFunction(glDeleteShader);
   Win32OpenGLFunction(glDrawArrays);
-#undef Win32OpenGLFunction
+  Win32OpenGLFunction(glGenerateMipmap);
+  
+  if (OpenGL->wglSwapIntervalEXT)
+  {
+   // NOTE(hbr): disable VSync
+   OpenGL->wglSwapIntervalEXT(0);
+  }
  }
  
  //- allocate texutre indices
@@ -111,14 +200,15 @@ WIN32_RENDERER_INIT(Win32RendererInit)
       ++TextureIndex)
  {
   glBindTexture(GL_TEXTURE_2D, Textures[TextureIndex]);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
  }
  
  return Cast(renderer *)OpenGL;
 }
+#undef Win32OpenGLFunction
 
 DLL_EXPORT
 RENDERER_BEGIN_FRAME(Win32RendererBeginFrame)
@@ -202,6 +292,7 @@ Win32OpenGLCreateProgram(opengl *OpenGL, char *VertexCode, char *FragmentCode)
  
  Result.ProgramHandle = ProgramID;
  Result.VertP_AttrLoc = OpenGL->glGetAttribLocation(ProgramID, "VertP");
+ Result.VertUV_AttrLoc = OpenGL->glGetAttribLocation(ProgramID, "VertUV");
  Result.Transform_UniformLoc = OpenGL->glGetUniformLocation(ProgramID, "Transform");
  Result.Color_UniformLoc = OpenGL->glGetUniformLocation(ProgramID, "Color");
  
@@ -239,12 +330,14 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
                GL_RGBA,
                GL_UNSIGNED_BYTE,
                Op->Pixels);
+  OpenGL->glGenerateMipmap(GL_TEXTURE_2D);
+  glBindTexture(GL_TEXTURE_2D, 0);
  }
  Queue->OpCount = 0;
  Queue->TransferMemoryUsed = 0;
  
  //- draw
-#if 0
+#if 1
  QuickSort(Frame->Commands, Frame->CommandCount, render_command, RenderCommandCmp);
  for (u32 CommandIndex = 0;
       CommandIndex < Frame->CommandCount;
@@ -365,12 +458,18 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
  }
 #endif
  
+#if 0
  {
   v2 Vertices[] = {
-   {-0.5f, -0.5f},
-   {+0.5f, -0.5f},
-   {+0.0f, +0.5f},
+   {-0.5f, -0.5f}, {0.0f, 0.0f},
+   {+0.5f, -0.5f}, {1.0f, 0.0f},
+   {-0.5f, +0.5f}, {0.0f, 1.0f},
+   
+   {+0.5f, -0.5f}, {1.0f, 0.0f},
+   {+0.5f, +0.5f}, {1.0f, 1.0f},
+   {-0.5f, +0.5f}, {0.0f, 1.0f},
   };
+  
   v4 Color = V4(1, 0, 1, 1);
   m4x4 Transform = Projection;
   
@@ -380,10 +479,13 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
 in vec2 VertP;
 in vec2 VertUV;
 
+out vec2 FragUV;
+
 uniform mat4 Transform;
 
 void main(void) {
  gl_Position = Transform * vec4(VertP, 0, 1);
+FragUV = VertUV;
 }
 
 )FOO";
@@ -391,13 +493,15 @@ void main(void) {
   char const *FragmentCode = R"FOO(
 #version 330
 
+in vec2 FragUV;
 out vec4 FragColor;
 
 uniform vec4 Color;
-
+uniform sampler2D Sampler;
 
 void main(void) {
-FragColor = Color;
+FragColor = texture(Sampler, FragUV);
+//FragColor = Color;
 }
 
 )FOO";
@@ -421,19 +525,22 @@ FragColor = Color;
   OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_DYNAMIC_DRAW);
   
   OpenGL->glEnableVertexAttribArray(Program.VertP_AttrLoc);
-  OpenGL->glVertexAttribPointer(Program.VertP_AttrLoc, 2, GL_FLOAT, GL_FALSE, SizeOf(v2), 0);
+  OpenGL->glVertexAttribPointer(Program.VertP_AttrLoc, 2, GL_FLOAT, GL_FALSE, 2 * SizeOf(v2), 0);
+  OpenGL->glEnableVertexAttribArray(Program.VertUV_AttrLoc);
+  OpenGL->glVertexAttribPointer(Program.VertUV_AttrLoc, 2, GL_FLOAT, GL_FALSE, 2 * SizeOf(v2), Cast(void *)SizeOf(v2));
   
   OpenGL->glUseProgram(Program.ProgramHandle);
   OpenGL->glUniformMatrix4fv(Program.Transform_UniformLoc, 1, GL_FALSE, Cast(f32 *)Transform.M);
   OpenGL->glUniform4fv(Program.Color_UniformLoc, 1, Cast(f32 *)Color.E);
   
-  OpenGL->glDrawArrays(GL_TRIANGLES, 0, 3);
+  OpenGL->glDrawArrays(GL_TRIANGLES, 0, ArrayCount(Vertices));
   
   OpenGL->glUseProgram(0);
   OpenGL->glBindBuffer(GL_ARRAY_BUFFER, 0);
   OpenGL->glBindVertexArray(0);
 #endif
  }
+#endif
  
  Memory->ImGuiBindings.Render();
  SwapBuffers(OpenGL->WindowDC);

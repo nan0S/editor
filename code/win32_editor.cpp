@@ -495,11 +495,16 @@ WinMain(HINSTANCE Instance,
  {
   int ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
   int ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
+  
   // TODO(hbr): restore window sizes
   int WindowWidth =  ScreenWidth * 1/2;
+  //int WindowWidth =  ScreenWidth;
   //int WindowWidth =  ScreenWidth * 9/10;
+  
   int WindowHeight = ScreenHeight * 1/2;
+  //int WindowHeight = ScreenHeight;
   //int WindowHeight = ScreenHeight * 9/10;
+  
   int WindowX = (ScreenWidth - WindowWidth) / 2;
   int WindowY = (ScreenHeight - WindowHeight) / 2;
   if (WindowWidth == 0 || WindowHeight == 0)

@@ -223,13 +223,13 @@ AngleCompareLess(v2 A, v2 B, v2 O)
 }
 
 internal void
-AngleSort(u32 NumPoints, v2 *Points)
+AngleSort(u32 PointCount, v2 *Points)
 {
- if (NumPoints > 0)
+ if (PointCount > 0)
  {
   v2 BottomLeftMostPoint = Points[0];
   for (u32 PointIndex = 1;
-       PointIndex < NumPoints;
+       PointIndex < PointCount;
        ++PointIndex)
   {
    v2 Point = Points[PointIndex];
@@ -247,7 +247,7 @@ AngleSort(u32 NumPoints, v2 *Points)
        ++Iteration)
   {
    Sorting = false;
-   for (u32 J = 1; J < NumPoints - Iteration; ++J)
+   for (u32 J = 1; J < PointCount - Iteration; ++J)
    {
     v2 A = Points[J-1];
     v2 B = Points[J];
@@ -263,24 +263,24 @@ AngleSort(u32 NumPoints, v2 *Points)
 }
 
 internal u32
-RemoveDupliatesSorted(u32 NumPoints, v2 *Points)
+RemoveDupliatesSorted(u32 PointCount, v2 *Points)
 {
- u32 NumUnique = 0;
- if (NumPoints > 0)
+ u32 UniqueCount = 0;
+ if (PointCount > 0)
  {
-  NumUnique = 1;
+  UniqueCount = 1;
   for (u32 PointIndex = 1;
-       PointIndex < NumPoints;
+       PointIndex < PointCount;
        ++PointIndex)
   {
-   if (Points[PointIndex] != Points[NumUnique-1])
+   if (Points[PointIndex] != Points[UniqueCount-1])
    {
-    Points[NumUnique++] = Points[PointIndex];
+    Points[UniqueCount++] = Points[PointIndex];
    }
   }
  }
  
- return NumUnique;
+ return UniqueCount;
 }
 
 internal u32

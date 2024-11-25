@@ -364,6 +364,8 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
      case Primitive_Triangles:     {glPrimitive = GL_TRIANGLES;}break;
     }
     
+#if 0
+    
     glBegin(glPrimitive);
     glColor4fv(Array->Color.E);
     for (u32 VertexIndex = 0;
@@ -373,6 +375,90 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
      glVertex2fv(Array->Vertices[VertexIndex].Pos.E);
     }
     glEnd();
+#endif
+    
+#if 0
+    v2 Vertices[] = {
+     {-0.5f, -0.5f}, {0.0f, 0.0f},
+     {+0.5f, -0.5f}, {1.0f, 0.0f},
+     {-0.5f, +0.5f}, {0.0f, 1.0f},
+     
+     {+0.5f, -0.5f}, {1.0f, 0.0f},
+     {+0.5f, +0.5f}, {1.0f, 1.0f},
+     {-0.5f, +0.5f}, {0.0f, 1.0f},
+    };
+#endif
+    
+    v4 Color = V4(1, 0, 1, 1);
+    m4x4 Transform = Projection;
+    
+    char const *VertexCode = R"FOO(
+  #version 330
+  
+  in vec2 VertP;
+  in vec2 VertUV;
+  
+  out vec2 FragUV;
+  
+  uniform mat4 Transform;
+  
+  void main(void) {
+   gl_Position = Transform * vec4(VertP, 0, 1);
+  FragUV = VertUV;
+  }
+  
+  )FOO";
+    
+    char const *FragmentCode = R"FOO(
+  #version 330
+  
+  in vec2 FragUV;
+  out vec4 FragColor;
+  
+  uniform vec4 Color;
+  uniform sampler2D Sampler;
+  
+  void main(void) {
+  //FragColor = texture(Sampler, FragUV);
+  FragColor = Color;
+  }
+  
+  )FOO";
+    
+    local b32 Init = false;
+    local GLuint VAO = 0;
+    local GLuint VBO = 0;
+    local opengl_program Program = {};
+    
+    if (!Init)
+    {
+     Program = Win32OpenGLCreateProgram(OpenGL, Cast(char *)VertexCode, Cast(char *)FragmentCode);
+     OpenGL->glGenVertexArrays(1, &VAO);
+     OpenGL->glGenBuffers(1, &VBO);
+     Init = true;
+    }
+    
+    OpenGL->glBindVertexArray(VAO);
+    OpenGL->glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    OpenGL->glBufferData(GL_ARRAY_BUFFER,
+                         Array->VertexCount * SizeOf(Array->Vertices[0]),
+                         Array->Vertices, GL_DYNAMIC_DRAW);
+    
+    OpenGL->glEnableVertexAttribArray(Program.VertP_AttrLoc);
+    OpenGL->glVertexAttribPointer(Program.VertP_AttrLoc, 2, GL_FLOAT, GL_FALSE, SizeOf(v2), 0);
+    //OpenGL->glEnableVertexAttribArray(Program.VertUV_AttrLoc);
+    //OpenGL->glVertexAttribPointer(Program.VertUV_AttrLoc, 2, GL_FLOAT, GL_FALSE, 2 * SizeOf(v2), Cast(void *)SizeOf(v2));
+    
+    OpenGL->glUseProgram(Program.ProgramHandle);
+    OpenGL->glUniformMatrix4fv(Program.Transform_UniformLoc, 1, GL_FALSE, Cast(f32 *)Transform.M);
+    OpenGL->glUniform4fv(Program.Color_UniformLoc, 1, Cast(f32 *)Color.E);
+    
+    OpenGL->glDrawArrays(glPrimitive, 0, Array->VertexCount);
+    
+    OpenGL->glUseProgram(0);
+    OpenGL->glBindBuffer(GL_ARRAY_BUFFER, 0);
+    OpenGL->glBindVertexArray(0);
+    
    }break;
    
    case RenderCommand_Circle: {

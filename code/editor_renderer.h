@@ -80,11 +80,24 @@ struct render_command
  f32 ZOffset;
 };
 
+struct render_circle
+{
+ f32 Z;
+ m3x3 Model;
+ f32 RadiusProper;
+ v4 Color;
+ v4 OutlineColor;
+};
+
 struct render_frame
 {
  u32 CommandCount;
  render_command *Commands;
  u32 MaxCommandCount;
+ 
+ u32 CircleCount;
+ render_circle *Circles;
+ u32 MaxCircleCount;
  
  v2u WindowDim;
  
@@ -137,6 +150,9 @@ struct renderer_memory
  
  render_command *CommandBuffer;
  u32 MaxCommandCount;
+ 
+ render_circle *CircleBuffer;
+ u32 MaxCircleCount;
  
  b32 RendererCodeReloaded;
  

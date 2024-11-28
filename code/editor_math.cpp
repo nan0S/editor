@@ -1514,9 +1514,23 @@ operator*(m3x3 A, v2 P)
 }
 
 internal inline v3
+operator*(m4x4 A, v3 P)
+{
+ v3 R = Transform4x4(A, V4(P, 1.0f)).XYZ;
+ return R;
+}
+
+internal inline v3
 operator*(m3x3 A, v3 P)
 {
  v3 R = Transform3x3(A, P);
+ return R;
+}
+
+internal inline v4
+operator*(m4x4 A, v4 P)
+{
+ v4 R = Transform4x4(A, P);
  return R;
 }
 
@@ -1603,6 +1617,18 @@ Identity3x3(void)
  return Result;
 }
 
+internal m4x4
+Identity4x4(void)
+{
+ m4x4 Result = {};
+ Result.M[0][0] = 1.0f;
+ Result.M[1][1] = 1.0f;
+ Result.M[2][2] = 1.0f;
+ Result.M[3][3] = 1.0f;
+ 
+ return Result;
+}
+
 internal m3x3
 Transpose3x3(m3x3 M)
 {
@@ -1610,6 +1636,18 @@ Transpose3x3(m3x3 M)
   { {M.M[0][0], M.M[1][0], M.M[2][0]},
    {M.M[0][1], M.M[1][1], M.M[2][1]},
    {M.M[0][2], M.M[1][2], M.M[2][2]}}
+ };
+ return R;
+}
+
+internal m4x4
+Transpose4x4(m4x4 M)
+{
+ m4x4 R = {
+  { {M.M[0][0], M.M[1][0], M.M[2][0], M.M[3][0]},
+   {M.M[0][1], M.M[1][1], M.M[2][1], M.M[3][1]},
+   {M.M[0][2], M.M[1][2], M.M[2][2], M.M[3][2]},
+   {M.M[0][3], M.M[1][3], M.M[2][3], M.M[3][3]}}
  };
  return R;
 }
@@ -1649,6 +1687,42 @@ Scale3x3(m3x3 A, f32 Scale)
  return R;
 }
 
+internal m4x4
+Scale4x4(m4x4 A, f32 Scale)
+{
+ m4x4 R = A;
+ 
+ R.M[0][0] *= Scale;
+ R.M[0][1] *= Scale;
+ R.M[0][2] *= Scale;
+ R.M[1][0] *= Scale;
+ R.M[1][1] *= Scale;
+ R.M[1][2] *= Scale;
+ R.M[2][0] *= Scale;
+ R.M[2][1] *= Scale;
+ R.M[2][2] *= Scale;
+ 
+ return R;
+}
+
+internal m4x4
+Scale4x4(m4x4 A, v3 Scale)
+{
+ m4x4 R = A;
+ 
+ R.M[0][0] *= Scale.X;
+ R.M[0][1] *= Scale.X;
+ R.M[0][2] *= Scale.X;
+ R.M[1][0] *= Scale.Y;
+ R.M[1][1] *= Scale.Y;
+ R.M[1][2] *= Scale.Y;
+ R.M[2][0] *= Scale.Z;
+ R.M[2][1] *= Scale.Z;
+ R.M[2][2] *= Scale.Z;
+ 
+ return R;
+}
+
 internal m3x3
 Scale3x3(m3x3 A, v2 Scale)
 {
@@ -1673,6 +1747,18 @@ Translate3x3(m3x3 A, v2 P)
  return R;
 }
 
+internal m4x4
+Translate4x4(m4x4 A, v3 P)
+{
+ m4x4 R = A;
+ 
+ R.M[0][3] += P.X;
+ R.M[1][3] += P.Y;
+ R.M[2][3] += P.Z;
+ 
+ return R;
+}
+
 internal v3
 Transform3x3(m3x3 A, v3 P)
 {
@@ -1680,6 +1766,18 @@ Transform3x3(m3x3 A, v3 P)
   P.X*A.M[0][0] + P.Y*A.M[0][1] + P.Z*A.M[0][2],
   P.X*A.M[1][0] + P.Y*A.M[1][1] + P.Z*A.M[1][2],
   P.X*A.M[2][0] + P.Y*A.M[2][1] + P.Z*A.M[2][2],
+ };
+ return R;
+}
+
+internal v4
+Transform4x4(m4x4 A, v4 P)
+{
+ v4 R = {
+  P.X*A.M[0][0] + P.Y*A.M[0][1] + P.Z*A.M[0][2] + P.W*A.M[0][3],
+  P.X*A.M[1][0] + P.Y*A.M[1][1] + P.Z*A.M[1][2] + P.W*A.M[1][3],
+  P.X*A.M[2][0] + P.Y*A.M[2][1] + P.Z*A.M[2][2] + P.W*A.M[2][3],
+  P.X*A.M[3][0] + P.Y*A.M[3][1] + P.Z*A.M[3][2] + P.W*A.M[3][3],
  };
  return R;
 }

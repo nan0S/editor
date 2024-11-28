@@ -550,6 +550,10 @@ WinMain(HINSTANCE Instance,
     
     RendererMemory.MaxCommandCount = 4096;
     RendererMemory.CommandBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxCommandCount, render_command);
+    
+    // TODO(hbr): Tweak these parameters
+    RendererMemory.MaxCircleCount = 4096;
+    RendererMemory.CircleBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxCircleCount, render_circle);
    }
    
    win32_renderer_function_table RendererFunctionTable = {};

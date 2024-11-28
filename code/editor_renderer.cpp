@@ -31,11 +31,31 @@ PushVertexArray(render_group *Group,
 
 internal void
 PushCircle(render_group *Group,
-           v2 P, f32 Radius, v4 Color,
+           v2 P, v2 Rotation, v2 Scale,
+           f32 Radius, v4 Color,
            f32 ZOffset,
            f32 OutlineThickness = 0,
            v4 OutlineColor = V4(0, 0, 0, 0))
 {
+ render_frame *Frame = Group->Frame;
+ if (Frame->CircleCount < Frame->MaxCircleCount)
+ {
+  render_circle *Data = Frame->Circles + Frame->CircleCount++;
+  
+  f32 TotalRadius = Radius + OutlineThickness;
+  f32 RadiusProper = Radius / TotalRadius;
+  
+  m3x3 Model = ModelTransform(P, Rotation, Scale);
+  Model = Scale3x3(Model, TotalRadius);
+  Model = Transpose3x3(Model);
+  
+  Data->Z = ZOffset;
+  Data->Model = Model;
+  Data->RadiusProper = RadiusProper;
+  Data->Color = Color;
+  Data->OutlineColor = OutlineColor;
+ }
+ 
  m3x3 Model = ModelTransform(P, Rotation2DZero(), V2(Radius, Radius));
  render_command *Command = PushRenderCommand(Group, RenderCommand_Circle, Model, ZOffset);
  

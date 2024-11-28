@@ -13,6 +13,7 @@ typedef GLint WINAPI func_glGetAttribLocation(GLuint program, const GLchar *name
 typedef void WINAPI func_glEnableVertexAttribArray(GLuint index);
 typedef void WINAPI func_glDisableVertexAttribArray(GLuint index);
 typedef void WINAPI func_glVertexAttribPointer(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer);
+typedef void WINAPI func_glVertexAttribDivisor(GLuint index, GLuint divisor);
 
 typedef void WINAPI func_glActiveTexture(GLenum texture);
 typedef void WINAPI func_glGenerateMipmap(GLenum texture);
@@ -22,12 +23,13 @@ typedef void WINAPI func_glBindBuffer(GLenum target, GLuint buffer);
 typedef void WINAPI func_glBufferData(GLenum target, GLsizeiptr size, const void *data, GLenum usage);
 typedef void WINAPI func_glDrawBuffers(GLsizei n, const GLenum *bufs);
 typedef void WINAPI func_glDrawArrays(GLenum mode, GLint first, GLsizei count);
+typedef void WINAPI func_glDrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsizei instancecount);
 
 typedef GLuint WINAPI func_glCreateProgram(void);
 typedef GLuint WINAPI func_glCreateShader(GLenum type);
 typedef void WINAPI func_glAttachShader(GLuint program, GLuint shader);
 typedef void WINAPI func_glCompileShader(GLuint shader);
-typedef void WINAPI func_glShaderSource(GLuint shader, GLsizei count, GLchar **string, GLint *length);
+typedef void WINAPI func_glShaderSource(GLuint shader, GLsizei count, GLchar const *const *string, GLint *length);
 typedef void WINAPI func_glLinkProgram(GLuint program);
 typedef void WINAPI func_glGetProgramInfoLog(GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
 typedef void WINAPI func_glGetShaderInfoLog(GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
@@ -42,6 +44,7 @@ typedef void WINAPI func_glUniform1f(GLint location, GLfloat v0);
 typedef void WINAPI func_glUniform2fv(GLint location, GLsizei count, const GLfloat *value);
 typedef void WINAPI func_glUniform3fv(GLint location, GLsizei count, const GLfloat *value);
 typedef void WINAPI func_glUniform4fv(GLint location, GLsizei count, const GLfloat *value);
+typedef void WINAPI func_glUniformMatrix3fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
 typedef void WINAPI func_glUniformMatrix4fv(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
 
 typedef BOOL WINAPI func_wglChoosePixelFormatARB(HDC hdc,
@@ -50,6 +53,10 @@ typedef BOOL WINAPI func_wglChoosePixelFormatARB(HDC hdc,
                                                  UINT nMaxFormats,
                                                  int *piFormats,
                                                  UINT *nNumFormats);
+
+#define GL_DEBUG_CALLBACK(Name) void WINAPI Name(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
+typedef GL_DEBUG_CALLBACK(GLDEBUGPROC);
+typedef void WINAPI func_glDebugMessageCallback(GLDEBUGPROC *callback, const void *userParam);
 
 #define GL_NUM_EXTENSIONS                 0x821D
 
@@ -75,7 +82,26 @@ typedef BOOL WINAPI func_wglChoosePixelFormatARB(HDC hdc,
 #define GL_DEBUG_TYPE_POP_GROUP           0x826A
 #define GL_DEBUG_SEVERITY_NOTIFICATION    0x826B
 
+#define GL_DEBUG_SOURCE_API               0x8246
+#define GL_DEBUG_SOURCE_APPLICATION       0x824A
+#define GL_DEBUG_SOURCE_OTHER             0x824B
+#define GL_DEBUG_SOURCE_SHADER_COMPILER   0x8248
+#define GL_DEBUG_SOURCE_THIRD_PARTY       0x8249
+#define GL_DEBUG_SOURCE_WINDOW_SYSTEM     0x8247
+
+#define GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR 0x824D
+#define GL_DEBUG_TYPE_ERROR               0x824C
+#define GL_DEBUG_TYPE_MARKER              0x8268
+#define GL_DEBUG_TYPE_OTHER               0x8251
+#define GL_DEBUG_TYPE_PERFORMANCE         0x8250
+#define GL_DEBUG_TYPE_POP_GROUP           0x826A
+#define GL_DEBUG_TYPE_PORTABILITY         0x824F
+#define GL_DEBUG_TYPE_PUSH_GROUP          0x8269
+#define GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR  0x824E
+
 #define GL_DEBUG_OUTPUT_SYNCHRONOUS       0x8242
+#define GL_DEBUG_OUTPUT                   0x92E0
+
 #define GL_ARRAY_BUFFER                   0x8892
 #define GL_ELEMENT_ARRAY_BUFFER           0x8893
 #define GL_STREAM_DRAW                    0x88E0
@@ -224,6 +250,58 @@ typedef BOOL WINAPI func_wglChoosePixelFormatARB(HDC hdc,
 #define WGL_ALPHA_BITS_ARB                      0x201B
 #define WGL_DEPTH_BITS_ARB                      0x2022
 
+struct basic_program
+{
+ GLuint ProgramHandle;
+ 
+ GLuint VertP_AttrLoc;
+ GLuint VertColor_AttrLoc;
+};
+struct basic_program_vertex
+{
+ v2 P;
+ v4 Color;
+};
+
+struct sample_program
+{
+ GLuint ProgramHandle;
+ 
+ GLuint VertP_AttrLoc;
+ GLuint VertUV_AttrLoc;
+ GLuint Transform_UniformLoc;
+ GLuint Color_UniformLoc;
+};
+
+struct perfect_circle_program
+{
+ GLuint ProgramHandle;
+ 
+ GLuint VertP_AttrLoc;
+ GLuint VertZ_AttrLoc;
+ GLuint VertModel_AttrLoc;
+ GLuint VertRadiusProper_AttrLoc;
+ GLuint VertColor_AttrLoc;
+ GLuint VertOutlineColor_AttrLoc;
+ GLuint Projection_UniformLoc;
+};
+struct perfect_circle_program_vertex
+{
+ v2 P;
+ f32 Z;
+ union {
+  m3x3 Model;
+  struct {
+   v3 Model0;
+   v3 Model1;
+   v3 Model2;
+  };
+ };
+ f32 RadiusProper;
+ v4 Color;
+ v4 OutlineColor;
+};
+
 struct opengl
 {
  render_frame RenderFrame;
@@ -262,6 +340,7 @@ struct opengl
  Win32OpenGLFunction(glUniform2fv);
  Win32OpenGLFunction(glUniform3fv);
  Win32OpenGLFunction(glUniform4fv);
+ Win32OpenGLFunction(glUniformMatrix3fv);
  Win32OpenGLFunction(glUniformMatrix4fv);
  Win32OpenGLFunction(glGetProgramiv);
  Win32OpenGLFunction(glDeleteProgram);
@@ -269,16 +348,23 @@ struct opengl
  Win32OpenGLFunction(glDrawArrays);
  Win32OpenGLFunction(wglChoosePixelFormatARB);
  Win32OpenGLFunction(glGenerateMipmap);
+ Win32OpenGLFunction(glDebugMessageCallback);
+ Win32OpenGLFunction(glVertexAttribDivisor);
+ Win32OpenGLFunction(glDrawArraysInstanced);
 #undef Win32OpenGLFunction
-};
-
-struct opengl_program
-{
- GLuint ProgramHandle;
- GLuint VertP_AttrLoc;
- GLuint VertUV_AttrLoc;
- GLuint Transform_UniformLoc;
- GLuint Color_UniformLoc;
+ 
+ struct {
+  basic_program Program;
+  GLuint VAO;
+  GLuint VBO;
+ } Basic;
+ 
+ struct {
+  perfect_circle_program Program;
+  GLuint VAO;
+  GLuint QuadVBO;
+  GLuint CircleVBO;
+ } PerfectCircle;
 };
 
 #endif //WIN32_EDITOR_RENDERER_OPENGL_H

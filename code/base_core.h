@@ -98,9 +98,10 @@ struct rectangle2
  v2 Maxi;
 };
 
-struct m3x3
+union m3x3
 {
  f32 M[3][3];
+ v3 Rows[3];
 };
 
 struct m3x3_inv
@@ -109,11 +110,11 @@ struct m3x3_inv
  m3x3 Inverse;
 };
 
-struct m4x4
+union m4x4
 {
  f32 M[4][4];
+ v4 Rows[4];
 };
-
 
 #if OS_WINDOWS
 # define thread_static __declspec(thread)
@@ -268,6 +269,7 @@ inline internal v2u V2U(u32 X, u32 Y) { return {X,Y}; }
 inline internal v3  V3(f32 X, f32 Y, f32 Z) { return {X,Y,Z}; }
 inline internal v3  V3(v2 XY, f32 Z) { return {XY.X,XY.Y,Z}; }
 inline internal v4  V4(f32 X, f32 Y, f32 Z, f32 W) { return {X,Y,Z,W}; }
+inline internal v4  V4(v3 XYZ, f32 W) { return {XYZ.X,XYZ.Y,XYZ.Z,W}; }
 
 //- time
 typedef u64 timestamp64;

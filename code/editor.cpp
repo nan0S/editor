@@ -1406,7 +1406,9 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
      f32 OutlineThickness = 0.3f * Radius;
      v4 OutlineColor = DarkenColor(Color, 0.5f);
      PushCircle(Group,
-                Tracking->LocalSpaceTrackedPoint, Radius, Color,
+                Entity->P + Tracking->LocalSpaceTrackedPoint,
+                Entity->Rotation, Entity->Scale,
+                Radius, Color,
                 GetCurvePartZOffset(CurvePart_Special),
                 OutlineThickness, OutlineColor);
     }
@@ -1488,7 +1490,7 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
       for (u32 I = 0; I < IterationCount - Iteration; ++I)
       {
        v2 Point = Tracking->Intermediate.P[PointIndex];
-       PushCircle(Group, Point, PointSize, IterationColor, GetCurvePartZOffset(CurvePart_Special));
+       PushCircle(Group, Entity->P + Point, Entity->Rotation, Entity->Scale, PointSize, IterationColor, GetCurvePartZOffset(CurvePart_Special));
        ++PointIndex;
       }
       
@@ -2670,7 +2672,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   {
    v4 Color = V4(0.5f, 0.5f, 0.5f, 0.3f);
    // TODO(hbr): Again, zoffset of this thing is wrong
-   PushCircle(RenderGroup, RightClick->ClickP, RenderGroup->CollisionTolerance, Color, 0.0f);
+   PushCircle(RenderGroup, RightClick->ClickP, Rotation2DZero(), V2(1, 1), RenderGroup->CollisionTolerance, Color, 0.0f);
   }
   
   //- render rotation indicator
@@ -2685,6 +2687,8 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    // instead
    PushCircle(RenderGroup,
               Camera->P,
+              Rotation2DZero(),
+              V2(1, 1),
               Radius - OutlineThickness,
               Color, 0.0f,
               OutlineThickness, OutlineColor);
@@ -3372,7 +3376,9 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
        
        PushLine(RenderGroup, BezierPoint, CenterPoint, HelperLineWidth, CurveParams->LineColor,
                 GetCurvePartZOffset(CurvePart_Line));
-       PushCircle(RenderGroup, BezierPoint, BezierPointRadius, CurveParams->PointColor,
+       PushCircle(RenderGroup,
+                  Entity->P + BezierPoint, Entity->Rotation, Entity->Scale,
+                  BezierPointRadius, CurveParams->PointColor,
                   GetCurvePartZOffset(CurvePart_ControlPoint));
       }
       
@@ -3384,7 +3390,8 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
       {
        point_info PointInfo = GetCurveControlPointInfo(Entity, PointIndex);
        PushCircle(RenderGroup,
-                  ControlPoints[PointIndex],
+                  Entity->P + ControlPoints[PointIndex],
+                  Entity->Rotation, Entity->Scale,
                   PointInfo.Radius,
                   PointInfo.Color,
                   GetCurvePartZOffset(CurvePart_ControlPoint),

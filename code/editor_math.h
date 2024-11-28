@@ -95,6 +95,13 @@ internal m3x3 Translate3x3(m3x3 A, v2 P);
 internal v3 Transform3x3(m3x3 A, v3 P);
 internal m3x3 Diag3x3(f32 X, f32 Y);
 
+internal m4x4 Identity4x4(void);
+internal m4x4 Scale4x4(m4x4 A, f32 Scale);
+internal m4x4 Scale4x4(m4x4 A, v3 Scale);
+internal m4x4 Translate4x4(m4x4 A, v3 P);
+internal m4x4 Transpose4x4(m4x4 A);
+internal v4 Transform4x4(m4x4 A, v4 P);
+
 //~ Interpolation
 internal void EquidistantPoints(f32 *Ti, u32 N);
 internal void ChebychevPoints(f32 *Ti, u32 N);

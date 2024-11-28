@@ -145,6 +145,7 @@ union m4x4
 #define Cast(Type) (Type)
 #define OffsetOf(Type, Member) (Cast(u64)(&((Cast(Type *)0)->Member)))
 #define SizeOf(Expr) sizeof(Expr)
+#define MemberOf(Type, Member) ((Cast(Type *)0)->Member)
 #define AlignOf(Type) alignof(Type)
 #define NotImplemented Assert(!"Not Implemented")
 #define InvalidPath Assert(!"Invalid Path");

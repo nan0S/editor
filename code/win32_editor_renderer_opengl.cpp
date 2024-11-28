@@ -355,18 +355,32 @@ else {
  GLuint ProgramHandle = Win32OpenGLCreateProgram(OpenGL, VertexShader, FragmentShader);
  Result.ProgramHandle = ProgramHandle;
  
- Result.VertP_AttrLoc = OpenGL->glGetAttribLocation(ProgramHandle, "VertP");
- Assert(Result.VertP_AttrLoc != -1);
- Result.VertZ_AttrLoc = OpenGL->glGetAttribLocation(ProgramHandle, "VertZ");
- Assert(Result.VertZ_AttrLoc != -1);
- Result.VertModel_AttrLoc = OpenGL->glGetAttribLocation(ProgramHandle, "VertModel");
- Assert(Result.VertModel_AttrLoc != -1);
- Result.VertRadiusProper_AttrLoc = OpenGL->glGetAttribLocation(ProgramHandle, "VertRadiusProper");
- Assert(Result.VertRadiusProper_AttrLoc != -1);
- Result.VertColor_AttrLoc = OpenGL->glGetAttribLocation(ProgramHandle, "VertColor");
- Assert(Result.VertColor_AttrLoc != -1);
- Result.VertOutlineColor_AttrLoc = OpenGL->glGetAttribLocation(ProgramHandle, "VertOutlineColor");
- Assert(Result.VertOutlineColor_AttrLoc != -1);
+ char const *AttrNames[] =
+ {
+  "VertP",
+  "VertZ",
+  "VertModel",
+  "VertModel",
+  "VertModel",
+  "VertRadiusProper",
+  "VertColor",
+  "VertOutlineColor",
+ };
+ StaticAssert(ArrayCount(AttrNames) == ArrayCount(MemberOf(perfect_circle_program, Attributes.All)),
+              AttrNamesLengthMatchesDefinedAttributes);
+ 
+ for (u32 AttrIndex = 0;
+      AttrIndex < ArrayCount(AttrNames);
+      ++AttrIndex)
+ {
+  char const *AttrName = AttrNames[AttrIndex];
+  GLuint Attr = OpenGL->glGetAttribLocation(ProgramHandle, AttrName);
+  Result.Attributes.All[AttrIndex] = Attr;
+  Assert(Attr != -1);
+ }
+ Result.Attributes.VertModel1_AttrLoc = Result.Attributes.VertModel0_AttrLoc + 1;
+ Result.Attributes.VertModel2_AttrLoc = Result.Attributes.VertModel0_AttrLoc + 2;
+ 
  Result.Projection_UniformLoc = OpenGL->glGetUniformLocation(ProgramHandle, "Projection");
  Assert(Result.Projection_UniformLoc != -1);
  
@@ -423,7 +437,7 @@ WIN32_RENDERER_INIT(Win32RendererInit)
   }
  }
  
- //- create opengl context
+ //- initialize opengl context 
  Win32SetPixelFormat(OpenGL, WindowDC);
  HGLRC OpenGLRC = wglCreateContext(WindowDC);
  if (wglMakeCurrent(WindowDC, OpenGLRC))
@@ -478,79 +492,55 @@ WIN32_RENDERER_INIT(Win32RendererInit)
    OpenGL->wglSwapIntervalEXT(0);
   }
   
-#if 0
   if (OpenGL->glDebugMessageCallback)
   {
    glEnable(GL_DEBUG_OUTPUT);
    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
    OpenGL->glDebugMessageCallback(OpenGLDebugCallback, 0);
   }
-#endif
- }
- 
- //- allocate texutre indices
- u32 TextureCount = Memory->Limits.MaxTextureCount;
- GLuint *Textures = PushArray(Arena, TextureCount, GLuint);
- OpenGL->MaxTextureCount = TextureCount;
- OpenGL->Textures = Textures;
- 
- glGenTextures(Cast(GLsizei)TextureCount, Textures);
- for (u32 TextureIndex = 0;
-      TextureIndex < TextureCount;
-      ++TextureIndex)
- {
-  glBindTexture(GL_TEXTURE_2D, Textures[TextureIndex]);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
- }
- 
- //- perfect circle program
- {
-  OpenGL->PerfectCircle.Program = CompilePerfectCircleProgram(OpenGL);
   
-  OpenGL->glGenVertexArrays(1, &OpenGL->PerfectCircle.VAO);
-  OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.QuadVBO);
-  OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.CircleVBO);
+  GLuint DummyVAO;
+  OpenGL->glGenVertexArrays(1, &DummyVAO);
+  OpenGL->glBindVertexArray(DummyVAO);
   
-  OpenGL->glBindVertexArray(OpenGL->PerfectCircle.VAO);
+  //- allocate texutre indices
+  u32 TextureCount = Memory->Limits.MaxTextureCount;
+  GLuint *Textures = PushArray(Arena, TextureCount, GLuint);
+  OpenGL->MaxTextureCount = TextureCount;
+  OpenGL->Textures = Textures;
   
-  v2 Vertices[] =
+  glGenTextures(Cast(GLsizei)TextureCount, Textures);
+  for (u32 TextureIndex = 0;
+       TextureIndex < TextureCount;
+       ++TextureIndex)
   {
-   V2(-1, -1),
-   V2( 1, -1),
-   V2( 1,  1),
-   V2(-1,  1),
-  };
-  OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->PerfectCircle.QuadVBO);
-  OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW);
+   glBindTexture(GL_TEXTURE_2D, Textures[TextureIndex]);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+  }
   
-  OpenGL->glBindBuffer(GL_ARRAY_BUFFER, 0);
- }
- 
-#if 0
- //- basic program
- {
-  OpenGL->Basic.Program = CompileBasicProgram(OpenGL);
-  OpenGL->glGenVertexArrays(1, &OpenGL->Basic.VAO);
-  OpenGL->glGenBuffers(1, &OpenGL->Basic.VBO);
-  
-  basic_program_vertex Vertices[] =
+  //- perfect circle program
   {
-   { V2(-0.5f, -0.5f), V4(1, 1, 1, 1) },
-   { V2( 0.5f, -0.5f), V4(1, 1, 1, 1) },
-   { V2( 0.5f,  0.5f), V4(1, 1, 1, 1) },
-   { V2(-0.5f,  0.5f), V4(1, 1, 1, 1) },
-  };
-  
-  GL_CALL(OpenGL->glBindVertexArray(OpenGL->Basic.VAO));
-  GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Basic.VBO));
-  GL_CALL(OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW));
-  GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, 0));
-  GL_CALL(OpenGL->glBindVertexArray(0));
+   OpenGL->PerfectCircle.Program = CompilePerfectCircleProgram(OpenGL);
+   
+   OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.QuadVBO);
+   OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.CircleVBO);
+   
+   v2 Vertices[] =
+   {
+    V2(-1, -1),
+    V2( 1, -1),
+    V2( 1,  1),
+    V2(-1,  1),
+   };
+   OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->PerfectCircle.QuadVBO);
+   OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW);
+   
+   OpenGL->glBindBuffer(GL_ARRAY_BUFFER, 0);
+  }
  }
-#endif
  
  return Cast(renderer *)OpenGL;
 }
@@ -633,7 +623,6 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
  Queue->TransferMemoryUsed = 0;
  
  //- draw
-#if 1
  QuickSort(Frame->Commands, Frame->CommandCount, render_command, RenderCommandCmp);
  for (u32 CommandIndex = 0;
       CommandIndex < Frame->CommandCount;
@@ -660,31 +649,6 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
      case Primitive_Triangles:     {glPrimitive = GL_TRIANGLES;}break;
     }
     
-#if 0
-    
-    glBegin(glPrimitive);
-    glColor4fv(Array->Color.E);
-    for (u32 VertexIndex = 0;
-         VertexIndex < Array->VertexCount;
-         ++VertexIndex)
-    {
-     glVertex2fv(Array->Vertices[VertexIndex].Pos.E);
-    }
-    glEnd();
-#endif
-    
-#if 0
-    v2 Vertices[] = {
-     {-0.5f, -0.5f}, {0.0f, 0.0f},
-     {+0.5f, -0.5f}, {1.0f, 0.0f},
-     {-0.5f, +0.5f}, {0.0f, 1.0f},
-     
-     {+0.5f, -0.5f}, {1.0f, 0.0f},
-     {+0.5f, +0.5f}, {1.0f, 1.0f},
-     {-0.5f, +0.5f}, {0.0f, 1.0f},
-    };
-#endif
-    
     v4 Color = V4(1, 0, 1, 1);
     m4x4 Transform = Projection;
     
@@ -696,12 +660,10 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
     if (!Init)
     {
      Program = CompileSampleProgram(OpenGL);
-     OpenGL->glGenVertexArrays(1, &VAO);
      OpenGL->glGenBuffers(1, &VBO);
      Init = true;
     }
     
-    OpenGL->glBindVertexArray(VAO);
     OpenGL->glBindBuffer(GL_ARRAY_BUFFER, VBO);
     OpenGL->glBufferData(GL_ARRAY_BUFFER,
                          Array->VertexCount * SizeOf(Array->Vertices[0]),
@@ -720,42 +682,7 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
     
     OpenGL->glUseProgram(0);
     OpenGL->glBindBuffer(GL_ARRAY_BUFFER, 0);
-    OpenGL->glBindVertexArray(0);
     
-   }break;
-   
-   case RenderCommand_Circle: {
-#if 0
-    render_command_circle *Circle = &Command->Circle;
-    
-    glBegin(GL_TRIANGLE_FAN);
-    glColor4fv(Circle->Color.E);
-    glVertex2f(0.0f, 0.0f);
-    u32 VertexCount = 30;
-    for (u32 VertexIndex = 0;
-         VertexIndex <= VertexCount;
-         ++VertexIndex)
-    {
-     f32 Radians = 2*Pi32 / VertexCount * VertexIndex;
-     v2 P = Rotation2DFromRadians(Radians);
-     glVertex2fv(P.E);
-    }
-    glEnd();
-    
-    glBegin(GL_TRIANGLE_STRIP);
-    glColor4fv(Circle->OutlineColor.E);
-    for (u32 VertexIndex = 0;
-         VertexIndex <= VertexCount;
-         ++VertexIndex)
-    {
-     f32 Radians = 2*Pi32 / VertexCount * VertexIndex;
-     v2 P = Rotation2DFromRadians(Radians);
-     v2 OP = Circle->OutlineThickness * P;
-     glVertex2fv(P.E);
-     glVertex2fv(OP.E);
-    }
-    glEnd();
-#endif
    }break;
    
    case RenderCommand_Rectangle: {
@@ -807,214 +734,57 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
    }break;
   }
  }
-#endif
  
-#if 0
+ //- instance draw circles
  {
-  v2 Vertices[] = {
-   {-0.5f, -0.5f}, {0.0f, 0.0f},
-   {+0.5f, -0.5f}, {1.0f, 0.0f},
-   {-0.5f, +0.5f}, {0.0f, 1.0f},
-   
-   {+0.5f, -0.5f}, {1.0f, 0.0f},
-   {+0.5f, +0.5f}, {1.0f, 1.0f},
-   {-0.5f, +0.5f}, {0.0f, 1.0f},
-  };
+  GLuint QuadVBO = OpenGL->PerfectCircle.QuadVBO;
+  GLuint CircleVBO = OpenGL->PerfectCircle.CircleVBO;
+  perfect_circle_program *Prog = &OpenGL->PerfectCircle.Program;
   
-  v4 Color = V4(1, 0, 1, 1);
-  m4x4 Transform = Projection;
-  
-  char const *VertexCode = R"FOO(
-#version 330
-
-in vec2 VertP;
-in vec2 VertUV;
-
-out vec2 FragUV;
-
-uniform mat4 Transform;
-
-void main(void) {
- gl_Position = Transform * vec4(VertP, 0, 1);
-FragUV = VertUV;
-}
-
-)FOO";
-  
-  char const *FragmentCode = R"FOO(
-#version 330
-
-in vec2 FragUV;
-out vec4 FragColor;
-
-uniform vec4 Color;
-uniform sampler2D Sampler;
-
-void main(void) {
-FragColor = texture(Sampler, FragUV);
-//FragColor = Color;
-}
-
-)FOO";
-  
-  local b32 Init = false;
-  local GLuint VAO = 0;
-  local GLuint VBO = 0;
-  local opengl_program Program = {};
-  
-  if (!Init)
+  GL_CALL(OpenGL->glUseProgram(Prog->ProgramHandle));
+  GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Projection_UniformLoc,
+                                     1, GL_TRUE, Cast(f32 *)Proj3x3.M));
+  for (u32 AttrLocIndex = 0;
+       AttrLocIndex < ArrayCount(Prog->Attributes.All);
+       ++AttrLocIndex)
   {
-   Program = Win32OpenGLCreateProgram(OpenGL, Cast(char *)VertexCode, Cast(char *)FragmentCode);
-   OpenGL->glGenVertexArrays(1, &VAO);
-   OpenGL->glGenBuffers(1, &VBO);
-   Init = true;
+   GLuint Attr = Prog->Attributes.All[AttrLocIndex];
+   GL_CALL(OpenGL->glEnableVertexAttribArray(Attr));
   }
   
-#if 1
-  OpenGL->glBindVertexArray(VAO);
-  OpenGL->glBindBuffer(GL_ARRAY_BUFFER, VBO);
-  OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_DYNAMIC_DRAW);
+  GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, QuadVBO));
+  GL_CALL(OpenGL->glVertexAttribPointer(Prog->Attributes.VertP_AttrLoc, 2, GL_FLOAT, GL_FALSE, SizeOf(v2), 0));
   
-  OpenGL->glEnableVertexAttribArray(Program.VertP_AttrLoc);
-  OpenGL->glVertexAttribPointer(Program.VertP_AttrLoc, 2, GL_FLOAT, GL_FALSE, 2 * SizeOf(v2), 0);
-  OpenGL->glEnableVertexAttribArray(Program.VertUV_AttrLoc);
-  OpenGL->glVertexAttribPointer(Program.VertUV_AttrLoc, 2, GL_FLOAT, GL_FALSE, 2 * SizeOf(v2), Cast(void *)SizeOf(v2));
-  
-  OpenGL->glUseProgram(Program.ProgramHandle);
-  OpenGL->glUniformMatrix4fv(Program.Transform_UniformLoc, 1, GL_FALSE, Cast(f32 *)Transform.M);
-  OpenGL->glUniform4fv(Program.Color_UniformLoc, 1, Cast(f32 *)Color.E);
-  
-  OpenGL->glDrawArrays(GL_TRIANGLES, 0, ArrayCount(Vertices));
-  
-  OpenGL->glUseProgram(0);
-  OpenGL->glBindBuffer(GL_ARRAY_BUFFER, 0);
-  OpenGL->glBindVertexArray(0);
-#endif
- }
-#endif
- 
- {
-  GL_CALL(OpenGL->glBindVertexArray(OpenGL->PerfectCircle.VAO));
-  GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->PerfectCircle.CircleVBO));
+  //- upload instances' data into GPU
+  GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, CircleVBO));
   GL_CALL(OpenGL->glBufferData(GL_ARRAY_BUFFER,
                                Frame->CircleCount * SizeOf(Frame->Circles[0]),
                                Frame->Circles,
                                GL_DYNAMIC_DRAW));
-  GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, 0));
-  GL_CALL(OpenGL->glBindVertexArray(0));
   
-  GL_CALL(OpenGL->glBindVertexArray(OpenGL->PerfectCircle.VAO));
-  
-  GL_CALL(OpenGL->glUseProgram(OpenGL->PerfectCircle.Program.ProgramHandle));
-  
-  GL_CALL(OpenGL->glUniformMatrix3fv(OpenGL->PerfectCircle.Program.Projection_UniformLoc,
-                                     1, GL_TRUE, Cast(f32 *)Proj3x3.M));
-  
-  GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->PerfectCircle.QuadVBO));
-  GL_CALL(OpenGL->glEnableVertexAttribArray(OpenGL->PerfectCircle.Program.VertP_AttrLoc));
-  GL_CALL(OpenGL->glVertexAttribPointer(OpenGL->PerfectCircle.Program.VertP_AttrLoc, 2, GL_FLOAT, GL_FALSE, SizeOf(v2), 0));
-  
-  GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->PerfectCircle.CircleVBO));
-  {
-   GL_CALL(OpenGL->glEnableVertexAttribArray(OpenGL->PerfectCircle.Program.VertZ_AttrLoc));
-   GL_CALL(OpenGL->glVertexAttribPointer(OpenGL->PerfectCircle.Program.VertZ_AttrLoc,
-                                         1, GL_FLOAT,
-                                         GL_FALSE,
-                                         SizeOf(render_circle),
-                                         Cast(void *)OffsetOf(render_circle, Z)));
-   GL_CALL(OpenGL->glVertexAttribDivisor(OpenGL->PerfectCircle.Program.VertZ_AttrLoc, 1));
-   
-   GL_CALL(OpenGL->glEnableVertexAttribArray(OpenGL->PerfectCircle.Program.VertModel_AttrLoc + 0));
-   GL_CALL(OpenGL->glVertexAttribPointer(OpenGL->PerfectCircle.Program.VertModel_AttrLoc + 0,
-                                         3, GL_FLOAT,
-                                         GL_FALSE,
-                                         SizeOf(render_circle),
-                                         Cast(void *)OffsetOf(render_circle, Model.Rows[0])));
-   GL_CALL(OpenGL->glVertexAttribDivisor(OpenGL->PerfectCircle.Program.VertModel_AttrLoc + 0, 1));
-   
-   GL_CALL(OpenGL->glEnableVertexAttribArray(OpenGL->PerfectCircle.Program.VertModel_AttrLoc + 1));
-   GL_CALL(OpenGL->glVertexAttribPointer(OpenGL->PerfectCircle.Program.VertModel_AttrLoc + 1,
-                                         3, GL_FLOAT,
-                                         GL_FALSE,
-                                         SizeOf(render_circle),
-                                         Cast(void *)OffsetOf(render_circle, Model.Rows[1])));
-   GL_CALL(OpenGL->glVertexAttribDivisor(OpenGL->PerfectCircle.Program.VertModel_AttrLoc + 1, 1));
-   
-   GL_CALL(OpenGL->glEnableVertexAttribArray(OpenGL->PerfectCircle.Program.VertModel_AttrLoc + 2));
-   GL_CALL(OpenGL->glVertexAttribPointer(OpenGL->PerfectCircle.Program.VertModel_AttrLoc + 2,
-                                         3, GL_FLOAT,
-                                         GL_FALSE,
-                                         SizeOf(render_circle),
-                                         Cast(void *)OffsetOf(render_circle, Model.Rows[2])));
-   GL_CALL(OpenGL->glVertexAttribDivisor(OpenGL->PerfectCircle.Program.VertModel_AttrLoc + 2, 1));
-   
-   GL_CALL(OpenGL->glEnableVertexAttribArray(OpenGL->PerfectCircle.Program.VertRadiusProper_AttrLoc));
-   GL_CALL(OpenGL->glVertexAttribPointer(OpenGL->PerfectCircle.Program.VertRadiusProper_AttrLoc,
-                                         1, GL_FLOAT,
-                                         GL_FALSE,
-                                         SizeOf(render_circle),
-                                         Cast(void *)OffsetOf(render_circle, RadiusProper)));
-   GL_CALL(OpenGL->glVertexAttribDivisor(OpenGL->PerfectCircle.Program.VertRadiusProper_AttrLoc, 1));
-   
-   GL_CALL(OpenGL->glEnableVertexAttribArray(OpenGL->PerfectCircle.Program.VertColor_AttrLoc));
-   GL_CALL(OpenGL->glVertexAttribPointer(OpenGL->PerfectCircle.Program.VertColor_AttrLoc,
-                                         4, GL_FLOAT,
-                                         GL_FALSE,
-                                         SizeOf(render_circle),
-                                         Cast(void *)OffsetOf(render_circle, Color)));
-   GL_CALL(OpenGL->glVertexAttribDivisor(OpenGL->PerfectCircle.Program.VertColor_AttrLoc, 1));
-   
-   GL_CALL(OpenGL->glEnableVertexAttribArray(OpenGL->PerfectCircle.Program.VertOutlineColor_AttrLoc));
-   GL_CALL(OpenGL->glVertexAttribPointer(OpenGL->PerfectCircle.Program.VertOutlineColor_AttrLoc,
-                                         4, GL_FLOAT,
-                                         GL_FALSE,
-                                         SizeOf(render_circle),
-                                         Cast(void *)OffsetOf(render_circle, OutlineColor)));
-   GL_CALL(OpenGL->glVertexAttribDivisor(OpenGL->PerfectCircle.Program.VertOutlineColor_AttrLoc, 1));
-  }
+#define OpenGLInstancedVertexAttrib(Id, Member) \
+GL_CALL(OpenGL->glVertexAttribPointer(Id, SizeOf((Cast(render_circle *)0)->Member)/SizeOf(f32), GL_FLOAT, GL_FALSE, SizeOf(render_circle), Cast(void *)OffsetOf(render_circle, Member))); \
+GL_CALL(OpenGL->glVertexAttribDivisor(Id, 1))
+  OpenGLInstancedVertexAttrib(Prog->Attributes.VertZ_AttrLoc, Z);
+  OpenGLInstancedVertexAttrib(Prog->Attributes.VertModel0_AttrLoc, Model.Rows[0]);
+  OpenGLInstancedVertexAttrib(Prog->Attributes.VertModel1_AttrLoc, Model.Rows[1]);
+  OpenGLInstancedVertexAttrib(Prog->Attributes.VertModel2_AttrLoc, Model.Rows[2]);
+  OpenGLInstancedVertexAttrib(Prog->Attributes.VertRadiusProper_AttrLoc, RadiusProper);
+  OpenGLInstancedVertexAttrib(Prog->Attributes.VertColor_AttrLoc, Color);
+  OpenGLInstancedVertexAttrib(Prog->Attributes.VertOutlineColor_AttrLoc, OutlineColor);
+#undef OpenGLInstancedVertexAttrib
   
   GL_CALL(OpenGL->glDrawArraysInstanced(GL_QUADS, 0, 4, Frame->CircleCount));
   
-  GL_CALL(OpenGL->glDisableVertexAttribArray(OpenGL->PerfectCircle.Program.VertP_AttrLoc));
-  GL_CALL(OpenGL->glDisableVertexAttribArray(OpenGL->PerfectCircle.Program.VertZ_AttrLoc));
-  GL_CALL(OpenGL->glDisableVertexAttribArray(OpenGL->PerfectCircle.Program.VertModel_AttrLoc + 0));
-  GL_CALL(OpenGL->glDisableVertexAttribArray(OpenGL->PerfectCircle.Program.VertModel_AttrLoc + 1));
-  GL_CALL(OpenGL->glDisableVertexAttribArray(OpenGL->PerfectCircle.Program.VertModel_AttrLoc + 2));
-  GL_CALL(OpenGL->glDisableVertexAttribArray(OpenGL->PerfectCircle.Program.VertRadiusProper_AttrLoc));
-  GL_CALL(OpenGL->glDisableVertexAttribArray(OpenGL->PerfectCircle.Program.VertColor_AttrLoc));
-  
+  for (u32 AttrLocIndex = 0;
+       AttrLocIndex < ArrayCount(Prog->Attributes.All);
+       ++AttrLocIndex)
+  {
+   GLuint Attr = Prog->Attributes.All[AttrLocIndex];
+   GL_CALL(OpenGL->glDisableVertexAttribArray(Attr));
+  }
   GL_CALL(OpenGL->glUseProgram(0));
-  GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, 0));
  }
- 
-#if 0
- {
-  OpenGL->glBindVertexArray(OpenGL->Basic.VAO);
-  OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Basic.VBO);
-  
-  OpenGL->glUseProgram(OpenGL->Basic.Program.ProgramHandle);
-  
-  OpenGL->glEnableVertexAttribArray(OpenGL->Basic.Program.VertP_AttrLoc);
-  OpenGL->glVertexAttribPointer(OpenGL->Basic.Program.VertP_AttrLoc,
-                                2, GL_FLOAT,
-                                GL_FALSE,
-                                SizeOf(basic_program_vertex),
-                                Cast(void *)OffsetOf(basic_program_vertex, P));
-  
-  OpenGL->glEnableVertexAttribArray(OpenGL->Basic.Program.VertColor_AttrLoc);
-  GL_CALL(OpenGL->glVertexAttribPointer(OpenGL->Basic.Program.VertColor_AttrLoc,
-                                        4, GL_FLOAT,
-                                        GL_FALSE,
-                                        SizeOf(basic_program_vertex),
-                                        Cast(void *)OffsetOf(basic_program_vertex, Color)));
-  
-  OpenGL->glDrawArrays(GL_QUADS, 0, 4);
-  
-  OpenGL->glUseProgram(0);
-  OpenGL->glBindBuffer(GL_ARRAY_BUFFER, 0);
-  OpenGL->glBindVertexArray(0);
- }
-#endif
  
  Memory->ImGuiBindings.Render();
  SwapBuffers(OpenGL->WindowDC);

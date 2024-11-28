@@ -22,7 +22,6 @@ struct vertex_array
 enum render_command_type
 {
  RenderCommand_VertexArray,
- RenderCommand_Circle,
  RenderCommand_Rectangle,
  RenderCommand_Triangle,
  RenderCommand_Image,
@@ -39,13 +38,6 @@ struct render_command_vertex_array
  vertex *Vertices;
  render_primitive_type Primitive;
  v4 Color;
-};
-
-struct render_command_circle
-{
- v4 Color;
- f32 OutlineThickness;
- v4 OutlineColor;
 };
 
 struct render_command_rectangle
@@ -71,7 +63,6 @@ struct render_command
  render_command_type Type;
  union {
   render_command_vertex_array VertexArray;
-  render_command_circle Circle;
   render_command_rectangle Rectangle;
   render_command_triangle Triangle;
   render_command_image Image;

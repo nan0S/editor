@@ -276,31 +276,23 @@ struct sample_program
 struct perfect_circle_program
 {
  GLuint ProgramHandle;
- 
- GLuint VertP_AttrLoc;
- GLuint VertZ_AttrLoc;
- GLuint VertModel_AttrLoc;
- GLuint VertRadiusProper_AttrLoc;
- GLuint VertColor_AttrLoc;
- GLuint VertOutlineColor_AttrLoc;
  GLuint Projection_UniformLoc;
-};
-struct perfect_circle_program_vertex
-{
- v2 P;
- f32 Z;
  union {
-  m3x3 Model;
   struct {
-   v3 Model0;
-   v3 Model1;
-   v3 Model2;
+   GLuint VertP_AttrLoc;
+   GLuint VertZ_AttrLoc;
+   GLuint VertModel0_AttrLoc;
+   GLuint VertModel1_AttrLoc;
+   GLuint VertModel2_AttrLoc;
+   GLuint VertRadiusProper_AttrLoc;
+   GLuint VertColor_AttrLoc;
+   GLuint VertOutlineColor_AttrLoc;
   };
- };
- f32 RadiusProper;
- v4 Color;
- v4 OutlineColor;
+  GLuint All[8];
+ } Attributes;
 };
+StaticAssert(SizeOf(MemberOf(perfect_circle_program, Attributes)) == SizeOf(MemberOf(perfect_circle_program, Attributes.All)),
+             AllAttributesArrayLengthMatchesIndividuallyDefinedAttributes);
 
 struct opengl
 {
@@ -355,13 +347,11 @@ struct opengl
  
  struct {
   basic_program Program;
-  GLuint VAO;
   GLuint VBO;
  } Basic;
  
  struct {
   perfect_circle_program Program;
-  GLuint VAO;
   GLuint QuadVBO;
   GLuint CircleVBO;
  } PerfectCircle;

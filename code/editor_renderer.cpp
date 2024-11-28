@@ -55,14 +55,6 @@ PushCircle(render_group *Group,
   Data->Color = Color;
   Data->OutlineColor = OutlineColor;
  }
- 
- m3x3 Model = ModelTransform(P, Rotation2DZero(), V2(Radius, Radius));
- render_command *Command = PushRenderCommand(Group, RenderCommand_Circle, Model, ZOffset);
- 
- render_command_circle *Circle = &Command->Circle;
- Circle->Color = Color;
- Circle->OutlineThickness = 1.0f + OutlineThickness/Radius;
- Circle->OutlineColor = OutlineColor;
 }
 
 internal void

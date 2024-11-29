@@ -43,10 +43,10 @@ NormSquared(v2 V)
  return Result;
 }
 
-internal s32
-NormSquared(v2s V)
+internal i32
+NormSquared(v2i V)
 {
- s32 Result = V.X*V.X + V.Y*V.Y;
+ i32 Result = V.X*V.X + V.Y*V.Y;
  return Result;
 }
 
@@ -576,7 +576,7 @@ BarycentricOmegaEquidistant(f32 *Omega, f32 *Ti, u32 N)
   f32 W = W0;
   for (u32 I = 0; I < N-1; ++I)
   {
-   s32 Num = I - N;
+   i32 Num = I - N;
    f32 Frac = Cast(f32)Num / (I + 1);
    W *= Frac;
    Omega[I+1] = W;
@@ -1319,7 +1319,7 @@ GaussianElimination(f32 *A, u32 N, f32 *Solution)
 {
  temp_arena Temp = TempArena(0);
  
- s32 *Pos = PushArrayNonZero(Temp.Arena, N, s32);
+ i32 *Pos = PushArrayNonZero(Temp.Arena, N, i32);
  MemorySet(Pos, -1, N * SizeOf(Pos[0]));
  
  for (u32 Col = 0, Row = 0;
@@ -1507,37 +1507,37 @@ IsNonEmpty(rectangle2 *Rect)
 }
 
 internal inline v2
-operator*(m3x3 A, v2 P)
+operator*(mat3 A, v2 P)
 {
  v2 R = Transform3x3(A, V3(P, 1.0f)).XY;
  return R;
 }
 
 internal inline v3
-operator*(m4x4 A, v3 P)
+operator*(mat4 A, v3 P)
 {
  v3 R = Transform4x4(A, V4(P, 1.0f)).XYZ;
  return R;
 }
 
 internal inline v3
-operator*(m3x3 A, v3 P)
+operator*(mat3 A, v3 P)
 {
  v3 R = Transform3x3(A, P);
  return R;
 }
 
 internal inline v4
-operator*(m4x4 A, v4 P)
+operator*(mat4 A, v4 P)
 {
  v4 R = Transform4x4(A, P);
  return R;
 }
 
-internal m3x3
-operator*(m3x3 A, m3x3 B)
+internal mat3
+operator*(mat3 A, mat3 B)
 {
- m3x3 R;
+ mat3 R;
  
  R.M[0][0] = A.M[0][0]*B.M[0][0] + A.M[0][1]*B.M[1][0] + A.M[0][2]*B.M[2][0];
  R.M[0][1] = A.M[0][0]*B.M[0][1] + A.M[0][1]*B.M[1][1] + A.M[0][2]*B.M[2][1];
@@ -1554,21 +1554,21 @@ operator*(m3x3 A, m3x3 B)
  return R;
 }
 
-internal m3x3_inv
+internal mat3_inv
 CameraTransform(v2 P, v2 Rotation, f32 Zoom)
 {
- m3x3_inv Result = {};
+ mat3_inv Result = {};
  
  v2 XAxis = Rotation;
  v2 YAxis = Rotate90DegreesAntiClockwise(Rotation);
  
- m3x3 A = Rows3x3(XAxis, YAxis);
+ mat3 A = Rows3x3(XAxis, YAxis);
  A = Scale3x3(A, Zoom);
  v2 AP = -(A*P);
  A = Translate3x3(A, AP);
  Result.Forward = A;
  
- m3x3 iA = Cols3x3(XAxis, YAxis);
+ mat3 iA = Cols3x3(XAxis, YAxis);
  iA = Scale3x3(iA, 1 / Zoom);
  iA = Translate3x3(iA, P);
  Result.Inverse = iA;
@@ -1576,23 +1576,23 @@ CameraTransform(v2 P, v2 Rotation, f32 Zoom)
  return Result;
 }
 
-internal m3x3_inv
+internal mat3_inv
 ClipTransform(f32 AspectRatio)
 {
- m3x3_inv R;
+ mat3_inv R;
  R.Forward = Diag3x3(1/AspectRatio, 1.0f);
  R.Inverse = Diag3x3(AspectRatio, 1.0f);
  
  return R;
 }
 
-internal m3x3
+internal mat3
 ModelTransform(v2 P, v2 Rotation, v2 Scale)
 {
  v2 XAxis = Rotation;
  v2 YAxis = Rotate90DegreesAntiClockwise(Rotation);
  
- m3x3 A = Cols3x3(XAxis, YAxis);
+ mat3 A = Cols3x3(XAxis, YAxis);
  A = Scale3x3(A, Scale);
  A = Translate3x3(A, P);
  
@@ -1606,10 +1606,10 @@ Unproject(render_group *RenderGroup, v2 Clip)
  return R;
 }
 
-internal m3x3
+internal mat3
 Identity3x3(void)
 {
- m3x3 Result = {};
+ mat3 Result = {};
  Result.M[0][0] = 1.0f;
  Result.M[1][1] = 1.0f;
  Result.M[2][2] = 1.0f;
@@ -1617,10 +1617,10 @@ Identity3x3(void)
  return Result;
 }
 
-internal m4x4
+internal mat4
 Identity4x4(void)
 {
- m4x4 Result = {};
+ mat4 Result = {};
  Result.M[0][0] = 1.0f;
  Result.M[1][1] = 1.0f;
  Result.M[2][2] = 1.0f;
@@ -1629,10 +1629,10 @@ Identity4x4(void)
  return Result;
 }
 
-internal m3x3
-Transpose3x3(m3x3 M)
+internal mat3
+Transpose3x3(mat3 M)
 {
- m3x3 R = {
+ mat3 R = {
   { {M.M[0][0], M.M[1][0], M.M[2][0]},
    {M.M[0][1], M.M[1][1], M.M[2][1]},
    {M.M[0][2], M.M[1][2], M.M[2][2]}}
@@ -1640,10 +1640,10 @@ Transpose3x3(m3x3 M)
  return R;
 }
 
-internal m4x4
-Transpose4x4(m4x4 M)
+internal mat4
+Transpose4x4(mat4 M)
 {
- m4x4 R = {
+ mat4 R = {
   { {M.M[0][0], M.M[1][0], M.M[2][0], M.M[3][0]},
    {M.M[0][1], M.M[1][1], M.M[2][1], M.M[3][1]},
    {M.M[0][2], M.M[1][2], M.M[2][2], M.M[3][2]},
@@ -1652,10 +1652,10 @@ Transpose4x4(m4x4 M)
  return R;
 }
 
-internal m3x3
+internal mat3
 Rows3x3(v2 X, v2 Y)
 {
- m3x3 R = {
+ mat3 R = {
   { { X.X, X.Y, 0 },
    { Y.X, Y.Y, 0 },
    {   0,   0, 1 }}
@@ -1663,10 +1663,10 @@ Rows3x3(v2 X, v2 Y)
  return R;
 }
 
-internal m3x3
+internal mat3
 Cols3x3(v2 X, v2 Y)
 {
- m3x3 R = {
+ mat3 R = {
   { { X.X, Y.X, 0},
    { X.Y, Y.Y, 0},
    {   0,   0, 1}}
@@ -1674,10 +1674,10 @@ Cols3x3(v2 X, v2 Y)
  return R;
 }
 
-internal m3x3
-Scale3x3(m3x3 A, f32 Scale)
+internal mat3
+Scale3x3(mat3 A, f32 Scale)
 {
- m3x3 R = A;
+ mat3 R = A;
  
  R.M[0][0] *= Scale;
  R.M[0][1] *= Scale;
@@ -1687,10 +1687,10 @@ Scale3x3(m3x3 A, f32 Scale)
  return R;
 }
 
-internal m4x4
-Scale4x4(m4x4 A, f32 Scale)
+internal mat4
+Scale4x4(mat4 A, f32 Scale)
 {
- m4x4 R = A;
+ mat4 R = A;
  
  R.M[0][0] *= Scale;
  R.M[0][1] *= Scale;
@@ -1705,10 +1705,10 @@ Scale4x4(m4x4 A, f32 Scale)
  return R;
 }
 
-internal m4x4
-Scale4x4(m4x4 A, v3 Scale)
+internal mat4
+Scale4x4(mat4 A, v3 Scale)
 {
- m4x4 R = A;
+ mat4 R = A;
  
  R.M[0][0] *= Scale.X;
  R.M[0][1] *= Scale.X;
@@ -1723,10 +1723,10 @@ Scale4x4(m4x4 A, v3 Scale)
  return R;
 }
 
-internal m3x3
-Scale3x3(m3x3 A, v2 Scale)
+internal mat3
+Scale3x3(mat3 A, v2 Scale)
 {
- m3x3 R = A;
+ mat3 R = A;
  
  R.M[0][0] *= Scale.X;
  R.M[0][1] *= Scale.X;
@@ -1736,10 +1736,10 @@ Scale3x3(m3x3 A, v2 Scale)
  return R;
 }
 
-internal m3x3
-Translate3x3(m3x3 A, v2 P)
+internal mat3
+Translate3x3(mat3 A, v2 P)
 {
- m3x3 R = A;
+ mat3 R = A;
  
  R.M[0][2] += P.X;
  R.M[1][2] += P.Y;
@@ -1747,10 +1747,10 @@ Translate3x3(m3x3 A, v2 P)
  return R;
 }
 
-internal m4x4
-Translate4x4(m4x4 A, v3 P)
+internal mat4
+Translate4x4(mat4 A, v3 P)
 {
- m4x4 R = A;
+ mat4 R = A;
  
  R.M[0][3] += P.X;
  R.M[1][3] += P.Y;
@@ -1760,7 +1760,7 @@ Translate4x4(m4x4 A, v3 P)
 }
 
 internal v3
-Transform3x3(m3x3 A, v3 P)
+Transform3x3(mat3 A, v3 P)
 {
  v3 R = {
   P.X*A.M[0][0] + P.Y*A.M[0][1] + P.Z*A.M[0][2],
@@ -1771,7 +1771,7 @@ Transform3x3(m3x3 A, v3 P)
 }
 
 internal v4
-Transform4x4(m4x4 A, v4 P)
+Transform4x4(mat4 A, v4 P)
 {
  v4 R = {
   P.X*A.M[0][0] + P.Y*A.M[0][1] + P.Z*A.M[0][2] + P.W*A.M[0][3],
@@ -1782,10 +1782,10 @@ Transform4x4(m4x4 A, v4 P)
  return R;
 }
 
-internal m3x3
+internal mat3
 Diag3x3(f32 X, f32 Y)
 {
- m3x3 R = {
+ mat3 R = {
   { {X, 0, 0},
    {0, Y, 0},
    {0, 0, 1}}

@@ -312,7 +312,7 @@ UI_SeparatorTextF(char const *Format, ...)
 }
 
 internal int
-SafeCastInt(s64 Value)
+SafeCastInt(i64 Value)
 {
  AssertAlways(INT_MIN <= Value && Value <= INT_MAX);
  int Result = Cast(int)Value;
@@ -320,7 +320,7 @@ SafeCastInt(s64 Value)
 }
 
 internal b32
-UI_SliderInteger(s32 *Value, s32 MinValue, s32 MaxValue, string Label)
+UI_SliderInteger(i32 *Value, i32 MinValue, i32 MaxValue, string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
@@ -333,7 +333,7 @@ UI_SliderInteger(s32 *Value, s32 MinValue, s32 MaxValue, string Label)
 }
 
 internal b32
-UI_SliderIntegerF(s32 *Value, s32 MinValue, s32 MaxValue, char const *Format, ...)
+UI_SliderIntegerF(i32 *Value, i32 MinValue, i32 MaxValue, char const *Format, ...)
 {
  va_list Args;
  va_start(Args, Format);

@@ -96,7 +96,7 @@ DONE:
 - when creating images and curves in editor_project.cpp, first gather the data, and then make the curve and image
 - replace sf::Vector2f with v2
 - replace float with f32
-- replace sf::Vector2i with v2s
+- replace sf::Vector2i with v2i
 - replace sf::Vector2u with v2u32
 - measure and improve performance
 - add point selection

@@ -211,7 +211,7 @@ struct entity
  char NameBuffer[64];
  string Name;
  
- s32 SortingLayer;
+ i32 SortingLayer;
  entity_flags Flags;
  
  entity_type Type;

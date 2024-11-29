@@ -1,5 +1,5 @@
 internal render_command *
-PushRenderCommand(render_group *Group, render_command_type Type, m3x3 Model, f32 ZOffset)
+PushRenderCommand(render_group *Group, render_command_type Type, mat3 Model, f32 ZOffset)
 {
  render_frame *Frame = Group->Frame;
  Assert(Frame->CommandCount < Frame->MaxCommandCount);
@@ -45,7 +45,7 @@ PushCircle(render_group *Group,
   f32 TotalRadius = Radius + OutlineThickness;
   f32 RadiusProper = Radius / TotalRadius;
   
-  m3x3 Model = ModelTransform(P, Rotation, Scale);
+  mat3 Model = ModelTransform(P, Rotation, Scale);
   Model = Scale3x3(Model, TotalRadius);
   Model = Transpose3x3(Model);
   
@@ -62,7 +62,7 @@ PushRectangle(render_group *Group,
               v2 P, v2 Size, v2 Rotation,
               v4 Color, f32 ZOffset)
 {
- m3x3 Model = ModelTransform(P, Rotation, 0.5f * Size);
+ mat3 Model = ModelTransform(P, Rotation, 0.5f * Size);
  render_command *Command = PushRenderCommand(Group, RenderCommand_Rectangle, Model, ZOffset);
  
  render_command_rectangle *Rectangle = &Command->Rectangle;
@@ -102,7 +102,7 @@ PushTriangle(render_group *Group,
 internal void
 PushImage(render_group *Group, v2 Dim, u32 TextureIndex)
 {
- m3x3 Model = ModelTransform(V2(0, 0), Rotation2DZero(), Dim);
+ mat3 Model = ModelTransform(V2(0, 0), Rotation2DZero(), Dim);
  render_command *Command = PushRenderCommand(Group, RenderCommand_Image, Model, 0.0f);
  
  render_command_image *Image = &Command->Image;
@@ -121,8 +121,8 @@ BeginRenderGroup(render_frame *Frame,
  
  v2u WindowDim = Frame->WindowDim;
  f32 AspectRatio = Cast(f32)WindowDim.X / WindowDim.Y;
- m3x3_inv CameraT = CameraTransform(CameraP, CameraRot, CameraZoom);
- m3x3_inv ClipT = ClipTransform(AspectRatio);
+ mat3_inv CameraT = CameraTransform(CameraP, CameraRot, CameraZoom);
+ mat3_inv ClipT = ClipTransform(AspectRatio);
  
  Result.ProjXForm.Forward = ClipT.Forward * CameraT.Forward;
  Result.ProjXForm.Inverse = CameraT.Inverse * ClipT.Inverse;
@@ -163,7 +163,7 @@ PopTextureTransfer(texture_transfer_queue *Queue, texture_transfer_op *Op)
 }
 
 internal void
-SetTransform(render_group *RenderGroup, m3x3 Model, f32 ZOffset)
+SetTransform(render_group *RenderGroup, mat3 Model, f32 ZOffset)
 {
  RenderGroup->ModelXForm = Model;
  RenderGroup->ZOffset = ZOffset;

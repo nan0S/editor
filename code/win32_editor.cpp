@@ -419,7 +419,7 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
     platform_event *Event = Win32PushPlatformEvent(PlatformEvent_Scroll);
     if (Event)
     {
-     s32 MouseDelta = Cast(s16)HIWORD(wParam);
+     i32 MouseDelta = Cast(i16)HIWORD(wParam);
      Event->ScrollDelta = Cast(f32)(MouseDelta / WHEEL_DELTA);
      Event->ClipSpaceMouseP = Win32ClipSpaceMousePFromLParam(Window, lParam);
     }

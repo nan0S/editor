@@ -69,8 +69,8 @@ internal changed_b32       UI_DragFloat(f32 *Value, f32 MinValue, f32 MaxValue, 
 internal changed_b32       UI_DragFloatF(f32 *Value, f32 MinValue, f32 MaxValue, char const *ValueFormat, char const *Format, ...);
 internal changed_b32       UI_DragFloat2(f32 Values[2], f32 MinValue, f32 MaxValue, char const *ValueFormat, string Label);
 internal changed_b32       UI_DragFloat2F(f32 Values[2], f32 MinValue, f32 MaxValue, char const *ValueFormat, char const *Format, ...);
-internal changed_b32       UI_SliderInteger(s32 *Value, s32 MinValue, s32 MaxValue, string Label);
-internal changed_b32       UI_SliderIntegerF(s32 *Value, s32 MinValue, s32 MaxValue, char const *Format, ...);
+internal changed_b32       UI_SliderInteger(i32 *Value, i32 MinValue, i32 MaxValue, string Label);
+internal changed_b32       UI_SliderIntegerF(i32 *Value, i32 MinValue, i32 MaxValue, char const *Format, ...);
 internal changed_b32       UI_SliderFloat(f32 *Value, f32 MinValue, f32 MaxValue, string Label);
 internal changed_b32       UI_SliderFloatF(f32 *Value, f32 MinValue, f32 MaxValue, char const *Format, ...);
 internal void              UI_AngleSlider(v2 *Rotation, string Label);

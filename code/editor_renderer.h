@@ -67,14 +67,14 @@ struct render_command
   render_command_triangle Triangle;
   render_command_image Image;
  };
- m3x3 ModelXForm;
+ mat3 ModelXForm;
  f32 ZOffset;
 };
 
 struct render_circle
 {
  f32 Z;
- m3x3 Model;
+ mat3 Model;
  f32 RadiusProper;
  v4 Color;
  v4 OutlineColor;
@@ -92,7 +92,7 @@ struct render_frame
  
  v2u WindowDim;
  
- m3x3 Proj;
+ mat3 Proj;
  v4 ClearColor;
 };
 
@@ -100,8 +100,8 @@ struct render_group
 {
  render_frame *Frame;
  
- m3x3_inv ProjXForm;
- m3x3 ModelXForm;
+ mat3_inv ProjXForm;
+ mat3 ModelXForm;
  f32 ZOffset;
  
  f32 CollisionTolerance;

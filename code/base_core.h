@@ -14,10 +14,10 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
-typedef int8_t  s8;
-typedef int16_t s16;
-typedef int32_t s32;
-typedef int64_t s64;
+typedef int8_t  i8;
+typedef int16_t i16;
+typedef int32_t i32;
+typedef int64_t i64;
 
 typedef uintptr_t umm;
 typedef intptr_t  smm;
@@ -32,15 +32,15 @@ typedef intptr_t  smm;
 #define U32_MAX ((u32)-1)
 #define U64_MAX ((u64)-1)
 
-#define S8_MIN  (( s8)0x80)
-#define S16_MIN ((s16)0x8000)
-#define S32_MIN ((s32)0x80000000)
-#define S64_MIN ((s64)0x8000000000000000ll)
+#define I8_MIN  (( i8)0x80)
+#define I16_MIN ((i16)0x8000)
+#define I32_MIN ((i32)0x80000000)
+#define I64_MIN ((i64)0x8000000000000000ll)
 
-#define S8_MAX  (( s8)0x7f)
-#define S16_MAX ((s16)0x7fff)
-#define S32_MAX ((s32)0x7fffffff)
-#define S64_MAX ((s64)0x7fffffffffffffffll)
+#define I8_MAX  (( i8)0x7f)
+#define I16_MAX ((i16)0x7fff)
+#define I32_MAX ((i32)0x7fffffff)
+#define I64_MAX ((i64)0x7fffffffffffffffll)
 
 typedef uint32_t b32;
 
@@ -63,10 +63,10 @@ union v2
  f32 E[2];
 };
 
-union v2s
+union v2i
 {
- struct { s32 X, Y; };
- s32 E[2];
+ struct { i32 X, Y; };
+ i32 E[2];
 };
 
 struct v2u
@@ -98,19 +98,19 @@ struct rectangle2
  v2 Maxi;
 };
 
-union m3x3
+union mat3
 {
  f32 M[3][3];
  v3 Rows[3];
 };
 
-struct m3x3_inv
+struct mat3_inv
 {
- m3x3 Forward;
- m3x3 Inverse;
+ mat3 Forward;
+ mat3 Inverse;
 };
 
-union m4x4
+union mat4
 {
  f32 M[4][4];
  v4 Rows[4];
@@ -265,7 +265,7 @@ inline internal u16 SafeSubtractU16(u16 A, u16 B) { Assert(A >= B); return A-B; 
 inline internal  u8  SafeSubtractU8( u8 A,  u8 B) { Assert(A >= B); return A-B; }
 
 inline internal v2  V2(f32 X, f32 Y) { return {X,Y}; }
-inline internal v2s V2S(s32 X, s32 Y) { return {X,Y}; }
+inline internal v2i V2I(i32 X, i32 Y) { return {X,Y}; }
 inline internal v2u V2U(u32 X, u32 Y) { return {X,Y}; }
 inline internal v3  V3(f32 X, f32 Y, f32 Z) { return {X,Y,Z}; }
 inline internal v3  V3(v2 XY, f32 Z) { return {XY.X,XY.Y,Z}; }

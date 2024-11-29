@@ -47,7 +47,7 @@ FmtNumber(out_buf *Out, u64 N, u64 Base, char const *Digits, char const *BasePre
           b32 Signed, b32 PrecedeWithBasePrefix, b32 ForceSign, b32 SpaceAsSign)
 {
  char Sign = 0;
- s64 S = Cast(s64)N;
+ i64 S = Cast(i64)N;
  if (Signed && S < 0)
  {
   N = -S;
@@ -113,7 +113,7 @@ FmtFloat(out_buf *Out, f64 F, char const *Inf, char const *Nan, u64 Precision,
 {
  u64 ExponentLength = 11;
  u64 ExponentMask = ((1ll << ExponentLength) - 1);
- s64 ExponentBias = ExponentMask >> 1;
+ i64 ExponentBias = ExponentMask >> 1;
  u64 MantissaLength = 52;
  u64 MantissaMask = ((1ull << MantissaLength) - 1);
  union f64_bits
@@ -151,7 +151,7 @@ FmtFloat(out_buf *Out, f64 F, char const *Inf, char const *Nan, u64 Precision,
  }
  else
  {
-  s64 Exponent = 0;
+  i64 Exponent = 0;
   u64 BaseDigit = 0;
   if (ExponentRaw == 0) // subnormal
   {
@@ -168,7 +168,7 @@ FmtFloat(out_buf *Out, f64 F, char const *Inf, char const *Nan, u64 Precision,
   u64 IntegerPart = 0;
   if (Exponent >= 0)
   {
-   s64 AdjustMantissa = ClampTop(64 - Exponent, 63);
+   i64 AdjustMantissa = ClampTop(64 - Exponent, 63);
    IntegerPart = (BaseDigit << Exponent) | (Mantissa >> AdjustMantissa);
   }
   
@@ -306,8 +306,8 @@ FmtV(char *Buf, u64 BufSize, char const *Format, va_list Args)
      }
      
      u64 N = ((NumLength == 8) ?
-              (Signed ? va_arg(Args, s64) : va_arg(Args, u64)) :
-              (Signed ? Cast(s64)va_arg(Args, s32) : va_arg(Args, u32)));
+              (Signed ? va_arg(Args, i64) : va_arg(Args, u64)) :
+              (Signed ? Cast(i64)va_arg(Args, i32) : va_arg(Args, u32)));
      
      FmtNumber(&Out, N, Base, Digits, BasePrefix, Signed, PrecedeWithBasePrefix, ForceSign, SpaceAsSign);
     } break;
@@ -399,14 +399,14 @@ Fmt(ArrayCount(Buffer), Buffer,
     "%%x: %x%n, %%X: %X%n, %%u: %u, %%d: %d, %%o: %o, %%b: %b, %%p: %p, %%c: %c, %%f: %f, %%lf: %lf, %%f: %f, %%f: %f, %%.3f: %.3f, %%+.3f: %+.3f, %% .3f: % .3f, inf: %f, -inf: %f, nan: %f, INF: %F, NaN: %F, +0: %+f, -0: %+f, 0: %f, "
     "%%#+x: %#+x, %%#+X: %#+X, %%#+u: %#+u, %%#+d: %#+d, %%#+d: %#+d, %%#+d: %#+d, %%#+o: %#+o, %%#+b: %#+b, %%#+p: %#+p, "
     "U8_MAX: % hhu, U16_MAX: % hu, U32_MAX: % u, U64_MAX: % lu, U64_MAX: % llu, "
-    "S8_MAX: % hhd, S16_MAX: % hd, S32_MAX: % d, S64_MAX: % ld, S64_MAX: % lld, "
-    "S8_MIN: % hhd, S16_MIN: % hd, S32_MIN: % d, S64_MIN: % ld, S64_MIN: % lld, "
+    "I8_MAX: % hhd, I16_MAX: % hd, I32_MAX: % d, I64_MAX: % ld, I64_MAX: % lld, "
+    "I8_MIN: % hhd, I16_MIN: % hd, I32_MIN: % d, I64_MIN: % ld, I64_MIN: % lld, "
     "cstr: %s, string: %S",
     0xabc, &WrittenSoFar1, 0xabc, &WrittenSoFar2, 10, 10, 027, 0b1001, 0xdeadc0de, 'a', 10.1234f, 10.1234, -10.1024f, 0.0f, 0.1324513f, 0.1324513f, 0.1324513f, 1.0f/FFF, -1.0f/FFF, 1.0f + 0.0f/FFF, 1.0f/FFF, 0.0f/FFF, 1.0f / (1.0f / FFF), -1.0 / (1.0f / FFF), 0.0f,
     0xabc, 0xabc, 10, 10, -10, 0, 027, 0b1001, 0xdeadc0de,
     U8_MAX, U16_MAX, U32_MAX, U64_MAX, U64_MAX,
-    S8_MAX, S16_MAX, S32_MAX, S64_MAX, S64_MAX,
-    S8_MIN, S16_MIN, S32_MIN, S64_MIN, S64_MIN,
+    I8_MAX, I16_MAX, I32_MAX, I64_MAX, I64_MAX,
+    I8_MIN, I16_MIN, I32_MIN, I64_MIN, I64_MIN,
     "test", StrLit("test"));
 #endif
 

@@ -71,7 +71,7 @@ MovePointAlongCurve(curve *Curve, v2 *TranslateInOut, f32 *PointFractionInOut, b
  u32 PointIndex = Cast(u32)(Forward ? FloorF32(PointIndexFloat) : CeilF32(PointIndexFloat));
  PointIndex = ClampTop(PointIndex, LinePointCount - 1);
  
- s32 DirSign = (Forward ? 1 : -1);
+ i32 DirSign = (Forward ? 1 : -1);
  
  b32 Moving = true;
  while (Moving)
@@ -1574,7 +1574,7 @@ UpdateAndRenderDegreeLowering(render_group *RenderGroup, entity *Entity)
  
  if (Lowering->Active)
  {
-  m3x3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
+  mat3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
   SetTransform(RenderGroup, Model, Cast(f32)Entity->SortingLayer);
   
   v4 Color = Curve->Params.LineColor;
@@ -2656,7 +2656,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
     
     // TODO(hbr): This is a little janky we call this function everytime
     // Either solve it somehow or remove this function and do it more manually
-    m3x3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
+    mat3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
     SetTransform(RenderGroup, Model, Cast(f32)Entity->SortingLayer);
     
     PushVertexArray(RenderGroup,
@@ -2889,7 +2889,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
          CurveChanged = true;
         }
         
-        CurveChanged |= UI_SliderIntegerF(Cast(s32 *)&CurveParams->PointCountPerSegment, 1, 2000, "Detail");
+        CurveChanged |= UI_SliderIntegerF(Cast(i32 *)&CurveParams->PointCountPerSegment, 1, 2000, "Detail");
         if (ResetCtxMenu(StrLit("DetailReset")))
         {
          CurveParams->PointCountPerSegment = DefaultParams->PointCountPerSegment;
@@ -3315,7 +3315,7 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
   entity *Entity = Editor->Entities + EntryIndex;
   if ((Entity->Flags & EntityFlag_Active) && IsEntityVisible(Entity))
   {
-   m3x3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
+   mat3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
    SetTransform(RenderGroup, Model, Cast(f32)Entity->SortingLayer);
    
    switch (Entity->Type)

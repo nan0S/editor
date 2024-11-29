@@ -72,7 +72,7 @@ InitEntity(entity *Entity,
            v2 Scale,
            v2 Rotation,
            string Name,
-           s32 SortingLayer)
+           i32 SortingLayer)
 {
  Entity->P = P;
  Entity->Scale = Scale;

@@ -29,8 +29,8 @@ inline internal v2 &operator-=(v2 &U, v2 V)  { U.X -= V.X; U.Y -= V.Y; return U;
 inline internal b32 operator==(v2 U, v2 V)   { return (U.X == V.X && U.Y == V.Y); }
 inline internal b32 operator!=(v2 U, v2 V)   { return !(U == V); }
 
-inline internal b32 operator==(v2s U, v2s V) { return (U.X == V.X && U.Y == V.Y); }
-inline internal b32 operator!=(v2s U, v2s V) { return !(U == V); }
+inline internal b32 operator==(v2i U, v2i V) { return (U.X == V.X && U.Y == V.Y); }
+inline internal b32 operator!=(v2i U, v2i V) { return !(U == V); }
 
 inline internal v4 operator+(v4 U, v4 V) { return V4(U.X + V.X, U.Y + V.Y, U.Z + V.Z, U.W + V.W); }
 inline internal v4 operator-(v4 U, v4 V) { return V4(U.X - V.X, U.Y - V.Y, U.Z - V.Z, U.W - V.W); }
@@ -62,7 +62,7 @@ inline internal f32 Square(f32 X) { return X * X; }
 
 internal f32 Norm(v2 V);
 internal f32 NormSquared(v2 V);
-internal s32 NormSquared(v2s V);
+internal i32 NormSquared(v2i V);
 internal void Normalize(v2 *V);
 internal f32 Dot(v2 U, v2 V);
 internal f32 Cross(v2 U, v2 V);
@@ -85,22 +85,22 @@ internal v2 Rotation2DFromMovementAroundPoint(v2 From, v2 To, v2 Center);
 internal v2 RotateAround(v2 Point, v2 Center, v2 Rotation);
 internal v2 CombineRotations2D(v2 RotationA, v2 RotationB);
 
-internal m3x3 Identity3x3(void);
-internal m3x3 Transpose3x3(m3x3 M);
-internal m3x3 Rows3x3(v2 X, v2 Y);
-internal m3x3 Cols3x3(v2 X, v2 Y);
-internal m3x3 Scale3x3(m3x3 A, f32 Scale);
-internal m3x3 Scale3x3(m3x3 A, v2 Scale);
-internal m3x3 Translate3x3(m3x3 A, v2 P);
-internal v3 Transform3x3(m3x3 A, v3 P);
-internal m3x3 Diag3x3(f32 X, f32 Y);
+internal mat3 Identity3x3(void);
+internal mat3 Transpose3x3(mat3 M);
+internal mat3 Rows3x3(v2 X, v2 Y);
+internal mat3 Cols3x3(v2 X, v2 Y);
+internal mat3 Scale3x3(mat3 A, f32 Scale);
+internal mat3 Scale3x3(mat3 A, v2 Scale);
+internal mat3 Translate3x3(mat3 A, v2 P);
+internal v3 Transform3x3(mat3 A, v3 P);
+internal mat3 Diag3x3(f32 X, f32 Y);
 
-internal m4x4 Identity4x4(void);
-internal m4x4 Scale4x4(m4x4 A, f32 Scale);
-internal m4x4 Scale4x4(m4x4 A, v3 Scale);
-internal m4x4 Translate4x4(m4x4 A, v3 P);
-internal m4x4 Transpose4x4(m4x4 A);
-internal v4 Transform4x4(m4x4 A, v4 P);
+internal mat4 Identity4x4(void);
+internal mat4 Scale4x4(mat4 A, f32 Scale);
+internal mat4 Scale4x4(mat4 A, v3 Scale);
+internal mat4 Translate4x4(mat4 A, v3 P);
+internal mat4 Transpose4x4(mat4 A);
+internal v4 Transform4x4(mat4 A, v4 P);
 
 //~ Interpolation
 internal void EquidistantPoints(f32 *Ti, u32 N);

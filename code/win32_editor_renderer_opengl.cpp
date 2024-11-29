@@ -159,17 +159,15 @@ Win32OpenGLCreateProgram(opengl *OpenGL, char const *VertexCode, char const *Fra
  char const *ShaderCodeHeader = R"FOO(
  #version 330
  
-#define s32 int
+#define i32 int
 #define u32 uint
   #define f32 float
   #define v2 vec2
   #define v3 vec3
   #define v4 vec4
-  #define v2s ivec2
+  #define v2i ivec2
   #define v3s ivec3
   #define v4s ivec4
-  #define m3x3 mat3
-  #define m4x4 mat4
   #define Square(X) ((X)*(X))
   #define Dot(V) dot(V)
   #define Length(V) length(V)
@@ -308,7 +306,7 @@ CompilePerfectCircleProgram(opengl *OpenGL)
  char const *VertexShader = R"FOO(
 in v2 VertP;
 in f32 VertZ;
-in m3x3 VertModel;
+in mat3 VertModel;
 in f32 VertRadiusProper;
 in v4 VertColor;
 in v4 VertOutlineColor;
@@ -318,11 +316,11 @@ flat out f32 FragRadiusProper;
 flat out v4 FragColor;
 flat out v4 FragOutlineColor;
 
-uniform m3x3 Projection;
+uniform mat3 Projection;
 
 void main(void)
  {
-m3x3 Transform = Projection * VertModel;
+mat3 Transform = Projection * VertModel;
 v3 P = Transform * v3(VertP, 1);
  gl_Position = v4(P.xy, VertZ, P.z);
 
@@ -574,12 +572,12 @@ RENDERER_BEGIN_FRAME(Win32RendererBeginFrame)
 
 internal int RenderCommandCmp(render_command *A, render_command *B) { return Cmp(A->ZOffset, B->ZOffset); }
 
-internal m4x4
-M3x3ToM4x4OpenGL(m3x3 M)
+internal mat4
+M3x3ToM4x4OpenGL(mat3 M)
 {
  // NOTE(hbr): OpenGL matrices are column-major
  M = Transpose3x3(M);
- m4x4 R = {
+ mat4 R = {
   { {M.M[0][0], M.M[0][1], 0, M.M[0][2]},
    {M.M[1][0], M.M[1][1], 0, M.M[1][2]},
    {        0,         0, 1,         0},
@@ -595,8 +593,8 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
  opengl *OpenGL = Cast(opengl *)Renderer;
  texture_transfer_queue *Queue = &Memory->TextureQueue;
  GLuint *Textures = OpenGL->Textures;
- m4x4 Projection = M3x3ToM4x4OpenGL(Frame->Proj);
- m3x3 Proj3x3 = Frame->Proj;
+ mat4 Projection = M3x3ToM4x4OpenGL(Frame->Proj);
+ mat3 Proj3x3 = Frame->Proj;
  
  v4 Clear = Frame->ClearColor;
  glClearColor(Clear.R, Clear.G, Clear.B, Clear.A);
@@ -638,7 +636,7 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
   glMatrixMode(GL_PROJECTION);
   glLoadMatrixf(Cast(f32 *)Projection.M);
   
-  m4x4 Model = M3x3ToM4x4OpenGL(Command->ModelXForm);
+  mat4 Model = M3x3ToM4x4OpenGL(Command->ModelXForm);
   glMatrixMode(GL_MODELVIEW);
   glLoadMatrixf(Cast(f32 *)Model.M);
   
@@ -655,7 +653,7 @@ RENDERER_END_FRAME(Win32RendererEndFrame)
     }
     
     v4 Color = V4(1, 0, 1, 1);
-    m4x4 Transform = Projection;
+    mat4 Transform = Projection;
     
     local b32 Init = false;
     local GLuint VAO = 0;

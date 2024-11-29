@@ -1,9 +1,9 @@
 #ifndef EDITOR_H
 #define EDITOR_H
 
-#include "base_ctx_crack.h"
-#include "base_core.h"
-#include "base_string.h"
+#include "base/base_ctx_crack.h"
+#include "base/base_core.h"
+#include "base/base_string.h"
 
 #include "editor_memory.h"
 #include "editor_third_party_inc.h"

@@ -131,7 +131,14 @@ struct platform_renderer_limits
  u32 MaxTextureCount;
 };
 
-struct renderer;
+struct renderer_header
+{
+ void *Platform; // NOTE(hbr): Platform layer for a given renderer can put here anything
+};
+struct renderer
+{
+ renderer_header Header;
+};
 
 struct renderer_memory
 {

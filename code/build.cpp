@@ -1,19 +1,19 @@
-#include "base_ctx_crack.h"
-#include "base_core.h"
-#include "base_arena.h"
-#include "base_string.h"
-#include "base_thread_ctx.h"
-#include "base_os.h"
-#include "base_nobuild.h"
-#include "base_compile.h"
+#include "base/base_ctx_crack.h"
+#include "base/base_core.h"
+#include "base/base_arena.h"
+#include "base/base_string.h"
+#include "base/base_thread_ctx.h"
+#include "base/base_os.h"
+#include "base/base_nobuild.h"
+#include "base/base_compile.h"
 
-#include "base_core.cpp"
-#include "base_arena.cpp"
-#include "base_string.cpp"
-#include "base_thread_ctx.cpp"
-#include "base_compile.cpp"
-#include "base_os.cpp"
-#include "base_nobuild.cpp"
+#include "base/base_core.cpp"
+#include "base/base_arena.cpp"
+#include "base/base_string.cpp"
+#include "base/base_thread_ctx.cpp"
+#include "base/base_compile.cpp"
+#include "base/base_os.cpp"
+#include "base/base_nobuild.cpp"
 
 int main(int ArgCount, char *Argv[])
 {
@@ -84,7 +84,7 @@ int main(int ArgCount, char *Argv[])
   //- compile renderer into library
   compile_result Renderer = {};
   {
-   compilation_target Target = MakeTarget(Lib, StrLit("../code/win32_editor_renderer_opengl.cpp"), 0);
+   compilation_target Target = MakeTarget(Lib, StrLit("../code/win32/win32_editor_renderer_opengl.cpp"), 0);
    LinkLibrary(&Target, StrLit("User32.lib")); // RegisterClassA,...
    LinkLibrary(&Target, StrLit("Opengl32.lib")); // wgl,glEnable,...
    LinkLibrary(&Target, StrLit("Gdi32.lib")); // SwapBuffers,SetPixelFormat,...
@@ -94,7 +94,7 @@ int main(int ArgCount, char *Argv[])
   
   //- compile platform layer into executable
   {
-   compilation_target Target = MakeTarget(Exe, StrLit("../code/win32_editor.cpp"), 0);
+   compilation_target Target = MakeTarget(Exe, StrLit("../code/win32/win32_editor.cpp"), 0);
    LinkLibrary(&Target, StrLit("User32.lib")); // CreateWindowExA,...
    LinkLibrary(&Target, StrLit("Comdlg32.lib")); // GetOpenFileName,...
    LinkLibrary(&Target, StrLit("Shell32.lib")); // DragQueryFileA,...

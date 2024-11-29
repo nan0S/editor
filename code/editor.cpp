@@ -1,7 +1,7 @@
 #include "editor.h"
 
-#include "base_core.cpp"
-#include "base_string.cpp"
+#include "base/base_core.cpp"
+#include "base/base_string.cpp"
 
 #include "editor_memory.cpp"
 #include "editor_math.cpp"

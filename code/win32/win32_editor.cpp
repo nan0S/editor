@@ -1,10 +1,10 @@
 #include <windows.h>
 
-#include "base_ctx_crack.h"
-#include "base_core.h"
-#include "base_string.h"
-#include "base_os.h"
-#include "base_hot_reload.h"
+#include "base/base_ctx_crack.h"
+#include "base/base_core.h"
+#include "base/base_string.h"
+#include "base/base_os.h"
+#include "base/base_hot_reload.h"
 
 #include "editor_memory.h"
 #include "editor_imgui_bindings.h"
@@ -13,15 +13,15 @@
 #include "editor_thread_ctx.h"
 #include "editor_work_queue.h"
 
-#include "win32_editor.h"
-#include "win32_editor_renderer.h"
-#include "win32_editor_imgui_bindings.h"
-#include "win32_shared.h"
+#include "win32/win32_editor.h"
+#include "win32/win32_editor_renderer.h"
+#include "win32/win32_editor_imgui_bindings.h"
+#include "win32/win32_shared.h"
 
-#include "base_core.cpp"
-#include "base_string.cpp"
-#include "base_hot_reload.cpp"
-#include "base_os.cpp"
+#include "base/base_core.cpp"
+#include "base/base_string.cpp"
+#include "base/base_hot_reload.cpp"
+#include "base/base_os.cpp"
 
 #include "editor_memory.cpp"
 #include "editor_thread_ctx.cpp"

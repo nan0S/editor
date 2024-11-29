@@ -1,32 +1,189 @@
-#include <windows.h>
-#include <gl/gl.h>
+#define GL_NUM_EXTENSIONS                 0x821D
 
-#include "base_ctx_crack.h"
-#include "base_core.h"
-#include "base_string.h"
-#include "base_os.h"
+#define GL_MAX_COLOR_ATTACHMENTS          0x8CDF
+#define GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS 0x8B4D
 
-#include "editor_memory.h"
-#include "editor_math.h"
-#include "editor_imgui_bindings.h"
-#include "editor_platform.h"
-#include "editor_renderer.h"
+#define GL_TEXTURE_3D                     0x806F
 
-#include "win32_editor_renderer.h"
-#include "win32_editor_renderer_opengl.h"
-#include "win32_editor_imgui_bindings.h"
-#include "win32_shared.h"
+#define GL_TEXTURE0                       0x84C0
+#define GL_TEXTURE1                       0x84C1
+#define GL_TEXTURE2                       0x84C2
+#define GL_TEXTURE3                       0x84C3
+#define GL_TEXTURE4                       0x84C4
+#define GL_TEXTURE5                       0x84C5
+#define GL_TEXTURE6                       0x84C6
+#define GL_TEXTURE7                       0x84C7
 
-#include "base_core.cpp"
-#include "base_string.cpp"
-#include "base_os.cpp"
+#define GL_DEBUG_SEVERITY_HIGH            0x9146
+#define GL_DEBUG_SEVERITY_MEDIUM          0x9147
+#define GL_DEBUG_SEVERITY_LOW             0x9148
+#define GL_DEBUG_TYPE_MARKER              0x8268
+#define GL_DEBUG_TYPE_PUSH_GROUP          0x8269
+#define GL_DEBUG_TYPE_POP_GROUP           0x826A
+#define GL_DEBUG_SEVERITY_NOTIFICATION    0x826B
 
-#include "editor_memory.cpp"
-#include "editor_math.cpp"
+#define GL_DEBUG_SOURCE_API               0x8246
+#define GL_DEBUG_SOURCE_APPLICATION       0x824A
+#define GL_DEBUG_SOURCE_OTHER             0x824B
+#define GL_DEBUG_SOURCE_SHADER_COMPILER   0x8248
+#define GL_DEBUG_SOURCE_THIRD_PARTY       0x8249
+#define GL_DEBUG_SOURCE_WINDOW_SYSTEM     0x8247
 
-#include "editor_third_party_inc.h"
+#define GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR 0x824D
+#define GL_DEBUG_TYPE_ERROR               0x824C
+#define GL_DEBUG_TYPE_MARKER              0x8268
+#define GL_DEBUG_TYPE_OTHER               0x8251
+#define GL_DEBUG_TYPE_PERFORMANCE         0x8250
+#define GL_DEBUG_TYPE_POP_GROUP           0x826A
+#define GL_DEBUG_TYPE_PORTABILITY         0x824F
+#define GL_DEBUG_TYPE_PUSH_GROUP          0x8269
+#define GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR  0x824E
+
+#define GL_DEBUG_OUTPUT_SYNCHRONOUS       0x8242
+#define GL_DEBUG_OUTPUT                   0x92E0
+
+#define GL_ARRAY_BUFFER                   0x8892
+#define GL_ELEMENT_ARRAY_BUFFER           0x8893
+#define GL_STREAM_DRAW                    0x88E0
+#define GL_STREAM_READ                    0x88E1
+#define GL_STREAM_COPY                    0x88E2
+#define GL_STATIC_DRAW                    0x88E4
+#define GL_STATIC_READ                    0x88E5
+#define GL_STATIC_COPY                    0x88E6
+#define GL_DYNAMIC_DRAW                   0x88E8
+#define GL_DYNAMIC_READ                   0x88E9
+#define GL_DYNAMIC_COPY                   0x88EA
+
+#define GL_CLAMP_TO_EDGE                  0x812F
+#define GL_TEXTURE_MIN_LOD                0x813A
+#define GL_TEXTURE_MAX_LOD                0x813B
+#define GL_TEXTURE_BASE_LEVEL             0x813C
+#define GL_TEXTURE_MAX_LEVEL              0x813D
+#define GL_TEXTURE_WRAP_R                 0x8072
+
+#define GL_FRAMEBUFFER_SRGB               0x8DB9
+#define GL_SRGB8_ALPHA8                   0x8C43
+
+#define GL_SHADING_LANGUAGE_VERSION       0x8B8C
+#define GL_FRAGMENT_SHADER                0x8B30
+#define GL_VERTEX_SHADER                  0x8B31
+#define GL_COMPILE_STATUS                 0x8B81
+#define GL_LINK_STATUS                    0x8B82
+#define GL_VALIDATE_STATUS                0x8B83
+
+#define GL_TEXTURE_2D_ARRAY               0x8C1A
+
+#define GL_FRAMEBUFFER                    0x8D40
+#define GL_READ_FRAMEBUFFER               0x8CA8
+#define GL_DRAW_FRAMEBUFFER               0x8CA9
+#define GL_COLOR_ATTACHMENT0              0x8CE0
+#define GL_COLOR_ATTACHMENT1              0x8CE1
+#define GL_COLOR_ATTACHMENT2              0x8CE2
+#define GL_COLOR_ATTACHMENT3              0x8CE3
+#define GL_COLOR_ATTACHMENT4              0x8CE4
+#define GL_COLOR_ATTACHMENT5              0x8CE5
+#define GL_COLOR_ATTACHMENT6              0x8CE6
+#define GL_COLOR_ATTACHMENT7              0x8CE7
+#define GL_COLOR_ATTACHMENT8              0x8CE8
+#define GL_COLOR_ATTACHMENT9              0x8CE9
+#define GL_COLOR_ATTACHMENT10             0x8CEA
+#define GL_COLOR_ATTACHMENT11             0x8CEB
+#define GL_COLOR_ATTACHMENT12             0x8CEC
+#define GL_COLOR_ATTACHMENT13             0x8CED
+#define GL_COLOR_ATTACHMENT14             0x8CEE
+#define GL_COLOR_ATTACHMENT15             0x8CEF
+#define GL_COLOR_ATTACHMENT16             0x8CF0
+#define GL_COLOR_ATTACHMENT17             0x8CF1
+#define GL_COLOR_ATTACHMENT18             0x8CF2
+#define GL_COLOR_ATTACHMENT19             0x8CF3
+#define GL_COLOR_ATTACHMENT20             0x8CF4
+#define GL_COLOR_ATTACHMENT21             0x8CF5
+#define GL_COLOR_ATTACHMENT22             0x8CF6
+#define GL_COLOR_ATTACHMENT23             0x8CF7
+#define GL_COLOR_ATTACHMENT24             0x8CF8
+#define GL_COLOR_ATTACHMENT25             0x8CF9
+#define GL_COLOR_ATTACHMENT26             0x8CFA
+#define GL_COLOR_ATTACHMENT27             0x8CFB
+#define GL_COLOR_ATTACHMENT28             0x8CFC
+#define GL_COLOR_ATTACHMENT29             0x8CFD
+#define GL_COLOR_ATTACHMENT30             0x8CFE
+#define GL_COLOR_ATTACHMENT31             0x8CFF
+#define GL_DEPTH_ATTACHMENT               0x8D00
+#define GL_FRAMEBUFFER_COMPLETE           0x8CD5
+
+#define GL_DEPTH_COMPONENT16              0x81A5
+#define GL_DEPTH_COMPONENT24              0x81A6
+#define GL_DEPTH_COMPONENT32              0x81A7
+#define GL_DEPTH_COMPONENT32F             0x8CAC
+
+#define GL_RED_INTEGER                    0x8D94
+#define GL_GREEN_INTEGER                  0x8D95
+#define GL_BLUE_INTEGER                   0x8D96
+
+#define GL_RGBA32F                        0x8814
+#define GL_RGB32F                         0x8815
+#define GL_RGBA16F                        0x881A
+#define GL_RGB16F                         0x881B
+#define GL_R8                             0x8229
+#define GL_R16                            0x822A
+#define GL_RG8                            0x822B
+#define GL_RG16                           0x822C
+#define GL_R16F                           0x822D
+#define GL_R32F                           0x822E
+#define GL_RG16F                          0x822F
+#define GL_RG32F                          0x8230
+#define GL_R8I                            0x8231
+#define GL_R8UI                           0x8232
+#define GL_R16I                           0x8233
+#define GL_R16UI                          0x8234
+#define GL_R32I                           0x8235
+#define GL_R32UI                          0x8236
+#define GL_RG8I                           0x8237
+#define GL_RG8UI                          0x8238
+#define GL_RG16I                          0x8239
+#define GL_RG16UI                         0x823A
+#define GL_RG32I                          0x823B
+#define GL_RG32UI                         0x823C
+#define GL_R11F_G11F_B10F                 0x8C3A
+
+#define GL_MULTISAMPLE                    0x809D
+#define GL_SAMPLE_ALPHA_TO_COVERAGE       0x809E
+#define GL_SAMPLE_ALPHA_TO_ONE            0x809F
+#define GL_SAMPLE_COVERAGE                0x80A0
+#define GL_SAMPLE_BUFFERS                 0x80A8
+#define GL_SAMPLES                        0x80A9
+#define GL_SAMPLE_COVERAGE_VALUE          0x80AA
+#define GL_SAMPLE_COVERAGE_INVERT         0x80AB
+#define GL_TEXTURE_2D_MULTISAMPLE         0x9100
+#define GL_MAX_SAMPLES                    0x8D57
+#define GL_MAX_COLOR_TEXTURE_SAMPLES      0x910E
+#define GL_MAX_DEPTH_TEXTURE_SAMPLES      0x910F
+
+#define GL_INVALID_FRAMEBUFFER_OPERATION  0x0506
 
 platform_api Platform;
+
+#define GL_CALL(Expr) Expr; OpenGLCheckErrors()
+internal void
+OpenGLCheckErrors(void)
+{
+ GLenum Error = glGetError();
+ if (Error != GL_NO_ERROR)
+ {
+  char const *error = 0;
+  switch (Error)
+  {
+   case GL_INVALID_ENUM:                  error = "INVALID_ENUM"; break;
+   case GL_INVALID_VALUE:                 error = "INVALID_VALUE"; break;
+   case GL_INVALID_OPERATION:             error = "INVALID_OPERATION"; break;
+   case GL_STACK_OVERFLOW:                error = "STACK_OVERFLOW"; break;
+   case GL_STACK_UNDERFLOW:               error = "STACK_UNDERFLOW"; break;
+   case GL_OUT_OF_MEMORY:                 error = "OUT_OF_MEMORY"; break;
+   case GL_INVALID_FRAMEBUFFER_OPERATION: error = "INVALID_FRAMEBUFFER_OPERATION"; break;
+  }
+  Trap;
+ }
+}
 
 GL_DEBUG_CALLBACK(OpenGLDebugCallback)
 {
@@ -72,89 +229,8 @@ GL_DEBUG_CALLBACK(OpenGLDebugCallback)
  OS_PrintDebugF("%s %s %s\n", SourceStr, TypeStr, SeverityStr);
 }
 
-#define GL_INVALID_FRAMEBUFFER_OPERATION 0x0506
-internal void
-OpenGLCheckErrors(void)
-{
- GLenum Error = glGetError();
- if (Error != GL_NO_ERROR)
- {
-  char const *error = 0;
-  switch (Error)
-  {
-   case GL_INVALID_ENUM:                  error = "INVALID_ENUM"; break;
-   case GL_INVALID_VALUE:                 error = "INVALID_VALUE"; break;
-   case GL_INVALID_OPERATION:             error = "INVALID_OPERATION"; break;
-   case GL_STACK_OVERFLOW:                error = "STACK_OVERFLOW"; break;
-   case GL_STACK_UNDERFLOW:               error = "STACK_UNDERFLOW"; break;
-   case GL_OUT_OF_MEMORY:                 error = "OUT_OF_MEMORY"; break;
-   case GL_INVALID_FRAMEBUFFER_OPERATION: error = "INVALID_FRAMEBUFFER_OPERATION"; break;
-  }
-  Trap;
- }
-}
-
-#define GL_CALL(Expr) Expr; OpenGLCheckErrors()
-
-internal void
-Win32SetPixelFormat(opengl *OpenGL, HDC WindowDC)
-{
- WIN32_BEGIN_DEBUG_BLOCK(SetPixelFormat);
- 
- int SuggestedPixelFormatIndex = 0;
- UINT ExtendedPicked = 0;
- 
- if (OpenGL->wglChoosePixelFormatARB)
- {
-  int AttribIList[] =
-  {
-   WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
-   WGL_SUPPORT_OPENGL_ARB, GL_TRUE,
-   WGL_DRAW_TO_WINDOW_ARB, GL_TRUE,
-   WGL_DOUBLE_BUFFER_ARB, GL_TRUE,
-   WGL_COLOR_BITS_ARB, 32,
-   WGL_ALPHA_BITS_ARB, 8,
-   WGL_DEPTH_BITS_ARB, 24,
-   // NOTE(hbr): When I set WGL_SAMPLES_ARB to some values (e.g. 16), ImGui text becomes blurry.
-   // I don't know why that is.
-   WGL_SAMPLES_ARB, 8,
-   // NOTE(hbr): I don't know if this is really needed, but Casey uses it
-   WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
-   0
-  };
-  
-  OpenGL->wglChoosePixelFormatARB(WindowDC,
-                                  AttribIList,
-                                  0,
-                                  1,
-                                  &SuggestedPixelFormatIndex,
-                                  &ExtendedPicked);
- }
- 
- if (!ExtendedPicked)
- {
-  PIXELFORMATDESCRIPTOR DesiredPixelFormat = {};
-  DesiredPixelFormat.nSize = SizeOf(DesiredPixelFormat);
-  DesiredPixelFormat.nVersion = 1;
-  DesiredPixelFormat.iPixelType = PFD_TYPE_RGBA;
-  DesiredPixelFormat.dwFlags = (PFD_SUPPORT_OPENGL | PFD_DRAW_TO_WINDOW | PFD_DOUBLEBUFFER);
-  DesiredPixelFormat.cColorBits = 32;
-  DesiredPixelFormat.cAlphaBits = 8;
-  DesiredPixelFormat.cDepthBits = 24;
-  DesiredPixelFormat.iLayerType = PFD_MAIN_PLANE;
-  
-  SuggestedPixelFormatIndex = ChoosePixelFormat(WindowDC, &DesiredPixelFormat);
- }
- 
- PIXELFORMATDESCRIPTOR SuggestedPixelFormat;
- DescribePixelFormat(WindowDC, SuggestedPixelFormatIndex, SizeOf(SuggestedPixelFormat), &SuggestedPixelFormat);
- SetPixelFormat(WindowDC, SuggestedPixelFormatIndex, &SuggestedPixelFormat);
- 
- WIN32_END_DEBUG_BLOCK(SetPixelFormat);
-}
-
 internal GLuint
-Win32OpenGLCreateProgram(opengl *OpenGL, char const *VertexCode, char const *FragmentCode)
+OpenGLCreateProgram(opengl *OpenGL, char const *VertexCode, char const *FragmentCode)
 {
  char const *ShaderCodeHeader = R"FOO(
  #version 330
@@ -246,7 +322,7 @@ OutColor = FragColor;
  }
  )FOO";
  
- GLuint ProgramHandle = Win32OpenGLCreateProgram(OpenGL, VertexShader, FragmentShader);
+ GLuint ProgramHandle = OpenGLCreateProgram(OpenGL, VertexShader, FragmentShader);
  Result.ProgramHandle = ProgramHandle;
  Result.VertP_AttrLoc = OpenGL->glGetAttribLocation(ProgramHandle, "VertP");
  Result.VertColor_AttrLoc = OpenGL->glGetAttribLocation(ProgramHandle, "VertColor");
@@ -288,7 +364,7 @@ FragColor = Color;
 
 )FOO";
  
- GLuint ProgramHandle = Win32OpenGLCreateProgram(OpenGL, VertexShader, FragmentShader);
+ GLuint ProgramHandle = OpenGLCreateProgram(OpenGL, VertexShader, FragmentShader);
  Result.ProgramHandle = ProgramHandle;
  Result.VertP_AttrLoc = OpenGL->glGetAttribLocation(ProgramHandle, "VertP");
  Result.VertUV_AttrLoc = OpenGL->glGetAttribLocation(ProgramHandle, "VertUV");
@@ -357,7 +433,7 @@ else {
  }
  )FOO";
  
- GLuint ProgramHandle = Win32OpenGLCreateProgram(OpenGL, VertexShader, FragmentShader);
+ GLuint ProgramHandle = OpenGLCreateProgram(OpenGL, VertexShader, FragmentShader);
  Result.ProgramHandle = ProgramHandle;
  
  char const *AttrNames[] =
@@ -392,169 +468,61 @@ else {
  return Result;
 }
 
-#define Win32OpenGLFunction(Name) OpenGL->Name = Cast(func_##Name *)wglGetProcAddress(#Name);
-DLL_EXPORT
-WIN32_RENDERER_INIT(Win32RendererInit)
+internal void
+OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
 {
- Platform = Memory->PlatformAPI;
- 
- opengl *OpenGL = PushStruct(Arena, opengl);
- OpenGL->Window = Window;
- OpenGL->WindowDC = WindowDC;
- 
- //- create false context to retrieve extensions pointers
+ if (OpenGL->glDebugMessageCallback)
  {
-  WNDCLASSA WindowClass = {};
-  { 
-   WindowClass.lpfnWndProc = DefWindowProcA;
-   WindowClass.hInstance = GetModuleHandle(0);
-   WindowClass.lpszClassName = "Win32EditorWGLLoader";
-  }
-  
-  if (RegisterClassA(&WindowClass))
-  {
-   HWND FalseWindow =
-    CreateWindowExA(0,
-                    WindowClass.lpszClassName,
-                    "Parametric Curves Editor",
-                    0,
-                    CW_USEDEFAULT,
-                    CW_USEDEFAULT,
-                    CW_USEDEFAULT,
-                    CW_USEDEFAULT,
-                    0,
-                    0,
-                    WindowClass.hInstance,
-                    0);
-   
-   HDC FalseWindowDC = GetWindowDC(FalseWindow);
-   Win32SetPixelFormat(OpenGL, FalseWindowDC);
-   
-   HGLRC FalseOpenGLRC = wglCreateContext(FalseWindowDC);
-   if (wglMakeCurrent(FalseWindowDC, FalseOpenGLRC))
-   {
-    Win32OpenGLFunction(wglChoosePixelFormatARB);
-   }
-   
-   wglDeleteContext(FalseOpenGLRC);
-   ReleaseDC(FalseWindow, FalseWindowDC);
-   DestroyWindow(FalseWindow);
-  }
+  glEnable(GL_DEBUG_OUTPUT);
+  glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+  OpenGL->glDebugMessageCallback(OpenGLDebugCallback, 0);
  }
  
- //- initialize opengl context 
- Win32SetPixelFormat(OpenGL, WindowDC);
- HGLRC OpenGLRC = wglCreateContext(WindowDC);
- if (wglMakeCurrent(WindowDC, OpenGLRC))
+ GLuint DummyVAO;
+ OpenGL->glGenVertexArrays(1, &DummyVAO);
+ OpenGL->glBindVertexArray(DummyVAO);
+ 
+ //- allocate texutre indices
+ u32 TextureCount = Memory->Limits.MaxTextureCount;
+ GLuint *Textures = PushArray(Arena, TextureCount, GLuint);
+ OpenGL->MaxTextureCount = TextureCount;
+ OpenGL->Textures = Textures;
+ 
+ glGenTextures(Cast(GLsizei)TextureCount, Textures);
+ for (u32 TextureIndex = 0;
+      TextureIndex < TextureCount;
+      ++TextureIndex)
  {
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glEnable(GL_BLEND);
-  glEnable(GL_MULTISAMPLE);
-  // NOTE(hbr): So that glEnable,glEnd with glBindTexture works. When using shaders it is not needed.
-  glEnable(GL_TEXTURE_2D);
-  
-  Win32OpenGLFunction(wglSwapIntervalEXT);
-  Win32OpenGLFunction(glGenVertexArrays);
-  Win32OpenGLFunction(glBindVertexArray);
-  Win32OpenGLFunction(glEnableVertexAttribArray);
-  Win32OpenGLFunction(glDisableVertexAttribArray);
-  Win32OpenGLFunction(glVertexAttribPointer);
-  Win32OpenGLFunction(glActiveTexture);
-  Win32OpenGLFunction(glGenBuffers);
-  Win32OpenGLFunction(glBindBuffer);
-  Win32OpenGLFunction(glBufferData);
-  Win32OpenGLFunction(glDrawBuffers);
-  Win32OpenGLFunction(glCreateProgram);
-  Win32OpenGLFunction(glCreateShader);
-  Win32OpenGLFunction(glAttachShader);
-  Win32OpenGLFunction(glCompileShader);
-  Win32OpenGLFunction(glShaderSource);
-  Win32OpenGLFunction(glLinkProgram);
-  Win32OpenGLFunction(glGetProgramInfoLog);
-  Win32OpenGLFunction(glGetShaderInfoLog);
-  Win32OpenGLFunction(glUseProgram);
-  Win32OpenGLFunction(glGetUniformLocation);
-  Win32OpenGLFunction(glUniform1f);
-  Win32OpenGLFunction(glUniform2fv);
-  Win32OpenGLFunction(glUniform3fv);
-  Win32OpenGLFunction(glUniform4fv);
-  Win32OpenGLFunction(glUniformMatrix3fv);
-  Win32OpenGLFunction(glUniformMatrix4fv);
-  Win32OpenGLFunction(glGetAttribLocation);
-  Win32OpenGLFunction(glValidateProgram);
-  Win32OpenGLFunction(glGetProgramiv);
-  Win32OpenGLFunction(glDeleteProgram);
-  Win32OpenGLFunction(glDeleteShader);
-  Win32OpenGLFunction(glDrawArrays);
-  Win32OpenGLFunction(glGenerateMipmap);
-  Win32OpenGLFunction(glDebugMessageCallback);
-  Win32OpenGLFunction(glVertexAttribDivisor);
-  Win32OpenGLFunction(glDrawArraysInstanced);
-  
-  if (OpenGL->wglSwapIntervalEXT)
-  {
-   // NOTE(hbr): disable VSync
-   OpenGL->wglSwapIntervalEXT(0);
-  }
-  
-  if (OpenGL->glDebugMessageCallback)
-  {
-   glEnable(GL_DEBUG_OUTPUT);
-   glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-   OpenGL->glDebugMessageCallback(OpenGLDebugCallback, 0);
-  }
-  
-  GLuint DummyVAO;
-  OpenGL->glGenVertexArrays(1, &DummyVAO);
-  OpenGL->glBindVertexArray(DummyVAO);
-  
-  //- allocate texutre indices
-  u32 TextureCount = Memory->Limits.MaxTextureCount;
-  GLuint *Textures = PushArray(Arena, TextureCount, GLuint);
-  OpenGL->MaxTextureCount = TextureCount;
-  OpenGL->Textures = Textures;
-  
-  glGenTextures(Cast(GLsizei)TextureCount, Textures);
-  for (u32 TextureIndex = 0;
-       TextureIndex < TextureCount;
-       ++TextureIndex)
-  {
-   glBindTexture(GL_TEXTURE_2D, Textures[TextureIndex]);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-  }
-  
-  //- compile and initialize perfect circle program
-  {
-   OpenGL->PerfectCircle.Program = CompilePerfectCircleProgram(OpenGL);
-   
-   OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.QuadVBO);
-   OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.CircleVBO);
-   
-   v2 Vertices[] =
-   {
-    V2(-1, -1),
-    V2( 1, -1),
-    V2( 1,  1),
-    V2(-1,  1),
-   };
-   OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->PerfectCircle.QuadVBO);
-   OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW);
-  }
+  glBindTexture(GL_TEXTURE_2D, Textures[TextureIndex]);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
  }
  
- return Cast(renderer *)OpenGL;
+ //- compile and initialize perfect circle program
+ {
+  OpenGL->PerfectCircle.Program = CompilePerfectCircleProgram(OpenGL);
+  
+  OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.QuadVBO);
+  OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.CircleVBO);
+  
+  v2 Vertices[] =
+  {
+   V2(-1, -1),
+   V2( 1, -1),
+   V2( 1,  1),
+   V2(-1,  1),
+  };
+  OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->PerfectCircle.QuadVBO);
+  OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW);
+ }
 }
-#undef Win32OpenGLFunction
 
-DLL_EXPORT
-RENDERER_BEGIN_FRAME(Win32RendererBeginFrame)
+internal render_frame *
+OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
 {
  Platform = Memory->PlatformAPI;
- 
- opengl *OpenGL = Cast(opengl *)Renderer;
  
  render_frame *RenderFrame = &OpenGL->RenderFrame;
  RenderFrame->CommandCount = 0;
@@ -587,10 +555,9 @@ M3x3ToM4x4OpenGL(mat3 M)
  return R;
 }
 
-DLL_EXPORT
-RENDERER_END_FRAME(Win32RendererEndFrame)
+internal void
+OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
 {
- opengl *OpenGL = Cast(opengl *)Renderer;
  texture_transfer_queue *Queue = &Memory->TextureQueue;
  GLuint *Textures = OpenGL->Textures;
  mat4 Projection = M3x3ToM4x4OpenGL(Frame->Proj);
@@ -790,5 +757,4 @@ GL_CALL(OpenGL->glVertexAttribDivisor(Id, 1))
  }
  
  Memory->ImGuiBindings.Render();
- SwapBuffers(OpenGL->WindowDC);
 }

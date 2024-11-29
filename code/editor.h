@@ -173,6 +173,7 @@ Bugs:
 - splitting bezier curve doesnt fully recompute one of the curves
 - removing curve point unselects curve, dont do that
 - klikanie na image kiedy jest wysuniety na przod za pomoca sorting layer i tak dodaje punkt zamiast robic select tego image
+- when i'm moving control point and go out of the win32 window, renderer curve line is crazy
 
 Stack:
  - add sorting to rendering - this then will allow to draw things out of order and will simplify the code a lot

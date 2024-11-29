@@ -151,24 +151,45 @@ Win32SetPixelFormat(opengl *OpenGL, HDC WindowDC)
  SetPixelFormat(WindowDC, SuggestedPixelFormatIndex, &SuggestedPixelFormat);
  
  WIN32_END_DEBUG_BLOCK(SetPixelFormat);
- 
 }
 
 internal GLuint
 Win32OpenGLCreateProgram(opengl *OpenGL, char const *VertexCode, char const *FragmentCode)
 {
+ char const *ShaderCodeHeader = R"FOO(
+ #version 330
+ 
+#define s32 int
+#define u32 uint
+  #define f32 float
+  #define v2 vec2
+  #define v3 vec3
+  #define v4 vec4
+  #define v2s ivec2
+  #define v3s ivec3
+  #define v4s ivec4
+  #define m3x3 mat3
+  #define m4x4 mat4
+  #define Square(X) ((X)*(X))
+  #define Dot(V) dot(V)
+  #define Length(V) length(V)
+  #define Length2(V) dot(V)
+  )FOO";
+ 
  GLuint VertexShaderID = OpenGL->glCreateShader(GL_VERTEX_SHADER);
  GLchar *VertexShaderCode[] =
  {
+  Cast(char *)ShaderCodeHeader,
   Cast(char *)VertexCode,
  };
  OpenGL->glShaderSource(VertexShaderID, ArrayCount(VertexShaderCode), VertexShaderCode, 0);
  OpenGL->glCompileShader(VertexShaderID);
  
  GLuint FragmentShaderID = OpenGL->glCreateShader(GL_FRAGMENT_SHADER);
- GLchar const *FragmentShaderCode[] =
+ GLchar *FragmentShaderCode[] =
  {
-  FragmentCode,
+  Cast(char *)ShaderCodeHeader,
+  Cast(char *)FragmentCode,
  };
  OpenGL->glShaderSource(FragmentShaderID, ArrayCount(FragmentShaderCode), FragmentShaderCode, 0);
  OpenGL->glCompileShader(FragmentShaderID);
@@ -206,25 +227,21 @@ CompileBasicProgram(opengl *OpenGL)
  basic_program Result = {};
  
  char const *VertexShader = R"FOO(
-#version 330
+in v2 VertP;
+in v4 VertColor;
 
-in vec2 VertP;
-in vec4 VertColor;
-
-out vec4 FragColor;
+out v4 FragColor;
 
 void main(void) {
-gl_Position = vec4(VertP, 0, 1);
+gl_Position = v4(VertP, 0, 1);
 FragColor = VertColor;
 }
 )FOO";
  
  char const *FragmentShader = R"FOO(
- #version 330
- 
-  in vec4 FragColor;
+  in v4 FragColor;
 
-out vec4 OutColor;
+out v4 OutColor;
  
  void main(void) {
 OutColor = FragColor;
@@ -245,29 +262,25 @@ CompileSampleProgram(opengl *OpenGL)
  sample_program Result = {};
  
  char const *VertexShader = R"FOO(
-#version 330
+in v2 VertP;
+in v2 VertUV;
 
-in vec2 VertP;
-in vec2 VertUV;
-
-out vec2 FragUV;
+out v2 FragUV;
 
 uniform mat4 Transform;
 
 void main(void) {
-gl_Position = Transform * vec4(VertP, 0, 1);
+gl_Position = Transform * v4(VertP, 0, 1);
 FragUV = VertUV;
 }
 
 )FOO";
  
  char const *FragmentShader = R"FOO(
-#version 330
+in v2 FragUV;
+out v4 FragColor;
 
-in vec2 FragUV;
-out vec4 FragColor;
-
-uniform vec4 Color;
+uniform v4 Color;
 uniform sampler2D Sampler;
 
 void main(void) {
@@ -293,27 +306,25 @@ CompilePerfectCircleProgram(opengl *OpenGL)
  perfect_circle_program Result = {};
  
  char const *VertexShader = R"FOO(
-#version 330
+in v2 VertP;
+in f32 VertZ;
+in m3x3 VertModel;
+in f32 VertRadiusProper;
+in v4 VertColor;
+in v4 VertOutlineColor;
 
-in vec2 VertP;
-in float VertZ;
-in mat3 VertModel;
-in float VertRadiusProper;
-in vec4 VertColor;
-in vec4 VertOutlineColor;
+out v2 FragP;
+flat out f32 FragRadiusProper;
+flat out v4 FragColor;
+flat out v4 FragOutlineColor;
 
-out vec2 FragP;
-flat out float FragRadiusProper;
-flat out vec4 FragColor;
-flat out vec4 FragOutlineColor;
-
-uniform mat3 Projection;
+uniform m3x3 Projection;
 
 void main(void)
  {
-mat3 Transform = Projection * VertModel;
-vec3 P = Transform * vec3(VertP, 1);
- gl_Position = vec4(P.xy, VertZ, P.z);
+m3x3 Transform = Projection * VertModel;
+v3 P = Transform * v3(VertP, 1);
+ gl_Position = v4(P.xy, VertZ, P.z);
 
  FragP = VertP;
  FragRadiusProper = VertRadiusProper;
@@ -323,20 +334,16 @@ FragOutlineColor = VertOutlineColor;
 )FOO";
  
  char const *FragmentShader = R"FOO(
- #version 330
+in v2 FragP;
+flat in f32 FragRadiusProper;
+flat in v4 FragColor;
+flat in v4 FragOutlineColor;
  
-in vec2 FragP;
-flat in float FragRadiusProper;
-flat in vec4 FragColor;
-flat in vec4 FragOutlineColor;
- 
-out vec4 OutColor;
-
-float Square(float X) { return X*X; }
+out v4 OutColor;
 
  void main(void)
 {
-float Dist2 = dot(FragP, FragP);
+f32 Dist2 = dot(FragP, FragP);
 bool InsideProperCircle = (Dist2 <= Square(FragRadiusProper));
 bool InsideOutline = (Dist2 <= Square(1.0f));
 
@@ -347,7 +354,7 @@ else if (InsideOutline) {
 OutColor = FragOutlineColor;
 }
 else {
-  OutColor = vec4(0, 0, 0, 0);
+  OutColor = v4(0, 0, 0, 0);
   }
  }
  )FOO";
@@ -521,7 +528,7 @@ WIN32_RENDERER_INIT(Win32RendererInit)
    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
   }
   
-  //- perfect circle program
+  //- compile and initialize perfect circle program
   {
    OpenGL->PerfectCircle.Program = CompilePerfectCircleProgram(OpenGL);
    
@@ -537,8 +544,6 @@ WIN32_RENDERER_INIT(Win32RendererInit)
    };
    OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->PerfectCircle.QuadVBO);
    OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW);
-   
-   OpenGL->glBindBuffer(GL_ARRAY_BUFFER, 0);
   }
  }
  

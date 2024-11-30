@@ -2184,8 +2184,8 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths)
  }
 }
 
-DLL_EXPORT
-EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
+internal void
+EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct render_frame *Frame)
 {
  Platform = Memory->PlatformAPI;
  
@@ -3439,6 +3439,12 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
    ResetTransform(RenderGroup);
   }
  }
+}
+
+DLL_EXPORT
+EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
+{
+ EditorUpdateAndRenderImpl(Memory, Input, Frame);
 }
 
 IMGUI_INIT_FUNC();

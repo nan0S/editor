@@ -573,13 +573,6 @@ OutColor = FragColor;
 internal void
 OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
 {
- if (OpenGL->glDebugMessageCallback)
- {
-  glEnable(GL_DEBUG_OUTPUT);
-  glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-  //OpenGL->glDebugMessageCallback(OpenGLDebugCallback, 0);
- }
- 
  GLuint DummyVAO;
  OpenGL->glGenVertexArrays(1, &DummyVAO);
  OpenGL->glBindVertexArray(DummyVAO);
@@ -634,6 +627,13 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
 {
  Platform = Memory->PlatformAPI;
  
+ if (Memory->RendererCodeReloaded && OpenGL->glDebugMessageCallback)
+ {
+  glEnable(GL_DEBUG_OUTPUT);
+  glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+  OpenGL->glDebugMessageCallback(OpenGLDebugCallback, 0);
+ }
+ 
  render_frame *RenderFrame = &OpenGL->RenderFrame;
  RenderFrame->CommandCount = 0;
  RenderFrame->Commands = Memory->CommandBuffer;
@@ -643,9 +643,7 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
  RenderFrame->MaxCircleCount = Memory->MaxCircleCount;
  RenderFrame->WindowDim = WindowDim;
  
-#if 0
  Memory->ImGuiBindings.NewFrame();
-#endif
  
  return RenderFrame;
 }
@@ -858,7 +856,5 @@ GL_CALL(OpenGL->glVertexAttribDivisor(Id, 1))
   GL_CALL(OpenGL->glUseProgram(0));
  }
  
-#if 0
  Memory->ImGuiBindings.Render();
-#endif
 }

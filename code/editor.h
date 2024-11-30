@@ -174,6 +174,7 @@ Bugs:
 - removing curve point unselects curve, dont do that
 - klikanie na image kiedy jest wysuniety na przod za pomoca sorting layer i tak dodaje punkt zamiast robic select tego image
 - when i'm moving control point and go out of the win32 window, renderer curve line is crazy
+- when picking up control point, don't set it's position to the mouse position, but instead to a delta
 
 Stack:
  - add sorting to rendering - this then will allow to draw things out of order and will simplify the code a lot

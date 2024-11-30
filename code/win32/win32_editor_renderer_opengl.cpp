@@ -15,7 +15,6 @@
 
 #include "win32/win32_editor_renderer.h"
 #include "win32/win32_editor_renderer_opengl.h"
-#include "win32/win32_editor_imgui_bindings.h"
 #include "win32/win32_shared.h"
 
 #include "editor_renderer_opengl.h"
@@ -27,6 +26,8 @@
 
 #include "editor_memory.cpp"
 #include "editor_math.cpp"
+
+platform_api Platform;
 
 internal void
 Win32SetPixelFormat(win32_opengl_renderer *Win32OpenGL, HDC WindowDC)

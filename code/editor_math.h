@@ -92,8 +92,9 @@ internal mat3 Cols3x3(v2 X, v2 Y);
 internal mat3 Scale3x3(mat3 A, f32 Scale);
 internal mat3 Scale3x3(mat3 A, v2 Scale);
 internal mat3 Translate3x3(mat3 A, v2 P);
-internal v3 Transform3x3(mat3 A, v3 P);
 internal mat3 Diag3x3(f32 X, f32 Y);
+internal mat3 Multiply3x3(mat3 A, mat3 B);
+internal v3 Transform3x3(mat3 A, v3 P);
 
 internal mat4 Identity4x4(void);
 internal mat4 Scale4x4(mat4 A, f32 Scale);

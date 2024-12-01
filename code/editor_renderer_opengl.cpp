@@ -730,7 +730,7 @@ M3x3ToM4x4OpenGL(mat3 M)
 internal void
 OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
 {
- texture_transfer_queue *Queue = &Memory->TextureQueue;
+ renderer_transfer_queue *Queue = &Memory->RendererQueue;
  GLuint *Textures = OpenGL->Textures;
  mat4 Projection = M3x3ToM4x4OpenGL(Frame->Proj);
  mat3 Proj3x3 = Frame->Proj;
@@ -745,21 +745,32 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
       OpIndex < Queue->OpCount;
       ++OpIndex)
  {
-  texture_transfer_op *Op = Queue->Ops + OpIndex;
-  Assert(Op->TextureIndex < OpenGL->MaxTextureCount);
+  renderer_transfer_op *Op = Queue->Ops + OpIndex;
   
-  GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[Op->TextureIndex]));
-  GL_CALL(glTexImage2D(GL_TEXTURE_2D,
-                       0,
-                       GL_RGBA,
-                       Cast(u32)Op->Width,
-                       Cast(u32)Op->Height,
-                       0,
-                       GL_RGBA,
-                       GL_UNSIGNED_BYTE,
-                       Op->Pixels));
-  GL_CALL(OpenGL->glGenerateMipmap(GL_TEXTURE_2D));
-  GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
+  switch (Op->Type)
+  {
+   case RendererTransferOp_Texture: {
+    Assert(Op->TextureIndex < OpenGL->MaxTextureCount);
+    
+    GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[Op->TextureIndex]));
+    GL_CALL(glTexImage2D(GL_TEXTURE_2D,
+                         0,
+                         GL_RGBA,
+                         Cast(u32)Op->Width,
+                         Cast(u32)Op->Height,
+                         0,
+                         GL_RGBA,
+                         GL_UNSIGNED_BYTE,
+                         Op->Pixels));
+    GL_CALL(OpenGL->glGenerateMipmap(GL_TEXTURE_2D));
+    GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
+   }break;
+   
+   case RendererTransferOp_Buffer: {
+    NotImplemented;
+   }break;
+  }
+  
  }
  Queue->OpCount = 0;
  Queue->TransferMemoryUsed = 0;

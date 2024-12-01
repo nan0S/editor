@@ -1535,7 +1535,7 @@ operator*(mat4 A, v4 P)
 }
 
 internal mat3
-operator*(mat3 A, mat3 B)
+Multiply3x3(mat3 A, mat3 B)
 {
  mat3 R;
  
@@ -1551,6 +1551,13 @@ operator*(mat3 A, mat3 B)
  R.M[2][1] = A.M[2][0]*B.M[0][1] + A.M[2][1]*B.M[1][1] + A.M[2][2]*B.M[2][1];
  R.M[2][2] = A.M[2][0]*B.M[0][2] + A.M[2][1]*B.M[1][2] + A.M[2][2]*B.M[2][2];
  
+ return R;
+}
+
+internal mat3
+operator*(mat3 A, mat3 B)
+{
+ mat3 R = Multiply3x3(A, B);
  return R;
 }
 

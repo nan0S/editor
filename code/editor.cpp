@@ -2125,7 +2125,7 @@ LoadImageFromMemory(arena *Arena, char *ImageData, u64 Count)
 }
 
 internal void
-TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths)
+TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
 {
  temp_arena Temp = TempArena(0);
  
@@ -2142,7 +2142,7 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths)
   {
    u32 RequestSize = LoadedImage.Width * LoadedImage.Height * 4;
    editor_assets *Assets = &Editor->Assets;
-   texture_transfer_op *TextureOp = PushTextureTransfer(Assets->TextureQueue, RequestSize);
+   renderer_transfer_op *TextureOp = PushTextureTransfer(Assets->RendererQueue, RequestSize);
    if (TextureOp)
    {
     texture_index *TextureIndex = AllocateTextureIndex(Assets);
@@ -2157,7 +2157,7 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths)
      string FileNameNoExt = StrChopLastDot(FileName);
      
      entity *Entity = AllocEntity(Editor);
-     InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), FileNameNoExt, 0);
+     InitEntity(Entity, AtP, V2(1, 1), Rotation2DZero(), FileNameNoExt, 0);
      Entity->Type = Entity_Image;
      
      image *Image = &Entity->Image;
@@ -2171,7 +2171,7 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths)
    
    if (!Success && TextureOp)
    {
-    PopTextureTransfer(Assets->TextureQueue, TextureOp);
+    PopTextureTransfer(Assets->RendererQueue, TextureOp);
    }
   }
   
@@ -2271,7 +2271,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
    TextureIndex->Next = Assets->FirstFreeTextureIndex;
    Assets->FirstFreeTextureIndex = TextureIndex;
   }
-  Assets->TextureQueue = Memory->TextureQueue;
+  Assets->RendererQueue = Memory->RendererQueue;
  }
  
  render_group RenderGroup_;
@@ -2569,12 +2569,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
    if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Tab)
    {
     Eat = true;
-    Editor->HideUI = true;
-   }
-   if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_Tab)
-   {
-    Eat = true;
-    Editor->HideUI = false;
+    Editor->HideUI = !Editor->HideUI;
    }
    
    //- shortcuts
@@ -2612,7 +2607,8 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
    if (!Eat && Event->Type == PlatformEvent_FilesDrop)
    {
     Eat = true;
-    TryLoadImages(Editor, Event->FileCount, Event->FilePaths);
+    v2 AtP = Unproject(RenderGroup, Event->ClipSpaceMouseP);
+    TryLoadImages(Editor, Event->FileCount, Event->FilePaths, AtP);
    }
    
 #if BUILD_DEBUG
@@ -3297,8 +3293,9 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
  if (OpenFileDialog)
  {
   temp_arena Temp = TempArena(0);
+  camera *Camera = &Editor->Camera;
   platform_file_dialog_result OpenDialog = Platform.OpenFileDialog(Temp.Arena);
-  TryLoadImages(Editor, OpenDialog.FileCount, OpenDialog.FilePaths);
+  TryLoadImages(Editor, OpenDialog.FileCount, OpenDialog.FilePaths, Camera->P);
   EndTemp(Temp);
  }
  

@@ -176,6 +176,7 @@ Bugs:
 - klikanie na image kiedy jest wysuniety na przod za pomoca sorting layer i tak dodaje punkt zamiast robic select tego image
 - when i'm moving control point and go out of the win32 window, renderer curve line is crazy
 - when picking up control point, don't set it's position to the mouse position, but instead to a delta
+- ZOffset are fucked - if multiple images have the same ZOffset, make sure to check collisions in the reverse order they are renderer
 
 Stack:
  - add sorting to rendering - this then will allow to draw things out of order and will simplify the code a lot
@@ -368,7 +369,7 @@ struct texture_index
 
 struct editor_assets
 {
- texture_transfer_queue *TextureQueue;
+ renderer_transfer_queue *RendererQueue;
  texture_index *FirstFreeTextureIndex;
 };
 

@@ -103,18 +103,28 @@ struct render_group
  f32 RotationRadius;
 };
 
-struct texture_transfer_op
+enum renderer_transfer_op_type
 {
- u32 TextureIndex;
- u32 Width;
- u32 Height;
- char *Pixels;
+ RendererTransferOp_Texture,
+ RendererTransferOp_Buffer,
+};
+struct renderer_transfer_op
+{
+ renderer_transfer_op_type Type;
+ union {
+  struct {
+   u32 TextureIndex;
+   u32 Width;
+   u32 Height;
+   char *Pixels;
+  };
+ };
 };
 
-struct texture_transfer_queue
+struct renderer_transfer_queue
 {
  u32 OpCount;
- texture_transfer_op Ops[32];
+ renderer_transfer_op Ops[32];
  
  char *TransferMemory;
  u64 TransferMemoryUsed;
@@ -137,7 +147,7 @@ struct renderer
 
 struct renderer_memory
 {
- texture_transfer_queue TextureQueue;
+ renderer_transfer_queue RendererQueue;
  
  platform_renderer_limits Limits;
  

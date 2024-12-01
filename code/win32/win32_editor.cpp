@@ -393,18 +393,24 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
    } // fallthrough
    case WM_KEYUP:
    case WM_KEYDOWN: {
-    b32 Pressed = (Msg == WM_KEYDOWN);
-    platform_key Key = Win32KeyToPlatformKey(wParam);
-    platform_event *Event = Win32PushPlatformEvent(Pressed ? PlatformEvent_Press : PlatformEvent_Release);
-    if (Event)
+    b32 WasDown = ((lParam & 1<<30) != 0);
+    b32 IsDown =  ((lParam & 1<<31) == 0);
+    // NOTE(hbr): dont't repeat PlatformEvent_Press msgs when holding a key
+    if (WasDown != IsDown)
     {
-     Event->Key = Key;
-     if (Key == PlatformKey_Ctrl && (Event->Flags & PlatformEventFlag_Ctrl)) Event->Flags &= ~PlatformEventFlag_Ctrl;
-     if (Key == PlatformKey_Shift && (Event->Flags & PlatformEventFlag_Shift)) Event->Flags &= ~PlatformEventFlag_Shift;
-     if (Key == PlatformKey_Alt && (Event->Flags & PlatformEventFlag_Alt)) Event->Flags &= ~PlatformEventFlag_Alt;
+     b32 Pressed = (Msg == WM_KEYDOWN);
+     platform_key Key = Win32KeyToPlatformKey(wParam);
+     platform_event *Event = Win32PushPlatformEvent(Pressed ? PlatformEvent_Press : PlatformEvent_Release);
+     if (Event)
+     {
+      Event->Key = Key;
+      if (Key == PlatformKey_Ctrl && (Event->Flags & PlatformEventFlag_Ctrl)) Event->Flags &= ~PlatformEventFlag_Ctrl;
+      if (Key == PlatformKey_Shift && (Event->Flags & PlatformEventFlag_Shift)) Event->Flags &= ~PlatformEventFlag_Shift;
+      if (Key == PlatformKey_Alt && (Event->Flags & PlatformEventFlag_Alt)) Event->Flags &= ~PlatformEventFlag_Alt;
+     }
+     
+     GlobalInput->Pressed[Key] = Pressed;
     }
-    
-    GlobalInput->Pressed[Key] = Pressed;
    }break;
    
    case WM_MOUSEMOVE: {
@@ -430,8 +436,15 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
     if (Event)
     {
      HDROP DropHandle = Cast(HDROP)wParam;
+     
      // NOTE(hbr): 0xFFFFFFFF queries file count
      UINT FileCount = DragQueryFileA(DropHandle, 0xFFFFFFFF, 0, 0);
+     
+     POINT CursorP;
+     BOOL ClientAreaOfWindow = DragQueryPoint(DropHandle, &CursorP);
+     v2u WindowDim = Win32GetWindowDim(Window);
+     Event->ClipSpaceMouseP = Win32ScreenToClip(CursorP.x, CursorP.y, WindowDim);
+     
      string *Files = PushArray(InputArena, FileCount, string);
      for (UINT FileIndex = 0;
           FileIndex < FileCount;
@@ -544,7 +557,7 @@ WinMain(HINSTANCE Instance,
     platform_renderer_limits *Limits = &RendererMemory.Limits;
     Limits->MaxTextureCount = 256;
     
-    texture_transfer_queue *Queue = &RendererMemory.TextureQueue;
+    renderer_transfer_queue *Queue = &RendererMemory.RendererQueue;
     Queue->TransferMemorySize = Megabytes(100);
     Queue->TransferMemory = PushArrayNonZero(PermamentArena, Queue->TransferMemorySize, char);
     
@@ -578,7 +591,7 @@ WinMain(HINSTANCE Instance,
    editor_memory EditorMemory = {};
    EditorMemory.PermamentArena = PermamentArena;
    EditorMemory.MaxTextureCount = RendererMemory.Limits.MaxTextureCount;
-   EditorMemory.TextureQueue = &RendererMemory.TextureQueue;
+   EditorMemory.RendererQueue = &RendererMemory.RendererQueue;
    EditorMemory.PlatformAPI = Platform;
    
    u64 LastTSC = OS_ReadCPUTimer();
@@ -687,6 +700,16 @@ WinMain(HINSTANCE Instance,
      GetCursorPos(&CursorP);
      ScreenToClient(Window, &CursorP);
      Input.ClipSpaceMouseP = Win32ScreenToClip(CursorP.x, CursorP.y, WindowDim);
+     
+     for (u32 EventIndex = 0;
+          EventIndex < Input.EventCount;
+          ++EventIndex)
+     {
+      platform_event *Event = Input.Events + EventIndex;
+      char const *Name = PlatformEventTypeNames[Event->Type];
+      OS_PrintDebugF("%s\n", Name);
+     }
+     
     }
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(InputHandling);}
     
@@ -709,7 +732,6 @@ WinMain(HINSTANCE Instance,
     WIN32_BEGIN_DEBUG_BLOCK(RendererEndFrame);
     RendererFunctionTable.EndFrame(Renderer, &RendererMemory, Frame);
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererEndFrame);}
-    
     
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(FromBegin);}
     FirstFrame = false;

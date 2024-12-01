@@ -137,10 +137,10 @@ BeginRenderGroup(render_frame *Frame,
  return Result;
 }
 
-internal texture_transfer_op *
-PushTextureTransfer(texture_transfer_queue *Queue, u64 RequestSize)
+internal renderer_transfer_op *
+PushTextureTransfer(renderer_transfer_queue *Queue, u64 RequestSize)
 {
- texture_transfer_op *Result = 0;
+ renderer_transfer_op *Result = 0;
  
  u64 NewUsed = Queue->TransferMemoryUsed + RequestSize;
  if ((Queue->OpCount < ArrayCount(Queue->Ops)) && (NewUsed <= Queue->TransferMemorySize))
@@ -154,7 +154,7 @@ PushTextureTransfer(texture_transfer_queue *Queue, u64 RequestSize)
 }
 
 internal void
-PopTextureTransfer(texture_transfer_queue *Queue, texture_transfer_op *Op)
+PopTextureTransfer(renderer_transfer_queue *Queue, renderer_transfer_op *Op)
 {
  Assert(Queue->OpCount > 0);
  --Queue->OpCount;

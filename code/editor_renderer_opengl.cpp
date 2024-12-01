@@ -412,6 +412,34 @@ CompileProgramCommon(opengl *OpenGL,
  return ProgramHandle;
 }
 
+internal void
+UseProgramBegin(opengl *OpenGL, perfect_circle_program *Prog, mat3 Proj)
+{
+ GL_CALL(OpenGL->glUseProgram(Prog->ProgramHandle));
+ GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Projection_UniformLoc,
+                                    1, GL_TRUE, Cast(f32 *)Proj.M));
+ for (u32 AttrLocIndex = 0;
+      AttrLocIndex < ArrayCount(Prog->Attributes.All);
+      ++AttrLocIndex)
+ {
+  GLuint Attr = Prog->Attributes.All[AttrLocIndex];
+  GL_CALL(OpenGL->glEnableVertexAttribArray(Attr));
+ }
+}
+
+internal void
+UseProgramEnd(opengl *OpenGL, perfect_circle_program *Prog)
+{
+ for (u32 AttrLocIndex = 0;
+      AttrLocIndex < ArrayCount(Prog->Attributes.All);
+      ++AttrLocIndex)
+ {
+  GLuint Attr = Prog->Attributes.All[AttrLocIndex];
+  GL_CALL(OpenGL->glDisableVertexAttribArray(Attr));
+ }
+ GL_CALL(OpenGL->glUseProgram(0));
+}
+
 internal perfect_circle_program
 CompilePerfectCircleProgram(opengl *OpenGL)
 {
@@ -495,77 +523,6 @@ f32 AlphaChannel = Lerp(ProperColor.a, 0, OutlineT);
   "Projection",
  };
  StaticAssert(ArrayCount(UniformNames) == ArrayCount(MemberOf(perfect_circle_program, Uniforms.All)),
-              UniformNamesLengthMatchesDefinedUniforms);
- 
- Result.ProgramHandle =
-  CompileProgramCommon(OpenGL,
-                       VertexShader, FragmentShader,
-                       Result.Attributes.All, ArrayCount(Result.Attributes.All), AttrNames,
-                       Result.Uniforms.All, ArrayCount(Result.Uniforms.All), UniformNames);
- 
- // NOTE(hbr): need to fix two rows of mat3 attribute
- Result.Attributes.VertModel1_AttrLoc = Result.Attributes.VertModel0_AttrLoc + 1;
- Result.Attributes.VertModel2_AttrLoc = Result.Attributes.VertModel0_AttrLoc + 2;
- 
- return Result;
-}
-
-internal circle_program
-CompileCircleProgram(opengl *OpenGL)
-{
- circle_program Result = {};
- 
- char const *VertexShader = R"FOO(
-in v2 VertP;
-in f32 VertZ;
-in mat3 VertModel;
-in v4 VertColor;
-
-flat out v4 FragColor;
-
-uniform mat3 Projection;
-
-void main(void)
- {
-mat3 Transform = Projection * VertModel;
-v3 P = Transform * v3(VertP, 1);
- gl_Position = v4(P.xy, VertZ, P.z);
-
-FragColor = VertColor;
-}
-)FOO";
- 
- char const *FragmentShader = R"FOO(
-flat in v4 FragColor;
- 
-out v4 OutColor;
-
- void main(void)
-{
-OutColor = FragColor;
- }
- )FOO";
- 
- GLuint ProgramHandle = OpenGLCreateProgram(OpenGL, VertexShader, FragmentShader);
- Result.ProgramHandle = ProgramHandle;
- 
- char const *AttrNames[] =
- {
-  "VertP",
-  "VertZ",
-  "VertModel",
-  "VertModel",
-  "VertModel",
-  "VertColor",
- };
- StaticAssert(ArrayCount(AttrNames) == ArrayCount(MemberOf(circle_program, Attributes.All)),
-              AttrNamesLengthMatchesDefinedAttributes);
- 
- char const *UniformNames[] =
- {
-  "Projection",
- };
- StaticAssert(ArrayCount(UniformNames) == ArrayCount(MemberOf(circle_program, Uniforms.All)),
               UniformNamesLengthMatchesDefinedUniforms);
  
  Result.ProgramHandle =
@@ -694,7 +651,7 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
  GL_CALL(glClear(GL_COLOR_BUFFER_BIT));
  GL_CALL(glViewport(0, 0, Frame->WindowDim.X, Frame->WindowDim.Y));
  
- //- uploads textures into GPU
+ //- upload textures into GPU
  for (u32 OpIndex = 0;
       OpIndex < Queue->OpCount;
       ++OpIndex)
@@ -824,30 +781,20 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
  {
   GLuint QuadVBO = OpenGL->PerfectCircle.QuadVBO;
   GLuint CircleVBO = OpenGL->PerfectCircle.CircleVBO;
-  perfect_circle_program *Prog = &OpenGL->PerfectCircle.Program;
   
-  GL_CALL(OpenGL->glUseProgram(Prog->ProgramHandle));
-  GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Projection_UniformLoc,
-                                     1, GL_TRUE, Cast(f32 *)Proj3x3.M));
-  for (u32 AttrLocIndex = 0;
-       AttrLocIndex < ArrayCount(Prog->Attributes.All);
-       ++AttrLocIndex)
-  {
-   GLuint Attr = Prog->Attributes.All[AttrLocIndex];
-   GL_CALL(OpenGL->glEnableVertexAttribArray(Attr));
-  }
+  perfect_circle_program *Prog = &OpenGL->PerfectCircle.Program;
+  UseProgramBegin(OpenGL, Prog, Proj3x3);
   
   GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, QuadVBO));
   GL_CALL(OpenGL->glVertexAttribPointer(Prog->Attributes.VertP_AttrLoc, 2, GL_FLOAT, GL_FALSE, SizeOf(v2), 0));
   
-  //- upload instances' data into GPU
   GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, CircleVBO));
-  
   GL_CALL(OpenGL->glBufferData(GL_ARRAY_BUFFER,
                                Frame->CircleCount * SizeOf(Frame->Circles[0]),
                                Frame->Circles,
                                GL_DYNAMIC_DRAW));
   
+  // NOTE(hbr): macro is slightly complicated but also uninteresting
 #define OpenGLInstancedVertexAttrib(Id, Member) \
 GL_CALL(OpenGL->glVertexAttribPointer(Id, SizeOf((Cast(render_circle *)0)->Member)/SizeOf(f32), GL_FLOAT, GL_FALSE, SizeOf(render_circle), Cast(void *)OffsetOf(render_circle, Member))); \
 GL_CALL(OpenGL->glVertexAttribDivisor(Id, 1))
@@ -862,14 +809,7 @@ GL_CALL(OpenGL->glVertexAttribDivisor(Id, 1))
   
   GL_CALL(OpenGL->glDrawArraysInstanced(GL_QUADS, 0, 4, Frame->CircleCount));
   
-  for (u32 AttrLocIndex = 0;
-       AttrLocIndex < ArrayCount(Prog->Attributes.All);
-       ++AttrLocIndex)
-  {
-   GLuint Attr = Prog->Attributes.All[AttrLocIndex];
-   GL_CALL(OpenGL->glDisableVertexAttribArray(Attr));
-  }
-  GL_CALL(OpenGL->glUseProgram(0));
+  UseProgramEnd(OpenGL, Prog);
  }
  
  Memory->ImGuiBindings.Render();

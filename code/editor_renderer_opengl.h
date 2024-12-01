@@ -52,32 +52,6 @@ StaticAssert(SizeOf(MemberOf(perfect_circle_program, Attributes)) == SizeOf(Memb
 StaticAssert(SizeOf(MemberOf(perfect_circle_program, Uniforms)) == SizeOf(MemberOf(perfect_circle_program, Uniforms.All)),
              AllUniformsArrayLengthMatchesIndividuallyDefinedUniforms);
 
-struct circle_program
-{
- GLuint ProgramHandle;
- 
- union {
-  GLuint Projection_UniformLoc;
-  GLuint All[1];
- } Uniforms;
- 
- union {
-  struct {
-   GLuint VertP_AttrLoc;
-   GLuint VertZ_AttrLoc;
-   GLuint VertModel0_AttrLoc;
-   GLuint VertModel1_AttrLoc;
-   GLuint VertModel2_AttrLoc;
-   GLuint VertColor_AttrLoc;
-  };
-  GLuint All[6];
- } Attributes;
-};
-StaticAssert(SizeOf(MemberOf(perfect_circle_program, Attributes)) == SizeOf(MemberOf(perfect_circle_program, Attributes.All)),
-             AllAttributesArrayLengthMatchesIndividuallyDefinedAttributes);
-StaticAssert(SizeOf(MemberOf(perfect_circle_program, Uniforms)) == SizeOf(MemberOf(perfect_circle_program, Uniforms.All)),
-             AllUniformsArrayLengthMatchesIndividuallyDefinedUniforms);
-
 struct opengl
 {
  renderer_header Header;
@@ -143,13 +117,6 @@ struct opengl
   GLuint QuadVBO;
   GLuint CircleVBO;
  } PerfectCircle;
- 
- struct {
-  circle_program Program;
-  GLuint IndexBuffer;
- } Circle;
- 
- b32 Initialized;
 };
 
 #endif //EDITOR_RENDERER_OPENGL_H

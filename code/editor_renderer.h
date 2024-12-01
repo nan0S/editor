@@ -1,11 +1,6 @@
 #ifndef EDITOR_RENDERER_H
 #define EDITOR_RENDERER_H
 
-struct vertex
-{
- v2 Pos;
-};
-
 enum render_primitive_type
 {
  Primitive_Triangles,
@@ -15,7 +10,7 @@ enum render_primitive_type
 struct vertex_array
 {
  u32 VertexCount;
- vertex *Vertices;
+ v2 *Vertices;
  render_primitive_type Primitive;
 };
 
@@ -35,7 +30,7 @@ struct render_command_clear
 struct render_command_vertex_array
 {
  u32 VertexCount;
- vertex *Vertices;
+ v2 *Vertices;
  render_primitive_type Primitive;
  v4 Color;
 };

@@ -500,7 +500,7 @@ internal vertex_array
 CopyLineVertices(arena *Arena, vertex_array Vertices)
 {
  vertex_array Result = Vertices;
- Result.Vertices = PushArrayNonZero(Arena, Vertices.VertexCount, vertex);
+ Result.Vertices = PushArrayNonZero(Arena, Vertices.VertexCount, v2);
  ArrayCopy(Result.Vertices, Vertices.Vertices, Vertices.VertexCount);
  
  return Result;

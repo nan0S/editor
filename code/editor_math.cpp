@@ -332,7 +332,7 @@ ComputeVerticesOfThickLine(arena *Arena, u32 PointCount, v2 *LinePoints, f32 Wid
  u32 MaxVertexCount = 0;
  if (N >= 2) MaxVertexCount = 2*2 + 4 * N;
  
- vertex *Vertices = PushArrayNonZero(Arena, MaxVertexCount, vertex);
+ v2 *Vertices = PushArrayNonZero(Arena, MaxVertexCount, v2);
  
  u32 VertexIndex = 0;
  b32 IsLastInside = false;
@@ -346,8 +346,8 @@ ComputeVerticesOfThickLine(arena *Arena, u32 PointCount, v2 *LinePoints, f32 Wid
   v2 NV_Line = Rotate90DegreesAntiClockwise(V_Line);
   Normalize(&NV_Line);
   
-  Vertices[VertexIndex + 0].Pos = (A + 0.5f * Width * NV_Line);
-  Vertices[VertexIndex + 1].Pos = (A - 0.5f * Width * NV_Line);
+  Vertices[VertexIndex + 0] = (A + 0.5f * Width * NV_Line);
+  Vertices[VertexIndex + 1] = (A - 0.5f * Width * NV_Line);
   
   VertexIndex += 2;
   
@@ -393,18 +393,18 @@ ComputeVerticesOfThickLine(arena *Arena, u32 PointCount, v2 *LinePoints, f32 Wid
   
   if ((LeftTurn && IsLastInside) || (!LeftTurn && !IsLastInside))
   {
-   Vertices[VertexIndex + 0].Pos = B_Line;
-   Vertices[VertexIndex + 1].Pos = IntersectionPoint;
-   Vertices[VertexIndex + 2].Pos = B_Succ;
+   Vertices[VertexIndex + 0] = B_Line;
+   Vertices[VertexIndex + 1] = IntersectionPoint;
+   Vertices[VertexIndex + 2] = B_Succ;
    
    VertexIndex += 3;
   }
   else
   {
-   Vertices[VertexIndex + 0].Pos = IntersectionPoint;
-   Vertices[VertexIndex + 1].Pos = B_Line;
-   Vertices[VertexIndex + 2].Pos = IntersectionPoint;
-   Vertices[VertexIndex + 3].Pos = B_Succ;
+   Vertices[VertexIndex + 0] = IntersectionPoint;
+   Vertices[VertexIndex + 1] = B_Line;
+   Vertices[VertexIndex + 2] = IntersectionPoint;
+   Vertices[VertexIndex + 3] = B_Succ;
    
    VertexIndex += 4;
   }
@@ -428,13 +428,13 @@ ComputeVerticesOfThickLine(arena *Arena, u32 PointCount, v2 *LinePoints, f32 Wid
    
    if (IsLastInside)
    {
-    Vertices[VertexIndex + 0].Pos = B_Outside;
-    Vertices[VertexIndex + 1].Pos = B_Inside;
+    Vertices[VertexIndex + 0] = B_Outside;
+    Vertices[VertexIndex + 1] = B_Inside;
    }
    else
    {
-    Vertices[VertexIndex + 0].Pos = B_Inside;
-    Vertices[VertexIndex + 1].Pos = B_Outside;
+    Vertices[VertexIndex + 0] = B_Inside;
+    Vertices[VertexIndex + 1] = B_Outside;
    }
    
    VertexIndex += 2;

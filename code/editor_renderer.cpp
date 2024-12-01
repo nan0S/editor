@@ -14,7 +14,7 @@ PushRenderCommand(render_group *Group, render_command_type Type, mat3 Model, f32
 
 internal void
 PushVertexArray(render_group *Group,
-                vertex *Vertices,
+                v2 *Vertices,
                 u32 VertexCount,
                 render_primitive_type Primitive,
                 v4 Color,

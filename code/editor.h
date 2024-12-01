@@ -167,6 +167,7 @@ Ideas:
 - zmienianie koloru krzywej "inline" a nie w osobnym okienku
 - hide all control points in ALL curves using some button or something
 - resize image "inline", not in separate window
+- persistent openGL mapping for texture uploads, mesh uploads
 
 Bugs:
 - clicking on control point doesn't do anything, but should select this curve and control point

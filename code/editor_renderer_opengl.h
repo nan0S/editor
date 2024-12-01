@@ -48,9 +48,34 @@ struct perfect_circle_program
  } Attributes;
 };
 StaticAssert(SizeOf(MemberOf(perfect_circle_program, Attributes)) == SizeOf(MemberOf(perfect_circle_program, Attributes.All)),
-             AllAttributesArrayLengthMatchesIndividuallyDefinedAttributes);
+             PerfectCircleProgram_AllAttributesArrayLengthMatchesIndividuallyDefinedAttributes);
 StaticAssert(SizeOf(MemberOf(perfect_circle_program, Uniforms)) == SizeOf(MemberOf(perfect_circle_program, Uniforms.All)),
-             AllUniformsArrayLengthMatchesIndividuallyDefinedUniforms);
+             PerfectCircleProgram_AllUniformsArrayLengthMatchesIndividuallyDefinedUniforms);
+
+struct line_program
+{
+ GLuint ProgramHandle;
+ 
+ union {
+  struct {
+   GLuint VertP_AttrLoc;
+  };
+  GLuint All[1];
+ } Attributes;
+ 
+ union {
+  struct {
+   GLuint Z_UniformLoc;
+   GLuint Color_UniformLoc;
+   GLuint Transform_UniformLoc;
+  };
+  GLuint All[3];
+ } Uniforms;
+};
+StaticAssert(SizeOf(MemberOf(line_program, Attributes)) == SizeOf(MemberOf(line_program, Attributes.All)),
+             LineProgram_AllAttributesArrayLengthMatchesIndividuallyDefinedAttributes);
+StaticAssert(SizeOf(MemberOf(line_program, Uniforms)) == SizeOf(MemberOf(line_program, Uniforms.All)),
+             LineProgram_AllUniformsArrayLengthMatchesIndividuallyDefinedUniforms);
 
 struct opengl
 {
@@ -117,6 +142,11 @@ struct opengl
   GLuint QuadVBO;
   GLuint CircleVBO;
  } PerfectCircle;
+ 
+ struct {
+  line_program Program;
+  GLuint VertexBuffer;
+ } Line;
 };
 
 #endif //EDITOR_RENDERER_OPENGL_H

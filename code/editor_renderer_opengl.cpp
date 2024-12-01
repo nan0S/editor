@@ -337,6 +337,88 @@ OutColor = FragColor;
  return Result;
 }
 
+internal GLuint
+CompileProgramCommon(opengl *OpenGL,
+                     char const *VertexCode, char const *FragmentCode,
+                     GLuint *Attributes, u32 AttributeCount, char const **AttributeNames,
+                     GLuint *Uniforms, u32 UniformCount, char const **UniformNames)
+{
+ GLuint ProgramHandle = OpenGLCreateProgram(OpenGL, VertexCode, FragmentCode);
+ 
+ for (u32 AttrIndex = 0;
+      AttrIndex < AttributeCount;
+      ++AttrIndex)
+ {
+  char const *AttributeName = AttributeNames[AttrIndex];
+  GLuint Attr = OpenGL->glGetAttribLocation(ProgramHandle, AttributeName);
+  Attributes[AttrIndex] = Attr;
+  Assert(Attr != -1);
+ }
+ 
+ for (u32 UniformIndex = 0;
+      UniformIndex < UniformCount;
+      ++UniformIndex)
+ {
+  char const *UniformName = UniformNames[UniformIndex];
+  GLuint Uniform = OpenGL->glGetUniformLocation(ProgramHandle, UniformName);
+  Uniforms[UniformIndex] = Uniform;
+  Assert(Uniform != -1);
+ }
+ 
+ return ProgramHandle;
+}
+
+internal line_program
+CompileLineProgram(opengl *OpenGL)
+{
+ char const *VertexShader = R"FOO(
+in v2 VertP;
+
+out v4 FragColor;
+
+uniform f32 Z;
+uniform v4 Color;
+uniform mat3 Transform;
+
+void main(void) {
+v3 P = Transform * v3(VertP, 1);
+gl_Position = V4(P.xy, Z, P.z);
+FragColor = Color;
+}
+)FOO";
+ 
+ char const *FragmentShader = R"FOO(
+in v4 FragColor;
+
+out v4 OutColor;
+
+void main(void) {
+OutColor = FragColor;
+}
+)FOO";
+ 
+ char const *AttributeNames[] =
+ {
+  "VertP"
+ };
+ char const *UniformNames[] =
+ {
+  "Z",
+  "Color",
+  "Transform",
+ };
+ StaticAssert(ArrayCount(AttributeNames) == ArrayCount(MemberOf(line_program, Attributes.All)), AllAttributeNamesDefined);
+ StaticAssert(ArrayCount(UniformNames) == ArrayCount(MemberOf(line_program, Uniforms.All)), AllUniformNamesDefined);
+ 
+ line_program Result = {};
+ Result.ProgramHandle =
+  CompileProgramCommon(OpenGL, VertexShader, FragmentShader,
+                       Result.Attributes.All, ArrayCount(Result.Attributes.All), AttributeNames,
+                       Result.Uniforms.All, ArrayCount(Result.Uniforms.All), UniformNames);
+ 
+ return Result;
+}
+
 internal sample_program
 CompileSampleProgram(opengl *OpenGL)
 {
@@ -381,37 +463,6 @@ FragColor = Color;
  return Result;
 }
 
-internal GLuint
-CompileProgramCommon(opengl *OpenGL,
-                     char const *VertexCode, char const *FragmentCode,
-                     GLuint *Attributes, u32 AttributeCount, char const **AttributeNames,
-                     GLuint *Uniforms, u32 UniformCount, char const **UniformNames)
-{
- GLuint ProgramHandle = OpenGLCreateProgram(OpenGL, VertexCode, FragmentCode);
- 
- for (u32 AttrIndex = 0;
-      AttrIndex < AttributeCount;
-      ++AttrIndex)
- {
-  char const *AttributeName = AttributeNames[AttrIndex];
-  GLuint Attr = OpenGL->glGetAttribLocation(ProgramHandle, AttributeName);
-  Attributes[AttrIndex] = Attr;
-  Assert(Attr != -1);
- }
- 
- for (u32 UniformIndex = 0;
-      UniformIndex < UniformCount;
-      ++UniformIndex)
- {
-  char const *UniformName = UniformNames[UniformIndex];
-  GLuint Uniform = OpenGL->glGetUniformLocation(ProgramHandle, UniformName);
-  Uniforms[UniformIndex] = Uniform;
-  Assert(Uniform != -1);
- }
- 
- return ProgramHandle;
-}
-
 internal void
 UseProgramBegin(opengl *OpenGL, perfect_circle_program *Prog, mat3 Proj)
 {
@@ -429,6 +480,38 @@ UseProgramBegin(opengl *OpenGL, perfect_circle_program *Prog, mat3 Proj)
 
 internal void
 UseProgramEnd(opengl *OpenGL, perfect_circle_program *Prog)
+{
+ for (u32 AttrLocIndex = 0;
+      AttrLocIndex < ArrayCount(Prog->Attributes.All);
+      ++AttrLocIndex)
+ {
+  GLuint Attr = Prog->Attributes.All[AttrLocIndex];
+  GL_CALL(OpenGL->glDisableVertexAttribArray(Attr));
+ }
+ GL_CALL(OpenGL->glUseProgram(0));
+}
+
+internal void
+UseProgramBegin(opengl *OpenGL, line_program *Prog,
+                f32 ZOffset, v4 Color, mat3 Transform)
+{
+ GL_CALL(OpenGL->glUseProgram(Prog->ProgramHandle));
+ 
+ GL_CALL(OpenGL->glUniform1f(Prog->Uniforms.Z_UniformLoc, ZOffset));
+ GL_CALL(OpenGL->glUniform4fv(Prog->Uniforms.Color_UniformLoc, 1, Cast(f32 *)Color.E));
+ GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Transform_UniformLoc, 1, GL_TRUE, Cast(f32 *)Transform.M));
+ 
+ for (u32 AttrLocIndex = 0;
+      AttrLocIndex < ArrayCount(Prog->Attributes.All);
+      ++AttrLocIndex)
+ {
+  GLuint Attr = Prog->Attributes.All[AttrLocIndex];
+  GL_CALL(OpenGL->glEnableVertexAttribArray(Attr));
+ }
+}
+
+internal void
+UseProgramEnd(opengl *OpenGL, line_program *Prog)
 {
  for (u32 AttrLocIndex = 0;
       AttrLocIndex < ArrayCount(Prog->Attributes.All);
@@ -570,10 +653,11 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
  OpenGL->Sample.Program = CompileSampleProgram(OpenGL);
  OpenGL->glGenBuffers(1, &OpenGL->Sample.VertexBuffer);
  
- //- allocate perfect circle shader buffers
+ //- allocate buffers
  {
   OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.QuadVBO);
   OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.CircleVBO);
+  OpenGL->glGenBuffers(1, &OpenGL->Line.VertexBuffer);
   
   v2 Vertices[] =
   {
@@ -594,6 +678,7 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
  
  if (Memory->RendererCodeReloaded)
  {
+#if 0
   //- fix error handling function pointer
   if (OpenGL->glDebugMessageCallback)
   {
@@ -601,10 +686,14 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
    OpenGL->glDebugMessageCallback(OpenGLDebugCallback, 0);
   }
+#endif
   
   //- recompile shaders
   OpenGL->glDeleteProgram(OpenGL->PerfectCircle.Program.ProgramHandle);
   OpenGL->PerfectCircle.Program = CompilePerfectCircleProgram(OpenGL);
+  
+  OpenGL->glDeleteProgram(OpenGL->Line.Program.ProgramHandle);
+  OpenGL->Line.Program = CompileLineProgram(OpenGL);
  }
  
  render_frame *RenderFrame = &OpenGL->RenderFrame;
@@ -622,6 +711,27 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
 }
 
 internal int RenderCommandCmp(render_command *A, render_command *B) { return Cmp(A->ZOffset, B->ZOffset); }
+
+// TODO(hbr): wtf is this, this is defined in editor_math.cpp, why did I have to define it here???
+internal mat3
+Multiply3x3(mat3 A, mat3 B)
+{
+ mat3 R;
+ 
+ R.M[0][0] = A.M[0][0]*B.M[0][0] + A.M[0][1]*B.M[1][0] + A.M[0][2]*B.M[2][0];
+ R.M[0][1] = A.M[0][0]*B.M[0][1] + A.M[0][1]*B.M[1][1] + A.M[0][2]*B.M[2][1];
+ R.M[0][2] = A.M[0][0]*B.M[0][2] + A.M[0][1]*B.M[1][2] + A.M[0][2]*B.M[2][2];
+ 
+ R.M[1][0] = A.M[1][0]*B.M[0][0] + A.M[1][1]*B.M[1][0] + A.M[1][2]*B.M[2][0];
+ R.M[1][1] = A.M[1][0]*B.M[0][1] + A.M[1][1]*B.M[1][1] + A.M[1][2]*B.M[2][1];
+ R.M[1][2] = A.M[1][0]*B.M[0][2] + A.M[1][1]*B.M[1][2] + A.M[1][2]*B.M[2][2];
+ 
+ R.M[2][0] = A.M[2][0]*B.M[0][0] + A.M[2][1]*B.M[1][0] + A.M[2][2]*B.M[2][0];
+ R.M[2][1] = A.M[2][0]*B.M[0][1] + A.M[2][1]*B.M[1][1] + A.M[2][2]*B.M[2][1];
+ R.M[2][2] = A.M[2][0]*B.M[0][2] + A.M[2][1]*B.M[1][2] + A.M[2][2]*B.M[2][2];
+ 
+ return R;
+}
 
 internal mat4
 M3x3ToM4x4OpenGL(mat3 M)
@@ -695,6 +805,11 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
    case RenderCommand_VertexArray: {
     render_command_vertex_array *Array = &Command->VertexArray;
     
+    mat3 Transform = Multiply3x3(Proj3x3, Command->ModelXForm);
+    
+    line_program *Prog = &OpenGL->Line.Program;
+    UseProgramBegin(OpenGL, Prog, Command->ZOffset, Array->Color, Transform);
+    
     int glPrimitive = 0;
     switch (Array->Primitive)
     {
@@ -702,29 +817,20 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
      case Primitive_Triangles:     {glPrimitive = GL_TRIANGLES;}break;
     }
     
-    v4 Color = V4(1, 0, 1, 1);
-    mat4 Transform = Projection;
-    
-    GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Sample.VertexBuffer));
+    GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Line.VertexBuffer));
     GL_CALL(OpenGL->glBufferData(GL_ARRAY_BUFFER,
                                  Array->VertexCount * SizeOf(Array->Vertices[0]),
                                  Array->Vertices,
                                  GL_DYNAMIC_DRAW));
+    GL_CALL(OpenGL->glVertexAttribPointer(Prog->Attributes.VertP_AttrLoc,
+                                          2, GL_FLOAT,
+                                          GL_FALSE, SizeOf(v2), 0));
     
-    OpenGL->glEnableVertexAttribArray(OpenGL->Sample.Program.VertP_AttrLoc);
-    OpenGL->glVertexAttribPointer(OpenGL->Sample.Program.VertP_AttrLoc, 2, GL_FLOAT, GL_FALSE, SizeOf(v2), 0);
-    //OpenGL->glEnableVertexAttribArray(Program.VertUV_AttrLoc);
-    //OpenGL->glVertexAttribPointer(Program.VertUV_AttrLoc, 2, GL_FLOAT, GL_FALSE, 2 * SizeOf(v2), Cast(void *)SizeOf(v2));
+    GL_CALL(OpenGL->glDrawArrays(glPrimitive, 0, Array->VertexCount));
     
-    OpenGL->glUseProgram(OpenGL->Sample.Program.ProgramHandle);
-    OpenGL->glUniformMatrix4fv(OpenGL->Sample.Program.Transform_UniformLoc, 1, GL_FALSE, Cast(f32 *)Transform.M);
-    OpenGL->glUniform4fv(OpenGL->Sample.Program.Color_UniformLoc, 1, Cast(f32 *)Color.E);
+    GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, 0));
     
-    OpenGL->glDrawArrays(glPrimitive, 0, Array->VertexCount);
-    
-    OpenGL->glDisableVertexAttribArray(OpenGL->Sample.Program.VertP_AttrLoc);
-    OpenGL->glUseProgram(0);
-    OpenGL->glBindBuffer(GL_ARRAY_BUFFER, 0);
+    UseProgramEnd(OpenGL, Prog);
    }break;
    
    case RenderCommand_Rectangle: {

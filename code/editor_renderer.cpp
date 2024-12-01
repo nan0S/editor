@@ -107,6 +107,17 @@ PushImage(render_group *Group, v2 Dim, u32 TextureIndex)
  
  render_command_image *Image = &Command->Image;
  Image->TextureIndex = TextureIndex;
+ 
+ {
+  render_frame *Frame = Group->Frame;
+  if (Frame->ImageCount < Frame->MaxImageCount)
+  {
+   render_image *RenderImage = Frame->Images + Frame->ImageCount++;
+   RenderImage->Model = Command->ModelXForm;
+   RenderImage->TextureIndex = TextureIndex;
+   RenderImage->Z = Command->ZOffset;
+  }
+ }
 }
 
 internal render_group

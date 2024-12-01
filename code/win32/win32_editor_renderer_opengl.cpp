@@ -167,6 +167,7 @@ Win32OpenGLInit(arena *Arena, renderer_memory *Memory, HWND Window, HDC WindowDC
   OpenGLFunction(glGetShaderInfoLog);
   OpenGLFunction(glUseProgram);
   OpenGLFunction(glGetUniformLocation);
+  OpenGLFunction(glUniform1i);
   OpenGLFunction(glUniform1f);
   OpenGLFunction(glUniform2fv);
   OpenGLFunction(glUniform3fv);

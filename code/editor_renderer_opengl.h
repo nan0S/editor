@@ -77,6 +77,36 @@ StaticAssert(SizeOf(MemberOf(line_program, Attributes)) == SizeOf(MemberOf(line_
 StaticAssert(SizeOf(MemberOf(line_program, Uniforms)) == SizeOf(MemberOf(line_program, Uniforms.All)),
              LineProgram_AllUniformsArrayLengthMatchesIndividuallyDefinedUniforms);
 
+struct image_program
+{
+ GLuint ProgramHandle;
+ 
+ union {
+  struct {
+   GLuint VertPUV_AttrLoc;
+  };
+  GLuint All[1];
+ } Attributes;
+ 
+ union {
+  struct {
+   GLuint Z_UniformLoc;
+   GLuint Model_UniformLoc;
+   GLuint Projection_UniformLoc;
+  };
+  GLuint All[3];
+ } Uniforms;
+};
+StaticAssert(SizeOf(MemberOf(image_program, Attributes)) == SizeOf(MemberOf(image_program, Attributes.All)),
+             TexturedProgram_AllAttributesArrayLengthMatchesIndividuallyDefinedAttributes);
+StaticAssert(SizeOf(MemberOf(image_program, Uniforms)) == SizeOf(MemberOf(image_program, Uniforms.All)),
+             TexturedProgram_AllUniformsArrayLengthMatchesIndividuallyDefinedUniforms);
+
+struct textured_vertex
+{
+ v4 PUV;
+};
+
 struct opengl
 {
  renderer_header Header;
@@ -114,6 +144,7 @@ struct opengl
  OpenGLFunction(glUseProgram);
  OpenGLFunction(glValidateProgram);
  OpenGLFunction(glGetUniformLocation);
+ OpenGLFunction(glUniform1i);
  OpenGLFunction(glUniform1f);
  OpenGLFunction(glUniform2fv);
  OpenGLFunction(glUniform3fv);
@@ -150,6 +181,11 @@ struct opengl
   line_program Program;
   GLuint VertexBuffer;
  } Line;
+ 
+ struct {
+  image_program Program;
+  GLuint VertexBuffer;
+ } Image;
 };
 
 #endif //EDITOR_RENDERER_OPENGL_H

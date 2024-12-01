@@ -523,6 +523,34 @@ UseProgramEnd(opengl *OpenGL, line_program *Prog)
  GL_CALL(OpenGL->glUseProgram(0));
 }
 
+internal void
+UseProgramBegin(opengl *OpenGL, image_program *Prog, mat3 Proj)
+{
+ GL_CALL(OpenGL->glUseProgram(Prog->ProgramHandle));
+ GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Projection_UniformLoc,
+                                    1, GL_TRUE, Cast(f32 *)Proj.M));
+ for (u32 AttrLocIndex = 0;
+      AttrLocIndex < ArrayCount(Prog->Attributes.All);
+      ++AttrLocIndex)
+ {
+  GLuint Attr = Prog->Attributes.All[AttrLocIndex];
+  GL_CALL(OpenGL->glEnableVertexAttribArray(Attr));
+ }
+}
+
+internal void
+UseProgramEnd(opengl *OpenGL, image_program *Prog)
+{
+ for (u32 AttrLocIndex = 0;
+      AttrLocIndex < ArrayCount(Prog->Attributes.All);
+      ++AttrLocIndex)
+ {
+  GLuint Attr = Prog->Attributes.All[AttrLocIndex];
+  GL_CALL(OpenGL->glDisableVertexAttribArray(Attr));
+ }
+ GL_CALL(OpenGL->glUseProgram(0));
+}
+
 internal perfect_circle_program
 CompilePerfectCircleProgram(opengl *OpenGL)
 {
@@ -621,6 +649,65 @@ f32 AlphaChannel = Lerp(ProperColor.a, 0, OutlineT);
  return Result;
 }
 
+internal image_program
+CompileImageProgram(opengl *OpenGL)
+{
+ char const *VertexShader = R"FOO(
+in v4 VertPUV;
+
+out v2 FragP;
+out v2 FragUV;
+
+uniform f32 Z;
+uniform mat3 Model;
+uniform mat3 Projection;
+
+void main(void) {
+v2 VertP = VertPUV.xy;
+v2 VertUV = VertPUV.zw;
+v3 P = Projection * Model * v3(VertP, 1);
+gl_Position = V4(P.xy, Z, P.z);
+FragP = P.xy;
+FragUV = VertUV;
+}
+)FOO";
+ 
+ char const *FragmentShader = R"FOO(
+in v2 FragP;
+in v2 FragUV;
+
+out v4 OutColor;
+
+uniform sampler2D Sampler;
+
+void main(void) {
+//OutColor = V4(FragUV.x, FragP.x, 0, 1);
+OutColor = texture(Sampler, FragUV);
+}
+)FOO";
+ 
+ char const *AttributeNames[] =
+ {
+  "VertPUV",
+ };
+ char const *UniformNames[] =
+ {
+  "Z",
+  "Model",
+  "Projection",
+ };
+ StaticAssert(ArrayCount(AttributeNames) == ArrayCount(MemberOf(image_program, Attributes.All)), AllAttributeNamesDefined);
+ StaticAssert(ArrayCount(UniformNames) == ArrayCount(MemberOf(image_program, Uniforms.All)), AllUniformNamesDefined);
+ 
+ image_program Result = {};
+ Result.ProgramHandle =
+  CompileProgramCommon(OpenGL, VertexShader, FragmentShader,
+                       Result.Attributes.All, ArrayCount(Result.Attributes.All), AttributeNames,
+                       Result.Uniforms.All, ArrayCount(Result.Uniforms.All), UniformNames);
+ 
+ return Result;
+}
+
 internal void
 OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
 {
@@ -667,16 +754,31 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
   OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.QuadVBO);
   OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.CircleVBO);
   OpenGL->glGenBuffers(1, &OpenGL->Line.VertexBuffer);
+  OpenGL->glGenBuffers(1, &OpenGL->Image.VertexBuffer);
   
-  v2 Vertices[] =
   {
-   V2(-1, -1),
-   V2( 1, -1),
-   V2( 1,  1),
-   V2(-1,  1),
-  };
-  OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->PerfectCircle.QuadVBO);
-  OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW);
+   v2 Vertices[] =
+   {
+    V2(-1, -1),
+    V2( 1, -1),
+    V2( 1,  1),
+    V2(-1,  1),
+   };
+   OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->PerfectCircle.QuadVBO);
+   OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW);
+  }
+  
+  {
+   textured_vertex Vertices[] =
+   {
+    { V4(-1, -1, 0, 0) },
+    { V4( 1, -1, 1, 0) },
+    { V4( 1,  1, 1, 1) },
+    { V4(-1,  1, 0, 1) },
+   };
+   OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Image.VertexBuffer);
+   OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW);
+  }
  }
 }
 
@@ -703,6 +805,9 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
   
   OpenGL->glDeleteProgram(OpenGL->Line.Program.ProgramHandle);
   OpenGL->Line.Program = CompileLineProgram(OpenGL);
+  
+  OpenGL->glDeleteProgram(OpenGL->Image.Program.ProgramHandle);
+  OpenGL->Image.Program = CompileImageProgram(OpenGL);
  }
  
  render_frame *RenderFrame = &OpenGL->RenderFrame;
@@ -712,6 +817,9 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
  RenderFrame->CircleCount = 0;
  RenderFrame->Circles = Memory->CircleBuffer;
  RenderFrame->MaxCircleCount = Memory->MaxCircleCount;
+ RenderFrame->ImageCount = 0;
+ RenderFrame->Images = Memory->ImageBuffer;
+ RenderFrame->MaxImageCount = Memory->MaxImageCount;
  RenderFrame->WindowDim = WindowDim;
  
  Memory->ImGuiBindings.NewFrame();
@@ -760,7 +868,6 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
   {
    case RendererTransferOp_Texture: {
     Assert(Op->TextureIndex < OpenGL->MaxTextureCount);
-    
     GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[Op->TextureIndex]));
     GL_CALL(glTexImage2D(GL_TEXTURE_2D,
                          0,
@@ -855,6 +962,7 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
    }break;
    
    case RenderCommand_Image: {
+#if 0
     render_command_image *Image = &Command->Image;
     
     glBindTexture(GL_TEXTURE_2D, Textures[Image->TextureIndex]);
@@ -877,8 +985,87 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
     glEnd();
     
     glBindTexture(GL_TEXTURE_2D, 0);
+#endif
    }break;
   }
+ }
+ 
+ //- draw images
+ {
+  image_program *Prog = &OpenGL->Image.Program;
+  UseProgramBegin(OpenGL, Prog, Proj3x3);
+  
+  for (u32 ImageIndex = 0;
+       ImageIndex < Frame->ImageCount;
+       ++ImageIndex)
+  {
+   render_image *Image = Frame->Images + ImageIndex;
+   
+   
+   {
+    textured_vertex Vertices[] =
+    {
+     { V4(-1, -1, 0, 0) },
+     { V4( 1, -1, 1, 0) },
+     { V4( 1,  1, 1, 1) },
+     { V4(-1,  1, 0, 1) },
+    };
+    OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Image.VertexBuffer);
+    OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW);
+   }
+   
+   GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Image.VertexBuffer));
+   GL_CALL(OpenGL->glVertexAttribPointer(Prog->Attributes.VertPUV_AttrLoc,
+                                         4, GL_FLOAT,
+                                         GL_FALSE, SizeOf(textured_vertex),
+                                         Cast(void *)OffsetOf(textured_vertex, PUV)));
+#if 0
+   GL_CALL(OpenGL->glVertexAttribPointer(Prog->Attributes.VertUV_AttrLoc,
+                                         2, GL_FLOAT,
+                                         GL_FALSE, SizeOf(textured_vertex),
+                                         Cast(void *)OffsetOf(textured_vertex, UV)));
+#endif
+   
+   GL_CALL(OpenGL->glUniform1f(Prog->Uniforms.Z_UniformLoc, Image->Z));
+   GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Model_UniformLoc, 1, GL_TRUE, Cast(f32 *)Image->Model.M));
+   
+   GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[Image->TextureIndex]));
+   GL_CALL(glDrawArrays(GL_QUADS, 0, 4));
+  }
+  
+#if 0  
+  {
+   GLuint Texture;
+   glGenTextures(1, &Texture);
+   
+   glBindTexture(GL_TEXTURE_2D, Texture);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+   
+   u32 Width = 1;
+   u32 Height = 1;
+   v4 Pixel = V4(1, 1, 1, 1);
+   GL_CALL(glTexImage2D(GL_TEXTURE_2D,
+                        0,
+                        GL_RGBA,
+                        Width,
+                        Height,
+                        0,
+                        GL_RGBA,
+                        GL_UNSIGNED_BYTE,
+                        Cast(char *)&Pixel));
+   
+   GL_CALL(OpenGL->glUniform1f(Prog->Uniforms.Z_UniformLoc, 0.0f));
+   mat3 M = Identity3x3();
+   GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Model_UniformLoc, 1, GL_TRUE, Cast(f32 *)M.M));
+   glDrawArrays(GL_QUADS, 0, 4);
+  }
+#endif
+  
+  GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
+  UseProgramEnd(OpenGL, Prog);
  }
  
  //- instance draw circles

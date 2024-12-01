@@ -76,6 +76,13 @@ struct render_circle
  v4 OutlineColor;
 };
 
+struct render_image
+{
+ f32 Z;
+ mat3 Model;
+ u32 TextureIndex;
+};
+
 struct render_frame
 {
  u32 CommandCount;
@@ -85,6 +92,10 @@ struct render_frame
  u32 CircleCount;
  render_circle *Circles;
  u32 MaxCircleCount;
+ 
+ u32 ImageCount;
+ render_image *Images;
+ u32 MaxImageCount;
  
  v2u WindowDim;
  
@@ -163,6 +174,9 @@ struct renderer_memory
  
  render_circle *CircleBuffer;
  u32 MaxCircleCount;
+ 
+ render_image *ImageBuffer;
+ u32 MaxImageCount;
  
  b32 RendererCodeReloaded;
  

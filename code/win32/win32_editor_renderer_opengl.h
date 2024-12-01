@@ -46,6 +46,7 @@ typedef void WINAPI func_glDeleteProgram (GLuint program);
 typedef void WINAPI func_glDeleteShader (GLuint shader);
 
 typedef GLint WINAPI func_glGetUniformLocation(GLuint program, const GLchar *name);
+typedef void WINAPI func_glUniform1i(GLint location, GLint v0);
 typedef void WINAPI func_glUniform1f(GLint location, GLfloat v0);
 typedef void WINAPI func_glUniform2fv(GLint location, GLsizei count, const GLfloat *value);
 typedef void WINAPI func_glUniform3fv(GLint location, GLsizei count, const GLfloat *value);

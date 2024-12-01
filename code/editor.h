@@ -188,6 +188,8 @@ Stack:
 - inserting control point in the middle of polynomial curve is sometimes broken
 - because clicks are now highly independent, we might now delete control point while moving the same control point which could lead to some weird behaviours, investigate that
  - try to highlight entity that is about to be removed - maybe even in general - highlight stuff upon sliding mouse into its collider
+- curves should have mesh_id/model_id in the same way images have texture_id
+- load files texture asynchronously
 */
 
 struct camera

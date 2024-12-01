@@ -712,27 +712,6 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
 
 internal int RenderCommandCmp(render_command *A, render_command *B) { return Cmp(A->ZOffset, B->ZOffset); }
 
-// TODO(hbr): wtf is this, this is defined in editor_math.cpp, why did I have to define it here???
-internal mat3
-Multiply3x3(mat3 A, mat3 B)
-{
- mat3 R;
- 
- R.M[0][0] = A.M[0][0]*B.M[0][0] + A.M[0][1]*B.M[1][0] + A.M[0][2]*B.M[2][0];
- R.M[0][1] = A.M[0][0]*B.M[0][1] + A.M[0][1]*B.M[1][1] + A.M[0][2]*B.M[2][1];
- R.M[0][2] = A.M[0][0]*B.M[0][2] + A.M[0][1]*B.M[1][2] + A.M[0][2]*B.M[2][2];
- 
- R.M[1][0] = A.M[1][0]*B.M[0][0] + A.M[1][1]*B.M[1][0] + A.M[1][2]*B.M[2][0];
- R.M[1][1] = A.M[1][0]*B.M[0][1] + A.M[1][1]*B.M[1][1] + A.M[1][2]*B.M[2][1];
- R.M[1][2] = A.M[1][0]*B.M[0][2] + A.M[1][1]*B.M[1][2] + A.M[1][2]*B.M[2][2];
- 
- R.M[2][0] = A.M[2][0]*B.M[0][0] + A.M[2][1]*B.M[1][0] + A.M[2][2]*B.M[2][0];
- R.M[2][1] = A.M[2][0]*B.M[0][1] + A.M[2][1]*B.M[1][1] + A.M[2][2]*B.M[2][1];
- R.M[2][2] = A.M[2][0]*B.M[0][2] + A.M[2][1]*B.M[1][2] + A.M[2][2]*B.M[2][2];
- 
- return R;
-}
-
 internal mat4
 M3x3ToM4x4OpenGL(mat3 M)
 {
@@ -805,8 +784,7 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
    case RenderCommand_VertexArray: {
     render_command_vertex_array *Array = &Command->VertexArray;
     
-    mat3 Transform = Multiply3x3(Proj3x3, Command->ModelXForm);
-    
+    mat3 Transform = (Proj3x3 * Command->ModelXForm);
     line_program *Prog = &OpenGL->Line.Program;
     UseProgramBegin(OpenGL, Prog, Command->ZOffset, Array->Color, Transform);
     

@@ -16,9 +16,7 @@
 #include "win32/win32_editor_renderer.h"
 #include "win32/win32_editor_renderer_opengl.h"
 #include "win32/win32_shared.h"
-
 #include "editor_renderer_opengl.h"
-#include "editor_renderer_opengl.cpp"
 
 #include "base/base_core.cpp"
 #include "base/base_string.cpp"
@@ -26,6 +24,7 @@
 
 #include "editor_memory.cpp"
 #include "editor_math.cpp"
+#include "editor_renderer_opengl.cpp"
 
 platform_api Platform;
 

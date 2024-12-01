@@ -242,10 +242,19 @@ OpenGLCreateProgram(opengl *OpenGL, char const *VertexCode, char const *Fragment
   #define v2i ivec2
   #define v3s ivec3
   #define v4s ivec4
+#define V2 vec2
+#define V3 vec3
+#define V4 vec4
+#define Lerp(A, B, T) mix(A, B, T)
   #define Square(X) ((X)*(X))
   #define Dot(U, V) dot(U, V)
   #define Length(V) length(V)
   #define Length2(V) dot(V, V)
+#define Max(A, B) max(A, B)
+#define Min(A, B) min(A, B)
+#define Clamp01(T) clamp(T, 0, 1)
+#define Clamp0Inf(T) max(T, 0)
+#define Clamp(Min, T, Max) clamp(T, Min, Max)
   )FOO";
  
  GLuint VertexShaderID = OpenGL->glCreateShader(GL_VERTEX_SHADER);
@@ -446,19 +455,21 @@ out v4 OutColor;
 
  void main(void)
 {
-f32 Dist2 = Length2(FragP);
-bool InsideProperCircle = (Dist2 <= Square(FragRadiusProper));
-bool InsideOutline = (Dist2 <= Square(1.0f));
+f32 Dist = Length(FragP);
+// NOTE(hbr): This is a really really nice function. fwidth returns derivative
+// basically. GLSL, OpenGL or whatever calculates how "Dist" variable changes
+// compared to the fragments (pixels) that are around the currently computed pixel.
+// This let's us have resolution independent antialiasing.
+f32 Delta = 1.6f * fwidth(Dist);
 
-if (InsideProperCircle) {
-OutColor = FragColor;
-}
-else if (InsideOutline) {
-OutColor = FragOutlineColor;
-}
-else {
-  OutColor = v4(0, 1, 1, 1);
-  }
+f32 ProperEdge = Clamp0Inf(FragRadiusProper - (FragRadiusProper < 1 ? Delta : 0));
+f32 ProperT = smoothstep(ProperEdge, FragRadiusProper, Dist);
+f32 OutlineEdge = Clamp0Inf(1 - Delta);
+f32 OutlineT = smoothstep(OutlineEdge, 1.0f, Dist);
+
+v4 ProperColor = Lerp(FragColor, FragOutlineColor, ProperT);
+f32 AlphaChannel = Lerp(ProperColor.a, 0, OutlineT);
+ OutColor = V4(ProperColor.xyz, AlphaChannel);
  }
  )FOO";
  
@@ -604,8 +615,6 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
  
  //- allocate perfect circle shader buffers
  {
-  OpenGL->PerfectCircle.Program = CompilePerfectCircleProgram(OpenGL);
-  
   OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.QuadVBO);
   OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.CircleVBO);
   
@@ -618,7 +627,6 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
   };
   OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->PerfectCircle.QuadVBO);
   OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW);
-  OpenGL->glBindBuffer(GL_ARRAY_BUFFER, 0);
  }
 }
 
@@ -627,11 +635,19 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
 {
  Platform = Memory->PlatformAPI;
  
- if (Memory->RendererCodeReloaded && OpenGL->glDebugMessageCallback)
+ if (Memory->RendererCodeReloaded)
  {
-  glEnable(GL_DEBUG_OUTPUT);
-  glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-  OpenGL->glDebugMessageCallback(OpenGLDebugCallback, 0);
+  //- fix error handling function pointer
+  if (OpenGL->glDebugMessageCallback)
+  {
+   glEnable(GL_DEBUG_OUTPUT);
+   glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+   OpenGL->glDebugMessageCallback(OpenGLDebugCallback, 0);
+  }
+  
+  //- recompile shaders
+  OpenGL->glDeleteProgram(OpenGL->PerfectCircle.Program.ProgramHandle);
+  OpenGL->PerfectCircle.Program = CompilePerfectCircleProgram(OpenGL);
  }
  
  render_frame *RenderFrame = &OpenGL->RenderFrame;

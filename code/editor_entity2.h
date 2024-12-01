@@ -178,11 +178,11 @@ struct curve
  curve_degree_lowering_state DegreeLowering;
 };
 
-struct texture_index;
+struct renderer_index;
 struct image
 {
  v2 Dim;
- texture_index *TextureIndex;
+ renderer_index *TextureIndex;
 };
 
 enum entity_type

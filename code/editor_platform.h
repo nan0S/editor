@@ -151,6 +151,7 @@ struct editor_memory
  struct editor *Editor;
  
  u32 MaxTextureCount;
+ u32 MaxBufferCount;
  struct renderer_transfer_queue *RendererQueue;
  
  b32 EditorCodeReloaded;

@@ -103,10 +103,10 @@ MovePointAlongCurve(curve *Curve, v2 *TranslateInOut, f32 *PointFractionInOut, b
  *PointFractionInOut = Fraction;
 }
 
-internal texture_index *
+internal renderer_index *
 AllocateTextureIndex(editor_assets *Assets)
 {
- texture_index *Result = Assets->FirstFreeTextureIndex;
+ renderer_index *Result = Assets->FirstFreeTextureIndex;
  if (Result)
  {
   Assets->FirstFreeTextureIndex = Result->Next;
@@ -115,7 +115,7 @@ AllocateTextureIndex(editor_assets *Assets)
 }
 
 internal void
-DeallocateTextureIndex(editor_assets *Assets, texture_index *Index)
+DeallocateTextureIndex(editor_assets *Assets, renderer_index *Index)
 {
  if (Index)
  {
@@ -2145,7 +2145,7 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
    renderer_transfer_op *TextureOp = PushTextureTransfer(Assets->RendererQueue, RequestSize);
    if (TextureOp)
    {
-    texture_index *TextureIndex = AllocateTextureIndex(Assets);
+    renderer_index *TextureIndex = AllocateTextureIndex(Assets);
     if (TextureIndex)
     {
      MemoryCopy(TextureOp->Pixels, LoadedImage.Pixels, RequestSize);
@@ -2266,10 +2266,20 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
        Index < TextureCount;
        ++Index)
   {
-   texture_index *TextureIndex = PushStruct(Memory->PermamentArena, texture_index);
-   TextureIndex->Index = TextureCount - 1 - Index;
+   renderer_index *TextureIndex = PushStruct(Memory->PermamentArena, renderer_index);
+   TextureIndex->Index = TextureCount-1 - Index;
    TextureIndex->Next = Assets->FirstFreeTextureIndex;
    Assets->FirstFreeTextureIndex = TextureIndex;
+  }
+  u32 BufferCount = Memory->MaxBufferCount;
+  for (u32 Index = 0;
+       Index < BufferCount;
+       ++Index)
+  {
+   renderer_index *BufferIndex = PushStruct(Memory->PermamentArena, renderer_index);
+   BufferIndex->Index = BufferCount-1 - Index;
+   BufferIndex->Next = Assets->FirstFreeBufferIndex;
+   Assets->FirstFreeBufferIndex = BufferIndex;
   }
   Assets->RendererQueue = Memory->RendererQueue;
  }
@@ -2778,11 +2788,6 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
       {
        Entity->Scale = V2(1.0f, 1.0f);
       }
-      
-#if 0
-      local b32 Enabled = false;
-      UI_CheckboxF(&Enabled, "hello hot reloaad");
-#endif
       
       {
        UI_PushLabelF("DragMe");

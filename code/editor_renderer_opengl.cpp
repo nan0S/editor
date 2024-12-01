@@ -649,6 +649,15 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
   }
  }
  
+ //- allocate buffer indices
+ {
+  u32 BufferCount = Memory->Limits.MaxBufferCount;
+  GLuint *Buffers = PushArray(Arena, BufferCount, GLuint);
+  OpenGL->glGenBuffers(Cast(GLsizei)BufferCount, Buffers);
+  OpenGL->MaxBufferCount = BufferCount;
+  OpenGL->Buffers = Buffers;
+ }
+ 
  //- compile and allocate sample program resources
  OpenGL->Sample.Program = CompileSampleProgram(OpenGL);
  OpenGL->glGenBuffers(1, &OpenGL->Sample.VertexBuffer);

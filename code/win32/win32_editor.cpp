@@ -437,14 +437,13 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
     {
      HDROP DropHandle = Cast(HDROP)wParam;
      
-     // NOTE(hbr): 0xFFFFFFFF queries file count
-     UINT FileCount = DragQueryFileA(DropHandle, 0xFFFFFFFF, 0, 0);
-     
      POINT CursorP;
      BOOL ClientAreaOfWindow = DragQueryPoint(DropHandle, &CursorP);
      v2u WindowDim = Win32GetWindowDim(Window);
      Event->ClipSpaceMouseP = Win32ScreenToClip(CursorP.x, CursorP.y, WindowDim);
      
+     // NOTE(hbr): 0xFFFFFFFF queries file count
+     UINT FileCount = DragQueryFileA(DropHandle, 0xFFFFFFFF, 0, 0);
      string *Files = PushArray(InputArena, FileCount, string);
      for (UINT FileIndex = 0;
           FileIndex < FileCount;
@@ -555,7 +554,9 @@ WinMain(HINSTANCE Instance,
     RendererMemory.PlatformAPI = Platform;
     
     platform_renderer_limits *Limits = &RendererMemory.Limits;
+    // TODO(hbr): Revise those limits
     Limits->MaxTextureCount = 256;
+    Limits->MaxBufferCount = 1024;
     
     renderer_transfer_queue *Queue = &RendererMemory.RendererQueue;
     Queue->TransferMemorySize = Megabytes(100);

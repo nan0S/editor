@@ -361,16 +361,17 @@ struct editor_middle_click_state
  v2 ClipSpaceLastMouseP;
 };
 
-struct texture_index
+struct renderer_index
 {
- texture_index *Next;
+ renderer_index *Next;
  u32 Index;
 };
 
 struct editor_assets
 {
  renderer_transfer_queue *RendererQueue;
- texture_index *FirstFreeTextureIndex;
+ renderer_index *FirstFreeTextureIndex;
+ renderer_index *FirstFreeBufferIndex;
 };
 
 struct editor

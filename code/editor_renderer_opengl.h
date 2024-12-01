@@ -86,6 +86,9 @@ struct opengl
  u32 MaxTextureCount;
  GLuint *Textures;
  
+ u32 MaxBufferCount;
+ GLuint *Buffers;
+ 
  HDC WindowDC;
  
 #define OpenGLFunction(Name) func_##Name *Name

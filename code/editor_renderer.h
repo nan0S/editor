@@ -7,6 +7,7 @@ enum render_primitive_type
  Primitive_TriangleStrip,
 };
 
+struct renderer_index;
 struct vertex_array
 {
  u32 VertexCount;
@@ -118,6 +119,11 @@ struct renderer_transfer_op
    u32 Height;
    char *Pixels;
   };
+  struct {
+   u32 BufferIndex;
+   void *Buffer;
+   u64 BufferSize;
+  };
  };
 };
 
@@ -134,6 +140,7 @@ struct renderer_transfer_queue
 struct platform_renderer_limits
 {
  u32 MaxTextureCount;
+ u32 MaxBufferCount;
 };
 
 struct renderer_header

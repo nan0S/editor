@@ -21,15 +21,15 @@ typedef void WINAPI func_glDisableVertexAttribArray(GLuint index);
 typedef void WINAPI func_glVertexAttribPointer(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const void *pointer);
 typedef void WINAPI func_glVertexAttribDivisor(GLuint index, GLuint divisor);
 
-typedef void WINAPI func_glActiveTexture(GLenum texture);
-typedef void WINAPI func_glGenerateMipmap(GLenum texture);
-
 typedef void WINAPI func_glGenBuffers(GLsizei n, GLuint *buffers);
 typedef void WINAPI func_glBindBuffer(GLenum target, GLuint buffer);
 typedef void WINAPI func_glBufferData(GLenum target, GLsizeiptr size, const void *data, GLenum usage);
 typedef void WINAPI func_glDrawBuffers(GLsizei n, const GLenum *bufs);
 typedef void WINAPI func_glDrawArrays(GLenum mode, GLint first, GLsizei count);
 typedef void WINAPI func_glDrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsizei instancecount);
+
+typedef void WINAPI func_glActiveTexture(GLenum texture);
+typedef void WINAPI func_glGenerateMipmap(GLenum texture);
 
 typedef GLuint WINAPI func_glCreateProgram(void);
 typedef GLuint WINAPI func_glCreateShader(GLenum type);
@@ -44,7 +44,6 @@ typedef void WINAPI func_glValidateProgram(GLuint program);
 typedef void WINAPI func_glGetProgramiv(GLuint program, GLenum pname, GLint *params);
 typedef void WINAPI func_glDeleteProgram (GLuint program);
 typedef void WINAPI func_glDeleteShader (GLuint shader);
-
 typedef GLint WINAPI func_glGetUniformLocation(GLuint program, const GLchar *name);
 typedef void WINAPI func_glUniform1i(GLint location, GLint v0);
 typedef void WINAPI func_glUniform1f(GLint location, GLfloat v0);

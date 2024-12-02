@@ -1,7 +1,11 @@
 #define GL_NUM_EXTENSIONS                 0x821D
 
-#define GL_MAX_COLOR_ATTACHMENTS          0x8CDF
+#define GL_MAX_COLOR_ATTACHMENTS            0x8CDF
 #define GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS 0x8B4D
+#define GL_MAX_TEXTURE_IMAGE_UNITS          0x8872
+#define GL_MAX_SAMPLES                    0x8D57
+#define GL_MAX_COLOR_TEXTURE_SAMPLES      0x910E
+#define GL_MAX_DEPTH_TEXTURE_SAMPLES      0x910F
 
 #define GL_TEXTURE_3D                     0x806F
 
@@ -155,13 +159,17 @@
 #define GL_SAMPLE_COVERAGE_VALUE          0x80AA
 #define GL_SAMPLE_COVERAGE_INVERT         0x80AB
 #define GL_TEXTURE_2D_MULTISAMPLE         0x9100
-#define GL_MAX_SAMPLES                    0x8D57
-#define GL_MAX_COLOR_TEXTURE_SAMPLES      0x910E
-#define GL_MAX_DEPTH_TEXTURE_SAMPLES      0x910F
 
 #define GL_INVALID_FRAMEBUFFER_OPERATION  0x0506
 
+// TODO(hbr): restore
 #define GL_CALL(Expr) Expr; OpenGLCheckErrors()
+//#define GL_CALL(Expr) Expr
+
+#define GLFloatAttribPointerAndDivisor(OpenGL, Id, Type, Member, Divisor) \
+GL_CALL(OpenGL->glVertexAttribPointer(Id, SizeOf(MemberOf(Type, Member))/SizeOf(f32), GL_FLOAT, GL_FALSE, SizeOf(Type), Cast(void *)OffsetOf(Type, Member))); \
+GL_CALL(OpenGL->glVertexAttribDivisor(Id, Divisor))
+
 internal void
 OpenGLCheckErrors(void)
 {
@@ -231,7 +239,7 @@ internal GLuint
 OpenGLCreateProgram(opengl *OpenGL, char const *VertexCode, char const *FragmentCode)
 {
  char const *ShaderCodeHeader = R"FOO(
- #version 330
+ #version 440
  
 #define i32 int
 #define u32 uint
@@ -302,41 +310,6 @@ OpenGLCreateProgram(opengl *OpenGL, char const *VertexCode, char const *Fragment
  return ProgramID;
 }
 
-internal basic_program
-CompileBasicProgram(opengl *OpenGL)
-{
- basic_program Result = {};
- 
- char const *VertexShader = R"FOO(
-in v2 VertP;
-in v4 VertColor;
-
-out v4 FragColor;
-
-void main(void) {
-gl_Position = v4(VertP, 0, 1);
-FragColor = VertColor;
-}
-)FOO";
- 
- char const *FragmentShader = R"FOO(
-  in v4 FragColor;
-
-out v4 OutColor;
- 
- void main(void) {
-OutColor = FragColor;
- }
- )FOO";
- 
- GLuint ProgramHandle = OpenGLCreateProgram(OpenGL, VertexShader, FragmentShader);
- Result.ProgramHandle = ProgramHandle;
- Result.VertP_AttrLoc = OpenGL->glGetAttribLocation(ProgramHandle, "VertP");
- Result.VertColor_AttrLoc = OpenGL->glGetAttribLocation(ProgramHandle, "VertColor");
- 
- return Result;
-}
-
 internal GLuint
 CompileProgramCommon(opengl *OpenGL,
                      char const *VertexCode, char const *FragmentCode,
@@ -352,7 +325,8 @@ CompileProgramCommon(opengl *OpenGL,
   char const *AttributeName = AttributeNames[AttrIndex];
   GLuint Attr = OpenGL->glGetAttribLocation(ProgramHandle, AttributeName);
   Attributes[AttrIndex] = Attr;
-  Assert(Attr != -1);
+  // TODO(hbr): restore
+  // Assert(Attr != -1);
  }
  
  for (u32 UniformIndex = 0;
@@ -362,7 +336,8 @@ CompileProgramCommon(opengl *OpenGL,
   char const *UniformName = UniformNames[UniformIndex];
   GLuint Uniform = OpenGL->glGetUniformLocation(ProgramHandle, UniformName);
   Uniforms[UniformIndex] = Uniform;
-  Assert(Uniform != -1);
+  // TODO(hbr): restore
+  // Assert(Uniform != -1);
  }
  
  return ProgramHandle;
@@ -419,50 +394,6 @@ OutColor = FragColor;
  return Result;
 }
 
-internal sample_program
-CompileSampleProgram(opengl *OpenGL)
-{
- sample_program Result = {};
- 
- char const *VertexShader = R"FOO(
-in v2 VertP;
-in v2 VertUV;
-
-out v2 FragUV;
-
-uniform mat4 Transform;
-
-void main(void) {
-gl_Position = Transform * v4(VertP, 0, 1);
-FragUV = VertUV;
-}
-
-)FOO";
- 
- char const *FragmentShader = R"FOO(
-in v2 FragUV;
-out v4 FragColor;
-
-uniform v4 Color;
-uniform sampler2D Sampler;
-
-void main(void) {
-//FragColor = texture(Sampler, FragUV);
-FragColor = Color;
-}
-
-)FOO";
- 
- GLuint ProgramHandle = OpenGLCreateProgram(OpenGL, VertexShader, FragmentShader);
- Result.ProgramHandle = ProgramHandle;
- Result.VertP_AttrLoc = OpenGL->glGetAttribLocation(ProgramHandle, "VertP");
- Result.VertUV_AttrLoc = OpenGL->glGetAttribLocation(ProgramHandle, "VertUV");
- Result.Transform_UniformLoc = OpenGL->glGetUniformLocation(ProgramHandle, "Transform");
- Result.Color_UniformLoc = OpenGL->glGetUniformLocation(ProgramHandle, "Color");
- 
- return Result;
-}
-
 internal void
 UseProgramBegin(opengl *OpenGL, perfect_circle_program *Prog, mat3 Proj)
 {
@@ -492,14 +423,9 @@ UseProgramEnd(opengl *OpenGL, perfect_circle_program *Prog)
 }
 
 internal void
-UseProgramBegin(opengl *OpenGL, line_program *Prog,
-                f32 ZOffset, v4 Color, mat3 Transform)
+UseProgramBegin(opengl *OpenGL, line_program *Prog)
 {
  GL_CALL(OpenGL->glUseProgram(Prog->ProgramHandle));
- 
- GL_CALL(OpenGL->glUniform1f(Prog->Uniforms.Z_UniformLoc, ZOffset));
- GL_CALL(OpenGL->glUniform4fv(Prog->Uniforms.Color_UniformLoc, 1, Cast(f32 *)Color.E));
- GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Transform_UniformLoc, 1, GL_TRUE, Cast(f32 *)Transform.M));
  
  for (u32 AttrLocIndex = 0;
       AttrLocIndex < ArrayCount(Prog->Attributes.All);
@@ -518,7 +444,7 @@ UseProgramEnd(opengl *OpenGL, line_program *Prog)
       ++AttrLocIndex)
  {
   GLuint Attr = Prog->Attributes.All[AttrLocIndex];
-  GL_CALL(OpenGL->glDisableVertexAttribArray(Attr));
+  (OpenGL->glDisableVertexAttribArray(Attr));
  }
  GL_CALL(OpenGL->glUseProgram(0));
 }
@@ -540,6 +466,34 @@ UseProgramBegin(opengl *OpenGL, image_program *Prog, mat3 Proj)
 
 internal void
 UseProgramEnd(opengl *OpenGL, image_program *Prog)
+{
+ for (u32 AttrLocIndex = 0;
+      AttrLocIndex < ArrayCount(Prog->Attributes.All);
+      ++AttrLocIndex)
+ {
+  GLuint Attr = Prog->Attributes.All[AttrLocIndex];
+  GL_CALL(OpenGL->glDisableVertexAttribArray(Attr));
+ }
+ GL_CALL(OpenGL->glUseProgram(0));
+}
+
+internal void
+UseProgramBegin(opengl *OpenGL, vertex_program *Prog, mat3 Proj)
+{
+ GL_CALL(OpenGL->glUseProgram(Prog->ProgramHandle));
+ GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Projection_UniformLoc,
+                                    1, GL_TRUE, Cast(f32 *)Proj.M));
+ for (u32 AttrLocIndex = 0;
+      AttrLocIndex < ArrayCount(Prog->Attributes.All);
+      ++AttrLocIndex)
+ {
+  GLuint Attr = Prog->Attributes.All[AttrLocIndex];
+  GL_CALL(OpenGL->glEnableVertexAttribArray(Attr));
+ }
+}
+
+internal void
+UseProgramEnd(opengl *OpenGL, vertex_program *Prog)
 {
  for (u32 AttrLocIndex = 0;
       AttrLocIndex < ArrayCount(Prog->Attributes.All);
@@ -653,42 +607,38 @@ internal image_program
 CompileImageProgram(opengl *OpenGL)
 {
  char const *VertexShader = R"FOO(
-in v4 VertPUV;
+in v2 VertP;
+in v2 VertUV;
 
-out v2 FragP;
-out v2 FragUV;
+  out v2 FragUV;
 
 uniform f32 Z;
 uniform mat3 Model;
 uniform mat3 Projection;
 
 void main(void) {
-v2 VertP = VertPUV.xy;
-v2 VertUV = VertPUV.zw;
 v3 P = Projection * Model * v3(VertP, 1);
 gl_Position = V4(P.xy, Z, P.z);
-FragP = P.xy;
 FragUV = VertUV;
 }
 )FOO";
  
  char const *FragmentShader = R"FOO(
-in v2 FragP;
-in v2 FragUV;
+  in v2 FragUV;
 
 out v4 OutColor;
 
 uniform sampler2D Sampler;
 
 void main(void) {
-//OutColor = V4(FragUV.x, FragP.x, 0, 1);
 OutColor = texture(Sampler, FragUV);
 }
 )FOO";
  
  char const *AttributeNames[] =
  {
-  "VertPUV",
+  "VertP",
+  "VertUV",
  };
  char const *UniformNames[] =
  {
@@ -700,6 +650,57 @@ OutColor = texture(Sampler, FragUV);
  StaticAssert(ArrayCount(UniformNames) == ArrayCount(MemberOf(image_program, Uniforms.All)), AllUniformNamesDefined);
  
  image_program Result = {};
+ Result.ProgramHandle =
+  CompileProgramCommon(OpenGL, VertexShader, FragmentShader,
+                       Result.Attributes.All, ArrayCount(Result.Attributes.All), AttributeNames,
+                       Result.Uniforms.All, ArrayCount(Result.Uniforms.All), UniformNames);
+ 
+ return Result;
+}
+
+internal vertex_program
+CompileVertexProgram(opengl *OpenGL)
+{
+ char const *VertexShader = R"FOO(
+in v2 VertP;
+in v4 VertColor;
+in f32 VertZ;
+
+out v4 FragColor;
+
+uniform mat3 Projection;
+
+void main(void) {
+v3 P = Projection * V3(VertP, 1);
+gl_Position = V4(P.xy, VertZ, P.z);
+FragColor = VertColor;
+}
+)FOO";
+ 
+ char const *FragmentShader = R"FOO(
+ in v4 FragColor;
+
+out v4 OutColor;
+
+void main(void) {
+OutColor = FragColor;
+}
+)FOO";
+ 
+ char const *AttributeNames[] =
+ {
+  "VertP",
+  "VertZ",
+  "VertColor",
+ };
+ char const *UniformNames[] =
+ {
+  "Projection",
+ };
+ StaticAssert(ArrayCount(AttributeNames) == ArrayCount(MemberOf(vertex_program, Attributes.All)), AllAttributeNamesDefined);
+ StaticAssert(ArrayCount(UniformNames) == ArrayCount(MemberOf(vertex_program, Uniforms.All)), AllUniformNamesDefined);
+ 
+ vertex_program Result = {};
  Result.ProgramHandle =
   CompileProgramCommon(OpenGL, VertexShader, FragmentShader,
                        Result.Attributes.All, ArrayCount(Result.Attributes.All), AttributeNames,
@@ -745,16 +746,13 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
   OpenGL->Buffers = Buffers;
  }
  
- //- compile and allocate sample program resources
- OpenGL->Sample.Program = CompileSampleProgram(OpenGL);
- OpenGL->glGenBuffers(1, &OpenGL->Sample.VertexBuffer);
- 
  //- allocate buffers
  {
   OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.QuadVBO);
   OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.CircleVBO);
   OpenGL->glGenBuffers(1, &OpenGL->Line.VertexBuffer);
   OpenGL->glGenBuffers(1, &OpenGL->Image.VertexBuffer);
+  OpenGL->glGenBuffers(1, &OpenGL->Vertex.VertexBuffer);
   
   {
    v2 Vertices[] =
@@ -769,17 +767,19 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
   }
   
   {
-   textured_vertex Vertices[] =
+   image_vertex Vertices[] =
    {
-    { V4(-1, -1, 0, 0) },
-    { V4( 1, -1, 1, 0) },
-    { V4( 1,  1, 1, 1) },
-    { V4(-1,  1, 0, 1) },
+    { V2(-1, -1), V2(0, 0) },
+    { V2( 1, -1), V2(1, 0) },
+    { V2( 1,  1), V2(1, 1) },
+    { V2(-1,  1), V2(0, 1) },
    };
    OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Image.VertexBuffer);
    OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW);
   }
  }
+ 
+ glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &OpenGL->MaxTextureSlots);
 }
 
 internal render_frame *
@@ -808,18 +808,24 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
   
   OpenGL->glDeleteProgram(OpenGL->Image.Program.ProgramHandle);
   OpenGL->Image.Program = CompileImageProgram(OpenGL);
+  
+  OpenGL->glDeleteProgram(OpenGL->Vertex.Program.ProgramHandle);
+  OpenGL->Vertex.Program = CompileVertexProgram(OpenGL);
  }
  
  render_frame *RenderFrame = &OpenGL->RenderFrame;
- RenderFrame->CommandCount = 0;
- RenderFrame->Commands = Memory->CommandBuffer;
- RenderFrame->MaxCommandCount = Memory->MaxCommandCount;
+ RenderFrame->LineCount = 0;
+ RenderFrame->Lines = Memory->LineBuffer;
+ RenderFrame->MaxLineCount = Memory->MaxLineCount;
  RenderFrame->CircleCount = 0;
  RenderFrame->Circles = Memory->CircleBuffer;
  RenderFrame->MaxCircleCount = Memory->MaxCircleCount;
  RenderFrame->ImageCount = 0;
  RenderFrame->Images = Memory->ImageBuffer;
  RenderFrame->MaxImageCount = Memory->MaxImageCount;
+ RenderFrame->VertexCount = 0;
+ RenderFrame->Vertices = Memory->VertexBuffer;
+ RenderFrame->MaxVertexCount = Memory->MaxVertexCount;
  RenderFrame->WindowDim = WindowDim;
  
  Memory->ImGuiBindings.NewFrame();
@@ -827,30 +833,12 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
  return RenderFrame;
 }
 
-internal int RenderCommandCmp(render_command *A, render_command *B) { return Cmp(A->ZOffset, B->ZOffset); }
-
-internal mat4
-M3x3ToM4x4OpenGL(mat3 M)
-{
- // NOTE(hbr): OpenGL matrices are column-major
- M = Transpose3x3(M);
- mat4 R = {
-  { {M.M[0][0], M.M[0][1], 0, M.M[0][2]},
-   {M.M[1][0], M.M[1][1], 0, M.M[1][2]},
-   {        0,         0, 1,         0},
-   {M.M[2][0], M.M[2][1], 0, M.M[2][2]}}
- };
- 
- return R;
-}
-
 internal void
 OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
 {
  renderer_transfer_queue *Queue = &Memory->RendererQueue;
  GLuint *Textures = OpenGL->Textures;
- mat4 Projection = M3x3ToM4x4OpenGL(Frame->Proj);
- mat3 Proj3x3 = Frame->Proj;
+ mat3 Projection = Frame->Proj;
  
  v4 Clear = Frame->ClearColor;
  GL_CALL(glClearColor(Clear.R, Clear.G, Clear.B, Clear.A));
@@ -891,109 +879,90 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
  Queue->OpCount = 0;
  Queue->TransferMemoryUsed = 0;
  
- //- draw
- QuickSort(Frame->Commands, Frame->CommandCount, render_command, RenderCommandCmp);
- for (u32 CommandIndex = 0;
-      CommandIndex < Frame->CommandCount;
-      ++CommandIndex)
+ //- draw lines
  {
-  render_command *Command = Frame->Commands + CommandIndex;
+  line_program *Prog = &OpenGL->Line.Program;
+  UseProgramBegin(OpenGL, Prog);
   
-  GL_CALL(glMatrixMode(GL_PROJECTION));
-  GL_CALL(glLoadMatrixf(Cast(f32 *)Projection.M));
-  
-  mat4 Model = M3x3ToM4x4OpenGL(Command->ModelXForm);
-  GL_CALL(glMatrixMode(GL_MODELVIEW));
-  GL_CALL(glLoadMatrixf(Cast(f32 *)Model.M));
-  
-  switch (Command->Type)
+  for (u32 LineIndex = 0;
+       LineIndex < Frame->LineCount;
+       ++LineIndex)
   {
-   case RenderCommand_VertexArray: {
-    render_command_vertex_array *Array = &Command->VertexArray;
-    
-    mat3 Transform = (Proj3x3 * Command->ModelXForm);
-    line_program *Prog = &OpenGL->Line.Program;
-    UseProgramBegin(OpenGL, Prog, Command->ZOffset, Array->Color, Transform);
-    
-    int glPrimitive = 0;
-    switch (Array->Primitive)
-    {
-     case Primitive_TriangleStrip: {glPrimitive = GL_TRIANGLE_STRIP;}break;
-     case Primitive_Triangles:     {glPrimitive = GL_TRIANGLES;}break;
-    }
-    
-    GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Line.VertexBuffer));
-    GL_CALL(OpenGL->glBufferData(GL_ARRAY_BUFFER,
-                                 Array->VertexCount * SizeOf(Array->Vertices[0]),
-                                 Array->Vertices,
-                                 GL_DYNAMIC_DRAW));
-    GL_CALL(OpenGL->glVertexAttribPointer(Prog->Attributes.VertP_AttrLoc,
-                                          2, GL_FLOAT,
-                                          GL_FALSE, SizeOf(v2), 0));
-    
-    GL_CALL(OpenGL->glDrawArrays(glPrimitive, 0, Array->VertexCount));
-    
-    GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, 0));
-    
-    UseProgramEnd(OpenGL, Prog);
-   }break;
+   render_line *Line = Frame->Lines + LineIndex;
+   mat3 Transform = Projection * Line->Model;
    
-   case RenderCommand_Rectangle: {
-    render_command_rectangle *Rect = &Command->Rectangle;
-    
-    glBegin(GL_QUADS);
-    glColor4fv(Rect->Color.E);
-    glVertex2f(-1, -1);
-    glVertex2f(1, -1);
-    glVertex2f(1, 1);
-    glVertex2f(-1, 1);
-    glEnd();
-   }break;
+   GL_CALL(OpenGL->glUniform1f(Prog->Uniforms.Z_UniformLoc, Line->ZOffset));
+   GL_CALL(OpenGL->glUniform4fv(Prog->Uniforms.Color_UniformLoc, 1, Cast(f32 *)Line->Color.E));
+   GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Transform_UniformLoc, 1, GL_TRUE, Cast(f32 *)Transform.M));
    
-   case RenderCommand_Triangle: {
-    render_command_triangle *Tri = &Command->Triangle;
-    
-    glBegin(GL_TRIANGLES);
-    glColor4fv(Tri->Color.E);
-    glVertex2fv(Tri->P0.E);
-    glVertex2fv(Tri->P1.E);
-    glVertex2fv(Tri->P2.E);
-    glEnd();
-   }break;
+   GLint glPrimitive = 0;
+   switch (Line->Primitive)
+   {
+    case Primitive_TriangleStrip: {glPrimitive = GL_TRIANGLE_STRIP;}break;
+    case Primitive_Triangles:     {glPrimitive = GL_TRIANGLES;}break;
+   }
    
-   case RenderCommand_Image: {
-#if 0
-    render_command_image *Image = &Command->Image;
-    
-    glBindTexture(GL_TEXTURE_2D, Textures[Image->TextureIndex]);
-    
-    glBegin(GL_QUADS);
-    glColor4f(1, 1, 1, 1);
-    
-    glTexCoord2f(0, 0);
-    glVertex2f(-1, -1);
-    
-    glTexCoord2f(1, 0);
-    glVertex2f(1, -1);
-    
-    glTexCoord2f(1, 1);
-    glVertex2f(1, 1);
-    
-    glTexCoord2f(0, 1);
-    glVertex2f(-1, 1);
-    
-    glEnd();
-    
-    glBindTexture(GL_TEXTURE_2D, 0);
-#endif
-   }break;
+   GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Line.VertexBuffer));
+   GL_CALL(OpenGL->glBufferData(GL_ARRAY_BUFFER,
+                                Line->VertexCount * SizeOf(Line->Vertices[0]),
+                                Line->Vertices,
+                                GL_DYNAMIC_DRAW));
+   
+   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertP_AttrLoc, v2, E, 0);
+   
+   GL_CALL(OpenGL->glDrawArrays(glPrimitive, 0, Line->VertexCount));
   }
+  
+  UseProgramEnd(OpenGL, Prog);
  }
  
  //- draw images
  {
   image_program *Prog = &OpenGL->Image.Program;
-  UseProgramBegin(OpenGL, Prog, Proj3x3);
+  UseProgramBegin(OpenGL, Prog, Projection);
+  
+#if 0  
+  GL_CALL(OpenGL->glUniform1f(Prog->Uniforms.Z_UniformLoc, Image->Z));
+  GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Model_UniformLoc, 1, GL_TRUE, Cast(f32 *)Image->Model.M));
+  
+  GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Image.VertexBuffer));
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertP_AttrLoc, image_vertex, P, 0);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertUV_AttrLoc, image_vertex, UV, 0);
+  
+  GL_CALL(glDrawArrays(GL_QUADS, 0, 4));
+  
+  u32 ImagesLeft = Frame->ImageCount;
+  render_image *ImageAt = Frame->Images;
+  while (ImageLeft)
+  {
+   u32 ImageCount = Min(ImagesLeft, OpenGL->MaxTextureSlots);
+   for (u32 SlotIndex = 0;
+        SlotIndex < ImageCount;
+        ++SlotIndex)
+   {
+    render_image *Image = ImageAt + SlotIndex;
+    GLuint TextureID = Textures[Image->TextureIndex];
+    
+    GL_CALL(glActiveTexture(GL_TEXTURE0 + SlotIndex));
+    GL_CALL(glBindTexture(GL_TEXTURE, TextureID));
+    
+    char SamplerName[128];
+    Fmt(SamplerName, ArrayCount(Buffer), "Samplers[%lu]", SlotIndex);
+    
+    GLuint SamplerLoc = glGetUniformLocation(Prog->ProgramHandle, SamplerName);
+    GL_CALL(glUniform1i(SamplerLoc, SlotIndex));
+   }
+   
+   
+   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertP_AttrLoc, image_vertex, P, 0);
+   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertUV_AttrLoc, image_vertex, UV, 0);
+   
+   GL_CALL(OpenGL->glDrawArraysInstanced(GL_QUADS, 0, 4, ImageCount));
+   
+   Images += ImageCount;
+   ImageLeft -= ImageCount;
+  }
+#endif
   
   for (u32 ImageIndex = 0;
        ImageIndex < Frame->ImageCount;
@@ -1001,70 +970,38 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
   {
    render_image *Image = Frame->Images + ImageIndex;
    
-   
-   {
-    textured_vertex Vertices[] =
-    {
-     { V4(-1, -1, 0, 0) },
-     { V4( 1, -1, 1, 0) },
-     { V4( 1,  1, 1, 1) },
-     { V4(-1,  1, 0, 1) },
-    };
-    OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Image.VertexBuffer);
-    OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW);
-   }
-   
-   GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Image.VertexBuffer));
-   GL_CALL(OpenGL->glVertexAttribPointer(Prog->Attributes.VertPUV_AttrLoc,
-                                         4, GL_FLOAT,
-                                         GL_FALSE, SizeOf(textured_vertex),
-                                         Cast(void *)OffsetOf(textured_vertex, PUV)));
-#if 0
-   GL_CALL(OpenGL->glVertexAttribPointer(Prog->Attributes.VertUV_AttrLoc,
-                                         2, GL_FLOAT,
-                                         GL_FALSE, SizeOf(textured_vertex),
-                                         Cast(void *)OffsetOf(textured_vertex, UV)));
-#endif
+   GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[Image->TextureIndex]));
    
    GL_CALL(OpenGL->glUniform1f(Prog->Uniforms.Z_UniformLoc, Image->Z));
    GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Model_UniformLoc, 1, GL_TRUE, Cast(f32 *)Image->Model.M));
    
-   GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[Image->TextureIndex]));
+   GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Image.VertexBuffer));
+   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertP_AttrLoc, image_vertex, P, 0);
+   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertUV_AttrLoc, image_vertex, UV, 0);
+   
    GL_CALL(glDrawArrays(GL_QUADS, 0, 4));
   }
   
-#if 0  
-  {
-   GLuint Texture;
-   glGenTextures(1, &Texture);
-   
-   glBindTexture(GL_TEXTURE_2D, Texture);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-   
-   u32 Width = 1;
-   u32 Height = 1;
-   v4 Pixel = V4(1, 1, 1, 1);
-   GL_CALL(glTexImage2D(GL_TEXTURE_2D,
-                        0,
-                        GL_RGBA,
-                        Width,
-                        Height,
-                        0,
-                        GL_RGBA,
-                        GL_UNSIGNED_BYTE,
-                        Cast(char *)&Pixel));
-   
-   GL_CALL(OpenGL->glUniform1f(Prog->Uniforms.Z_UniformLoc, 0.0f));
-   mat3 M = Identity3x3();
-   GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Model_UniformLoc, 1, GL_TRUE, Cast(f32 *)M.M));
-   glDrawArrays(GL_QUADS, 0, 4);
-  }
-#endif
+  UseProgramEnd(OpenGL, Prog);
+ }
+ 
+ //- draw vertices
+ {
+  vertex_program *Prog = &OpenGL->Vertex.Program;
+  UseProgramBegin(OpenGL, Prog, Projection);
   
-  GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
+  GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Vertex.VertexBuffer));
+  GL_CALL(OpenGL->glBufferData(GL_ARRAY_BUFFER,
+                               Frame->VertexCount * SizeOf(render_vertex),
+                               Frame->Vertices,
+                               GL_DYNAMIC_DRAW));
+  
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertP_AttrLoc, render_vertex, P, 0);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertZ_AttrLoc, render_vertex, Z, 0);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertColor_AttrLoc, render_vertex, Color, 0);
+  
+  GL_CALL(OpenGL->glDrawArrays(GL_TRIANGLES, 0, Frame->VertexCount));
+  
   UseProgramEnd(OpenGL, Prog);
  }
  
@@ -1074,10 +1011,10 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
   GLuint CircleVBO = OpenGL->PerfectCircle.CircleVBO;
   
   perfect_circle_program *Prog = &OpenGL->PerfectCircle.Program;
-  UseProgramBegin(OpenGL, Prog, Proj3x3);
+  UseProgramBegin(OpenGL, Prog, Projection);
   
   GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, QuadVBO));
-  GL_CALL(OpenGL->glVertexAttribPointer(Prog->Attributes.VertP_AttrLoc, 2, GL_FLOAT, GL_FALSE, SizeOf(v2), 0));
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertP_AttrLoc, v2, E, 0);
   
   GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, CircleVBO));
   GL_CALL(OpenGL->glBufferData(GL_ARRAY_BUFFER,
@@ -1085,18 +1022,13 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
                                Frame->Circles,
                                GL_DYNAMIC_DRAW));
   
-  // NOTE(hbr): macro is slightly complicated but also uninteresting
-#define OpenGLInstancedVertexAttrib(Id, Member) \
-GL_CALL(OpenGL->glVertexAttribPointer(Id, SizeOf((Cast(render_circle *)0)->Member)/SizeOf(f32), GL_FLOAT, GL_FALSE, SizeOf(render_circle), Cast(void *)OffsetOf(render_circle, Member))); \
-GL_CALL(OpenGL->glVertexAttribDivisor(Id, 1))
-  OpenGLInstancedVertexAttrib(Prog->Attributes.VertZ_AttrLoc, Z);
-  OpenGLInstancedVertexAttrib(Prog->Attributes.VertModel0_AttrLoc, Model.Rows[0]);
-  OpenGLInstancedVertexAttrib(Prog->Attributes.VertModel1_AttrLoc, Model.Rows[1]);
-  OpenGLInstancedVertexAttrib(Prog->Attributes.VertModel2_AttrLoc, Model.Rows[2]);
-  OpenGLInstancedVertexAttrib(Prog->Attributes.VertRadiusProper_AttrLoc, RadiusProper);
-  OpenGLInstancedVertexAttrib(Prog->Attributes.VertColor_AttrLoc, Color);
-  OpenGLInstancedVertexAttrib(Prog->Attributes.VertOutlineColor_AttrLoc, OutlineColor);
-#undef OpenGLInstancedVertexAttrib
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertZ_AttrLoc, render_circle, Z, 1);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel0_AttrLoc, render_circle, Model.Rows[0], 1);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel1_AttrLoc, render_circle, Model.Rows[1], 1);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel2_AttrLoc, render_circle, Model.Rows[2], 1);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertRadiusProper_AttrLoc, render_circle, RadiusProper, 1);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertColor_AttrLoc, render_circle, Color, 1);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertOutlineColor_AttrLoc, render_circle, OutlineColor, 1);
   
   GL_CALL(OpenGL->glDrawArraysInstanced(GL_QUADS, 0, 4, Frame->CircleCount));
   

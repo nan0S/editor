@@ -1,29 +1,6 @@
 #ifndef EDITOR_RENDERER_OPENGL_H
 #define EDITOR_RENDERER_OPENGL_H
 
-struct basic_program
-{
- GLuint ProgramHandle;
- 
- GLuint VertP_AttrLoc;
- GLuint VertColor_AttrLoc;
-};
-struct basic_program_vertex
-{
- v2 P;
- v4 Color;
-};
-
-struct sample_program
-{
- GLuint ProgramHandle;
- 
- GLuint VertP_AttrLoc;
- GLuint VertUV_AttrLoc;
- GLuint Transform_UniformLoc;
- GLuint Color_UniformLoc;
-};
-
 struct perfect_circle_program
 {
  GLuint ProgramHandle;
@@ -77,15 +54,21 @@ StaticAssert(SizeOf(MemberOf(line_program, Attributes)) == SizeOf(MemberOf(line_
 StaticAssert(SizeOf(MemberOf(line_program, Uniforms)) == SizeOf(MemberOf(line_program, Uniforms.All)),
              LineProgram_AllUniformsArrayLengthMatchesIndividuallyDefinedUniforms);
 
+struct image_vertex
+{
+ v2 P;
+ v2 UV;
+};
 struct image_program
 {
  GLuint ProgramHandle;
  
  union {
   struct {
-   GLuint VertPUV_AttrLoc;
+   GLuint VertP_AttrLoc;
+   GLuint VertUV_AttrLoc;
   };
-  GLuint All[1];
+  GLuint All[2];
  } Attributes;
  
  union {
@@ -98,14 +81,34 @@ struct image_program
  } Uniforms;
 };
 StaticAssert(SizeOf(MemberOf(image_program, Attributes)) == SizeOf(MemberOf(image_program, Attributes.All)),
-             TexturedProgram_AllAttributesArrayLengthMatchesIndividuallyDefinedAttributes);
+             ImageProgram_AllAttributesArrayLengthMatchesIndividuallyDefinedAttributes);
 StaticAssert(SizeOf(MemberOf(image_program, Uniforms)) == SizeOf(MemberOf(image_program, Uniforms.All)),
-             TexturedProgram_AllUniformsArrayLengthMatchesIndividuallyDefinedUniforms);
+             ImageProgram_AllUniformsArrayLengthMatchesIndividuallyDefinedUniforms);
 
-struct textured_vertex
+struct vertex_program
 {
- v4 PUV;
+ GLuint ProgramHandle;
+ 
+ union {
+  struct {
+   GLuint VertP_AttrLoc;
+   GLuint VertZ_AttrLoc;
+   GLuint VertColor_AttrLoc;
+  };
+  GLuint All[3];
+ } Attributes;
+ 
+ union {
+  struct {
+   GLuint Projection_UniformLoc;
+  };
+  GLuint All[1];
+ } Uniforms;
 };
+StaticAssert(SizeOf(MemberOf(vertex_program, Attributes)) == SizeOf(MemberOf(vertex_program, Attributes.All)),
+             VertexProgram_AllAttributesArrayLengthMatchesIndividuallyDefinedAttributes);
+StaticAssert(SizeOf(MemberOf(vertex_program, Uniforms)) == SizeOf(MemberOf(vertex_program, Uniforms.All)),
+             VertexProgram_AllUniformsArrayLengthMatchesIndividuallyDefinedUniforms);
 
 struct opengl
 {
@@ -119,7 +122,7 @@ struct opengl
  u32 MaxBufferCount;
  GLuint *Buffers;
  
- HDC WindowDC;
+ GLint MaxTextureSlots;
  
 #define OpenGLFunction(Name) func_##Name *Name
  OpenGLFunction(glGenVertexArrays);
@@ -162,16 +165,6 @@ struct opengl
 #undef OpenGLFunction
  
  struct {
-  basic_program Program;
-  GLuint VBO;
- } Basic;
- 
- struct {
-  sample_program Program;
-  GLuint VertexBuffer;
- } Sample;
- 
- struct {
   perfect_circle_program Program;
   GLuint QuadVBO;
   GLuint CircleVBO;
@@ -186,6 +179,11 @@ struct opengl
   image_program Program;
   GLuint VertexBuffer;
  } Image;
+ 
+ struct {
+  vertex_program Program;
+  GLuint VertexBuffer;
+ } Vertex;
 };
 
 #endif //EDITOR_RENDERER_OPENGL_H

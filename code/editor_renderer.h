@@ -18,52 +18,15 @@ struct vertex_array
 enum render_command_type
 {
  RenderCommand_VertexArray,
- RenderCommand_Rectangle,
- RenderCommand_Triangle,
- RenderCommand_Image,
 };
 
-struct render_command_clear
-{
- v4 Color;
-};
-
-struct render_command_vertex_array
+struct render_line
 {
  u32 VertexCount;
  v2 *Vertices;
  render_primitive_type Primitive;
  v4 Color;
-};
-
-struct render_command_rectangle
-{
- v4 Color;
-};
-
-struct render_command_triangle
-{
- v2 P0;
- v2 P1;
- v2 P2;
- v4 Color;
-};
-
-struct render_command_image
-{
- u32 TextureIndex;
-};
-
-struct render_command
-{
- render_command_type Type;
- union {
-  render_command_vertex_array VertexArray;
-  render_command_rectangle Rectangle;
-  render_command_triangle Triangle;
-  render_command_image Image;
- };
- mat3 ModelXForm;
+ mat3 Model;
  f32 ZOffset;
 };
 
@@ -83,11 +46,18 @@ struct render_image
  u32 TextureIndex;
 };
 
+struct render_vertex
+{
+ v2 P;
+ f32 Z;
+ v4 Color;
+};
+
 struct render_frame
 {
- u32 CommandCount;
- render_command *Commands;
- u32 MaxCommandCount;
+ u32 LineCount;
+ render_line *Lines;
+ u32 MaxLineCount;
  
  u32 CircleCount;
  render_circle *Circles;
@@ -96,6 +66,10 @@ struct render_frame
  u32 ImageCount;
  render_image *Images;
  u32 MaxImageCount;
+ 
+ u32 VertexCount;
+ render_vertex *Vertices;
+ u32 MaxVertexCount;
  
  v2u WindowDim;
  
@@ -169,14 +143,17 @@ struct renderer_memory
  
  platform_renderer_limits Limits;
  
- render_command *CommandBuffer;
- u32 MaxCommandCount;
+ render_line *LineBuffer;
+ u32 MaxLineCount;
  
  render_circle *CircleBuffer;
  u32 MaxCircleCount;
  
  render_image *ImageBuffer;
  u32 MaxImageCount;
+ 
+ render_vertex *VertexBuffer;
+ u32 MaxVertexCount;
  
  b32 RendererCodeReloaded;
  

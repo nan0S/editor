@@ -177,6 +177,7 @@ Bugs:
 - when i'm moving control point and go out of the win32 window, renderer curve line is crazy
 - when picking up control point, don't set it's position to the mouse position, but instead to a delta
 - ZOffset are fucked - if multiple images have the same ZOffset, make sure to check collisions in the reverse order they are renderer
+- when I open image to load with an image dialog, app then doesnt detect code recompilation and doesnt hot reload
 
 Stack:
  - add sorting to rendering - this then will allow to draw things out of order and will simplify the code a lot

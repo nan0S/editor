@@ -101,7 +101,7 @@ Win32OpenGLInit(arena *Arena, renderer_memory *Memory, HWND Window, HDC WindowDC
  //- create false context to retrieve extensions pointers
  {
   WNDCLASSA WindowClass = {};
-  { 
+  {
    WindowClass.lpfnWndProc = DefWindowProcA;
    WindowClass.hInstance = GetModuleHandle(0);
    WindowClass.lpszClassName = "Win32EditorWGLLoader";

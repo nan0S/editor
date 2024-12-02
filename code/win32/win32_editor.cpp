@@ -562,8 +562,9 @@ WinMain(HINSTANCE Instance,
     Queue->TransferMemorySize = Megabytes(100);
     Queue->TransferMemory = PushArrayNonZero(PermamentArena, Queue->TransferMemorySize, char);
     
-    RendererMemory.MaxCommandCount = 4096;
-    RendererMemory.CommandBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxCommandCount, render_command);
+    // TODO(hbr): Tweak these parameters
+    RendererMemory.MaxLineCount = 1024;
+    RendererMemory.LineBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxLineCount, render_line);
     
     // TODO(hbr): Tweak these parameters
     RendererMemory.MaxCircleCount = 4096;
@@ -572,6 +573,10 @@ WinMain(HINSTANCE Instance,
     // TODO(hbr): Tweak these parameters
     RendererMemory.MaxImageCount = Limits->MaxTextureCount;
     RendererMemory.ImageBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxImageCount, render_image);
+    
+    // TODO(hbr): Tweak these parameters
+    RendererMemory.MaxVertexCount = 8 * 1024;
+    RendererMemory.VertexBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxVertexCount, render_vertex);
    }
    
    win32_renderer_function_table RendererFunctionTable = {};
@@ -706,6 +711,7 @@ WinMain(HINSTANCE Instance,
      ScreenToClient(Window, &CursorP);
      Input.ClipSpaceMouseP = Win32ScreenToClip(CursorP.x, CursorP.y, WindowDim);
      
+#if 0
      for (u32 EventIndex = 0;
           EventIndex < Input.EventCount;
           ++EventIndex)
@@ -714,6 +720,7 @@ WinMain(HINSTANCE Instance,
       char const *Name = PlatformEventTypeNames[Event->Type];
       OS_PrintDebugF("%s\n", Name);
      }
+#endif
      
     }
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(InputHandling);}

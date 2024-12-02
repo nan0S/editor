@@ -1,16 +1,3 @@
-internal render_command *
-PushRenderCommand(render_group *Group, render_command_type Type, mat3 Model, f32 ZOffset)
-{
- render_frame *Frame = Group->Frame;
- Assert(Frame->CommandCount < Frame->MaxCommandCount);
- render_command *Result = Frame->Commands + Frame->CommandCount;
- ++Frame->CommandCount;
- Result->Type = Type;
- Result->ModelXForm = Group->ModelXForm * Model;
- Result->ZOffset = Group->ZOffset + ZOffset;
- 
- return Result;
-}
 
 internal void
 PushVertexArray(render_group *Group,
@@ -20,13 +7,17 @@ PushVertexArray(render_group *Group,
                 v4 Color,
                 f32 ZOffset)
 {
- render_command *Command = PushRenderCommand(Group, RenderCommand_VertexArray, Identity3x3(), ZOffset);
- 
- render_command_vertex_array *Array = &Command->VertexArray;
- Array->Vertices = Vertices;
- Array->VertexCount = VertexCount;
- Array->Primitive = Primitive;
- Array->Color = Color;
+ render_frame *Frame = Group->Frame;
+ if (Frame->LineCount < Frame->MaxLineCount)
+ {
+  render_line *Line = Frame->Lines + Frame->LineCount++;
+  Line->Vertices = Vertices;
+  Line->VertexCount = VertexCount;
+  Line->Primitive = Primitive;
+  Line->Color = Color;
+  Line->Model = Group->ModelXForm;
+  Line->ZOffset = ZOffset + Group->ZOffset;
+ }
 }
 
 internal void
@@ -62,11 +53,44 @@ PushRectangle(render_group *Group,
               v2 P, v2 Size, v2 Rotation,
               v4 Color, f32 ZOffset)
 {
- mat3 Model = ModelTransform(P, Rotation, 0.5f * Size);
- render_command *Command = PushRenderCommand(Group, RenderCommand_Rectangle, Model, ZOffset);
- 
- render_command_rectangle *Rectangle = &Command->Rectangle;
- Rectangle->Color = Color;
+ render_frame *Frame = Group->Frame;
+ if (Frame->VertexCount + 6 < Frame->MaxVertexCount)
+ {
+  render_vertex *V = Frame->Vertices + Frame->VertexCount;
+  
+  //mat3 Model = ModelTransform(P, Rotation, 0.5f * Size);
+  v2 HalfSize = 0.5f * Size;
+  
+  // TODO(hbr): Map those corners through matrix
+  v2 Corner00 = V2(P.X - HalfSize.X, P.Y - HalfSize.Y);
+  v2 Corner10 = V2(P.X + HalfSize.X, P.Y - HalfSize.Y);
+  v2 Corner11 = V2(P.X + HalfSize.X, P.Y + HalfSize.Y);
+  v2 Corner01 = V2(P.X - HalfSize.X, P.Y + HalfSize.Y);
+  
+  f32 Z = ZOffset + Group->ZOffset;
+  
+  V[0].P = Corner00;
+  V[0].Z = Z;
+  V[0].Color = Color;
+  V[1].P = Corner10;
+  V[1].Z = Z;
+  V[1].Color = Color;
+  V[2].P = Corner11;
+  V[2].Z = Z;
+  V[2].Color = Color;
+  
+  V[3].P = Corner00;
+  V[3].Z = Z;
+  V[3].Color = Color;
+  V[4].P = Corner11;
+  V[4].Z = Z;
+  V[4].Color = Color;
+  V[5].P = Corner01;
+  V[5].Z = Z;
+  V[5].Color = Color;
+  
+  Frame->VertexCount += 6;
+ }
 }
 
 internal void
@@ -90,33 +114,40 @@ PushTriangle(render_group *Group,
              v2 P0, v2 P1, v2 P2,
              v4 Color, f32 ZOffset)
 {
- render_command *Command = PushRenderCommand(Group, RenderCommand_Triangle, Identity3x3(), ZOffset);
- 
- render_command_triangle *Triangle = &Command->Triangle;
- Triangle->P0 = P0;
- Triangle->P1 = P1;
- Triangle->P2 = P2;
- Triangle->Color = Color;
+ render_frame *Frame = Group->Frame;
+ if (Frame->VertexCount + 3 < Frame->MaxVertexCount)
+ {
+  render_vertex *V = Frame->Vertices + Frame->VertexCount;
+  f32 Z = ZOffset + Group->ZOffset;
+  
+  V[0].P = P0;
+  V[0].Z = ZOffset;
+  V[0].Color = Color;
+  
+  V[1].P = P1; 
+  V[1].Z = ZOffset;
+  V[1].Color = Color;
+  
+  V[2].P = P2;
+  V[2].Z = ZOffset;
+  V[2].Color = Color;
+  
+  Frame->VertexCount += 3;
+ }
 }
 
 internal void
 PushImage(render_group *Group, v2 Dim, u32 TextureIndex)
 {
- mat3 Model = ModelTransform(V2(0, 0), Rotation2DZero(), Dim);
- render_command *Command = PushRenderCommand(Group, RenderCommand_Image, Model, 0.0f);
+ render_frame *Frame = Group->Frame;
+ mat3 Model = Group->ModelXForm * ModelTransform(V2(0, 0), Rotation2DZero(), Dim);
  
- render_command_image *Image = &Command->Image;
- Image->TextureIndex = TextureIndex;
- 
+ if (Frame->ImageCount < Frame->MaxImageCount)
  {
-  render_frame *Frame = Group->Frame;
-  if (Frame->ImageCount < Frame->MaxImageCount)
-  {
-   render_image *RenderImage = Frame->Images + Frame->ImageCount++;
-   RenderImage->Model = Command->ModelXForm;
-   RenderImage->TextureIndex = TextureIndex;
-   RenderImage->Z = Command->ZOffset;
-  }
+  render_image *RenderImage = Frame->Images + Frame->ImageCount++;
+  RenderImage->Model = Model;
+  RenderImage->TextureIndex = TextureIndex;
+  RenderImage->Z = Group->ZOffset;
  }
 }
 

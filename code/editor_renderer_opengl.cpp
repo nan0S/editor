@@ -163,8 +163,8 @@
 #define GL_INVALID_FRAMEBUFFER_OPERATION  0x0506
 
 // TODO(hbr): restore
-#define GL_CALL(Expr) Expr; OpenGLCheckErrors()
-//#define GL_CALL(Expr) Expr
+//#define GL_CALL(Expr) Expr; OpenGLCheckErrors()
+#define GL_CALL(Expr) Expr
 
 #define GLFloatAttribPointerAndDivisor(OpenGL, Id, Type, Member, Divisor) \
 GL_CALL(OpenGL->glVertexAttribPointer(Id, SizeOf(MemberOf(Type, Member))/SizeOf(f32), GL_FLOAT, GL_FALSE, SizeOf(Type), Cast(void *)OffsetOf(Type, Member))); \
@@ -239,7 +239,7 @@ internal GLuint
 OpenGLCreateProgram(opengl *OpenGL, char const *VertexCode, char const *FragmentCode)
 {
  char const *ShaderCodeHeader = R"FOO(
- #version 440
+ #version 330
  
 #define i32 int
 #define u32 uint
@@ -609,29 +609,46 @@ CompileImageProgram(opengl *OpenGL)
  char const *VertexShader = R"FOO(
 in v2 VertP;
 in v2 VertUV;
+in f32 VertZ;
+in mat3 VertModel;
 
+flat out i32 FragTextureIndex;
   out v2 FragUV;
 
-uniform f32 Z;
-uniform mat3 Model;
 uniform mat3 Projection;
 
 void main(void) {
-v3 P = Projection * Model * v3(VertP, 1);
-gl_Position = V4(P.xy, Z, P.z);
+v3 P = Projection * VertModel * v3(VertP, 1);
+gl_Position = V4(P.xy, VertZ, P.z);
+FragTextureIndex = gl_InstanceID;
 FragUV = VertUV;
 }
 )FOO";
  
  char const *FragmentShader = R"FOO(
+flat in i32 FragTextureIndex;
   in v2 FragUV;
 
 out v4 OutColor;
 
-uniform sampler2D Sampler;
+uniform sampler2D Sampler0;
+uniform sampler2D Sampler1;
+uniform sampler2D Sampler2;
+uniform sampler2D Sampler3;
+uniform sampler2D Sampler4;
+uniform sampler2D Sampler5;
+uniform sampler2D Sampler6;
+uniform sampler2D Sampler7;
 
 void main(void) {
-OutColor = texture(Sampler, FragUV);
+if (FragTextureIndex == 0) OutColor = texture(Sampler0, FragUV);
+if (FragTextureIndex == 1) OutColor = texture(Sampler1, FragUV);
+if (FragTextureIndex == 2) OutColor = texture(Sampler2, FragUV);
+if (FragTextureIndex == 3) OutColor = texture(Sampler3, FragUV);
+if (FragTextureIndex == 4) OutColor = texture(Sampler4, FragUV);
+if (FragTextureIndex == 5) OutColor = texture(Sampler5, FragUV);
+if (FragTextureIndex == 6) OutColor = texture(Sampler6, FragUV);
+if (FragTextureIndex == 7) OutColor = texture(Sampler7, FragUV);
 }
 )FOO";
  
@@ -639,12 +656,24 @@ OutColor = texture(Sampler, FragUV);
  {
   "VertP",
   "VertUV",
+  "VertZ",
+  "VertModel",
+  "VertModel",
+  "VertModel",
  };
  char const *UniformNames[] =
  {
   "Z",
   "Model",
   "Projection",
+  "Sampler0",
+  "Sampler1",
+  "Sampler2",
+  "Sampler3",
+  "Sampler4",
+  "Sampler5",
+  "Sampler6",
+  "Sampler7",
  };
  StaticAssert(ArrayCount(AttributeNames) == ArrayCount(MemberOf(image_program, Attributes.All)), AllAttributeNamesDefined);
  StaticAssert(ArrayCount(UniformNames) == ArrayCount(MemberOf(image_program, Uniforms.All)), AllUniformNamesDefined);
@@ -654,6 +683,9 @@ OutColor = texture(Sampler, FragUV);
   CompileProgramCommon(OpenGL, VertexShader, FragmentShader,
                        Result.Attributes.All, ArrayCount(Result.Attributes.All), AttributeNames,
                        Result.Uniforms.All, ArrayCount(Result.Uniforms.All), UniformNames);
+ Result.Attributes.VertModel0_AttrLoc = Result.Attributes.VertModel0_AttrLoc + 0;
+ Result.Attributes.VertModel1_AttrLoc = Result.Attributes.VertModel0_AttrLoc + 1;
+ Result.Attributes.VertModel2_AttrLoc = Result.Attributes.VertModel0_AttrLoc + 2;
  
  return Result;
 }
@@ -752,6 +784,7 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
   OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.CircleVBO);
   OpenGL->glGenBuffers(1, &OpenGL->Line.VertexBuffer);
   OpenGL->glGenBuffers(1, &OpenGL->Image.VertexBuffer);
+  OpenGL->glGenBuffers(1, &OpenGL->Image.ImageBuffer);
   OpenGL->glGenBuffers(1, &OpenGL->Vertex.VertexBuffer);
   
   {
@@ -759,6 +792,9 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
    {
     V2(-1, -1),
     V2( 1, -1),
+    V2( 1,  1),
+    
+    V2(-1, -1),
     V2( 1,  1),
     V2(-1,  1),
    };
@@ -772,6 +808,9 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
     { V2(-1, -1), V2(0, 0) },
     { V2( 1, -1), V2(1, 0) },
     { V2( 1,  1), V2(1, 1) },
+    
+    { V2(-1, -1), V2(0, 0) },
+    { V2( 1,  1), V2(1, 1) },
     { V2(-1,  1), V2(0, 1) },
    };
    OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Image.VertexBuffer);
@@ -779,7 +818,12 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
   }
  }
  
- glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &OpenGL->MaxTextureSlots);
+ GLint MaxTextureSlots;
+ glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &MaxTextureSlots);
+ OpenGL->MaxTextureSlots = 1;
+ if (MaxTextureSlots > 0) OpenGL->MaxTextureSlots = MaxTextureSlots;
+ // TODO(hbr): debug
+ OpenGL->MaxTextureSlots = 3;
 }
 
 internal render_frame *
@@ -789,7 +833,7 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
  
  if (Memory->RendererCodeReloaded)
  {
-#if 0
+#if 1
   //- fix error handling function pointer
   if (OpenGL->glDebugMessageCallback)
   {
@@ -921,21 +965,26 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
   image_program *Prog = &OpenGL->Image.Program;
   UseProgramBegin(OpenGL, Prog, Projection);
   
-#if 0  
-  GL_CALL(OpenGL->glUniform1f(Prog->Uniforms.Z_UniformLoc, Image->Z));
-  GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Model_UniformLoc, 1, GL_TRUE, Cast(f32 *)Image->Model.M));
-  
   GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Image.VertexBuffer));
   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertP_AttrLoc, image_vertex, P, 0);
   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertUV_AttrLoc, image_vertex, UV, 0);
   
-  GL_CALL(glDrawArrays(GL_QUADS, 0, 4));
+  GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Image.ImageBuffer));
+  GL_CALL(OpenGL->glBufferData(GL_ARRAY_BUFFER,
+                               Frame->ImageCount * SizeOf(render_image),
+                               Frame->Images, GL_DYNAMIC_DRAW));
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertZ_AttrLoc, render_image, Z, 1);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel0_AttrLoc, render_image, Model.Rows[0], 1);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel1_AttrLoc, render_image, Model.Rows[1], 1);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel2_AttrLoc, render_image, Model.Rows[2], 1);
   
   u32 ImagesLeft = Frame->ImageCount;
   render_image *ImageAt = Frame->Images;
-  while (ImageLeft)
+  u32 ImageOffset = 0;
+  while (ImagesLeft)
   {
    u32 ImageCount = Min(ImagesLeft, OpenGL->MaxTextureSlots);
+   
    for (u32 SlotIndex = 0;
         SlotIndex < ImageCount;
         ++SlotIndex)
@@ -943,43 +992,17 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
     render_image *Image = ImageAt + SlotIndex;
     GLuint TextureID = Textures[Image->TextureIndex];
     
-    GL_CALL(glActiveTexture(GL_TEXTURE0 + SlotIndex));
-    GL_CALL(glBindTexture(GL_TEXTURE, TextureID));
-    
-    char SamplerName[128];
-    Fmt(SamplerName, ArrayCount(Buffer), "Samplers[%lu]", SlotIndex);
-    
-    GLuint SamplerLoc = glGetUniformLocation(Prog->ProgramHandle, SamplerName);
-    GL_CALL(glUniform1i(SamplerLoc, SlotIndex));
+    GL_CALL(OpenGL->glActiveTexture(GL_TEXTURE0 + SlotIndex));
+    GL_CALL(glBindTexture(GL_TEXTURE_2D, TextureID));
+    GL_CALL(OpenGL->glUniform1i(Prog->Uniforms.Samplers[SlotIndex], SlotIndex));
    }
    
+   // TODO(hbr): draw elements
+   GL_CALL(OpenGL->glDrawArraysInstancedBaseInstance(GL_TRIANGLES, 0, 6, ImageCount, ImageOffset));
    
-   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertP_AttrLoc, image_vertex, P, 0);
-   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertUV_AttrLoc, image_vertex, UV, 0);
-   
-   GL_CALL(OpenGL->glDrawArraysInstanced(GL_QUADS, 0, 4, ImageCount));
-   
-   Images += ImageCount;
-   ImageLeft -= ImageCount;
-  }
-#endif
-  
-  for (u32 ImageIndex = 0;
-       ImageIndex < Frame->ImageCount;
-       ++ImageIndex)
-  {
-   render_image *Image = Frame->Images + ImageIndex;
-   
-   GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[Image->TextureIndex]));
-   
-   GL_CALL(OpenGL->glUniform1f(Prog->Uniforms.Z_UniformLoc, Image->Z));
-   GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Model_UniformLoc, 1, GL_TRUE, Cast(f32 *)Image->Model.M));
-   
-   GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Image.VertexBuffer));
-   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertP_AttrLoc, image_vertex, P, 0);
-   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertUV_AttrLoc, image_vertex, UV, 0);
-   
-   GL_CALL(glDrawArrays(GL_QUADS, 0, 4));
+   ImageAt += ImageCount;
+   ImagesLeft -= ImageCount;
+   ImageOffset += ImageCount;
   }
   
   UseProgramEnd(OpenGL, Prog);
@@ -1030,7 +1053,8 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertColor_AttrLoc, render_circle, Color, 1);
   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertOutlineColor_AttrLoc, render_circle, OutlineColor, 1);
   
-  GL_CALL(OpenGL->glDrawArraysInstanced(GL_QUADS, 0, 4, Frame->CircleCount));
+  // TODO(hbr): use draw elements
+  GL_CALL(OpenGL->glDrawArraysInstanced(GL_TRIANGLES, 0, 6, Frame->CircleCount));
   
   UseProgramEnd(OpenGL, Prog);
  }

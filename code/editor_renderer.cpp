@@ -140,11 +140,13 @@ internal void
 PushImage(render_group *Group, v2 Dim, u32 TextureIndex)
 {
  render_frame *Frame = Group->Frame;
- mat3 Model = Group->ModelXForm * ModelTransform(V2(0, 0), Rotation2DZero(), Dim);
- 
  if (Frame->ImageCount < Frame->MaxImageCount)
  {
   render_image *RenderImage = Frame->Images + Frame->ImageCount++;
+  
+  mat3 Model = Group->ModelXForm * ModelTransform(V2(0, 0), Rotation2DZero(), Dim);
+  Model = Transpose3x3(Model);
+  
   RenderImage->Model = Model;
   RenderImage->TextureIndex = TextureIndex;
   RenderImage->Z = Group->ZOffset;

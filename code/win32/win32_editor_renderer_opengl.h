@@ -12,6 +12,8 @@ typedef BOOL WINAPI func_wglChoosePixelFormatARB(HDC hdc,
                                                  UINT nMaxFormats,
                                                  int *piFormats,
                                                  UINT *nNumFormats);
+typedef HGLRC WINAPI func_wglCreateContextAttribsARB(HDC hDC, HGLRC hShareContext,
+                                                     const int *attribList);
 
 typedef void WINAPI func_glGenVertexArrays(GLsizei n, GLuint *arrays);
 typedef void WINAPI func_glBindVertexArray(GLuint array);
@@ -27,6 +29,7 @@ typedef void WINAPI func_glBufferData(GLenum target, GLsizeiptr size, const void
 typedef void WINAPI func_glDrawBuffers(GLsizei n, const GLenum *bufs);
 typedef void WINAPI func_glDrawArrays(GLenum mode, GLint first, GLsizei count);
 typedef void WINAPI func_glDrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsizei instancecount);
+typedef void WINAPI func_glDrawArraysInstancedBaseInstance(GLenum mode, GLint first, GLsizei count, GLsizei instancecount, GLuint baseinstance);
 
 typedef void WINAPI func_glActiveTexture(GLenum texture);
 typedef void WINAPI func_glGenerateMipmap(GLenum texture);
@@ -88,11 +91,21 @@ typedef void WINAPI func_glDebugMessageCallback(GLDEBUGPROC *callback, const voi
 #define WGL_ALPHA_BITS_ARB                      0x201B
 #define WGL_DEPTH_BITS_ARB                      0x2022
 
+#define WGL_CONTEXT_MAJOR_VERSION_ARB             0x2091
+#define WGL_CONTEXT_MINOR_VERSION_ARB             0x2092
+#define WGL_CONTEXT_FLAGS_ARB                     0x2094
+#define WGL_CONTEXT_PROFILE_MASK_ARB              0x9126
+#define WGL_CONTEXT_DEBUG_BIT_ARB                 0x0001
+#define WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB    0x0002
+#define WGL_CONTEXT_CORE_PROFILE_BIT_ARB          0x00000001
+#define WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB 0x00000002
+
 struct win32_opengl_renderer
 {
  HDC WindowDC;
  func_wglChoosePixelFormatARB *wglChoosePixelFormatARB;
  func_wglSwapIntervalEXT *wglSwapIntervalEXT;
+ func_wglCreateContextAttribsARB *wglCreateContextAttribsARB;
 };
 
 #endif //WIN32_EDITOR_RENDERER_OPENGL_H

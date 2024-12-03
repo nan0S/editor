@@ -33,8 +33,8 @@
 #ifndef EDITOR_RENDERER_DLL
 # error EDITOR_RENDERER_DLL with path to editor renderer DLL code is not defined
 #endif
-#define EDITOR_DLL_PATH ConvertNameToString(EDITOR_DLL)
-#define EDITOR_RENDERER_DLL_PATH ConvertNameToString(EDITOR_RENDERER_DLL)
+#define EDITOR_DLL_FILE_NAME ConvertNameToString(EDITOR_DLL)
+#define EDITOR_RENDERER_DLL_FILE_NAME ConvertNameToString(EDITOR_RENDERER_DLL)
 
 global win32_platform_input GlobalWin32Input;
 global platform_input *GlobalInput;
@@ -487,9 +487,13 @@ WinMain(HINSTANCE Instance,
         LPSTR     lpCmdLine,
         int       nShowCmd)
 {
+ int ArgCount = __argc;
+ char **Argv = __argv;
+ 
  b32 InitSuccess = false;
  WIN32_BEGIN_DEBUG_BLOCK(FromBegin);
  ThreadCtxAlloc();
+ OS_EntryPoint(ArgCount, Argv);
  
  //- create window
  WIN32_BEGIN_DEBUG_BLOCK(Win32WindowInit);
@@ -582,7 +586,7 @@ WinMain(HINSTANCE Instance,
    win32_renderer_function_table RendererFunctionTable = {};
    win32_renderer_function_table TempRendererFunctionTable = {};
    hot_reload_library RendererCode = InitHotReloadableLibrary(PermamentArena,
-                                                              EDITOR_RENDERER_DLL_PATH,
+                                                              EDITOR_RENDERER_DLL_FILE_NAME,
                                                               Win32RendererFunctionTableNames,
                                                               RendererFunctionTable.Functions,
                                                               TempRendererFunctionTable.Functions,
@@ -592,7 +596,7 @@ WinMain(HINSTANCE Instance,
    editor_function_table EditorFunctionTable = {};
    editor_function_table TempEditorFunctionTable = {};
    hot_reload_library EditorCode = InitHotReloadableLibrary(PermamentArena,
-                                                            EDITOR_DLL_PATH,
+                                                            EDITOR_DLL_FILE_NAME,
                                                             EditorFunctionTableNames,
                                                             EditorFunctionTable.Functions,
                                                             TempEditorFunctionTable.Functions,

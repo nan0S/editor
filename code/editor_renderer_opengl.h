@@ -67,8 +67,12 @@ struct image_program
   struct {
    GLuint VertP_AttrLoc;
    GLuint VertUV_AttrLoc;
+   GLuint VertZ_AttrLoc;
+   GLuint VertModel0_AttrLoc;
+   GLuint VertModel1_AttrLoc;
+   GLuint VertModel2_AttrLoc;
   };
-  GLuint All[2];
+  GLuint All[6];
  } Attributes;
  
  union {
@@ -76,8 +80,9 @@ struct image_program
    GLuint Z_UniformLoc;
    GLuint Model_UniformLoc;
    GLuint Projection_UniformLoc;
+   GLuint Samplers[8];
   };
-  GLuint All[3];
+  GLuint All[11];
  } Uniforms;
 };
 StaticAssert(SizeOf(MemberOf(image_program, Attributes)) == SizeOf(MemberOf(image_program, Attributes.All)),
@@ -122,7 +127,7 @@ struct opengl
  u32 MaxBufferCount;
  GLuint *Buffers;
  
- GLint MaxTextureSlots;
+ u32 MaxTextureSlots;
  
 #define OpenGLFunction(Name) func_##Name *Name
  OpenGLFunction(glGenVertexArrays);
@@ -162,6 +167,7 @@ struct opengl
  OpenGLFunction(glDebugMessageCallback);
  OpenGLFunction(glVertexAttribDivisor);
  OpenGLFunction(glDrawArraysInstanced);
+ OpenGLFunction(glDrawArraysInstancedBaseInstance);
 #undef OpenGLFunction
  
  struct {
@@ -178,6 +184,7 @@ struct opengl
  struct {
   image_program Program;
   GLuint VertexBuffer;
+  GLuint ImageBuffer;
  } Image;
  
  struct {

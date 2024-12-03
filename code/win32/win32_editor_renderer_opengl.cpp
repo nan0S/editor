@@ -127,6 +127,7 @@ Win32OpenGLInit(arena *Arena, renderer_memory *Memory, HWND Window, HDC WindowDC
    if (wglMakeCurrent(FalseWindowDC, FalseOpenGLRC))
    {
     Win32OpenGLFunction(wglChoosePixelFormatARB);
+    Win32OpenGLFunction(wglCreateContextAttribsARB);
    }
    
    wglDeleteContext(FalseOpenGLRC);
@@ -137,7 +138,34 @@ Win32OpenGLInit(arena *Arena, renderer_memory *Memory, HWND Window, HDC WindowDC
  
  //- initialize opengl context 
  Win32SetPixelFormat(Win32OpenGL, WindowDC);
- HGLRC OpenGLRC = wglCreateContext(WindowDC);
+ 
+ HGLRC OpenGLRC = 0;
+ if (Win32OpenGL->wglCreateContextAttribsARB)
+ {
+  int Win32OpenGLAttribs[] =
+  {
+   WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+   WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+   WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
+#if BUILD_DEBUG
+   |WGL_CONTEXT_DEBUG_BIT_ARB
+#endif
+   ,
+#if 0
+   WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+#else
+   WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+#endif
+   0,
+  };
+  OpenGLRC = Win32OpenGL->wglCreateContextAttribsARB(WindowDC, 0, Win32OpenGLAttribs);
+ }
+ 
+ if (!OpenGLRC)
+ {
+  OpenGLRC = wglCreateContext(WindowDC);
+ }
+ 
  if (wglMakeCurrent(WindowDC, OpenGLRC))
  {
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -184,6 +212,7 @@ Win32OpenGLInit(arena *Arena, renderer_memory *Memory, HWND Window, HDC WindowDC
   OpenGLFunction(glDebugMessageCallback);
   OpenGLFunction(glVertexAttribDivisor);
   OpenGLFunction(glDrawArraysInstanced);
+  OpenGLFunction(glDrawArraysInstancedBaseInstance);
   
   if (Win32OpenGL->wglSwapIntervalEXT)
   {

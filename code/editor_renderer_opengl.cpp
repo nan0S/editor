@@ -641,15 +641,18 @@ uniform sampler2D Sampler6;
 uniform sampler2D Sampler7;
 
 void main(void) {
-if (FragTextureIndex == 0) OutColor = texture(Sampler0, FragUV);
-if (FragTextureIndex == 1) OutColor = texture(Sampler1, FragUV);
-if (FragTextureIndex == 2) OutColor = texture(Sampler2, FragUV);
-if (FragTextureIndex == 3) OutColor = texture(Sampler3, FragUV);
-if (FragTextureIndex == 4) OutColor = texture(Sampler4, FragUV);
-if (FragTextureIndex == 5) OutColor = texture(Sampler5, FragUV);
-if (FragTextureIndex == 6) OutColor = texture(Sampler6, FragUV);
-if (FragTextureIndex == 7) OutColor = texture(Sampler7, FragUV);
+switch (FragTextureIndex) {
+case 0: {OutColor = texture(Sampler0, FragUV);} break;
+case 1: {OutColor = texture(Sampler1, FragUV);} break;
+case 2: {OutColor = texture(Sampler2, FragUV);} break;
+case 3: {OutColor = texture(Sampler3, FragUV);} break;
+case 4: {OutColor = texture(Sampler4, FragUV);} break;
+case 5: {OutColor = texture(Sampler5, FragUV);} break;
+case 6: {OutColor = texture(Sampler6, FragUV);} break;
+case 7: {OutColor = texture(Sampler7, FragUV);} break;
 }
+}
+
 )FOO";
  
  char const *AttributeNames[] =
@@ -818,12 +821,12 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
   }
  }
  
- GLint MaxTextureSlots;
- glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &MaxTextureSlots);
- OpenGL->MaxTextureSlots = 1;
- if (MaxTextureSlots > 0) OpenGL->MaxTextureSlots = MaxTextureSlots;
- // TODO(hbr): debug
- OpenGL->MaxTextureSlots = 3;
+ {
+  GLint MaxTextureSlots;
+  glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &MaxTextureSlots);
+  OpenGL->MaxTextureSlots = 1;
+  if (MaxTextureSlots > 0) OpenGL->MaxTextureSlots = MaxTextureSlots;
+ }
 }
 
 internal render_frame *
@@ -833,7 +836,6 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
  
  if (Memory->RendererCodeReloaded)
  {
-#if 1
   //- fix error handling function pointer
   if (OpenGL->glDebugMessageCallback)
   {
@@ -841,7 +843,6 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
    OpenGL->glDebugMessageCallback(OpenGLDebugCallback, 0);
   }
-#endif
   
   //- recompile shaders
   OpenGL->glDeleteProgram(OpenGL->PerfectCircle.Program.ProgramHandle);
@@ -983,7 +984,9 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
   u32 ImageOffset = 0;
   while (ImagesLeft)
   {
-   u32 ImageCount = Min(ImagesLeft, OpenGL->MaxTextureSlots);
+   u32 ImageCount = ImagesLeft;
+   ImageCount = Min(ImageCount, OpenGL->MaxTextureSlots);
+   ImageCount = Min(ImageCount, ArrayCount(MemberOf(image_program, Uniforms.Samplers)));
    
    for (u32 SlotIndex = 0;
         SlotIndex < ImageCount;

@@ -3441,55 +3441,6 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
    ResetTransform(RenderGroup);
   }
  }
- 
- // TODO(hbr): debug
- v4 Colors[] = { GreenColor, RedColor, BlueColor, YellowColor, WhiteColor };
- u32 ColorIndex = 0;
- f32 CurY = -0.5f;
- f32 Size = 0.1f;
- for (u32 I = 0;
-      I < 2;
-      ++I)
- {
-  for (u32 Y = 0;
-       Y < 4;
-       ++Y)
-  {
-   f32 CurX = -0.5f;
-   for (u32 X = 0;
-        X < 4;
-        ++X)
-   {
-    v4 Color = Colors[ColorIndex];
-    ColorIndex = (ColorIndex + 1) % ArrayCount(Colors);
-    if (I == 0)
-    {
-     PushTriangle(RenderGroup,
-                  V2(CurX, CurY),
-                  V2(CurX + Size, CurY),
-                  V2(CurX + Size/2, CurY + Size),
-                  Color,
-                  0.0f);
-     
-    }
-    else
-    {
-     PushRectangle(RenderGroup,
-                   V2(CurX, CurY),
-                   V2(Size, Size / 2),
-                   Rotation2DZero(),
-                   Color, 0.0f);
-     
-    }
-    
-    CurX += Size;
-   }
-   
-   CurY += Size;
-  }
-  
- }
- 
 }
 
 DLL_EXPORT

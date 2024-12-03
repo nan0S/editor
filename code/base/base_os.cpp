@@ -6,15 +6,6 @@
 # error unsupported OS
 #endif
 
-internal void
-OS_EntryPoint(int ArgCount, char *Argv[])
-{
- string ProgramInvocationPathRel = StrFromCStr(Argv[0]);
- string ProgramInvocationDir = PathChopLastPart(ProgramInvocationPathRel);
- b32 Success = OS_DirChange(ProgramInvocationDir);
- Assert(Success);
-}
-
 internal string
 OS_ReadEntireFile(arena *Arena, string Path)
 {

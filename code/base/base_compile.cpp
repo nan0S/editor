@@ -1,9 +1,9 @@
 global arena *BuildArena;
 
 internal void
-InitBuild(int ArgCount, char *Argv[])
+EquipBuild(arena *Arena)
 {
- BuildArena = AllocArena(Megabytes(2));
+ BuildArena = Arena;
 }
 
 internal compiler_setup

@@ -39,6 +39,7 @@
 global win32_platform_input GlobalWin32Input;
 global platform_input *GlobalInput;
 global arena *InputArena;
+global string GlobalWin32ExeDir;
 
 IMGUI_INIT(Win32ImGuiInitStub) {}
 IMGUI_NEW_FRAME(Win32ImGuiNewFrameStub) {}
@@ -74,7 +75,7 @@ PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
 {
  platform_file_dialog_result Result = {};
  
- local char Buffer[2048];
+ char Buffer[2048];
  OPENFILENAME Open = {};
  Open.lStructSize = SizeOf(Open);
  Open.lpstrFile = Buffer;
@@ -481,6 +482,15 @@ Win32HotReloadTask(void *UserData)
  Task->CodeReloaded = HotReloadIfRecompiled(Task->Code);
 }
 
+internal string
+Win32ExeRelativeToAbsolutePath(arena *Arena, string ExeRelPath)
+{
+ string Path = PathConcat(Arena, GlobalWin32ExeDir, ExeRelPath);
+ Path = OS_FullPathFromPath(Arena, Path);
+ 
+ return Path;
+}
+
 int
 WinMain(HINSTANCE Instance,
         HINSTANCE PrevInstance,
@@ -493,7 +503,13 @@ WinMain(HINSTANCE Instance,
  b32 InitSuccess = false;
  WIN32_BEGIN_DEBUG_BLOCK(FromBegin);
  ThreadCtxAlloc();
- OS_EntryPoint(ArgCount, Argv);
+ arena *PermamentArena = AllocArena();
+ 
+ {
+  string ProgramInvocationPath = StrFromCStr(Argv[0]);
+  string ProgramInvocationAbsPath = OS_FullPathFromPath(PermamentArena, ProgramInvocationPath);
+  GlobalWin32ExeDir = PathChopLastPart(ProgramInvocationAbsPath);
+ }
  
  //- create window
  WIN32_BEGIN_DEBUG_BLOCK(Win32WindowInit);
@@ -544,9 +560,7 @@ WinMain(HINSTANCE Instance,
    InitSuccess = true;
    
    WIN32_END_DEBUG_BLOCK(Win32WindowInit);
-   
    WIN32_BEGIN_DEBUG_BLOCK(LoopInit);
-   arena *PermamentArena = AllocArena();
    
    //- init renderer stuff
    renderer *Renderer = 0;
@@ -585,8 +599,9 @@ WinMain(HINSTANCE Instance,
    
    win32_renderer_function_table RendererFunctionTable = {};
    win32_renderer_function_table TempRendererFunctionTable = {};
-   hot_reload_library RendererCode = InitHotReloadableLibrary(PermamentArena,
-                                                              EDITOR_RENDERER_DLL_FILE_NAME,
+   string RendererDLL = Win32ExeRelativeToAbsolutePath(PermamentArena, StrFromCStr(EDITOR_RENDERER_DLL_FILE_NAME));
+   hot_reload_library RendererCode = MakeHotReloadableLibrary(PermamentArena,
+                                                              RendererDLL,
                                                               Win32RendererFunctionTableNames,
                                                               RendererFunctionTable.Functions,
                                                               TempRendererFunctionTable.Functions,
@@ -595,8 +610,9 @@ WinMain(HINSTANCE Instance,
    //- init editor stuff
    editor_function_table EditorFunctionTable = {};
    editor_function_table TempEditorFunctionTable = {};
-   hot_reload_library EditorCode = InitHotReloadableLibrary(PermamentArena,
-                                                            EDITOR_DLL_FILE_NAME,
+   string EditorDLL = Win32ExeRelativeToAbsolutePath(PermamentArena, StrFromCStr(EDITOR_DLL_FILE_NAME));
+   hot_reload_library EditorCode = MakeHotReloadableLibrary(PermamentArena,
+                                                            EditorDLL,
                                                             EditorFunctionTableNames,
                                                             EditorFunctionTable.Functions,
                                                             TempEditorFunctionTable.Functions,

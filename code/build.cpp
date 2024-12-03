@@ -67,14 +67,12 @@ int main(int ArgCount, char *Argv[])
 {
  u64 BeginTSC = OS_ReadCPUTimer();
  
+ arena *Arena = AllocArena(Gigabytes(64));
  InitThreadCtx(Gigabytes(64));
- OS_EntryPoint(ArgCount, Argv);
- InitBuild(ArgCount, Argv);
+ EquipBuild(Arena);
  
  if (!RecompileYourselfIfNecessary(ArgCount, Argv))
  {
-  arena *Arena = AllocArena(Gigabytes(64));
-  
   b32 Debug = false;
   b32 Release = false;
   b32 ForceRecompile = false;

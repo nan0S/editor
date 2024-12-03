@@ -9,9 +9,6 @@
 # error unsupported OS
 #endif
 
-// sets current directory to the one that contains currently running executable
-internal void OS_EntryPoint(int ArgCount, char *Argv[]);
-
 //- memory
 internal void *OS_Reserve(u64 Reserve);
 internal void  OS_Release(void *Memory, u64 Size);

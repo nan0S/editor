@@ -827,6 +827,7 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
   OpenGL->MaxTextureSlots = 1;
   if (MaxTextureSlots > 0) OpenGL->MaxTextureSlots = MaxTextureSlots;
  }
+ 
 }
 
 internal render_frame *

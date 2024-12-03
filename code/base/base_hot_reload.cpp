@@ -1,10 +1,9 @@
 internal hot_reload_library
-InitHotReloadableLibrary(arena *Arena, char const *DLL, char const **FunctionNames,
+MakeHotReloadableLibrary(arena *Arena, string LibraryPath, char const **FunctionNames,
                          void **FunctionTable, void **TempFunctionTable, u32 FunctionCount)
 {
  hot_reload_library Result = {};
  
- string LibraryPath = StrFromCStr(DLL);
  string BaseLibraryPath = StrChopLastDot(LibraryPath);
  string LibraryExt = StrAfterLastDot(LibraryPath);
  string TempName1 = StrF(Arena, "%S_temp.%S", BaseLibraryPath, LibraryExt);

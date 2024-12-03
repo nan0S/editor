@@ -68,11 +68,11 @@ struct process_queue
  u32 ProcessCount;
 };
 
-internal void InitBuild(void);
+internal void EquipBuild(arena *Arena);
 
 internal compiler_setup MakeCompilerSetup(compiler_choice Compiler, b32 DebugBuild, b32 GenerateDebuggerInfo, b32 Verbose);
-internal compilation_target MakeTarget(compilation_target_type TargetType, string SourcePath, compilation_flags Flags);
-internal void IncludePath(compiler_setup *Setup, string IncludePath);
+internal compilation_target MakeTarget(compilation_target_type TargetType, string SourcePathRel, compilation_flags Flags);
+internal void IncludePath(compiler_setup *Setup, string IncludePathRel);
 internal void LinkLibrary(compilation_target *Target, string Library);
 internal void StaticLink(compilation_target *Target, string Link);
 internal void DefineVariable(compilation_target *Target, string Name, string Value);

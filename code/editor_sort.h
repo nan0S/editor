@@ -47,43 +47,59 @@ X_QuickSort(sort_entry *Entries, u64 Count)
  }
 }
 
+// TODO(hbr): improve, this was implemented quickly
 internal void
-MergeSortStable(sort_entry *Entries, u64 Count, sort_entry *TempMemory)
+MergeSortStable(sort_entry *Cur, u64 Count, sort_entry *Next)
 {
- if (Count > 1)
+ sort_entry *Entries = Cur;
+ sort_entry *TempMemory = Next;
+ 
+ for (u64 Length = 1;
+      Length <= Count;
+      Length <<= 1)
  {
-  u64 Left = Count / 2;
-  u64 Right = Count - Left;
-  
-  sort_entry *LeftAt = Entries;
-  sort_entry *RightAt = Entries + Left;
-  
-  MergeSortStable(LeftAt, Left, TempMemory);
-  MergeSortStable(RightAt, Right, TempMemory);
-  
   for (u64 Index = 0;
        Index < Count;
-       ++Index)
+       Index += (Length << 1))
   {
-   sort_entry *Less;
-   if (Left == 0 || (Right > 0 && LeftAt->SortKey > RightAt->SortKey))
+   sort_entry *LeftAt = Entries + Index;
+   sort_entry *RightAt = Entries + Index + Length;
+   
+   u64 Left = Length;
+   u64 Right = Min(Count - Index, Length);
+   u64 Total = Left + Right;
+   sort_entry *TempMemoryAt = TempMemory + Index;
+   
+   for (u64 Merge = 0;
+        Merge < Total;
+        ++Merge)
    {
-    Less = RightAt;
-    Assert(Right > 0);
-    ++RightAt;
-    --Right;
+    sort_entry *Less;
+    if (Left == 0 || (Right > 0 && LeftAt->SortKey > RightAt->SortKey))
+    {
+     Less = RightAt;
+     Assert(Right > 0);
+     ++RightAt;
+     --Right;
+    }
+    else
+    {
+     Less = LeftAt;
+     Assert(Left > 0);
+     ++LeftAt;
+     --Left;
+    }
+    *TempMemoryAt++ = *Less;
    }
-   else
-   {
-    Less = LeftAt;
-    Assert(Left > 0);
-    ++LeftAt;
-    --Left;
-   }
-   TempMemory[Index] = *Less;
   }
   
-  ArrayCopy(Entries, TempMemory, Count);
+  Swap(Entries, TempMemory, sort_entry *);
+ }
+ 
+ // NOTE(hbr): Entries are sorted here, do one more ArrayCopy if it isn't Cur
+ if (Entries != Cur)
+ {
+  ArrayCopy(Cur, Entries, Count);
  }
 }
 

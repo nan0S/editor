@@ -312,13 +312,17 @@ SortEntities(arena *Arena, entity_array Entities)
     case Entity_Count: InvalidPath; break;
    }
    
-   Entry->SortKey = -Entity->SortingLayer + Offset;
+   Entry->SortKey = -Entity->SortingLayer - Offset;
    Entry->Index = EntityIndex;
    ++EntryCount;
   }
  }
  
- QuickSort(Entries, EntryCount, sort_entry, SortEntryCmp);
+ temp_arena Temp = TempArena(Arena);
+ sort_entry *TempMemory = PushArrayNonZero(Temp.Arena, EntryCount, sort_entry);
+ MergeSortStable(Entries, EntryCount, TempMemory);
+ //QuickSort(Entries, EntryCount, sort_entry, SortEntryCmp);
+ EndTemp(Temp);
  
  sorted_entries Result = {};
  Result.Count = EntryCount;

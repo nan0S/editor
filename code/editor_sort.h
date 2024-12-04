@@ -4,7 +4,7 @@
 typedef f32 sort_key;
 struct sort_entry
 {
- f32 SortKey;
+ sort_key SortKey;
  u64 Index;
 };
 
@@ -44,6 +44,46 @@ X_QuickSort(sort_entry *Entries, u64 Count)
   Assert(Left > 0);
   X_QuickSort(Entries, Left - 1);
   X_QuickSort(Entries + Left, Count - Left);
+ }
+}
+
+internal void
+MergeSortStable(sort_entry *Entries, u64 Count, sort_entry *TempMemory)
+{
+ if (Count > 1)
+ {
+  u64 Left = Count / 2;
+  u64 Right = Count - Left;
+  
+  sort_entry *LeftAt = Entries;
+  sort_entry *RightAt = Entries + Left;
+  
+  MergeSortStable(LeftAt, Left, TempMemory);
+  MergeSortStable(RightAt, Right, TempMemory);
+  
+  for (u64 Index = 0;
+       Index < Count;
+       ++Index)
+  {
+   sort_entry *Less;
+   if (Left == 0 || (Right > 0 && LeftAt->SortKey > RightAt->SortKey))
+   {
+    Less = RightAt;
+    Assert(Right > 0);
+    ++RightAt;
+    --Right;
+   }
+   else
+   {
+    Less = LeftAt;
+    Assert(Left > 0);
+    ++LeftAt;
+    --Left;
+   }
+   TempMemory[Index] = *Less;
+  }
+  
+  ArrayCopy(Entries, TempMemory, Count);
  }
 }
 

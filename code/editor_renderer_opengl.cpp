@@ -925,43 +925,6 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
  Queue->OpCount = 0;
  Queue->TransferMemoryUsed = 0;
  
- //- draw lines
- {
-  line_program *Prog = &OpenGL->Line.Program;
-  UseProgramBegin(OpenGL, Prog);
-  
-  for (u32 LineIndex = 0;
-       LineIndex < Frame->LineCount;
-       ++LineIndex)
-  {
-   render_line *Line = Frame->Lines + LineIndex;
-   mat3 Transform = Projection * Line->Model;
-   
-   GL_CALL(OpenGL->glUniform1f(Prog->Uniforms.Z_UniformLoc, Line->ZOffset));
-   GL_CALL(OpenGL->glUniform4fv(Prog->Uniforms.Color_UniformLoc, 1, Cast(f32 *)Line->Color.E));
-   GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Transform_UniformLoc, 1, GL_TRUE, Cast(f32 *)Transform.M));
-   
-   GLint glPrimitive = 0;
-   switch (Line->Primitive)
-   {
-    case Primitive_TriangleStrip: {glPrimitive = GL_TRIANGLE_STRIP;}break;
-    case Primitive_Triangles:     {glPrimitive = GL_TRIANGLES;}break;
-   }
-   
-   GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Line.VertexBuffer));
-   GL_CALL(OpenGL->glBufferData(GL_ARRAY_BUFFER,
-                                Line->VertexCount * SizeOf(Line->Vertices[0]),
-                                Line->Vertices,
-                                GL_DYNAMIC_DRAW));
-   
-   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertP_AttrLoc, v2, E, 0);
-   
-   GL_CALL(OpenGL->glDrawArrays(glPrimitive, 0, Line->VertexCount));
-  }
-  
-  UseProgramEnd(OpenGL, Prog);
- }
- 
  //- draw images
  {
   image_program *Prog = &OpenGL->Image.Program;
@@ -1007,6 +970,43 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
    ImageAt += ImageCount;
    ImagesLeft -= ImageCount;
    ImageOffset += ImageCount;
+  }
+  
+  UseProgramEnd(OpenGL, Prog);
+ }
+ 
+ //- draw lines
+ {
+  line_program *Prog = &OpenGL->Line.Program;
+  UseProgramBegin(OpenGL, Prog);
+  
+  for (u32 LineIndex = 0;
+       LineIndex < Frame->LineCount;
+       ++LineIndex)
+  {
+   render_line *Line = Frame->Lines + LineIndex;
+   mat3 Transform = Projection * Line->Model;
+   
+   GL_CALL(OpenGL->glUniform1f(Prog->Uniforms.Z_UniformLoc, Line->ZOffset));
+   GL_CALL(OpenGL->glUniform4fv(Prog->Uniforms.Color_UniformLoc, 1, Cast(f32 *)Line->Color.E));
+   GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Transform_UniformLoc, 1, GL_TRUE, Cast(f32 *)Transform.M));
+   
+   GLint glPrimitive = 0;
+   switch (Line->Primitive)
+   {
+    case Primitive_TriangleStrip: {glPrimitive = GL_TRIANGLE_STRIP;}break;
+    case Primitive_Triangles:     {glPrimitive = GL_TRIANGLES;}break;
+   }
+   
+   GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Line.VertexBuffer));
+   GL_CALL(OpenGL->glBufferData(GL_ARRAY_BUFFER,
+                                Line->VertexCount * SizeOf(Line->Vertices[0]),
+                                Line->Vertices,
+                                GL_DYNAMIC_DRAW));
+   
+   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertP_AttrLoc, v2, E, 0);
+   
+   GL_CALL(OpenGL->glDrawArrays(glPrimitive, 0, Line->VertexCount));
   }
   
   UseProgramEnd(OpenGL, Prog);

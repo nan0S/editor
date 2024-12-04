@@ -164,11 +164,13 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
  EntityArray.Entities = Entities;
  sorted_entries Sorted = SortEntities(Temp.Arena, EntityArray);
  
- for (u32 SortedIndex = 0;
+ for (u64 SortedIndex = 0;
       SortedIndex < Sorted.Count;
       ++SortedIndex)
  {
-  entity *Entity = EntityArray.Entities + Sorted.Entries[SortedIndex].Index;
+  u64 InverseIndex = Sorted.Count-1 - SortedIndex;
+  entity *Entity = EntityArray.Entities + Sorted.Entries[InverseIndex].Index;
+  
   if (IsEntityVisible(Entity))
   {
    v2 LocalAtP = WorldToLocalEntityPosition(Entity, AtP);
@@ -2164,6 +2166,8 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
      Image->Dim.X = Cast(f32)LoadedImage.Width / LoadedImage.Height;
      Image->Dim.Y = 1.0f;
      Image->TextureIndex = TextureIndex;
+     
+     SelectEntity(Editor, Entity);
      
      Success = true;
     }

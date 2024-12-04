@@ -53,25 +53,29 @@ global imgui_bindings GlobalImGuiBindings = {
  Win32ImGuiMaybeCaptureInputStub,
 };
 
-PLATFORM_ALLOC_VIRTUAL_MEMORY(Win32AllocMemory)
+internal void *
+Win32AllocMemory(u64 Size, b32 Commit)
 {
  void *Memory = OS_Reserve(Size);
  OS_Commit(Memory, Size);
  return Memory;
 }
 
-PLATFORM_DEALLOC_VIRTUAL_MEMORY(Win32DeallocMemory)
+internal void
+Win32DeallocMemory(void *Memory, u64 Size)
 {
  OS_Release(Memory, Size);
 }
 
-PLATFORM_GET_SCRATCH_ARENA(Win32GetScratchArena)
+internal temp_arena
+Win32GetScratchArena(arena *Conflict)
 {
  temp_arena Result = ThreadCtxTempArena(Conflict);
  return Result;
 }
 
-PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
+internal platform_file_dialog_result
+Win32OpenFileDialog(arena *Arena)
 {
  platform_file_dialog_result Result = {};
  
@@ -101,7 +105,7 @@ PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
   }
   
   At = Buffer;
-  string BasePath = StrFromCStr(At);
+  string BasePath = StrCopy(Arena, StrFromCStr(At));
   At += BasePath.Count + 1;
   
   string *FilePaths = PushArrayNonZero(Arena, FileCount, string);
@@ -117,6 +121,7 @@ PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
         FileIndex < FileCount;
         ++FileIndex)
    {
+    // NOTE(hbr): No need to StrCopy here because we PathConcat anyway
     string FileName = StrFromCStr(At);
     At += FileName.Count + 1;
     FilePaths[FileIndex] = PathConcat(Arena, BasePath, FileName);
@@ -130,7 +135,8 @@ PLATFORM_OPEN_FILE_DIALOG(Win32OpenFileDialog)
  return Result;
 }
 
-PLATFORM_READ_ENTIRE_FILE(Win32ReadEntireFile)
+internal string
+Win32ReadEntireFile(arena *Arena, string FilePath)
 {
  temp_arena Temp = TempArena(Arena);
  
@@ -230,7 +236,7 @@ Win32GetWindowDim(HWND Window)
 }
 
 internal v2
-Win32ScreenToClip(int X, int Y, v2u WindowDim)
+Win32ScreenToClip(i32 X, i32 Y, v2u WindowDim)
 {
  v2 Result = V2(2.0f * X / WindowDim.X - 1.0f,
                 -(2.0f * Y / WindowDim.Y - 1.0f));
@@ -240,8 +246,9 @@ Win32ScreenToClip(int X, int Y, v2u WindowDim)
 internal v2
 Win32ClipSpaceMousePFromLParam(HWND Window, LPARAM lParam)
 {
- int MouseX = LOWORD(lParam);
- int MouseY = HIWORD(lParam);
+ i32 MouseX = Cast(i16)(lParam >> 0  & 0xFFFF);
+ i32 MouseY = Cast(i16)(lParam >> 16 & 0xFFFF);
+ 
  v2u WindowDim = Win32GetWindowDim(Window);
  v2 Result = Win32ScreenToClip(MouseX, MouseY, WindowDim);
  
@@ -645,6 +652,7 @@ WinMain(HINSTANCE Instance,
    b32 RefreshRequested = true;
    // TODO(hbr): Temporary
    b32 FirstFrame = true;
+   u64 FrameCount = 0;
    while (Running)
    {
     //- hot reload
@@ -738,7 +746,7 @@ WinMain(HINSTANCE Instance,
      {
       platform_event *Event = Input.Events + EventIndex;
       char const *Name = PlatformEventTypeNames[Event->Type];
-      OS_PrintDebugF("%s\n", Name);
+      OS_PrintDebugF("[%lu] %s\n", FrameCount, Name);
      }
 #endif
      
@@ -772,6 +780,8 @@ WinMain(HINSTANCE Instance,
     {
      Running = false;
     }
+    
+    ++FrameCount;
    }
   }
  }

@@ -810,13 +810,13 @@ inline internal f32 Ui(f32 *Ti, f32 *Y, u32 I) { return 6.0f * (Bi(Ti, Y, I+1) -
 internal void
 CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u32 N)
 {
- temp_arena Temp = TempArena(0);
- 
  if (N == 0) {} // NOTE(hbr): Nothing to calculate
  else if (N == 1) { M[0] = 0.0f; }
  else if (N == 2) { M[0] = M[N-1] = 0.0f; }
  else
  {
+  temp_arena Temp = TempArena(0);
+  
   M[0] = M[N-1] = 0.0f;
   
   f32 *Diag = PushArrayNonZero(Temp.Arena, N, f32);
@@ -841,9 +841,9 @@ CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u32 N)
    M[I] /= Diag[I];
   }
   M[1] /= Diag[1];
+  
+  EndTemp(Temp);
  }
- 
- EndTemp(Temp);
 }
 
 // NOTE(hbr): Those should be local conveniance internal, but impossible in C.

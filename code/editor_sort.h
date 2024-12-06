@@ -22,7 +22,7 @@ SortEntryCmp(sort_entry *A, sort_entry *B)
 }
 
 internal void
-X_QuickSort(sort_entry *Entries, u64 Count)
+QuickSort(sort_entry *Entries, u64 Count)
 {
  if (Count > 0)
  { 
@@ -42,17 +42,16 @@ X_QuickSort(sort_entry *Entries, u64 Count)
   }
   
   Assert(Left > 0);
-  X_QuickSort(Entries, Left - 1);
-  X_QuickSort(Entries + Left, Count - Left);
+  QuickSort(Entries, Left - 1);
+  QuickSort(Entries + Left, Count - Left);
  }
 }
 
-// TODO(hbr): improve, this was implemented quickly
-internal void
-MergeSortStable(sort_entry *Cur, u64 Count, sort_entry *Next)
+internal sort_entry *
+MergeSortStable(sort_entry *Entries, u64 Count, sort_entry *TempMemory)
 {
- sort_entry *Entries = Cur;
- sort_entry *TempMemory = Next;
+ sort_entry *Curr = Entries;
+ sort_entry *Next = TempMemory;
  
  for (u64 Length = 1;
       Length <= Count;
@@ -62,17 +61,18 @@ MergeSortStable(sort_entry *Cur, u64 Count, sort_entry *Next)
        Index < Count;
        Index += (Length << 1))
   {
-   sort_entry *LeftAt = Entries + Index;
-   sort_entry *RightAt = Entries + Index + Length;
+   u64 LeftIndex = Index;
+   u64 RightIndex = LeftIndex + Length;
    
-   u64 Left = Length;
-   u64 Right = Min(Count - Index, Length);
+   sort_entry *LeftAt = Curr + LeftIndex;
+   sort_entry *RightAt = Curr + RightIndex;
+   
+   u64 Left = Min(Count - ClampTop(LeftIndex, Count), Length);
+   u64 Right = Min(Count - ClampTop(RightIndex, Count), Length);
    u64 Total = Left + Right;
-   sort_entry *TempMemoryAt = TempMemory + Index;
+   sort_entry *NextAt = Next + Index;
    
-   for (u64 Merge = 0;
-        Merge < Total;
-        ++Merge)
+   while (Total--)
    {
     sort_entry *Less;
     if (Left == 0 || (Right > 0 && LeftAt->SortKey > RightAt->SortKey))
@@ -89,18 +89,14 @@ MergeSortStable(sort_entry *Cur, u64 Count, sort_entry *Next)
      ++LeftAt;
      --Left;
     }
-    *TempMemoryAt++ = *Less;
+    *NextAt++ = *Less;
    }
   }
   
-  Swap(Entries, TempMemory, sort_entry *);
+  Swap(Curr, Next, sort_entry *);
  }
  
- // NOTE(hbr): Entries are sorted here, do one more ArrayCopy if it isn't Cur
- if (Entries != Cur)
- {
-  ArrayCopy(Cur, Entries, Count);
- }
+ return Curr;
 }
 
 #endif //EDITOR_SORT_H

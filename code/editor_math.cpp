@@ -533,24 +533,24 @@ BarycentricOmegaWerner(f32 *Omega, f32 *Ti, u32 N)
  
  f32 *Mem = PushArrayNonZero(Temp.Arena, N*N, f32);
  
- Mem[Idx(0, 0, N)] = 1.0f;
+ Mem[Index2D(0, 0, N)] = 1.0f;
  for (u32 K = 1; K < N; ++K)
  {
-  Mem[Idx(0, K, N)] = 0.0f;
+  Mem[Index2D(0, K, N)] = 0.0f;
  }
  
  for (u32 I = 1; I < N; ++I)
  {
   for (u32 K = 0; K <= N-I; ++K)
   {
-   Mem[Idx(I, K, N)] = Mem[Idx(I-1, K, N)] / (Ti[K] - Ti[I]);
-   Mem[Idx(K+1, I, N)] = Mem[Idx(K, I, N)] - Mem[Idx(I, K, N)];
+   Mem[Index2D(I, K, N)] = Mem[Index2D(I-1, K, N)] / (Ti[K] - Ti[I]);
+   Mem[Index2D(K+1, I, N)] = Mem[Index2D(K, I, N)] - Mem[Index2D(I, K, N)];
   }
  }
  
  for (u32 I = 0; I < N; ++I)
  {
-  Omega[I] = Mem[Idx(N-1, I, N)];
+  Omega[I] = Mem[Index2D(N-1, I, N)];
  }
  
  EndTemp(Temp);
@@ -699,65 +699,114 @@ NewtonEvaluate(f32 T, f32 *Beta, f32 *Ti, u32 N)
  return Result;
 }
 
+internal i32
+GaussianElimination(f32 *A, f32 *B, u32 Rows, u32 Cols)
+{
+ i32 Result = 0;
+ temp_arena Temp = TempArena(0);
+ 
+ u32 *Pos = PushArray(Temp.Arena, Cols, u32);
+ f32 Det = 1;
+ u32 Rank = 0;
+ for (u32 Col = 0, Row = 0; Col < Cols && Row < Rows; ++Col)
+ {
+  u32 MaxRow = Row;
+  f32 MaxRowValue = Abs(A[Index2D(MaxRow, Col, Cols)]);
+  for (u32 I = Row; I < Rows; I++)
+  {
+   f32 CandValue = Abs(A[Index2D(I, Col, Cols)]);
+   if (CandValue > MaxRowValue)
+   {
+    MaxRow = I;
+    MaxRowValue = CandValue;
+   }
+  }
+  if (Abs(A[Index2D(MaxRow, Col, Cols)]) < F32_EPS)
+  {
+   Det = 0;
+   continue;
+  }
+  
+  for (u32 I = Col; I < Cols; I++)
+  {
+   Swap(A[Index2D(Row, I, Cols)],
+        A[Index2D(MaxRow, I, Cols)],
+        f32);
+  }
+  Swap(B[Row], B[MaxRow], f32);
+  
+  if (Row != MaxRow)
+  {
+   Det = -Det;
+  }
+  Det *= A[Index2D(Row, Col, Cols)];
+  
+  Pos[Col] = Row+1;
+  
+  for (u32 I = 0; I < Rows; I++)
+  {
+   if (I != Row && Abs(A[Index2D(I, Col, Cols)]) > F32_EPS)
+   {
+    f32 C = A[Index2D(I, Col, Cols)] / A[Index2D(Row, Col, Cols)];
+    for (u32 J = Col; J < Cols; J++)
+    {
+     A[Index2D(I, J, Cols)] -= C * A[Index2D(Row, J, Cols)];
+    }
+    B[I] -= C * B[Row];
+   }
+  }
+  ++Row; ++Rank;
+ }
+ 
+ for (u32 I = 0; I < Cols; I++)
+ {
+  f32 Solution = 0.0f;
+  u32 Index = Pos[I];
+  if(Index != 0)
+  {
+   Solution = B[Index-1] / A[Index2D(Index-1, I, Cols)];
+  }
+  B[I] = Solution;
+ }
+ 
+ for (u32 I = 0; I < Rows; I++)
+ {
+  f32 Sum = 0;
+  for (u32 J = 0; J < Cols; J++)
+  {
+   Sum += B[J] * A[Index2D(I, J, Cols)];
+  }
+  if (Abs(Sum - B[I]) > F32_EPS)
+  {
+   Result = -1;
+   break;
+  }
+ }
+ 
+ if (Result != -1)
+ {
+  u32 FreeVars = 0;
+  for (u32 I = 0; I < Cols; I++)
+  {
+   if (Pos[I] != 0)
+   {
+    ++FreeVars;
+   }
+  }
+  Result = FreeVars;
+ }
+ 
+ EndTemp(Temp);
+ 
+ return Result;
+}
+
+
 // NOTE(hbr): Those should be local conveniance internal, but impossible in C.
 inline internal f32 Hi(f32 *Ti, u32 I) { return Ti[I+1] - Ti[I]; }
 inline internal f32 Bi(f32 *Ti, f32 *Y, u32 I) { return 1.0f / Hi(Ti, I) * (Y[I+1] - Y[I]); }
-inline internal f32 Vi(f32 *Ti, u32 I) { return 2.0f * (Hi(Ti, I-1) + Hi(Ti, I)); }
-inline internal f32 Ui(f32 *Ti, f32 *Y, u32 I) { return 6.0f * (Bi(Ti, Y, I) - Bi(Ti, Y, I-1)); }
-
-#include <vector>
-// TODO(hbr): Temporary, remove
-using ldb = f32;
-template<typename T>
-using vector = std::vector<T>;
-const ldb eps = 0.000001f; // CUSTOM
-internal int gauss(vector<vector<ldb>> a, vector<ldb> &ans) { // O(n^3)
- int n = Cast(int)a.size(), m = Cast(int)a[0].size()-1;
- vector<int> pos(m, -1);
- ldb det = 1; int rank = 0;
- for (int col = 0, row = 0; col < m && row < n; ++col) {
-  int mx = row;
-  for (int i = row; i < n; i++)
-   if (abs(a[i][col]) > abs(a[mx][col]))
-   mx = i;
-  if (Abs(a[mx][col]) < eps) {
-   det = 0;
-   continue;
-  }
-  for (int i = col; i <= m; i++)
-  {
-   f32 Tmp = a[row][i];
-   a[row][i] = a[mx][i];
-   a[mx][i] = Tmp;
-  }
-  if (row != mx) det = -det;
-  det *= a[row][col];
-  pos[col] = row;
-  for (int i = 0; i < n; i++) {
-   if (i != row && Abs(a[i][col]) > eps) {
-    ldb c = a[i][col] / a[row][col];
-    for (int j = col; j <= m; j++)
-     a[i][j] -= c*a[row][j];
-   }
-  }
-  ++row; ++rank;
- }
- ans.assign(m, 0);
- for (int i = 0; i < m; i++)
-  if(pos[i] != -1)
-  ans[i] = a[pos[i]][m]/a[pos[i]][i];
- for (int i = 0; i < n; i++) {
-  ldb sum = 0;
-  for (int j = 0; j < m; j++) sum += ans[j] * a[i][j];
-  if (Abs(sum - a[i][m]) > eps) return -1;
- }
- int free_vars = 0;
- for (int i = 0; i < m; i++)
-  if (pos[i] == -1)
-  ++free_vars;
- return free_vars;
-}
-
+inline internal f32 Vi(f32 *Ti, u32 I) { return 2.0f * (Hi(Ti, I) + Hi(Ti, I+1)); }
+inline internal f32 Ui(f32 *Ti, f32 *Y, u32 I) { return 6.0f * (Bi(Ti, Y, I+1) - Bi(Ti, Y, I)); }
 internal void
 CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u32 N)
 {
@@ -773,16 +822,16 @@ CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u32 N)
   f32 *Diag = PushArrayNonZero(Temp.Arena, N, f32);
   for (u32 I = 1; I < N-1; ++I)
   {
-   Diag[I] = Vi(Ti, I);
-   M[I] = Ui(Ti, Y, I);
+   Diag[I] = Vi(Ti, I-1);
+   M[I] = Ui(Ti, Y, I-1);
   }
   
-  for (u32 I = 1; I < N-2; ++I)
+  for (u32 I = 2; I < N-1; ++I)
   {
    // NOTE(hbr): Maybe optimize Hi
-   f32 Multiplier = Hi(Ti, I) / Diag[I];
-   Diag[I+1] -= Multiplier * Hi(Ti, I);
-   M[I+1] -= Multiplier * M[I];
+   f32 Multiplier = Hi(Ti, I-1) / Diag[I-1];
+   Diag[I] -= Multiplier * Hi(Ti, I-1);
+   M[I] -= Multiplier * M[I-1];
   }
   
   for (u32 I = N-2; I > 1; --I)
@@ -798,12 +847,11 @@ CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u32 N)
 }
 
 // NOTE(hbr): Those should be local conveniance internal, but impossible in C.
-inline internal f32 Hi(f32 *Ti, u32 I, u32 N) { if (I == N-1) I -= N-1; return Ti[I+1] - Ti[I]; }
+inline internal f32 Hi(f32 *Ti, u32 I, u32 N) { if (I == N-1) I = 0; return Ti[I+1] - Ti[I]; }
 inline internal f32 Yi(f32 *Y, u32 I, u32 N) { if (I == N) I = 1; return Y[I]; }
 inline internal f32 Bi(f32 *Ti, f32 *Y, u32 I, u32 N) { return 1.0f / Hi(Ti, I, N) * (Yi(Y, I+1, N) - Yi(Y, I, N)); }
 inline internal f32 Vi(f32 *Ti, u32 I, u32 N) { return 2.0f * (Hi(Ti, I, N) + Hi(Ti, I+1, N)); }
 inline internal f32 Ui(f32 *Ti, f32 *Y, u32 I, u32 N) { return 6.0f * (Bi(Ti, Y, I+1, N) - Bi(Ti, Y, I, N)); }
-
 internal void
 CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u32 N)
 {
@@ -813,62 +861,33 @@ CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u32 N)
  else
  {
   Assert(Y[0] == Y[N-1]);
-#if 0
   temp_arena Temp = TempArena(0);
   
-  f32 *A = PushArrayNonZero(Temp.Arena, (N-1) * N, f32);
-  for (u32 I = 0; I <= N-2; ++I)
+  f32 *A = PushArray(Temp.Arena, (N-1)*(N-1), f32);
+  for (u32 I = 0; I < N-1; ++I)
   {
-   A[Idx(I, I, N)] = Vi(Ti, I, N);
+   A[Index2D(I, I, N-1)] = Vi(Ti, I, N);
   }
-  for (u32 I = 1; I <= N-2; ++I)
+  for (u32 I = 1; I < N-1; ++I)
   {
-   A[Idx(I-1, I, N)] = Hi(Ti, I, N);
+   A[Index2D(I-1, I, N-1)] = Hi(Ti, I, N);
   }
-  for (u32 I = 1; I <= N-2; ++I)
+  for (u32 I = 1; I < N-1; ++I)
   {
-   A[Idx(I, I-1, N)] = Hi(Ti, I, N);
+   A[Index2D(I, I-1, N-1)] = Hi(Ti, I, N);
   }
-  A[Idx(0, N-2, N)] = Hi(Ti, 0, N);
-  A[Idx(N-2, 0, N)] = Hi(Ti, 0, N);
-  for (u32 I = 0; I <= N-2; ++I)
+  A[Index2D(0, N-2, N-1)] = Hi(Ti, 0, N);
+  A[Index2D(N-2, 0, N-1)] = Hi(Ti, 0, N);
+  
+  for (u32 I = 0; I < N-1; ++I)
   {
-   A[Idx(I, N-1, N)] = Ui(Ti, Y, I, N);
+   M[I+1] = Ui(Ti, Y, I, N);
   }
   
-  GaussianElimination(A, N-1, M+1);
+  GaussianElimination(A, M+1, N-1, N-1);
   M[0] = M[N-1];
   
   EndTemp(Temp);
-#else
-  vector<vector<ldb>> a(N-1, vector<ldb>(N));
-  for (u32 I = 0; I <= N-2; ++I)
-  {
-   a[I][I] = Vi(Ti, I, N);
-  }
-  for (u32 I = 1; I <= N-2; ++I)
-  {
-   a[I-1][I] = Hi(Ti, I, N);
-  }
-  for (u32 I = 1; I <= N-2; ++I)
-  {
-   a[I][I-1] = Hi(Ti, I, N);
-  }
-  a[0][N-2] = Hi(Ti, 0, N);
-  a[N-2][0] = Hi(Ti, 0, N);
-  for (u32 I = 0; I <= N-2; ++I)
-  {
-   a[I][N-1] = Ui(Ti, Y, I, N);
-  }
-  
-  vector<ldb> ans;
-  gauss(a, ans);
-  for (u32 I = 1; I < N; ++I)
-  {
-   M[I] = ans[I-1];
-  }
-  M[0] = M[N-1];
-#endif
  }
 }
 
@@ -1314,69 +1333,6 @@ DeCasteljauAlgorithm(arena *Arena, f32 T, v2 *P, f32 *W, u32 N)
  return Result;
 }
 
-internal void
-GaussianElimination(f32 *A, u32 N, f32 *Solution)
-{
- temp_arena Temp = TempArena(0);
- 
- i32 *Pos = PushArrayNonZero(Temp.Arena, N, i32);
- MemorySet(Pos, -1, N * SizeOf(Pos[0]));
- 
- for (u32 Col = 0, Row = 0;
-      Col < N && Row < N;
-      ++Col)
- {
-  u32 Max = Row;
-  for (u32 I = Row; I < N; ++I)
-  {
-   if (Abs(A[Idx(I, Col, N+1)]) > Abs(A[Idx(Max, Col, N+1)]))
-   {
-    Max = I;
-   }
-  }
-  if (Abs(A[Idx(Max, Col, N+1)]) < F32_EPS)
-  {
-   continue;
-  }
-  for (u32 I = Col; I <= N; ++I)
-  {
-   // TODO(hbr): Make sure swap is ok here
-   f32 X = A[Idx(Row, I, N+1)];
-   A[Idx(Row, I, N+1)] = A[Idx(Max, I, N+1)];
-   A[Idx(Max, I, N+1)] = X;
-  }
-  Pos[Col] = Row;
-  for (u32 I = 0; I < N; ++I)
-  {
-   if (I != Row && Abs(A[Idx(I, Col, N+1)]) > F32_EPS)
-   {
-    f32 C = A[Idx(I, Col, N+1)] / A[Idx(Row, Col, N+1)];
-    for (u32 J = Col; J <= N; ++J)
-    {
-     A[Idx(I, J, N+1)] -= C * A[Idx(Row, J, N+1)];
-    }
-   }
-  }
-  ++Row;
- }
- 
- for (u32 I = 0; I < N; ++I)
- {
-  if (Pos[I] != -1)
-  {
-   Assert(Pos[I] >= 0);
-   u32 P = Pos[I];
-   Solution[I] = A[Idx(P, N, N+1)] / A[Idx(P, I, N+1)];
-  }
-  else
-  {
-   Solution[I] = 0.0f;
-  }
- }
- 
- EndTemp(Temp);
-}
-
 internal f32
 PointSignedDistanceSquared(v2 P, v2 Point, f32 Radius)
 {
@@ -1403,8 +1359,6 @@ SegmentCollision(v2 Position,
 #if 0
  
 #if 0
- 
- 
  f32 BoundaryLeft   = Min(LineA.X, LineB.X) - 0.5f * LineWidth;
  f32 BoundaryRight  = Max(LineA.X, LineB.X) + 0.5f * LineWidth;
  f32 BoundaryBottom = Min(LineA.Y, LineB.Y) - 0.5f * LineWidth;

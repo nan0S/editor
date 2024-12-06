@@ -17,23 +17,26 @@
 #include "editor_ui.h"
 
 /* TODO(hbr):
-Refactors:
-- get rid of SFML? (f32).
+Ideas:
 - probably add optimization to evaluate multiple points at once, maybe even don't store Ti, just iterator through iterator
 - consider using restrict keyword
 - remove that ugly Gaussian Elimination, maybe add optimized version of periodic cubic spline M calculation
-
-Functionality:
-- fix camera rotating
-- consider changing left mouse button internalality - pressing adds new point which is automatically moved until release
-- consider changing the way removing points work - if press and release on the same point then delete, otherwise nothing,
-this would remove necessity of using Are PressPoint and ReleasePoints close
+- some kind of locking system - when I want to edit only one curve without
+obstacles, I don't want to unwittingly click on some other curve/image and select it
+- confirm window when removing points
+- dodawanie punktow z dwoch stron
+- loop curve with checkbox - it seems useful
+- czesto jak rysuje to jestem mega zzoomwany na image - chce dodac nowa curve ale nie mam jak latwo odselectowac aktualnej bo wszedzie wokolo jest image
+- ogolnie caly czas sie boje ze cos usune - undo/redo to troche zmityguje ale chyba to nie powinno byc takie proste - szczegolnie images - byc moze lewy przycisk nie powinien usuwac entities - tylko punkty na przyklad
+- zmienianie koloru krzywej "inline" a nie w osobnym okienku
+- hide all control points in ALL curves using some button or something
+- resize image "inline", not in separate window
+- persistent openGL mapping for texture uploads, mesh uploads
 
 TODOs:
 - image paths relative to the project
 - add docking
-- maybe change SomeParameterChanged to be more granular in order to avoid recomputing the whole data
- for curve everytime anything changes (flags approach)
+- maybe change SomeParameterChanged to be more granular in order to avoid recomputing the whole data for curve everytime anything changes (flags approach)
 - investigate why drawing takes so much time
 - investigate why this application on Windows is ~10x slower than on Linux
 - add computing lines on GPU
@@ -68,106 +71,6 @@ TODOs:
 - rename "Copy" button into "Duplicate"
 - do a pass over internals that are called just 1 time and maybe inline them
 - Focus on curve is weird for larger curves - investigate that
-- hide UI with Tab
-
-DONE:
-- replace printf
-- fix convex hull line width problem
-- fix that clicking on image will move the image
-- image rotation
-- image scaling
-- selection system - select images or curves
-- fix image collision with scale and rotation
-- pickup images true to their layer
-- image layer sorting
-- list of entitires with selection capabilities and folding
-- disabling list of entities
-- naming of entities - curves and images
-- fix saving project
-- fix saving project as PNG or JPG
-- rotating camera
-- semi-transparent circle when rotating with mouse
-- rotation indicator is too big when zooming in camera
-- move internals to their corresponding struct definitions
-- notification system
-- better notifications and error messages
-- update TODO comments
-- world_position, screen_position, camera_position
-- when creating images and curves in editor_project.cpp, first gather the data, and then make the curve and image
-- replace sf::Vector2f with v2
-- replace float with f32
-- replace sf::Vector2i with v2i
-- replace sf::Vector2u with v2u32
-- measure and improve performance
-- add point selection
-- selected curve points should have outline instead of different v4
-- add different v4 selected point
-- control point weights should have nicer ui for changing weights
-- add possibilty to change default editor parameters
-- add possibility to change default curve parameters
-- add parameters to project file format saving
-- fit nice default v4s, especially selected curve outline v4
-- add possibility for curve v4 to have different alpha than 255
-- collision tolerance should not be in world space, it should be in camera space
-- fix GlobalImageScaleFactor
-- rename some variables from Scale to ClipSpace
-- key input handling
-- weighted bezier curve degree elevation
-- weighted bezier curve degree lowering
-- O(n) calculation of bezier curve
-- window popping out to choose Alpha when inversed-elevation lowering degree method of bezier curve fails
-- remove ;; in different places
-- add reset position and rotation to curve
-- dragging Cubic Bezier helper points
-- correct rendering of cubic spline helper lines - they should be below curve
-- remove pragma
-- adding points to Cubic Spline with in-between point selection when dragged
-- saving curve should include CubicBezierPoints
-- when moving control point, still show the previous curve, only when button is released actually change the curve
-- fix CurvePointIndex calculation in case of collisions, etc., dividing by LinePointCountPerSegment doesnt't work
- in case of CubicSpline Periodic
-- focus on images
-- animating camera focus
-- focus on curve/image
-- change layout of action buttons
-- disabled buttons instead of no buttons
-- split on control point
-- fix action buttons placement, tidy them up
-- animating top speed should not be 1.0f
-- add arrow to indicate which curve is combine TO which
-- merge 
-- there is a lot of places where I use %s to indicate sprintf format, but I pass string instead of char * - fix that
-- because we are going away from returning strings when some os function fails, rather returning boolean, refactor
- all those places that convert boolean into string artificially, instead just pass boolean further
-- maybe make things that are only one just global - like input
-- change function names to DoSomethingEntity, rather than EntityDoSomething
-- get rid off vertex_array_allocation_type
-- remove [RecomputeCurve] from every function that modifies curve
-- rename [CurveEntity] to just [Entity] - keep things simple
-- write [CurveAppendPoint] in terms of [CurveInsertPoint]
- - replace strcmp, memcpy, memset, memmove
-- maybe move all the things related to rendering into separate struct - things like Window, Projection, ...
-- specify sizes of enums
-- there is a lot of compressing opportunities in [entity] struct, try to compress
-- think about supporting merging curve of bezier type with cubic bezier subtype
-- optimization idea: sometimes we create a temporary buffer of control points and then call CurveSetControlPoints,
-   instead we could create those control points already in place - in the curve we would want to call CurveSetControlPoints,
-the API could look like CurveBeginControlPoints(), CurveEndControlPoints()
-
-Ideas:
-- some kind of locking system - when I want to edit only one curve without
-obstacles, I don't want to unwittingly click on some other curve/image and select it
-- confirm window when removing points
-
-Ideas:
-- dodawanie punktow z dwoch stron
-- loop curve with checkbox - it seems useful
-- czesto jak rysuje to jestem mega zzoomwany na image - chce dodac nowa curve ale nie mam jak latwo odselectowac aktualnej bo wszedzie wokolo jest image
-- ogolnie caly czas sie boje ze cos usune - undo/redo to troche zmityguje ale chyba to nie powinno byc takie proste - szczegolnie images - byc moze lewy przycisk nie powinien usuwac entities - tylko punkty na przyklad
-- zmienianie koloru krzywej "inline" a nie w osobnym okienku
-- hide all control points in ALL curves using some button or something
-- resize image "inline", not in separate window
-- persistent openGL mapping for texture uploads, mesh uploads
 
 Bugs:
 - clicking on control point doesn't do anything, but should select this curve and control point
@@ -178,6 +81,8 @@ Bugs:
 - when picking up control point, don't set it's position to the mouse position, but instead to a delta
 - ZOffset are fucked - if multiple images have the same ZOffset, make sure to check collisions in the reverse order they are renderer
 - when I open image to load with an image dialog, app then doesnt detect code recompilation and doesnt hot reload
+- adding points to periodic curve doesn't work again
+- instead of marking curve when it should be recomputed, just have a structure that holds curve "settings", and every time, check if it changed, it yes then recompute, otherwise don't
 
 Stack:
  - add sorting to rendering - this then will allow to draw things out of order and will simplify the code a lot
@@ -192,6 +97,8 @@ Stack:
  - try to highlight entity that is about to be removed - maybe even in general - highlight stuff upon sliding mouse into its collider
 - curves should have mesh_id/model_id in the same way images have texture_id
 - load files texture asynchronously
+- do accumulated input pass after procsesing all the input - instead of accumulating by overwriting Pressed inside input handling function
+that way we can be sure what is the final state of Platform_Key/Button
 */
 
 struct camera

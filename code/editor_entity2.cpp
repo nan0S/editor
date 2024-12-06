@@ -320,8 +320,11 @@ SortEntities(arena *Arena, entity_array Entities)
  
  temp_arena Temp = TempArena(Arena);
  sort_entry *TempMemory = PushArrayNonZero(Temp.Arena, EntryCount, sort_entry);
- MergeSortStable(Entries, EntryCount, TempMemory);
- //QuickSort(Entries, EntryCount, sort_entry, SortEntryCmp);
+ sort_entry *Sorted = MergeSortStable(Entries, EntryCount, TempMemory);
+ if (Sorted != Entries)
+ {
+  ArrayCopy(Entries, Sorted, EntryCount);
+ }
  EndTemp(Temp);
  
  sorted_entries Result = {};

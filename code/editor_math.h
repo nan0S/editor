@@ -164,7 +164,7 @@ struct all_de_casteljau_intermediate_results
 };
 internal all_de_casteljau_intermediate_results DeCasteljauAlgorithm(arena *Arena, f32 T, v2 *P, f32 *W, u32 N);
 
-internal void GaussianElimination(f32 *A, u32 N, f32 *Solution);
+internal i32 GaussianElimination(f32 *A, f32 *B, u32 Rows, u32 Cols); // returns number of free variables (or -1 if no solution)
 
 //~ Collisions, intersections, geometry
 struct line_intersection

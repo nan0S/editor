@@ -88,7 +88,6 @@ Stack:
  - add sorting to rendering - this then will allow to draw things out of order and will simplify the code a lot
 - don't always require to specify model matrix - do something like SetModel(transform_inv)
 - check why editor type is so fucking big - probably compress it a little
- - remove world_position, screen_position, clip_space and camera_position
 - try to remove multiple transform_invs from render_group
 - usunac artefakty ktore sie pojawiaja gdy linia sie zagina w druga storne bardzo ostro
 - okienka ui powinny byc customizowalne jak duze

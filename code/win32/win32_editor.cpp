@@ -41,6 +41,9 @@ global platform_input *GlobalInput;
 global arena *InputArena;
 global string GlobalWin32ExeDir;
 
+#define WIN32_KEY_COUNT 0xFF
+global platform_key Win32KeyTable[WIN32_KEY_COUNT];
+
 IMGUI_INIT(Win32ImGuiInitStub) {}
 IMGUI_NEW_FRAME(Win32ImGuiNewFrameStub) {}
 IMGUI_RENDER(Win32ImGuiRenderStub) {}
@@ -255,72 +258,6 @@ Win32ClipSpaceMousePFromLParam(HWND Window, LPARAM lParam)
  return Result;
 }
 
-internal platform_key
-Win32KeyToPlatformKey(WPARAM Key)
-{
- local b32 Calculated = false;
- local platform_key KeyTable[0xFF] = {};
- if (!Calculated)
- {
-  KeyTable[VK_F1] = PlatformKey_F1;
-  KeyTable[VK_F2] = PlatformKey_F2;
-  KeyTable[VK_F3] = PlatformKey_F3;
-  KeyTable[VK_F4] = PlatformKey_F4;
-  KeyTable[VK_F5] = PlatformKey_F5;
-  KeyTable[VK_F6] = PlatformKey_F6;
-  KeyTable[VK_F7] = PlatformKey_F7;
-  KeyTable[VK_F8] = PlatformKey_F8;
-  KeyTable[VK_F9] = PlatformKey_F9;
-  KeyTable[VK_F10] = PlatformKey_F10;
-  KeyTable[VK_F11] = PlatformKey_F11;
-  KeyTable[VK_F12] = PlatformKey_F12;
-  
-  KeyTable['A'] = PlatformKey_A;
-  KeyTable['B'] = PlatformKey_B;
-  KeyTable['C'] = PlatformKey_C;
-  KeyTable['D'] = PlatformKey_D;
-  KeyTable['E'] = PlatformKey_E;
-  KeyTable['F'] = PlatformKey_F;
-  KeyTable['G'] = PlatformKey_G;
-  KeyTable['H'] = PlatformKey_H;
-  KeyTable['I'] = PlatformKey_I;
-  KeyTable['J'] = PlatformKey_J;
-  KeyTable['K'] = PlatformKey_K;
-  KeyTable['L'] = PlatformKey_L;
-  KeyTable['M'] = PlatformKey_M;
-  KeyTable['N'] = PlatformKey_N;
-  KeyTable['O'] = PlatformKey_O;
-  KeyTable['P'] = PlatformKey_P;
-  KeyTable['Q'] = PlatformKey_Q;
-  KeyTable['R'] = PlatformKey_R;
-  KeyTable['S'] = PlatformKey_S;
-  KeyTable['T'] = PlatformKey_T;
-  KeyTable['U'] = PlatformKey_U;
-  KeyTable['V'] = PlatformKey_V;
-  KeyTable['W'] = PlatformKey_W;
-  KeyTable['X'] = PlatformKey_X;
-  KeyTable['Y'] = PlatformKey_Y;
-  KeyTable['Z'] = PlatformKey_Z;
-  
-  KeyTable[VK_ESCAPE] = PlatformKey_Escape;
-  
-  KeyTable[VK_SHIFT] = PlatformKey_Shift;
-  KeyTable[VK_CONTROL] = PlatformKey_Ctrl;
-  KeyTable[VK_MENU] = PlatformKey_Alt;
-  KeyTable[VK_SPACE] = PlatformKey_Space;
-  KeyTable[VK_TAB] = PlatformKey_Tab;
-  
-  KeyTable[VK_LBUTTON] = PlatformKey_LeftMouseButton;
-  KeyTable[VK_RBUTTON] = PlatformKey_RightMouseButton;
-  KeyTable[VK_MBUTTON] = PlatformKey_MiddleMouseButton;
-  
-  Calculated = true;
- }
- 
- platform_key Result = KeyTable[Key];
- return Result;
-}
-
 internal LRESULT 
 Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
 {
@@ -386,8 +323,6 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
       Event->ClipSpaceMouseP = Win32ClipSpaceMousePFromLParam(Window, lParam);
      }
     }
-    
-    GlobalInput->Pressed[Key] = Pressed;
    }break;
    
    case WM_SYSKEYUP:
@@ -407,7 +342,7 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
     if (WasDown != IsDown)
     {
      b32 Pressed = (Msg == WM_KEYDOWN);
-     platform_key Key = Win32KeyToPlatformKey(wParam);
+     platform_key Key = Win32KeyTable[wParam];
      platform_event *Event = Win32PushPlatformEvent(Pressed ? PlatformEvent_Press : PlatformEvent_Release);
      if (Event)
      {
@@ -416,8 +351,6 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
       if (Key == PlatformKey_Shift && (Event->Flags & PlatformEventFlag_Shift)) Event->Flags &= ~PlatformEventFlag_Shift;
       if (Key == PlatformKey_Alt && (Event->Flags & PlatformEventFlag_Alt)) Event->Flags &= ~PlatformEventFlag_Alt;
      }
-     
-     GlobalInput->Pressed[Key] = Pressed;
     }
    }break;
    
@@ -516,6 +449,61 @@ WinMain(HINSTANCE Instance,
   string ProgramInvocationPath = StrFromCStr(Argv[0]);
   string ProgramInvocationAbsPath = OS_FullPathFromPath(PermamentArena, ProgramInvocationPath);
   GlobalWin32ExeDir = PathChopLastPart(ProgramInvocationAbsPath);
+ }
+ 
+ //- key mappings
+ {
+  Win32KeyTable[VK_F1] = PlatformKey_F1;
+  Win32KeyTable[VK_F2] = PlatformKey_F2;
+  Win32KeyTable[VK_F3] = PlatformKey_F3;
+  Win32KeyTable[VK_F4] = PlatformKey_F4;
+  Win32KeyTable[VK_F5] = PlatformKey_F5;
+  Win32KeyTable[VK_F6] = PlatformKey_F6;
+  Win32KeyTable[VK_F7] = PlatformKey_F7;
+  Win32KeyTable[VK_F8] = PlatformKey_F8;
+  Win32KeyTable[VK_F9] = PlatformKey_F9;
+  Win32KeyTable[VK_F10] = PlatformKey_F10;
+  Win32KeyTable[VK_F11] = PlatformKey_F11;
+  Win32KeyTable[VK_F12] = PlatformKey_F12;
+  
+  Win32KeyTable['A'] = PlatformKey_A;
+  Win32KeyTable['B'] = PlatformKey_B;
+  Win32KeyTable['C'] = PlatformKey_C;
+  Win32KeyTable['D'] = PlatformKey_D;
+  Win32KeyTable['E'] = PlatformKey_E;
+  Win32KeyTable['F'] = PlatformKey_F;
+  Win32KeyTable['G'] = PlatformKey_G;
+  Win32KeyTable['H'] = PlatformKey_H;
+  Win32KeyTable['I'] = PlatformKey_I;
+  Win32KeyTable['J'] = PlatformKey_J;
+  Win32KeyTable['K'] = PlatformKey_K;
+  Win32KeyTable['L'] = PlatformKey_L;
+  Win32KeyTable['M'] = PlatformKey_M;
+  Win32KeyTable['N'] = PlatformKey_N;
+  Win32KeyTable['O'] = PlatformKey_O;
+  Win32KeyTable['P'] = PlatformKey_P;
+  Win32KeyTable['Q'] = PlatformKey_Q;
+  Win32KeyTable['R'] = PlatformKey_R;
+  Win32KeyTable['S'] = PlatformKey_S;
+  Win32KeyTable['T'] = PlatformKey_T;
+  Win32KeyTable['U'] = PlatformKey_U;
+  Win32KeyTable['V'] = PlatformKey_V;
+  Win32KeyTable['W'] = PlatformKey_W;
+  Win32KeyTable['X'] = PlatformKey_X;
+  Win32KeyTable['Y'] = PlatformKey_Y;
+  Win32KeyTable['Z'] = PlatformKey_Z;
+  
+  Win32KeyTable[VK_ESCAPE] = PlatformKey_Escape;
+  
+  Win32KeyTable[VK_SHIFT] = PlatformKey_Shift;
+  Win32KeyTable[VK_CONTROL] = PlatformKey_Ctrl;
+  Win32KeyTable[VK_MENU] = PlatformKey_Alt;
+  Win32KeyTable[VK_SPACE] = PlatformKey_Space;
+  Win32KeyTable[VK_TAB] = PlatformKey_Tab;
+  
+  Win32KeyTable[VK_LBUTTON] = PlatformKey_LeftMouseButton;
+  Win32KeyTable[VK_RBUTTON] = PlatformKey_RightMouseButton;
+  Win32KeyTable[VK_MBUTTON] = PlatformKey_MiddleMouseButton;
  }
  
  //- create window
@@ -728,6 +716,19 @@ WinMain(HINSTANCE Instance,
       }
      } while((MsgReceived = PeekMessage(&Msg, 0, 0, 0, PM_REMOVE)));
      
+     for (u32 KeyIndex = 0;
+          KeyIndex < WIN32_KEY_COUNT;
+          ++KeyIndex)
+     {
+      platform_key Key = Win32KeyTable[KeyIndex];
+      if (Key)
+      {
+       SHORT State = GetAsyncKeyState(KeyIndex);
+       b32 IsDown = (State & 0x8000);
+       Input.Pressed[Key] = IsDown;
+      }
+     }
+     
      Input.EventCount = GlobalWin32Input.EventCount;
      Input.Events = GlobalWin32Input.Events;
      
@@ -749,7 +750,6 @@ WinMain(HINSTANCE Instance,
       OS_PrintDebugF("[%lu] %s\n", FrameCount, Name);
      }
 #endif
-     
     }
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(InputHandling);}
     

@@ -1,29 +1,26 @@
-global thread_static thread_ctx GlobalCtx;
+struct thread_ctx
+{
+ arena **Arenas;
+ u32 ArenaCount;
+};
+global thread_static thread_ctx GlobalThreadCtx;
 
 internal void
-InitThreadCtx(u64 ReservePerArena)
+ThreadCtxEquip(arena **Arenas, u32 ArenaCount)
 {
- if (!GlobalCtx.Initialized)
- {
-  for (u32 ArenaIndex = 0;
-       ArenaIndex < ArrayCount(GlobalCtx.Arenas);
-       ++ArenaIndex)
-  {
-   GlobalCtx.Arenas[ArenaIndex] = AllocArena(ReservePerArena);
-  }
-  GlobalCtx.Initialized = true;
- }
+ GlobalThreadCtx.Arenas = Arenas;
+ GlobalThreadCtx.ArenaCount = ArenaCount;
 }
 
 internal temp_arena
-TempArena(arena *Conflict)
+ThreadCtxGetScratch(arena *Conflict)
 {
  temp_arena Result = {};
  for (u32 Index = 0;
-      Index < ArrayCount(GlobalCtx.Arenas);
+      Index < GlobalThreadCtx.ArenaCount;
       ++Index)
  {
-  arena *Arena = GlobalCtx.Arenas[Index];
+  arena *Arena = GlobalThreadCtx.Arenas[Index];
   if (Arena != Conflict)
   {
    Result = BeginTemp(Arena);

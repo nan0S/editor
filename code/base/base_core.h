@@ -172,6 +172,7 @@ union mat4
 #endif
 
 #if COMPILER_MSVC
+# include <intrin.h> 
 # define CompilerWriteBarrier _WriteBarrier()
 #endif
 #if COMPILER_GCC || COMPILER_CLANG
@@ -179,16 +180,6 @@ union mat4
 #endif
 #if !defined(CompilerWriteBarrier)
 # error compiler write barrier not defined
-#endif
-
-#if COMPILER_MSVC
-# define THREAD_API WINAPI
-#endif
-#if COMPILER_GCC || COMPILER_CLANG
-# define THREAD_API
-#endif
-#if !defined(THREAD_API)
-# error THREAD_API not defined
 #endif
 
 #define Max(A, B) ((A) < (B) ? (B) : (A))

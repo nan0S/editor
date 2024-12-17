@@ -1,7 +1,7 @@
 #ifndef EDITOR_THIRD_PARTY_INC_H
 #define EDITOR_THIRD_PARTY_INC_H
 
-#define STBI_NO_STDIO
+//#define STBI_NO_STDIO
 #include "third_party/stb/stb_image.h"
 
 #pragma push_macro("Max")

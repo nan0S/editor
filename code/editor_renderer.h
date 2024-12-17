@@ -94,9 +94,19 @@ enum renderer_transfer_op_type
  RendererTransferOp_Texture,
  RendererTransferOp_Buffer,
 };
+enum renderer_transfer_op_state
+{
+ RendererOp_Empty, // NOTE(hbr): use for cancellation as well
+ RendererOp_PendingLoad,
+ RendererOp_ReadyToTransfer,
+};
 struct renderer_transfer_op
 {
- renderer_transfer_op_type Type;
+ renderer_transfer_op_state State;
+ volatile renderer_transfer_op_type Type;
+ u64 SavedAllocateOffset;
+ u64 PreviousAllocateOffset;
+ 
  union {
   struct {
    u32 TextureIndex;
@@ -111,14 +121,16 @@ struct renderer_transfer_op
   };
  };
 };
-
 struct renderer_transfer_queue
 {
+#define MAX_RENDERER_TRANFER_QUEUE_COUNT 128
+ renderer_transfer_op Ops[MAX_RENDERER_TRANFER_QUEUE_COUNT];
+ u32 FirstOpIndex;
  u32 OpCount;
- renderer_transfer_op Ops[32];
  
  char *TransferMemory;
- u64 TransferMemoryUsed;
+ u64 AllocateOffset;
+ u64 FreeOffset;
  u64 TransferMemorySize;
 };
 

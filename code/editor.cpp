@@ -9,6 +9,7 @@
 #include "editor_entity.cpp"
 #include "editor_entity2.cpp"
 #include "editor_ui.cpp"
+#include "editor_stb.cpp"
 
 platform_api Platform;
 
@@ -2090,101 +2091,172 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
  EndTemp(Temp);
 }
 
-struct loaded_image
+internal task_with_memory *
+BeginTaskWithMemory(editor *Editor)
 {
- b32 Success;
- u32 Width;
- u32 Height;
- char *Pixels;
-};
-internal loaded_image
-LoadImageFromMemory(arena *Arena, char *ImageData, u64 Count)
-{
- loaded_image Result = {};
- 
- stbi_set_flip_vertically_on_load(1);
- int Width, Height;
- int Components;
- int RequestComponents = 4;
- char *Data = Cast(char *)stbi_load_from_memory(Cast(stbi_uc const *)ImageData,
-                                                Cast(int)Count,
-                                                &Width, &Height, &Components, RequestComponents);
- if (Data)
+ task_with_memory *Result = 0;
+ for (u32 TaskIndex = 0;
+      TaskIndex < MAX_TASK_COUNT;
+      ++TaskIndex)
  {
-  u64 TotalSize = Cast(u64)Width * Height * RequestComponents;
-  char *Pixels = PushArrayNonZero(Arena, TotalSize, char);
-  MemoryCopy(Pixels, Data, TotalSize);
-  
-  Result.Success = true;
-  Result.Width = Width;
-  Result.Height = Height;
-  Result.Pixels = Pixels;
-  
-  stbi_image_free(Data);
+  task_with_memory *Task = Editor->Tasks + TaskIndex;
+  if (!Task->Allocated)
+  {
+   Task->Allocated = true;
+   if (!Task->Arena)
+   {
+    Task->Arena = AllocArena();
+   }
+   Result = Task;
+   break;
+  }
  }
  
  return Result;
 }
 
 internal void
+EndTaskWithMemory(task_with_memory *Task)
+{
+ Assert(Task->Allocated);
+ Task->Allocated = false;
+ ClearArena(Task->Arena);
+}
+
+internal void
+LoadImageWork(void *UserData)
+{
+ load_image_work *Work = Cast(load_image_work *)UserData;
+ 
+ task_with_memory *Task = Work->Task;
+ renderer_transfer_op *TextureOp = Work->TextureOp;
+ string ImagePath = Work->ImagePath;
+ async_task *AsyncTask = Work->AsyncTask;
+ arena *Arena = Task->Arena;
+ 
+ string ImageData = Platform.ReadEntireFile(Arena, Work->ImagePath);
+ loaded_image LoadedImage = LoadImageFromMemory(Arena, ImageData.Data, ImageData.Count);
+ 
+ image_loading_state AsyncTaskState;
+ renderer_transfer_op_state OpState;
+ if (LoadedImage.Success)
+ {
+  u64 ImageSize = 4 * LoadedImage.Width * LoadedImage.Height;
+  // TODO(hbr): Don't do memory copy, just read into that memory directly
+  MemoryCopy(TextureOp->Pixels, LoadedImage.Pixels, ImageSize);
+  OpState = RendererOp_ReadyToTransfer;
+  AsyncTaskState = Image_Loaded;
+ }
+ else
+ {
+  OpState = RendererOp_Empty;
+  AsyncTaskState = Image_Failed;
+ }
+ 
+ CompilerWriteBarrier;
+ TextureOp->State = OpState;
+ AsyncTask->State = AsyncTaskState;
+ 
+ EndTaskWithMemory(Task);
+}
+
+internal async_task *
+AllocateAsyncTask(editor *Editor)
+{
+ async_task *Result = 0;
+ 
+ for (u32 TaskIndex = 0;
+      TaskIndex < MAX_TASK_COUNT;
+      ++TaskIndex)
+ {
+  async_task *Task = Editor->AsyncTasks + TaskIndex;
+  if (!Task->Active)
+  {
+   Result = Task;
+   Task->Active = true;
+   if (!Task->Arena)
+   {
+    Task->Arena = AllocArena();
+   }
+   Task->State = Image_Loading;
+   break;
+  }
+ }
+ 
+ return Result;
+}
+
+internal void
+DeallocateAsyncTask(editor *Editor, async_task *Task)
+{
+ Task->Active = false;
+ ClearArena(Task->Arena);
+}
+
+internal void
 TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
 {
- temp_arena Temp = TempArena(0);
+ work_queue *WorkQueue = Editor->LowPriorityQueue;
  
  for (u32 FileIndex = 0;
       FileIndex < FileCount;
       ++FileIndex)
- {  
+ {
   string FilePath = FilePaths[FileIndex];
-  b32 Success = false;
-  string FileData = Platform.ReadEntireFile(Temp.Arena, FilePath);
-  loaded_image LoadedImage = LoadImageFromMemory(Temp.Arena, FileData.Data, FileData.Count);
   
-  if (LoadedImage.Success)
+  image_info ImageInfo = LoadImageInfo(FilePath);
+  u64 RequestSize = Cast(u64)4 * ImageInfo.Width * ImageInfo.Height;
+  
+  editor_assets *Assets = &Editor->Assets;
+  // TODO(hbr): Make it always suceeed??????
+  renderer_transfer_op *TextureOp = PushTextureTransfer(Assets->RendererQueue, RequestSize);
+  // TODO(hbr): Make it always succeed
+  renderer_index *TextureIndex = AllocateTextureIndex(Assets);
+  async_task *AsyncTask = AllocateAsyncTask(Editor);
+  task_with_memory *Task = BeginTaskWithMemory(Editor);
+  
+  load_image_work *Work = 0;
+  if (TextureOp && TextureIndex && Task && AsyncTask)
   {
-   u32 RequestSize = LoadedImage.Width * LoadedImage.Height * 4;
-   editor_assets *Assets = &Editor->Assets;
-   renderer_transfer_op *TextureOp = PushTextureTransfer(Assets->RendererQueue, RequestSize);
-   if (TextureOp)
-   {
-    renderer_index *TextureIndex = AllocateTextureIndex(Assets);
-    if (TextureIndex)
-    {
-     MemoryCopy(TextureOp->Pixels, LoadedImage.Pixels, RequestSize);
-     TextureOp->Width = LoadedImage.Width;
-     TextureOp->Height = LoadedImage.Height;
-     TextureOp->TextureIndex = TextureIndex->Index;
-     
-     string FileName = PathLastPart(FilePath);
-     string FileNameNoExt = StrChopLastDot(FileName);
-     
-     entity *Entity = AllocEntity(Editor);
-     InitEntity(Entity, AtP, V2(1, 1), Rotation2DZero(), FileNameNoExt, 0);
-     Entity->Type = Entity_Image;
-     
-     image *Image = &Entity->Image;
-     Image->Dim.X = Cast(f32)LoadedImage.Width / LoadedImage.Height;
-     Image->Dim.Y = 1.0f;
-     Image->TextureIndex = TextureIndex;
-     
-     SelectEntity(Editor, Entity);
-     
-     Success = true;
-    }
-   }
+   TextureOp->Width = ImageInfo.Width;
+   TextureOp->Height = ImageInfo.Height;
+   TextureOp->TextureIndex = TextureIndex->Index;
    
-   if (!Success && TextureOp)
+   AsyncTask->ImageWidth = ImageInfo.Width;
+   AsyncTask->ImageHeight = ImageInfo.Height;
+   AsyncTask->ImageFilePath = StrCopy(AsyncTask->Arena, FilePath);
+   AsyncTask->AtP = AtP;
+   AsyncTask->TextureIndex = TextureIndex;
+   
+   Work = PushStruct(Task->Arena, load_image_work);
+   Work->Task = Task;
+   Work->TextureOp = TextureOp;
+   Work->ImagePath = StrCopy(Task->Arena, FilePath);
+   Work->AsyncTask = AsyncTask;
+   
+   Platform.WorkQueueAddEntry(WorkQueue, LoadImageWork, Work);
+  }
+  
+  //- dellocate things in case of failure
+  if (!Work)
+  {
+   if (TextureOp)
    {
     PopTextureTransfer(Assets->RendererQueue, TextureOp);
    }
+   if (TextureIndex)
+   {
+    DeallocateTextureIndex(Assets, TextureIndex);
+   }
+   if (AsyncTask)
+   {
+    DeallocateAsyncTask(Editor, AsyncTask);
+   }
+   if (Task)
+   {
+    EndTaskWithMemory(Task);
+   }
   }
-  
-  if (!Success)
-  {
-   AddNotificationF(Editor, Notification_Error, "failed to open %S", FilePath);
-  }
-  
-  EndTemp(Temp);
  }
 }
 
@@ -2226,7 +2298,6 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
   Editor->FrameStats.Calculation.MinFrameTime = +F32_INF;
   Editor->FrameStats.Calculation.MaxFrameTime = -F32_INF;
   
-  Editor->MovingPointArena = AllocArena();
   Editor->MovingPointArena = AllocArena();
   Editor->CurveAnimation.Arena = AllocArena();
   Editor->CurveAnimation.AnimationSpeed = 1.0f;
@@ -2286,6 +2357,26 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
    Assets->FirstFreeBufferIndex = BufferIndex;
   }
   Assets->RendererQueue = Memory->RendererQueue;
+  
+  Editor->LowPriorityQueue = Memory->LowPriorityQueue;
+  Editor->HighPriorityQueue = Memory->HighPriorityQueue;
+  
+  // NOTE(hbr): Initialize just a few, others will probably never be initialized
+  // but if they do, then they will be initialied lazily.
+  for (u32 TaskIndex = 0;
+       TaskIndex < Min(MAX_TASK_COUNT, 4);
+       ++TaskIndex)
+  {
+   task_with_memory *Task = Editor->Tasks + TaskIndex;
+   Task->Arena = AllocArena();
+  }
+  for (u32 TaskIndex = 0;
+       TaskIndex < Min(MAX_TASK_COUNT, 4);
+       ++TaskIndex)
+  {
+   async_task *Task = Editor->AsyncTasks + TaskIndex;
+   Task->Arena = AllocArena();
+  }
  }
  
  render_group RenderGroup_;
@@ -2298,6 +2389,50 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
                                   Editor->CollisionToleranceClip,
                                   Editor->RotationRadiusClip);
   Editor->RenderGroup = RenderGroup;
+ }
+ 
+ //- process async events
+ for (u32 TaskIndex = 0;
+      TaskIndex < MAX_TASK_COUNT;
+      ++TaskIndex)
+ {
+  async_task *Task = Editor->AsyncTasks + TaskIndex;
+  if (Task->Active)
+  {
+   if (Task->State == Image_Loading)
+   {
+    // NOTE(hbr): nothing to do
+   }
+   else
+   {
+    if (Task->State == Image_Loaded)
+    {
+     entity *Entity = AllocEntity(Editor);
+     if (Entity)
+     {
+      string FileName = PathLastPart(Task->ImageFilePath);
+      string FileNameNoExt = StrChopLastDot(FileName);
+      
+      InitEntity(Entity, Task->AtP, V2(1, 1), Rotation2DZero(), FileNameNoExt, 0);
+      Entity->Type = Entity_Image;
+      
+      image *Image = &Entity->Image;
+      Image->Dim.X = Cast(f32)Task->ImageWidth / Task->ImageHeight;
+      Image->Dim.Y = 1.0f;
+      Image->TextureIndex = Task->TextureIndex;
+      
+      SelectEntity(Editor, Entity);
+     }
+    }
+    else
+    {
+     Assert(Task->State == Image_Failed);
+     AddNotificationF(Editor, Notification_Error, "Image loading failed");
+    }
+    
+    DeallocateAsyncTask(Editor, Task);
+   }
+  }
  }
  
  //- process events and update click events
@@ -2615,6 +2750,33 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
    {
     Eat = true;
     QuitProject = true;
+   }
+   
+   if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_Delete)
+   {
+    entity *Entity = Editor->SelectedEntity;
+    if (Entity)
+    {
+     Eat = true;
+     switch (Entity->Type)
+     {
+      case Entity_Curve: {
+       curve *Curve = GetCurve(Entity);
+       if (IsControlPointSelected(Curve))
+       {
+        RemoveControlPoint(Entity, Curve->SelectedIndex);
+       }
+       else
+       {
+        DeallocEntity(Editor, Entity);
+       }
+      }break;
+      
+      case Entity_Image: {
+       DeallocEntity(Editor, Entity);
+      }break;
+     }
+    }
    }
    
    //- misc

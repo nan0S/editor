@@ -880,6 +880,59 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
 }
 
 internal void
+OpenGLManageTransferQueue(opengl *OpenGL, renderer_transfer_queue *Queue)
+{
+ GLuint *Textures = OpenGL->Textures;
+ 
+ while (Queue->OpCount)
+ {
+  renderer_transfer_op *Op = Queue->Ops + Queue->FirstOpIndex;
+  
+  if (Op->State == RendererOp_ReadyToTransfer)
+  {
+   switch (Op->Type)
+   {
+    case RendererTransferOp_Texture: {
+     Assert(Op->TextureIndex < OpenGL->MaxTextureCount);
+     GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[Op->TextureIndex]));
+     GL_CALL(glTexImage2D(GL_TEXTURE_2D,
+                          0,
+                          GL_RGBA,
+                          Cast(u32)Op->Width,
+                          Cast(u32)Op->Height,
+                          0,
+                          GL_RGBA,
+                          GL_UNSIGNED_BYTE,
+                          Op->Pixels));
+     GL_CALL(OpenGL->glGenerateMipmap(GL_TEXTURE_2D));
+     GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
+    }break;
+    
+    case RendererTransferOp_Buffer: {
+     NotImplemented;
+    }break;
+   }
+  }
+  else if (Op->State == RendererOp_PendingLoad)
+  {
+   break;
+  }
+  else
+  {
+   Assert(Op->State == RendererOp_Empty);
+  }
+  
+  Queue->FreeOffset = Op->SavedAllocateOffset;
+  --Queue->OpCount;
+  ++Queue->FirstOpIndex;
+  if (Queue->FirstOpIndex == MAX_RENDERER_TRANFER_QUEUE_COUNT)
+  {
+   Queue->FirstOpIndex = 0;
+  }
+ }
+}
+
+internal void
 OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
 {
  renderer_transfer_queue *Queue = &Memory->RendererQueue;
@@ -891,39 +944,7 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
  GL_CALL(glClear(GL_COLOR_BUFFER_BIT));
  GL_CALL(glViewport(0, 0, Frame->WindowDim.X, Frame->WindowDim.Y));
  
- //- upload textures into GPU
- for (u32 OpIndex = 0;
-      OpIndex < Queue->OpCount;
-      ++OpIndex)
- {
-  renderer_transfer_op *Op = Queue->Ops + OpIndex;
-  
-  switch (Op->Type)
-  {
-   case RendererTransferOp_Texture: {
-    Assert(Op->TextureIndex < OpenGL->MaxTextureCount);
-    GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[Op->TextureIndex]));
-    GL_CALL(glTexImage2D(GL_TEXTURE_2D,
-                         0,
-                         GL_RGBA,
-                         Cast(u32)Op->Width,
-                         Cast(u32)Op->Height,
-                         0,
-                         GL_RGBA,
-                         GL_UNSIGNED_BYTE,
-                         Op->Pixels));
-    GL_CALL(OpenGL->glGenerateMipmap(GL_TEXTURE_2D));
-    GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
-   }break;
-   
-   case RendererTransferOp_Buffer: {
-    NotImplemented;
-   }break;
-  }
-  
- }
- Queue->OpCount = 0;
- Queue->TransferMemoryUsed = 0;
+ OpenGLManageTransferQueue(OpenGL, Queue);
  
  //- draw images
  {

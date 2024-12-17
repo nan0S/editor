@@ -186,12 +186,47 @@ PushTextureTransfer(renderer_transfer_queue *Queue, u64 RequestSize)
 {
  renderer_transfer_op *Result = 0;
  
- u64 NewUsed = Queue->TransferMemoryUsed + RequestSize;
- if ((Queue->OpCount < ArrayCount(Queue->Ops)) && (NewUsed <= Queue->TransferMemorySize))
+ if (Queue->OpCount < MAX_RENDERER_TRANFER_QUEUE_COUNT)
  {
-  Result = Queue->Ops + Queue->OpCount++;
-  Result->Pixels = Queue->TransferMemory + Queue->TransferMemoryUsed;
-  Queue->TransferMemoryUsed = NewUsed;
+  u64 PreviousAllocateOffset = Queue->AllocateOffset;
+  
+  if (Queue->AllocateOffset >= Queue->FreeOffset &&
+      (Queue->TransferMemorySize - Queue->AllocateOffset) < RequestSize &&
+      RequestSize <= Queue->FreeOffset)
+  {
+   Queue->AllocateOffset = 0;
+  }
+  
+  u64 FreeSpace;
+  if (Queue->AllocateOffset >= Queue->FreeOffset)
+  {
+   FreeSpace = Queue->TransferMemorySize - Queue->AllocateOffset;;
+  }
+  else
+  {
+   FreeSpace = Queue->FreeOffset - Queue->AllocateOffset;
+  }
+  if ((Queue->AllocateOffset + FreeSpace == Queue->FreeOffset) &&
+      (FreeSpace > 0))
+  {
+   --FreeSpace;
+  }
+  
+  if (RequestSize <= FreeSpace)
+  {
+   u64 OpIndex = (Queue->FirstOpIndex + Queue->OpCount) % MAX_RENDERER_TRANFER_QUEUE_COUNT;
+   Result = Queue->Ops + OpIndex;
+   ++Queue->OpCount;
+   Result->Pixels = Queue->TransferMemory + Queue->AllocateOffset;
+   Result->State = RendererOp_PendingLoad;
+   Result->PreviousAllocateOffset = PreviousAllocateOffset;
+   Queue->AllocateOffset += RequestSize;
+   Result->SavedAllocateOffset = Queue->AllocateOffset;
+  }
+  else
+  {
+   Queue->AllocateOffset = PreviousAllocateOffset;
+  }
  }
  
  return Result;
@@ -200,10 +235,14 @@ PushTextureTransfer(renderer_transfer_queue *Queue, u64 RequestSize)
 internal void
 PopTextureTransfer(renderer_transfer_queue *Queue, renderer_transfer_op *Op)
 {
- Assert(Queue->OpCount > 0);
  --Queue->OpCount;
- Assert(Queue->Ops + Queue->OpCount == Op);
- Queue->TransferMemoryUsed = Op->Pixels - Queue->TransferMemory;
+ Queue->AllocateOffset = Op->PreviousAllocateOffset;
+ 
+ // TODO(hbr): remove
+ if (Queue->OpCount == 0)
+ {
+  Assert(Queue->AllocateOffset == Queue->FreeOffset);
+ }
 }
 
 internal void

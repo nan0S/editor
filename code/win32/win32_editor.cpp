@@ -4,13 +4,13 @@
 #include "base/base_core.h"
 #include "base/base_string.h"
 #include "base/base_os.h"
+#include "editor_memory.h"
+#include "base/base_thread_ctx.h"
 #include "base/base_hot_reload.h"
 
-#include "editor_memory.h"
 #include "editor_imgui_bindings.h"
 #include "editor_platform.h"
 #include "editor_renderer.h"
-#include "editor_thread_ctx.h"
 #include "editor_work_queue.h"
 
 #include "win32/win32_editor.h"
@@ -20,11 +20,11 @@
 
 #include "base/base_core.cpp"
 #include "base/base_string.cpp"
-#include "base/base_hot_reload.cpp"
 #include "base/base_os.cpp"
+#include "base/base_thread_ctx.cpp"
+#include "base/base_hot_reload.cpp"
 
 #include "editor_memory.cpp"
-#include "editor_thread_ctx.cpp"
 #include "editor_work_queue.cpp"
 
 #ifndef EDITOR_DLL
@@ -73,7 +73,7 @@ Win32DeallocMemory(void *Memory, u64 Size)
 internal temp_arena
 Win32GetScratchArena(arena *Conflict)
 {
- temp_arena Result = ThreadCtxTempArena(Conflict);
+ temp_arena Result = ThreadCtxGetScratch(Conflict);
  return Result;
 }
 
@@ -190,6 +190,8 @@ platform_api Platform = {
  Win32GetScratchArena,
  Win32OpenFileDialog,
  Win32ReadEntireFile,
+ WorkQueueAddEntry,
+ WorkQueueCompleteAllWork,
 };
 
 internal platform_event_flags
@@ -437,12 +439,21 @@ WinMain(HINSTANCE Instance,
         LPSTR     lpCmdLine,
         int       nShowCmd)
 {
+ WIN32_BEGIN_DEBUG_BLOCK(FromBegin);
+ 
  int ArgCount = __argc;
  char **Argv = __argv;
- 
  b32 InitSuccess = false;
- WIN32_BEGIN_DEBUG_BLOCK(FromBegin);
- ThreadCtxAlloc();
+ 
+ arena *Arenas[2] = {};
+ for (u32 ArenaIndex = 0;
+      ArenaIndex < ArrayCount(Arenas);
+      ++ArenaIndex)
+ {
+  Arenas[ArenaIndex] = AllocArena();
+ }
+ ThreadCtxEquip(Arenas, ArrayCount(Arenas));
+ 
  arena *PermamentArena = AllocArena();
  
  {
@@ -500,6 +511,7 @@ WinMain(HINSTANCE Instance,
   Win32KeyTable[VK_MENU] = PlatformKey_Alt;
   Win32KeyTable[VK_SPACE] = PlatformKey_Space;
   Win32KeyTable[VK_TAB] = PlatformKey_Tab;
+  Win32KeyTable[VK_DELETE] = PlatformKey_Delete;
   
   Win32KeyTable[VK_LBUTTON] = PlatformKey_LeftMouseButton;
   Win32KeyTable[VK_RBUTTON] = PlatformKey_RightMouseButton;
@@ -573,6 +585,8 @@ WinMain(HINSTANCE Instance,
     
     renderer_transfer_queue *Queue = &RendererMemory.RendererQueue;
     Queue->TransferMemorySize = Megabytes(100);
+    // TODO(hbr): use this value to test when memory renderer queue doesnt have space for an image
+    //Queue->TransferMemorySize = 7680000 + 667152 - 1;
     Queue->TransferMemory = PushArrayNonZero(PermamentArena, Queue->TransferMemorySize, char);
     
     // TODO(hbr): Tweak these parameters
@@ -602,6 +616,24 @@ WinMain(HINSTANCE Instance,
                                                               TempRendererFunctionTable.Functions,
                                                               ArrayCount(RendererFunctionTable.Functions));
    
+   //- init multithreading work queues
+   work_queue LowPriorityQueue_ = {};
+   work_queue *LowPriorityQueue = &LowPriorityQueue_;
+   work_queue HighPriorityQueue_ = {};
+   work_queue *HighPriorityQueue = &HighPriorityQueue_;
+   
+   {
+    u32 ProcCount = OS_ProcCount();
+    
+    u32 LowPriorityThreadCount = ProcCount * 1/4;
+    u32 HighPriorityThreadCount = ProcCount * 3/4;
+    LowPriorityThreadCount = ClampBot(LowPriorityThreadCount, 1);
+    HighPriorityThreadCount = ClampBot(HighPriorityThreadCount, 1);
+    
+    WorkQueueInit(LowPriorityQueue, LowPriorityThreadCount);
+    WorkQueueInit(HighPriorityQueue, HighPriorityThreadCount);
+   }
+   
    //- init editor stuff
    editor_function_table EditorFunctionTable = {};
    editor_function_table TempEditorFunctionTable = {};
@@ -617,6 +649,8 @@ WinMain(HINSTANCE Instance,
    EditorMemory.PermamentArena = PermamentArena;
    EditorMemory.MaxTextureCount = RendererMemory.Limits.MaxTextureCount;
    EditorMemory.RendererQueue = &RendererMemory.RendererQueue;
+   EditorMemory.LowPriorityQueue = LowPriorityQueue;
+   EditorMemory.HighPriorityQueue = HighPriorityQueue;
    EditorMemory.PlatformAPI = Platform;
    
    u64 LastTSC = OS_ReadCPUTimer();
@@ -723,7 +757,10 @@ WinMain(HINSTANCE Instance,
       platform_key Key = Win32KeyTable[KeyIndex];
       if (Key)
       {
-       SHORT State = GetAsyncKeyState(KeyIndex);
+       // NOTE(hbr): I tried to use GetAsyncKeyState but run into issues -
+       // there was a situation where I updated Pressed, before I processed input
+       // event - which was still incoming - thus ending up in unexpected state.
+       SHORT State = GetKeyState(KeyIndex);
        b32 IsDown = (State & 0x8000);
        Input.Pressed[Key] = IsDown;
       }
@@ -747,7 +784,11 @@ WinMain(HINSTANCE Instance,
      {
       platform_event *Event = Input.Events + EventIndex;
       char const *Name = PlatformEventTypeNames[Event->Type];
-      OS_PrintDebugF("[%lu] %s\n", FrameCount, Name);
+      char const *KeyName = PlatformKeyNames[Event->Key];
+      if (Event->Type != PlatformEvent_MouseMove)
+      {
+       OS_PrintDebugF("[%lu] %s %s\n", FrameCount, Name, KeyName);
+      }
      }
 #endif
     }

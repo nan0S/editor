@@ -67,8 +67,15 @@ int main(int ArgCount, char *Argv[])
 {
  u64 BeginTSC = OS_ReadCPUTimer();
  
- arena *Arena = AllocArena(Gigabytes(64));
- InitThreadCtx(Gigabytes(64));
+ arena *Arenas[2] = {};
+ for (u32 ArenaIndex = 0;
+      ArenaIndex < ArrayCount(Arenas);
+      ++ArenaIndex)
+ {
+  Arenas[ArenaIndex] = AllocArena(Gigabytes(64));
+ }
+ ThreadCtxEquip(Arenas, ArrayCount(Arenas));
+ arena *Arena = Arenas[0];
  EquipBuild(Arena);
  
  if (!RecompileYourselfIfNecessary(ArgCount, Argv))

@@ -25,7 +25,14 @@ DoWork(work_queue *Queue)
 
 OS_THREAD_FUNC(WorkQueueThreadEntry)
 {
- ThreadCtxAlloc();
+ arena *Arenas[2] = {};
+ for (u32 ArenaIndex = 0;
+      ArenaIndex < ArrayCount(Arenas);
+      ++ArenaIndex)
+ {
+  Arenas[ArenaIndex] = AllocArena();
+ }
+ ThreadCtxEquip(Arenas, ArrayCount(Arenas));
  
  work_queue *Queue = Cast(work_queue *)ThreadEntryDataPtr;
  for (;;)

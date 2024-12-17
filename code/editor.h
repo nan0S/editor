@@ -15,6 +15,7 @@
 #include "editor_entity2.h"
 #include "editor_entity.h"
 #include "editor_ui.h"
+#include "editor_stb.h"
 
 /* TODO(hbr):
 Ideas:
@@ -71,6 +72,10 @@ TODOs:
 - rename "Copy" button into "Duplicate"
 - do a pass over internals that are called just 1 time and maybe inline them
 - Focus on curve is weird for larger curves - investigate that
+- Delete key should do the same as right click but just for selected, not positioned
+- placeholder when loading images asynchronously
+- improve error msg when failed to load images - include name or something
+- improve error msg when failed to start to load image - write some vague msg (because why user would care about the details here) and make sure to include "try again" or sth like that
 
 Bugs:
 - clicking on control point doesn't do anything, but should select this curve and control point
@@ -83,6 +88,9 @@ Bugs:
 - when I open image to load with an image dialog, app then doesnt detect code recompilation and doesnt hot reload
 - adding points to periodic curve doesn't work again
 - instead of marking curve when it should be recomputed, just have a structure that holds curve "settings", and every time, check if it changed, it yes then recompute, otherwise don't
+- there might be something wrong with right-click - I think (but not sure) that sometimes releasing doesnt remove images for example (but curves also)
+- loading a lot of files at once asynchronously doesn't work, only some images are loaded
+- I need to test what happens when queue texture memory is emptied - because I think there is a bug in there
 
 Stack:
  - add sorting to rendering - this then will allow to draw things out of order and will simplify the code a lot
@@ -98,6 +106,12 @@ Stack:
 - load files texture asynchronously
 - do accumulated input pass after procsesing all the input - instead of accumulating by overwriting Pressed inside input handling function
 that way we can be sure what is the final state of Platform_Key/Button
+
+Testing:
+- check what happens when texture queue is very small
+- async queue
+- task with memory queue
+
 */
 
 struct camera
@@ -281,6 +295,35 @@ struct editor_assets
  renderer_index *FirstFreeBufferIndex;
 };
 
+struct task_with_memory
+{
+ b32 Allocated;
+ arena *Arena;
+};
+
+enum image_loading_state
+{
+ Image_Loading,
+ Image_Loaded,
+ Image_Failed,
+};
+// NOTE(hbr): Maybe async tasks (that general name) is not the best here.
+// It is currently just used for loading images asynchronously (using threads).
+// I'm happy to generalize this (for example store function pointers in here),
+// but for now I only have images use case and don't expect new stuff. I didn't
+// bother renaming this.
+struct async_task
+{
+ b32 Active;
+ arena *Arena;
+ image_loading_state State;
+ u32 ImageWidth;
+ u32 ImageHeight;
+ string ImageFilePath;
+ v2 AtP;
+ renderer_index *TextureIndex;
+};
+
 struct editor
 {
  camera Camera;
@@ -306,6 +349,13 @@ struct editor
  
  editor_assets Assets;
  
+#define MAX_TASK_COUNT 128
+ task_with_memory Tasks[MAX_TASK_COUNT];
+ async_task AsyncTasks[MAX_TASK_COUNT];
+ 
+ struct work_queue *LowPriorityQueue;
+ struct work_queue *HighPriorityQueue;
+ 
  //////////////////////////////
  
  // TODO(hbr): Remove this from the state
@@ -321,6 +371,14 @@ struct editor
  
  curve_animation_state CurveAnimation;
  curve_combining_state CurveCombining;
+};
+
+struct load_image_work
+{
+ task_with_memory *Task;
+ renderer_transfer_op *TextureOp;
+ string ImagePath;
+ async_task *AsyncTask;
 };
 
 #endif //EDITOR_H

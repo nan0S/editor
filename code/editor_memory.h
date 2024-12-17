@@ -34,6 +34,6 @@ internal void * PushSizeNonZero(arena *Arena, u64 Size);
 internal temp_arena BeginTemp(arena *Arena);
 internal void       EndTemp(temp_arena Temp);
 
-internal temp_arena TempArena(arena *Conflict);
+#define TempArena Platform.GetScratchArena
 
 #endif //EDITOR_MEMORY_H

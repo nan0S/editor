@@ -65,6 +65,7 @@ enum platform_key
  PlatformKey_Alt,
  PlatformKey_Space,
  PlatformKey_Tab,
+ PlatformKey_Delete,
  
  PlatformKey_LeftMouseButton,
  PlatformKey_RightMouseButton,
@@ -72,6 +73,63 @@ enum platform_key
  
  PlatformKey_Count,
 };
+global char const *PlatformKeyNames[] =
+{
+ "Unknown",
+ 
+ "F1",
+ "F2",
+ "F3",
+ "F4",
+ "F5",
+ "F6",
+ "F7",
+ "F8",
+ "F9",
+ "F10",
+ "F11",
+ "F12",
+ 
+ "A",
+ "B",
+ "C",
+ "D",
+ "E",
+ "F",
+ "G",
+ "H",
+ "I",
+ "J",
+ "K",
+ "L",
+ "M",
+ "N",
+ "O",
+ "P",
+ "Q",
+ "R",
+ "S",
+ "T",
+ "U",
+ "V",
+ "W",
+ "X",
+ "Y",
+ "Z",
+ 
+ "Escape",
+ "Shift",
+ "Ctrl",
+ "Alt",
+ "Space",
+ "Tab",
+ "Delete",
+ 
+ "LeftMouseButton",
+ "RightMouseButton",
+ "MiddleMouseButton",
+};
+StaticAssert(ArrayCount(PlatformKeyNames) == PlatformKey_Count, PlatformKeyNamesDefined);
 
 typedef u32 platform_event_flags;
 enum
@@ -132,6 +190,13 @@ typedef PLATFORM_OPEN_FILE_DIALOG(platform_open_file_dialog);
 #define PLATFORM_READ_ENTIRE_FILE(Name) string Name(arena *Arena, string FilePath)
 typedef PLATFORM_READ_ENTIRE_FILE(platform_read_entire_file);
 
+typedef void work_queue_func(void *UserData);
+#define PLATFORM_WORK_QUEUE_ADD_ENTRY(Name) void Name(struct work_queue *Queue, work_queue_func *Func, void *UserData)
+typedef PLATFORM_WORK_QUEUE_ADD_ENTRY(platform_work_queue_add_entry);
+
+#define PLATFORM_WORK_QUEUE_COMPLETE_ALL_WORK(Name) void Name(work_queue *Queue)
+typedef PLATFORM_WORK_QUEUE_COMPLETE_ALL_WORK(platform_work_queue_complete_all_work);
+
 struct platform_api
 {
  platform_alloc_virtual_memory *AllocVirtualMemory;
@@ -141,6 +206,9 @@ struct platform_api
  platform_open_file_dialog *OpenFileDialog;
  
  platform_read_entire_file *ReadEntireFile;
+ 
+ platform_work_queue_add_entry *WorkQueueAddEntry;
+ platform_work_queue_complete_all_work *WorkQueueCompleteAllWork;
 };
 extern platform_api Platform;
 
@@ -157,6 +225,9 @@ struct editor_memory
  b32 EditorCodeReloaded;
  
  platform_api PlatformAPI;
+ 
+ struct work_queue *LowPriorityQueue;
+ struct work_queue *HighPriorityQueue;
 };
 
 #define EDITOR_UPDATE_AND_RENDER(Name) void Name(editor_memory *Memory, platform_input *Input, struct render_frame *Frame)

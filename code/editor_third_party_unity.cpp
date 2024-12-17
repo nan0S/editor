@@ -1,5 +1,4 @@
 //- stb
-#define STBI_NO_STDIO
 #define STB_IMAGE_IMPLEMENTATION
 #include "third_party/stb/stb_image.h"
 
@@ -13,13 +12,13 @@
 #include "third_party/imgui/imgui_widgets.cpp"
 
 //- editor imgui bindings
-#include "base_ctx_crack.h"
-#include "base_core.h"
-#include "imgui_bindings.h"
+#include "base/base_ctx_crack.h"
+#include "base/base_core.h"
+#include "editor_imgui_bindings.h"
 
 #if OS_WINDOWS
 
-#include "win32_imgui_bindings.h"
+#include "win32/win32_editor_imgui_bindings.h"
 #include "third_party/imgui/imgui_impl_win32.cpp"
 #include "third_party/imgui/imgui_impl_opengl3.cpp"
 

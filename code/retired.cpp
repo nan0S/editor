@@ -235,4 +235,8 @@ EstimateCPUFreq(u64 GuessSampleTimeMs)
  return CPUFreq;
 }
 
+{
+ 
+}
+
 #endif

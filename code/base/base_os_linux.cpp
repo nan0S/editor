@@ -17,12 +17,70 @@ OS_Commit(void *Memory, u64 Size)
  mprotect(Memory, Size, PROT_READ|PROT_WRITE);
 }
 
-internal os_file_handle OS_FileOpen(string Path, file_access_flags Access) { NotImplemented; return {}; }
-internal void           OS_FileClose(os_file_handle File) { NotImplemented; }
-internal u64            OS_FileRead(os_file_handle File, char *Buf, u64 Read, u64 Offset) { NotImplemented; return {}; }
-internal u64            OS_FileWrite(os_file_handle File, char *Buf, u64 Write, u64 Offset) { NotImplemented; return {}; }
-internal u64            OS_FileSize(os_file_handle File) { NotImplemented; return {}; }
-internal file_attrs     OS_FileAttributes(string Path) { NotImplemented; return {}; }
+internal os_file_handle OS_FileOpen(string Path, file_access_flags Access)
+{
+ temp_arena Temp = TempArena(0);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ int Flags = 0;
+ if (Access & FileAccess_Read && Access & FileAccess_Write) Flags = O_RDWR;
+ else if (Access & FileAccess_Read) Flags = O_RDONLY;
+ else if (Access & FileAccess_Write) Flags = O_WRONLY;
+ int File = open(CPath.Data, Flags);
+ EndTemp(Temp);
+ return File;
+}
+
+internal void
+OS_FileClose(os_file_handle File)
+{
+ close(File);
+}
+
+internal u64
+OS_FileRead(os_file_handle File, char *Buf, u64 Read, u64 Offset)
+{
+ // TODO(hbr): implement the full thing
+ ssize_t ActuallyRead = read(File, Buf, Read);
+ return Cast(u64)ActuallyRead;
+}
+
+internal u64
+OS_FileWrite(os_file_handle File, char *Buf, u64 Write, u64 Offset)
+{
+  // TODO(hbr): implement the full thing
+ ssize_t Written = write(File, Buf, Write);
+ return Cast(u64)Written;
+}
+
+internal u64
+OS_FileSize(os_file_handle File)
+{
+ struct stat Stat = {};
+ fstat(File, &Stat);
+ u64 Result = Stat.st_size;
+ return Result;
+}
+
+internal file_attrs
+OS_FileAttributes(string Path)
+{
+ file_attrs Result = {};
+ temp_arena Temp = TempArena(0);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+
+ struct stat Stat = {};
+ stat(CPath.Data, &Stat);
+
+ // TODO(hbr): finish implementation of this function
+ Result.CreateTime = 0; // NOTE(hbr): creation time on Linux is not available
+ Result.ModifyTime = Stat.st_mtime;
+ Result.FileSize = Stat.st_size;
+ Result.Dir = false;
+
+ EndTemp(Temp);
+
+ return Result;
+}
 
 internal os_file_handle OS_StdOut(void) { NotImplemented; return {}; }
 internal os_file_handle OS_StdError(void) { NotImplemented; return {}; }
@@ -32,20 +90,65 @@ internal void OS_PrintDebug(string Str) { NotImplemented; }
 internal void   OS_FileDelete(string Path) { NotImplemented; }
 internal b32    OS_FileMove(string Src, string Dest) { NotImplemented; return {}; }
 internal b32    OS_FileCopy(string Src, string Dest) { NotImplemented; return {}; }
-internal b32    OS_FileExists(string Path) { NotImplemented; return {}; }
+
+internal b32
+OS_FileExists(string Path)
+{
+ temp_arena Temp = TempArena(0);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ int Ret = access(CPath.Data, R_OK);
+ b32 Exists = (Ret == 0);
+ EndTemp(Temp);
+ return Exists;
+}
+
 internal b32    OS_DirMake(string Path) { NotImplemented; return {}; }
 internal b32    OS_DirRemove(string Path) { NotImplemented; return {}; }
 internal b32    OS_DirChange(string Path) { NotImplemented; return {}; }
 internal string OS_CurrentDir(arena *Arena) { NotImplemented; return {}; }
-internal string OS_FullPathFromPath(arena *Arena, string Path) { NotImplemented; return {}; }
+
+internal string
+OS_FullPathFromPath(arena *Arena, string Path)
+{
+ string Result = {};
+ temp_arena Temp = TempArena(Arena);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ char *Buffer = PushArray(Arena, PATH_MAX+1, char);
+ char *Resolved = realpath(CPath.Data, Buffer);
+ if (Resolved)
+ {
+  Result = StrFromCStr(Resolved);
+ }
+ EndTemp(Temp);
+ return Result;
+}
 
 internal os_library_handle OS_LibraryLoad(string Path) { NotImplemented; return {}; }
 internal void *            OS_LibraryProc(os_library_handle Lib, char const *ProcName) { NotImplemented; return {}; }
 internal void              OS_LibraryUnload(os_library_handle Lib) { NotImplemented; }
 
-internal os_process_handle OS_ProcessLaunch(string_list CmdList) { NotImplemented; return {}; }
-internal b32               OS_ProcessWait(os_process_handle Process) { NotImplemented; return {}; }
-internal void              OS_ProcessCleanup(os_process_handle Handle) { NotImplemented; }
+internal os_process_handle OS_ProcessLaunch(string_list CmdList)
+{
+ temp_arena Temp = TempArena(0);
+ string Cmd = StrListJoin(Temp.Arena, &CmdList, StrLit(" "));
+ // TODO(hbr): use execve instead
+ system(Cmd.Data);
+ EndTemp(Temp);
+ return 0;
+}
+
+internal b32
+OS_ProcessWait(os_process_handle Process)
+{
+ // TODO(hbr): implement this
+ return true;
+}
+
+internal void
+OS_ProcessCleanup(os_process_handle Handle)
+{
+ // TODO(hbr): implement this
+}
 
 internal os_thread_handle OS_ThreadLaunch(os_thread_func *Func, void *Data) { NotImplemented; return {}; }
 internal void             OS_ThreadWait(os_thread_handle Thread) { NotImplemented; }
@@ -73,13 +176,13 @@ internal u32 OS_AtomicIncr32(u32 volatile *Value) { NotImplemented; return {}; }
 internal u32 OS_AtomicAdd32(u32 volatile *Value, u32 Add) { NotImplemented; return {}; }
 internal u32 OS_AtomicCmpExch32(u32 volatile *Value, u32 Cmp, u32 Exch) { NotImplemented; return {}; }
 
-internal u64 OS_ReadCPUTimer(void) { NotImplemented; return {}; }
-internal u64 OS_CPUTimerFreq(void) { NotImplemented; return {}; }
+internal u64 OS_ReadCPUTimer(void) { return 0; }
+internal u64 OS_CPUTimerFreq(void) { return 0; }
 internal u64 OS_ReadOSTimer(void) { NotImplemented; return {}; }
 internal u64 OS_OSTimerFreq(void) { NotImplemented; return {}; }
 
 internal u32 OS_ProcCount(void) { NotImplemented; return {}; }
-internal u32 OS_PageSize(void) { NotImplemented; return {}; }
+internal u32 OS_PageSize(void) { return getpagesize(); }
 internal u32 OS_ThreadGetID(void) { NotImplemented; return {}; }
 
 #if 0

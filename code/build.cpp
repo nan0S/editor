@@ -18,7 +18,8 @@
 internal void
 CompileEditor(process_queue *ProcessQueue, b32 Debug, b32 ForceRecompile, b32 Verbose)
 {
- compiler_setup Setup = MakeCompilerSetup(Compiler_Default, Debug, true, Verbose);
+ // TODO(hbr): go back to Compiler_Default
+ compiler_setup Setup = MakeCompilerSetup(Compiler_Clang, Debug, true, Verbose);
  IncludePath(&Setup, StrLit("../code/third_party/imgui"));
  
  //- precompile third part code into obj
@@ -78,7 +79,7 @@ int main(int ArgCount, char *Argv[])
  arena *Arena = Arenas[0];
  EquipBuild(Arena);
  
- if (!RecompileYourselfIfNecessary(ArgCount, Argv))
+// if (!RecompileYourselfIfNecessary(ArgCount, Argv))
  {
   b32 Debug = false;
   b32 Release = false;

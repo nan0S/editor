@@ -12,6 +12,17 @@
 
 int main()
 {
+ arena *Arenas[2] = {};
+ for (u32 ArenaIndex = 0; ArenaIndex < ArrayCount(Arenas); ++ArenaIndex)
+ {
+  Arenas[ArenaIndex] = AllocArena(Gigabytes(64));
+ } 
+ ThreadCtxEquip(Arenas, ArrayCount(Arenas));
+
+ arena *Arena = Arenas[0];
+ string A = OS_FullPathFromPath(Arena, StrLit("."));
+ string B = OS_FullPathFromPath(Arena, StrLit(".."));
+ string C = OS_FullPathFromPath(Arena, StrLit("../code/build.cpp"));
 
  return 0;
 }

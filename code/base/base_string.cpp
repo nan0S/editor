@@ -514,7 +514,7 @@ StrFV(arena *Arena, char const *Format, va_list Args)
  va_copy(ArgsCopy, Args);
  Result.Count = FmtV(0, 0, Format, Args);
  Result.Data = PushArrayNonZero(Arena, Result.Count + 1, char);
- u64 ActualCount = FmtV(Result.Data, Result.Count + 1, Format, Args);
+ u64 ActualCount = FmtV(Result.Data, Result.Count + 1, Format, ArgsCopy);
  Assert(ActualCount == Result.Count);
  Result.Data[Result.Count] = 0;
  va_end(ArgsCopy);

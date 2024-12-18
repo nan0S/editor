@@ -3,8 +3,14 @@
 
 #include <sys/types.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <dirent.h>
 #include <semaphore.h>
+#include <unistd.h>
+#include <fcntl.h>
+// TODO(hbr): remove stdlib, it only exists because we use system("")
+#include <stdlib.h>
+#include <limits.h>
 
 typedef int os_file_handle;
 typedef void *os_library_handle;

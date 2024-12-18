@@ -2775,6 +2775,8 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
       case Entity_Image: {
        DeallocEntity(Editor, Entity);
       }break;
+      
+      case Entity_Count: InvalidPath;
      }
     }
    }

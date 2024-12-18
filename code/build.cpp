@@ -19,7 +19,7 @@ internal void
 CompileEditor(process_queue *ProcessQueue, b32 Debug, b32 ForceRecompile, b32 Verbose)
 {
  temp_arena Temp = TempArena(0);
-
+ 
  // TODO(hbr): go back to Compiler_Default
  compiler_setup Setup = MakeCompilerSetup(Compiler_Clang, Debug, true, Verbose);
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code")));
@@ -44,10 +44,22 @@ CompileEditor(process_queue *ProcessQueue, b32 Debug, b32 ForceRecompile, b32 Ve
   EnqueueProcess(ProcessQueue, Editor.CompileProcess);
  }
  
+ string RendererPath = {};
+ string EditorPath = {};
+#if OS_WINDOWS
+ RendererPath = StrLit("../code/win32/win32_editor_renderer_opengl.cpp");
+ EditorPath = StrLit("../code/win32/win32_editor.cpp");
+#elif OS_LINUX
+ RendererPath = StrLit("../code/linux/linux_editor_renderer_opengl.cpp");
+ EditorPath = StrLit("../code/linux/linux_editor.cpp");
+#else
+# error compilation on this OS is not supported
+#endif
+ 
  //- compile renderer into library
  compile_result Renderer = {};
  {
-  compilation_target Target = MakeTarget(Lib, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/win32/win32_editor_renderer_opengl.cpp")), 0);
+  compilation_target Target = MakeTarget(Lib, OS_ExecutableRelativeToFullPath(Temp.Arena, RendererPath), 0);
   LinkLibrary(&Target, StrLit("User32.lib")); // RegisterClassA,...
   LinkLibrary(&Target, StrLit("Opengl32.lib")); // wgl,glEnable,...
   LinkLibrary(&Target, StrLit("Gdi32.lib")); // SwapBuffers,SetPixelFormat,...
@@ -57,7 +69,7 @@ CompileEditor(process_queue *ProcessQueue, b32 Debug, b32 ForceRecompile, b32 Ve
  
  //- compile platform layer into executable
  {
-  compilation_target Target = MakeTarget(Exe, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/win32/win32_editor.cpp")), 0);
+  compilation_target Target = MakeTarget(Exe, OS_ExecutableRelativeToFullPath(Temp.Arena, EditorPath), 0);
   LinkLibrary(&Target, StrLit("User32.lib")); // CreateWindowExA,...
   LinkLibrary(&Target, StrLit("Comdlg32.lib")); // GetOpenFileName,...
   LinkLibrary(&Target, StrLit("Shell32.lib")); // DragQueryFileA,...
@@ -66,7 +78,7 @@ CompileEditor(process_queue *ProcessQueue, b32 Debug, b32 ForceRecompile, b32 Ve
   compile_result Win32PlatformExe = Compile(Setup, Target);
   EnqueueProcess(ProcessQueue, Win32PlatformExe.CompileProcess);
  }
-
+ 
  EndTemp(Temp);
 }
 
@@ -82,13 +94,13 @@ int main(int ArgCount, char *Args[])
   Arenas[ArenaIndex] = AllocArena(Gigabytes(64));
  }
  ThreadCtxEquip(Arenas, ArrayCount(Arenas));
-
+ 
  OS_Init(ArgCount, Args);
-
+ 
  arena *Arena = Arenas[0];
  EquipBuild(Arena);
  
-// if (!RecompileYourselfIfNecessary(ArgCount, Args))
+ if (!RecompileYourselfIfNecessary(ArgCount, Args))
  {
   b32 Debug = false;
   b32 Release = false;

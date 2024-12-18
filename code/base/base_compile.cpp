@@ -172,6 +172,7 @@ Compile(compiler_setup Setup, compilation_target Target)
     StrListPushF(Arena, Cmd, "-Wno-unused-variable");
     StrListPushF(Arena, Cmd, "-Wno-unused-function");
     StrListPushF(Arena, Cmd, "-Wno-char-subscripts");
+    StrListPushF(Arena, Cmd, "-Wno-unused-local-typedef");
    }break;
    
    case GCC: {NotImplemented;}break;

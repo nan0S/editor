@@ -24,7 +24,7 @@ OS_IterDir(string Path, dir_iter *Iter, dir_entry *OutEntry)
  
  if (!Iter->NotFirstTime)
  {
-  temp_arena Temp = TempArena(Arena);
+  temp_arena Temp = TempArena(0);
   string CPath = CStrFromStr(Temp.Arena, Path);
   Iter->Dir = opendir(CPath.Data);
   EndTemp(Temp);
@@ -59,22 +59,14 @@ OS_IterDir(string Path, dir_iter *Iter, dir_entry *OutEntry)
  return Found;
 }
 
-internal u64
-OS_ReadOSTimer(void)
+#if 0
+internal os_file_handle
+OS_FileClose(string Path, file_access_flags Access)
 {
- struct timeval Time;
- gettimeofday(&Time, 0);
- u64 OSFreq = OS_OSTimerFreq();
- u64 Result = OSFreq * Time.tv_sec + Time.tv_usec;
- 
- return Result;
+ NotImplemented;
+ return {};
 }
-
-internal u64
-OS_OSTimerFreq(void)
-{
- return 1000000;
-}
+#endif
 
 #if 0
 // SPDX-FileCopyrightText: © 2022 Phillip Trudeau-Tavara <pmttavara@protonmail.com>

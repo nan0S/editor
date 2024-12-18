@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdarg.h>
+#include <string.h>
 
 //- basic
 #define internal static

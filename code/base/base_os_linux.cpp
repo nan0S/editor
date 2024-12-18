@@ -82,8 +82,8 @@ OS_FileAttributes(string Path)
  return Result;
 }
 
-internal os_file_handle OS_StdOut(void) { NotImplemented; return {}; }
-internal os_file_handle OS_StdError(void) { NotImplemented; return {}; }
+internal os_file_handle OS_StdOut(void) { return STDOUT_FILENO; }
+internal os_file_handle OS_StdError(void) { return STDERR_FILENO; }
 
 internal void OS_PrintDebug(string Str) { NotImplemented; }
 

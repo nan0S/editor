@@ -187,12 +187,6 @@ Compile(compiler_setup Setup, compilation_target Target)
    StrListPushF(Arena, Cmd, "-D%S=%S", Macro->Name, Macro->Value);
   }
   
-  //- include paths
-  {
-   // NOTE(hbr): always add main directory to includes
-   string MainDir = OS_FullPathFromPath(Arena, StrLit("../code"));
-   StrListPushF(Arena, Cmd, "-I%S", MainDir);
-  }
   ListIter(Node, Setup.IncludePaths.Head, string_list_node)
   {
    string IncludePath = Node->Str;

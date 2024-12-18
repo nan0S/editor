@@ -18,15 +18,18 @@
 internal void
 CompileEditor(process_queue *ProcessQueue, b32 Debug, b32 ForceRecompile, b32 Verbose)
 {
+ temp_arena Temp = TempArena(0);
+
  // TODO(hbr): go back to Compiler_Default
  compiler_setup Setup = MakeCompilerSetup(Compiler_Clang, Debug, true, Verbose);
- IncludePath(&Setup, StrLit("../code/third_party/imgui"));
+ IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code")));
+ IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/third_party/imgui")));
  
  //- precompile third part code into obj
  compile_result ThirdParty = {};
  {
   compilation_flags Flags = (ForceRecompile ? 0 : CompilationFlag_DontRecompileIfAlreadyExists);
-  compilation_target Target = MakeTarget(Obj, StrLit("../code/editor_third_party_unity.cpp"), Flags);
+  compilation_target Target = MakeTarget(Obj, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/editor_third_party_unity.cpp")), Flags);
   ThirdParty = Compile(Setup, Target);
   OS_ProcessWait(ThirdParty.CompileProcess);
  }
@@ -34,7 +37,8 @@ CompileEditor(process_queue *ProcessQueue, b32 Debug, b32 ForceRecompile, b32 Ve
  //- compile editor code into library
  compile_result Editor = {};
  {
-  compilation_target Target = MakeTarget(Lib, StrLit("../code/editor.cpp"), 0);
+  string TargetPath = {};
+  compilation_target Target = MakeTarget(Lib, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/editor.cpp")), 0);
   StaticLink(&Target, ThirdParty.OutputTarget);
   Editor = Compile(Setup, Target);
   EnqueueProcess(ProcessQueue, Editor.CompileProcess);
@@ -43,7 +47,7 @@ CompileEditor(process_queue *ProcessQueue, b32 Debug, b32 ForceRecompile, b32 Ve
  //- compile renderer into library
  compile_result Renderer = {};
  {
-  compilation_target Target = MakeTarget(Lib, StrLit("../code/win32/win32_editor_renderer_opengl.cpp"), 0);
+  compilation_target Target = MakeTarget(Lib, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/win32/win32_editor_renderer_opengl.cpp")), 0);
   LinkLibrary(&Target, StrLit("User32.lib")); // RegisterClassA,...
   LinkLibrary(&Target, StrLit("Opengl32.lib")); // wgl,glEnable,...
   LinkLibrary(&Target, StrLit("Gdi32.lib")); // SwapBuffers,SetPixelFormat,...
@@ -53,7 +57,7 @@ CompileEditor(process_queue *ProcessQueue, b32 Debug, b32 ForceRecompile, b32 Ve
  
  //- compile platform layer into executable
  {
-  compilation_target Target = MakeTarget(Exe, StrLit("../code/win32/win32_editor.cpp"), 0);
+  compilation_target Target = MakeTarget(Exe, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/win32/win32_editor.cpp")), 0);
   LinkLibrary(&Target, StrLit("User32.lib")); // CreateWindowExA,...
   LinkLibrary(&Target, StrLit("Comdlg32.lib")); // GetOpenFileName,...
   LinkLibrary(&Target, StrLit("Shell32.lib")); // DragQueryFileA,...
@@ -62,9 +66,11 @@ CompileEditor(process_queue *ProcessQueue, b32 Debug, b32 ForceRecompile, b32 Ve
   compile_result Win32PlatformExe = Compile(Setup, Target);
   EnqueueProcess(ProcessQueue, Win32PlatformExe.CompileProcess);
  }
+
+ EndTemp(Temp);
 }
 
-int main(int ArgCount, char *Argv[])
+int main(int ArgCount, char *Args[])
 {
  u64 BeginTSC = OS_ReadCPUTimer();
  
@@ -76,10 +82,13 @@ int main(int ArgCount, char *Argv[])
   Arenas[ArenaIndex] = AllocArena(Gigabytes(64));
  }
  ThreadCtxEquip(Arenas, ArrayCount(Arenas));
+
+ OS_Init(ArgCount, Args);
+
  arena *Arena = Arenas[0];
  EquipBuild(Arena);
  
-// if (!RecompileYourselfIfNecessary(ArgCount, Argv))
+// if (!RecompileYourselfIfNecessary(ArgCount, Args))
  {
   b32 Debug = false;
   b32 Release = false;
@@ -89,7 +98,7 @@ int main(int ArgCount, char *Argv[])
        ArgIndex < ArgCount;
        ++ArgIndex)
   {
-   string Arg = StrFromCStr(Argv[ArgIndex]);
+   string Arg = StrFromCStr(Args[ArgIndex]);
    if (StrMatch(Arg, StrLit("release"), true))
    {
     Release = true;

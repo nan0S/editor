@@ -6,6 +6,15 @@
 # error unsupported OS
 #endif
 
+global string GlobalExecutableDirPath;
+
+internal void
+OS_Init(int ArgCount, char *Args[])
+{
+ string ExecutablePath = StrFromCStr(Args[0]);
+ GlobalExecutableDirPath = PathChopLastPart(ExecutablePath);
+}
+
 internal string
 OS_ReadEntireFile(arena *Arena, string Path)
 {
@@ -139,4 +148,12 @@ OS_PrintFileFV(os_file_handle File, char const *Format, va_list Args)
  string Str = StrFV(Temp.Arena, Format, Args);
  OS_PrintFile(File, Str);
  EndTemp(Temp);
+}
+
+internal string
+OS_ExecutableRelativeToFullPath(arena *Arena, string Relative)
+{
+ string Absolute = PathConcat(Arena, GlobalExecutableDirPath, Relative);
+ string Result = OS_FullPathFromPath(Arena, Absolute);
+ return Result;
 }

@@ -54,7 +54,7 @@ typedef b32 retrieved_b32;
 internal retrieved_b32 OS_IterDir(string Path, dir_iter *Iter, dir_entry *OutEntry);
 
 //- stdout, stderr, debug
-internal os_file_handle OS_StdOutput(void);
+internal os_file_handle OS_StdOut(void);
 internal os_file_handle OS_StdError(void);
 
 internal void OS_Print(string Str);

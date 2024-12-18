@@ -17,56 +17,70 @@ OS_Commit(void *Memory, u64 Size)
  mprotect(Memory, Size, PROT_READ|PROT_WRITE);
 }
 
-internal b32
-OS_IterDir(string Path, dir_iter *Iter, dir_entry *OutEntry)
-{
- b32 Found = false;
- 
- if (!Iter->NotFirstTime)
- {
-  temp_arena Temp = TempArena(0);
-  string CPath = CStrFromStr(Temp.Arena, Path);
-  Iter->Dir = opendir(CPath.Data);
-  EndTemp(Temp);
- }
- 
- if (Iter->Dir)
- {
-  b32 Looking = true;
-  while (Looking)
-  {
-   struct dirent *Entry = readdir(Iter->Dir);
-   if (Entry)
-   {
-    OutEntry->FileName = StrFromCStr(Entry->d_name);
-    // TODO(hbr): Use d_reclen to extaract other information about the file
-    OutEntry->Attrs.Dir = (Entry->d_type == DT_DIR);
-    Found = true;
-    Looking = false;
-   }
-   else
-   {
-    Looking = false;
-   }
-  }
- }
- 
- if (!Found)
- {
-  closedir(Iter->Dir);
- }
- 
- return Found;
-}
+internal os_file_handle OS_FileOpen(string Path, file_access_flags Access) { NotImplemented; return {}; }
+internal void           OS_FileClose(os_file_handle File) { NotImplemented; }
+internal u64            OS_FileRead(os_file_handle File, char *Buf, u64 Read, u64 Offset) { NotImplemented; return {}; }
+internal u64            OS_FileWrite(os_file_handle File, char *Buf, u64 Write, u64 Offset) { NotImplemented; return {}; }
+internal u64            OS_FileSize(os_file_handle File) { NotImplemented; return {}; }
+internal file_attrs     OS_FileAttributes(string Path) { NotImplemented; return {}; }
 
-#if 0
-internal os_file_handle
-OS_FileClose(string Path, file_access_flags Access)
-{
- NotImplemented;
- return {};
-}
-#endif
+internal os_file_handle OS_StdOut(void) { NotImplemented; return {}; }
+internal os_file_handle OS_StdError(void) { NotImplemented; return {}; }
+
+internal void OS_PrintDebug(string Str) { NotImplemented; }
+
+internal void   OS_FileDelete(string Path) { NotImplemented; }
+internal b32    OS_FileMove(string Src, string Dest) { NotImplemented; return {}; }
+internal b32    OS_FileCopy(string Src, string Dest) { NotImplemented; return {}; }
+internal b32    OS_FileExists(string Path) { NotImplemented; return {}; }
+internal b32    OS_DirMake(string Path) { NotImplemented; return {}; }
+internal b32    OS_DirRemove(string Path) { NotImplemented; return {}; }
+internal b32    OS_DirChange(string Path) { NotImplemented; return {}; }
+internal string OS_CurrentDir(arena *Arena) { NotImplemented; return {}; }
+internal string OS_FullPathFromPath(arena *Arena, string Path) { NotImplemented; return {}; }
+
+internal os_library_handle OS_LibraryLoad(string Path) { NotImplemented; return {}; }
+internal void *            OS_LibraryProc(os_library_handle Lib, char const *ProcName) { NotImplemented; return {}; }
+internal void              OS_LibraryUnload(os_library_handle Lib) { NotImplemented; }
+
+internal os_process_handle OS_ProcessLaunch(string_list CmdList) { NotImplemented; return {}; }
+internal b32               OS_ProcessWait(os_process_handle Process) { NotImplemented; return {}; }
+internal void              OS_ProcessCleanup(os_process_handle Handle) { NotImplemented; }
+
+internal os_thread_handle OS_ThreadLaunch(os_thread_func *Func, void *Data) { NotImplemented; return {}; }
+internal void             OS_ThreadWait(os_thread_handle Thread) { NotImplemented; }
+internal void             OS_ThreadRelease(os_thread_handle Thread) { NotImplemented; }
+
+internal void OS_MutexAlloc(os_mutex_handle *Mutex) { NotImplemented; }
+internal void OS_MutexLock(os_mutex_handle *Mutex) { NotImplemented; }
+internal void OS_MutexUnlock(os_mutex_handle *Mutex) { NotImplemented; }
+internal void OS_MutexDealloc(os_mutex_handle *Mutex) { NotImplemented; }
+
+internal void OS_SemaphoreAlloc(os_semaphore_handle *Sem, u32 InitialCount, u32 MaxCount) { NotImplemented; }
+internal void OS_SemaphorePost(os_semaphore_handle *Sem) { NotImplemented; }
+internal void OS_SemaphoreWait(os_semaphore_handle *Sem) { NotImplemented; }
+internal void OS_SemaphoreDealloc(os_semaphore_handle *Sem) { NotImplemented; }
+
+internal void OS_BarrierAlloc(os_barrier_handle *Barrier, u32 ThreadCount) { NotImplemented; }
+internal void OS_BarrierWait(os_barrier_handle *Barrier) { NotImplemented; }
+internal void OS_BarrierDealloc(os_barrier_handle *Barrier) { NotImplemented; }
+
+internal u64 OS_AtomicIncr64(u64 volatile *Value) { NotImplemented; return {}; }
+internal u64 OS_AtomicAdd64(u64 volatile *Value, u64 Add) { NotImplemented; return {}; }
+internal u64 OS_AtomicCmpExch64(u64 volatile *Value, u64 Cmp, u64 Exch) { NotImplemented; return {}; }
+
+internal u32 OS_AtomicIncr32(u32 volatile *Value) { NotImplemented; return {}; }
+internal u32 OS_AtomicAdd32(u32 volatile *Value, u32 Add) { NotImplemented; return {}; }
+internal u32 OS_AtomicCmpExch32(u32 volatile *Value, u32 Cmp, u32 Exch) { NotImplemented; return {}; }
+
+internal u64 OS_ReadCPUTimer(void) { NotImplemented; return {}; }
+internal u64 OS_CPUTimerFreq(void) { NotImplemented; return {}; }
+internal u64 OS_ReadOSTimer(void) { NotImplemented; return {}; }
+internal u64 OS_OSTimerFreq(void) { NotImplemented; return {}; }
+
+internal u32 OS_ProcCount(void) { NotImplemented; return {}; }
+internal u32 OS_PageSize(void) { NotImplemented; return {}; }
+internal u32 OS_ThreadGetID(void) { NotImplemented; return {}; }
 
 #if 0
 // SPDX-FileCopyrightText: © 2022 Phillip Trudeau-Tavara <pmttavara@protonmail.com>

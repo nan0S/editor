@@ -216,101 +216,11 @@ OS_StdError(void)
 }
 
 inline internal void
-OS_PrintFile(os_file_handle File, string Str)
-{
- OS_FileWrite(File, Str.Data, Str.Count);
-}
-
-inline internal void
-OS_Print(string Str)
-{
- OS_PrintFile(OS_StdOut(), Str);
-}
-
-inline internal void
-OS_PrintError(string Str)
-{
- OS_PrintFile(OS_StdError(), Str);
-}
-
-inline internal void
 OS_PrintDebug(string Str)
 {
  temp_arena Temp = TempArena(0);
  string CStr = CStrFromStr(Temp.Arena, Str);
  OutputDebugString(CStr.Data);
- EndTemp(Temp);
-}
-
-inline internal void
-OS_PrintF(char const *Format, ...)
-{
- va_list Args;
- va_start(Args, Format);
- OS_PrintFV(Format, Args);
- va_end(Args);
-}
-
-inline internal void
-OS_PrintErrorF(char const *Format, ...)
-{
- va_list Args;
- va_start(Args, Format);
- OS_PrintErrorFV(Format, Args);
- va_end(Args);
-}
-
-inline internal void
-OS_PrintDebugF(char const *Format, ...)
-{
- va_list Args;
- va_start(Args, Format);
- OS_PrintDebugFV(Format, Args);
- va_end(Args);
-}
-
-inline internal void
-OS_PrintFileF(os_file_handle File, char const *Format, ...)
-{
- va_list Args;
- va_start(Args, Format);
- OS_PrintFileFV(File, Format, Args);
- va_end(Args);
-}
-
-inline internal void
-OS_PrintFV(char const *Format, va_list Args)
-{
- temp_arena Temp = TempArena(0);
- string Str = StrFV(Temp.Arena, Format, Args);
- OS_Print(Str);
- EndTemp(Temp);
-}
-
-inline internal void
-OS_PrintErrorFV(char const *Format, va_list Args)
-{
- temp_arena Temp = TempArena(0);
- string Str = StrFV(Temp.Arena, Format, Args);
- OS_Print(Str);
- EndTemp(Temp);
-}
-
-inline internal void
-OS_PrintDebugFV(char const *Format, va_list Args)
-{
- temp_arena Temp = TempArena(0);
- string Str = StrFV(Temp.Arena, Format, Args);
- OS_PrintDebug(Str);
- EndTemp(Temp);
-}
-
-inline internal void
-OS_PrintFileFV(os_file_handle File, char const *Format, va_list Args)
-{
- temp_arena Temp = TempArena(0);
- string Str = StrFV(Temp.Arena, Format, Args);
- OS_PrintFile(File, Str);
  EndTemp(Temp);
 }
 

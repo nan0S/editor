@@ -34,8 +34,8 @@ struct file_attrs
 
 internal os_file_handle OS_FileOpen(string Path, file_access_flags Access);
 internal void           OS_FileClose(os_file_handle File);
-internal u64            OS_FileRead(os_file_handle File, char *Buf, u64 Read, u64 Offset = 0);
-internal u64            OS_FileWrite(os_file_handle File, char *Buf, u64 Write, u64 Offset = 0);
+internal u64            OS_FileRead(os_file_handle File, char *Buf, u64 Read, u64 Offset = U64_MAX);
+internal u64            OS_FileWrite(os_file_handle File, char *Buf, u64 Write, u64 Offset = U64_MAX);
 internal u64            OS_FileSize(os_file_handle File);
 internal file_attrs     OS_FileAttributes(string Path);
 

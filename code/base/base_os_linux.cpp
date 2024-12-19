@@ -17,7 +17,8 @@ OS_Commit(void *Memory, u64 Size)
  mprotect(Memory, Size, PROT_READ|PROT_WRITE);
 }
 
-internal os_file_handle OS_FileOpen(string Path, file_access_flags Access)
+internal os_file_handle
+OS_FileOpen(string Path, file_access_flags Access)
 {
  temp_arena Temp = TempArena(0);
  string CPath = CStrFromStr(Temp.Arena, Path);
@@ -36,20 +37,59 @@ OS_FileClose(os_file_handle File)
  close(File);
 }
 
+typedef ssize_t linux_file_op_func(int fd, void *buf, size_t count);
+
+internal u64
+OS_FileOperation(linux_file_op_func *Op, os_file_handle File, char *Buf, u64 Target, u64 Offset)
+{
+ u64 Processed = 0;
+
+ if (Offset != U64_MAX)
+ {
+  lseek(File, Offset, SEEK_SET);
+ }
+
+ u64 Left = Target;
+ char *At = Buf;
+ u64 OffsetAt = Offset;
+ while (Left)
+ {
+  u32 ToProcess = Left;
+  ssize_t ActuallyProcessed = Op(File, At, ToProcess);
+
+  if (ActuallyProcessed > 0)
+  { 
+    Left -= ActuallyProcessed;
+    At += ActuallyProcessed;
+    OffsetAt += ActuallyProcessed;
+    Processed += ActuallyProcessed;
+  }
+  else
+  {
+    break;
+  }
+  
+  if (ActuallyProcessed != ToProcess)
+  {
+   break;
+  }
+ }
+ 
+ return Processed;
+}
+
 internal u64
 OS_FileRead(os_file_handle File, char *Buf, u64 Read, u64 Offset)
 {
- // TODO(hbr): implement the full thing
- ssize_t ActuallyRead = read(File, Buf, Read);
- return Cast(u64)ActuallyRead;
+ u64 ReadCount = OS_FileOperation(read, File, Buf, Read, Offset);
+ return ReadCount;
 }
 
 internal u64
 OS_FileWrite(os_file_handle File, char *Buf, u64 Write, u64 Offset)
 {
-  // TODO(hbr): implement the full thing
- ssize_t Written = write(File, Buf, Write);
- return Cast(u64)Written;
+  u64 Written = OS_FileOperation(Cast(linux_file_op_func *)write, File, Buf, Write, Offset);
+  return Written;
 }
 
 internal u64
@@ -58,6 +98,27 @@ OS_FileSize(os_file_handle File)
  struct stat Stat = {};
  fstat(File, &Stat);
  u64 Result = Stat.st_size;
+ return Result;
+}
+
+internal timestamp64
+LinuxFileTimeToTimestamp(time_t FileTime)
+{
+ timestamp64 Result = 0;
+ struct tm *Time = localtime(&FileTime);
+ if (Time)
+ {
+  date_time Date = {};
+  Date.Sec = SafeCastU8(Time->tm_sec);
+  Date.Mins = SafeCastU8(Time->tm_min);
+  Date.Hour = SafeCastU8(Time->tm_hour);
+  Date.Day = SafeCastU8(Time->tm_mday - 1);
+  Date.Month = SafeCastU8(Time->tm_mon);
+  Date.Year = 1900 + Time->tm_year;
+
+  Result = DateTimeToTimestamp(Date);
+ }
+
  return Result;
 }
 
@@ -71,9 +132,8 @@ OS_FileAttributes(string Path)
  struct stat Stat = {};
  stat(CPath.Data, &Stat);
 
- // TODO(hbr): finish implementation of this function
  Result.CreateTime = 0; // NOTE(hbr): creation time on Linux is not available
- Result.ModifyTime = Stat.st_mtime;
+ Result.ModifyTime = LinuxFileTimeToTimestamp(Stat.st_mtime);
  Result.FileSize = Stat.st_size;
  Result.Dir = false;
 
@@ -85,7 +145,7 @@ OS_FileAttributes(string Path)
 internal os_file_handle OS_StdOut(void) { return STDOUT_FILENO; }
 internal os_file_handle OS_StdError(void) { return STDERR_FILENO; }
 
-internal void OS_PrintDebug(string Str) { NotImplemented; }
+internal void OS_PrintDebug(string Str) { OS_PrintErrorF("[DEBUG]: %S", Str); }
 
 internal void   OS_FileDelete(string Path) { NotImplemented; }
 internal b32    OS_FileMove(string Src, string Dest) { NotImplemented; return {}; }
@@ -127,7 +187,8 @@ internal os_library_handle OS_LibraryLoad(string Path) { NotImplemented; return 
 internal void *            OS_LibraryProc(os_library_handle Lib, char const *ProcName) { NotImplemented; return {}; }
 internal void              OS_LibraryUnload(os_library_handle Lib) { NotImplemented; }
 
-internal os_process_handle OS_ProcessLaunch(string_list CmdList)
+internal os_process_handle
+OS_ProcessLaunch(string_list CmdList)
 {
  temp_arena Temp = TempArena(0);
  string Cmd = StrListJoin(Temp.Arena, &CmdList, StrLit(" "));
@@ -150,130 +211,212 @@ OS_ProcessCleanup(os_process_handle Handle)
  // TODO(hbr): implement this
 }
 
-internal os_thread_handle OS_ThreadLaunch(os_thread_func *Func, void *Data) { NotImplemented; return {}; }
-internal void             OS_ThreadWait(os_thread_handle Thread) { NotImplemented; }
-internal void             OS_ThreadRelease(os_thread_handle Thread) { NotImplemented; }
+internal os_thread_handle
+OS_ThreadLaunch(os_thread_func *Func, void *Data)
+{
+ pthread_t Thread = {};
+ pthread_create(&Thread, 0, Func, Data);
+ return Thread;
+}
+
+internal void
+OS_ThreadWait(os_thread_handle Thread)
+{
+ NotImplemented;
+}
+
+internal void
+OS_ThreadRelease(os_thread_handle Thread)
+{
+ NotImplemented;
+}
 
 internal void OS_MutexAlloc(os_mutex_handle *Mutex) { NotImplemented; }
 internal void OS_MutexLock(os_mutex_handle *Mutex) { NotImplemented; }
 internal void OS_MutexUnlock(os_mutex_handle *Mutex) { NotImplemented; }
 internal void OS_MutexDealloc(os_mutex_handle *Mutex) { NotImplemented; }
 
-internal void OS_SemaphoreAlloc(os_semaphore_handle *Sem, u32 InitialCount, u32 MaxCount) { NotImplemented; }
-internal void OS_SemaphorePost(os_semaphore_handle *Sem) { NotImplemented; }
-internal void OS_SemaphoreWait(os_semaphore_handle *Sem) { NotImplemented; }
-internal void OS_SemaphoreDealloc(os_semaphore_handle *Sem) { NotImplemented; }
+internal void
+OS_SemaphoreAlloc(os_semaphore_handle *Sem, u32 InitialCount, u32 MaxCount)
+{
+ sem_init(Sem, 0, InitialCount);
+}
+
+internal void
+OS_SemaphorePost(os_semaphore_handle *Sem)
+{
+ sem_post(Sem);
+}
+
+internal void
+OS_SemaphoreWait(os_semaphore_handle *Sem)
+{
+ sem_wait(Sem);
+}
+
+internal void
+OS_SemaphoreDealloc(os_semaphore_handle *Sem)
+{
+ sem_destroy(Sem);
+}
 
 internal void OS_BarrierAlloc(os_barrier_handle *Barrier, u32 ThreadCount) { NotImplemented; }
 internal void OS_BarrierWait(os_barrier_handle *Barrier) { NotImplemented; }
 internal void OS_BarrierDealloc(os_barrier_handle *Barrier) { NotImplemented; }
 
-internal u64 OS_AtomicIncr64(u64 volatile *Value) { NotImplemented; return {}; }
-internal u64 OS_AtomicAdd64(u64 volatile *Value, u64 Add) { NotImplemented; return {}; }
-internal u64 OS_AtomicCmpExch64(u64 volatile *Value, u64 Cmp, u64 Exch) { NotImplemented; return {}; }
+internal inline u64
+OS_AtomicIncr64(u64 volatile *Value)
+{
+ u64 Result = OS_AtomicAdd64(Value, 1); // NOTE(hbr): I don't think Linux has builtin increment function
+ return Result;
+}
 
-internal u32 OS_AtomicIncr32(u32 volatile *Value) { NotImplemented; return {}; }
-internal u32 OS_AtomicAdd32(u32 volatile *Value, u32 Add) { NotImplemented; return {}; }
-internal u32 OS_AtomicCmpExch32(u32 volatile *Value, u32 Cmp, u32 Exch) { NotImplemented; return {}; }
+#define LinuxAtomicAdd(Value, Add) __sync_fetch_and_add(Value, Add) + Add
+#define LinuxAtomicCmpExch(Value, Cmp, Exch) __sync_val_compare_and_swap(Value, Cmp, Exch)
 
-internal u64 OS_ReadCPUTimer(void) { return 0; }
-internal u64 OS_CPUTimerFreq(void) { return 0; }
-internal u64 OS_ReadOSTimer(void) { NotImplemented; return {}; }
-internal u64 OS_OSTimerFreq(void) { NotImplemented; return {}; }
+internal inline u64
+OS_AtomicAdd64(u64 volatile *Value, u64 Add)
+{
+ u64 Result = __sync_fetch_and_add(Value, Add) + Add;
+ return Result;
+}
 
-internal u32 OS_ProcCount(void) { NotImplemented; return {}; }
-internal u32 OS_PageSize(void) { return getpagesize(); }
-internal u32 OS_ThreadGetID(void) { NotImplemented; return {}; }
+internal inline u64
+OS_AtomicCmpExch64(u64 volatile *Value, u64 Cmp, u64 Exch)
+{
+ u64 Result = __sync_val_compare_and_swap(Value, Cmp, Exch);
+ return Result;
+}
 
-#if 0
-// SPDX-FileCopyrightText: © 2022 Phillip Trudeau-Tavara <pmttavara@protonmail.com>
-// SPDX-License-Identifier: 0BSD
+internal u32
+OS_AtomicIncr32(u32 volatile *Value)
+{
+ u64 Result = OS_AtomicAdd32(Value, 1); // NOTE(hbr): I don't think Linux has builtin increment function
+ return Result;
+}
 
-// https://linux.die.net/man/2/perf_event_open
-// https://stackoverflow.com/a/57835630
+internal inline u32
+OS_AtomicAdd32(u32 volatile *Value, u32 Add)
+{
+ u32 Result = __sync_fetch_and_add(Value, Add) + Add;
+ return Result;
+}
 
-#include <stdbool.h>
-#include <stdint.h>
+internal inline u32
+OS_AtomicCmpExch32(u32 volatile *Value, u32 Cmp, u32 Exch)
+{
+ u32 Result = __sync_val_compare_and_swap(Value, Cmp, Exch);
+ return Result;
+}
 
-#include <sys/mman.h>
-#include <linux/perf_event.h>
-#include <time.h>
-#include <unistd.h>
-#include <x86intrin.h>
+internal inline u64
+OS_ReadCPUTimer(void)
+{
+ u64 Result = __rdtsc();
+ return Result;
+}
 
-static inline uint64_t get_rdtsc_freq(void) {
- 
- // Cache the answer so that multiple calls never take the slow path more than once
- static uint64_t tsc_freq = 0;
- if (tsc_freq) {
-  return tsc_freq;
- }
- 
- // Fast path: Load kernel-mapped memory page
- struct perf_event_attr pe = {0};
- pe.type = PERF_TYPE_HARDWARE;
- pe.size = sizeof(struct perf_event_attr);
- pe.config = PERF_COUNT_HW_INSTRUCTIONS;
- pe.disabled = 1;
- pe.exclude_kernel = 1;
- pe.exclude_hv = 1;
- 
- // __NR_perf_event_open == 298 (on x86_64)
- int fd = syscall(298, &pe, 0, -1, -1, 0);
- if (fd != -1) {
+internal inline u64
+OS_CPUTimerFreq(void)
+{
+ local u64 TSCFreq = 0;
+ if (!TSCFreq)
+ {
+  //- Fast path: Load kernel-mapped memory page
+  struct perf_event_attr PE = {0};
+  PE.type = PERF_TYPE_HARDWARE;
+  PE.size = sizeof(struct perf_event_attr);
+  PE.config = PERF_COUNT_HW_INSTRUCTIONS;
+  PE.disabled = 1;
+  PE.exclude_kernel = 1;
+  PE.exclude_hv = 1;
   
-  struct perf_event_mmap_page *pc = (struct perf_event_mmap_page *)mmap(NULL, 4096, PROT_READ, MAP_SHARED, fd, 0);
-  if (pc) {
-   
-   // success
-   if (pc->cap_user_time == 1) {
-    // docs say nanoseconds = (tsc * time_mult) >> time_shift
-    //      set nanoseconds = 1000000000 = 1 second in nanoseconds, solve for tsc
-    //       =>         tsc = 1000000000 / (time_mult >> time_shift)
-    tsc_freq = (1000000000ull << (pc->time_shift / 2)) / (pc->time_mult >> (pc->time_shift - pc->time_shift / 2));
-    // If your build configuration supports 128 bit arithmetic, do this:
-    // tsc_freq = ((__uint128_t)1000000000ull << (__uint128_t)pc->time_shift) / pc->time_mult;
+  // __NR_perf_event_open == 298 (on x86_64)
+  int fd = syscall(298, &PE, 0, -1, -1, 0);
+  if (fd != -1)
+  { 
+   struct perf_event_mmap_page *Page = Cast(struct perf_event_mmap_page *)mmap(NULL, 4096, PROT_READ, MAP_SHARED, fd, 0);
+   if (Page)
+   {
+    // success
+    if (Page->cap_user_time == 1)
+    {
+     // docs say nanoseconds = (tsc * time_mult) >> time_shift
+     //      set nanoseconds = 1000000000 = 1 second in nanoseconds, solve for tsc
+     //       =>         tsc = 1000000000 / (time_mult >> time_shift)
+     TSCFreq = (1000000000ull << (Page->time_shift / 2)) / (Page->time_mult >> (Page->time_shift - Page->time_shift / 2));
+     // If your build configuration supports 128 bit arithmetic, do this:
+     // tsc_freq = ((__uint128_t)1000000000ull << (__uint128_t)pc->time_shift) / pc->time_mult;
+    }
+    munmap(Page, 4096);
    }
-   munmap(pc, 4096);
+   close(fd);
   }
-  close(fd);
+  
+  //- Slow path
+  if (!TSCFreq)
+  {
+   u64 OSBegin = OS_ReadOSTimer();
+   u64 TSCBegin = OS_ReadCPUTimer();
+
+   // 10ms gives ~4.5 digits of precision - the longer you sleep, the more precise you get
+   usleep(10000);
+   
+   u64 OSEnd = OS_ReadOSTimer();
+   u64 TSCEnd = OS_ReadCPUTimer();
+
+   u64 OSFreq = OS_OSTimerFreq();
+   TSCFreq = (TSCEnd - TSCBegin) * OSFreq / (OSEnd - OSBegin);
+  }
+  
+  //- Failure case
+  if (!TSCFreq)
+  {
+   TSCFreq = 1000000000;
+  }
  }
- 
- // Slow path
- if (!tsc_freq) {
-  
-  // Get time before sleep
-  uint64_t nsc_begin = 0; { struct timespec t; if (!clock_gettime(CLOCK_MONOTONIC_RAW, &t)) nsc_begin = (uint64_t)t.tv_sec * 1000000000ull + t.tv_nsec; }
-  uint64_t tsc_begin = __rdtsc();
-  
-  usleep(10000); // 10ms gives ~4.5 digits of precision - the longer you sleep, the more precise you get
-  
-  // Get time after sleep
-  uint64_t nsc_end = nsc_begin + 1; { struct timespec t; if (!clock_gettime(CLOCK_MONOTONIC_RAW, &t)) nsc_end = (uint64_t)t.tv_sec * 1000000000ull + t.tv_nsec; }
-  uint64_t tsc_end = __rdtsc();
-  
-  // Do the math to extrapolate the RDTSC ticks elapsed in 1 second
-  tsc_freq = (tsc_end - tsc_begin) * 1000000000 / (nsc_end - nsc_begin);
- }
- 
- // Failure case
- if (!tsc_freq) {
-  tsc_freq = 1000000000;
- }
- 
- return tsc_freq;
+
+ return TSCFreq;
 }
 
-#include <stdio.h>
-int main() {
- printf("Calling get_rdtsc_freq() 1,000 times...\n");
- uint64_t start = __rdtsc();
- uint64_t freq = 0;
- for (int i = 0; i < 1000; i++) {
-  freq = get_rdtsc_freq();
+internal inline u64
+OS_ReadOSTimer(void)
+{
+ u64 Result = 0;
+ struct timespec t;
+ if (!clock_gettime(CLOCK_MONOTONIC_RAW, &t))
+ {
+  Result = Cast(u64)t.tv_sec * 1000000000ull + t.tv_nsec;
  }
- uint64_t end = __rdtsc();
- printf("...took %f milliseconds.\n", (end - start) * 1000.0 / freq);
- printf("RDTSC frequency is %lu (%.2f GHz).\n", (unsigned long)freq, freq * 0.000000001);
+ return Result;
 }
-#endif
+
+internal inline u64
+OS_OSTimerFreq(void)
+{
+ return 1000000000;
+}
+
+internal inline u32
+OS_ProcCount(void)
+{
+ int Procs = get_nprocs();
+ u32 Result = SafeCastU32(Procs);
+ return Result;
+}
+
+internal inline u32
+OS_PageSize(void)
+{
+ int PageSize = getpagesize();
+ u32 Result = SafeCastU32(PageSize);
+ return Result;
+}
+
+internal u32
+OS_ThreadGetID(void)
+{
+ pid_t ThreadID = gettid();
+ u32 Result = SafeCastU32(ThreadID);
+ return Result;
+}

@@ -275,11 +275,5 @@ EnqueueProcess(process_queue *Queue, os_process_handle Process)
 internal void
 WaitProcesses(process_queue *Queue)
 {
- for (u32 ProcessIndex = 0;
-      ProcessIndex < Queue->ProcessCount;
-      ++ProcessIndex)
- {
-  OS_ProcessWait(Queue->Processes[ProcessIndex]);
- }
- Queue->ProcessCount = 0;
+
 }

@@ -25,6 +25,7 @@ CompileEditor(process_queue *ProcessQueue, b32 Debug, b32 ForceRecompile, b32 Ve
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code")));
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/third_party/imgui")));
  
+#if 0
  //- precompile third part code into obj
  compile_result ThirdParty = {};
  {
@@ -78,7 +79,13 @@ CompileEditor(process_queue *ProcessQueue, b32 Debug, b32 ForceRecompile, b32 Ve
   compile_result Win32PlatformExe = Compile(Setup, Target);
   EnqueueProcess(ProcessQueue, Win32PlatformExe.CompileProcess);
  }
- 
+#endif
+
+ compilation_target Target = MakeTarget(Exe, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/glfw/glfw_editor.cpp")), 0);
+ LinkLibrary(&Target, StrLit("pthread"));
+ compile_result GLFWPlatformExe = Compile(Setup, Target);
+ EnqueueProcess(ProcessQueue, GLFWPlatformExe.CompileProcess);
+
  EndTemp(Temp);
 }
 
@@ -137,7 +144,13 @@ int main(int ArgCount, char *Args[])
   process_queue ProcessQueue = {};
   if (Debug)   CompileEditor(&ProcessQueue, true, ForceRecompile, Verbose);
   if (Release) CompileEditor(&ProcessQueue, false, ForceRecompile, Verbose);
-  WaitProcesses(&ProcessQueue);
+
+   for (u32 ProcessIndex = 0;
+      ProcessIndex < ProcessQueue.ProcessCount;
+      ++ProcessIndex)
+  {
+   OS_ProcessWait(ProcessQueue.Processes[ProcessIndex]);
+  }
   
   u64 CPUFreq = OS_CPUTimerFreq();
   u64 EndTSC = OS_ReadCPUTimer();

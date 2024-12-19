@@ -92,7 +92,7 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
   
   string_list Queue = {};
   string_list_node *Node = PushStruct(Arena, string_list_node);
-  Node->Str = SourceCodePath;
+  Node->Str = OS_FullPathFromPath(Arena, SourceCodePath);
   QueuePush(Queue.Head, Queue.Tail, Node);
   
   while (Queue.Head)
@@ -103,9 +103,10 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
    
    string Dependency = Current->Str;
    StrListPush(Arena, &AllFilesInvolved, Dependency);
-   
+   string DependencyDir = PathChopLastPart(Dependency);
+
    string FileContents = OS_ReadEntireFile(Arena, Dependency);
-   
+
    include_parser _Parser = {};
    include_parser *Parser = &_Parser;
    Parser->At = FileContents.Data;
@@ -130,8 +131,8 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
        if (ParserCharMatchAndEat(Parser, '"'))
        {
         string DependencyFile = MakeStr(SaveAt, Length);
-        string DependencyPath = PathConcat(Arena, CodeDir, DependencyFile);
-        
+        string DependencyPath = PathConcat(Arena, DependencyDir, DependencyFile);
+
         // NOTE(hbr): make sure we do not recurse
         b32 AlreadyExists = false;
         ListIter(Node, AllFilesInvolved.Head, string_list_node)
@@ -147,8 +148,7 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
         if (!AlreadyExists)
         {
          string_list_node *Node = PushStruct(Arena, string_list_node);
-         
-         Node->Str = DependencyPath;
+         Node->Str = OS_FullPathFromPath(Arena, DependencyPath);
          QueuePush(Queue.Head, Queue.Tail, Node);
         }
        }

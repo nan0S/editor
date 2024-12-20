@@ -647,3 +647,10 @@ OS_ThreadGetID(void)
  u32 Result = Cast(u32)ID;
  return Result;
 }
+
+internal void
+OS_Sleep(u64 Milliseconds)
+{
+ u32 Ms = SafeCastU32(Milliseconds);
+ Sleep(Ms);
+}

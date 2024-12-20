@@ -139,4 +139,6 @@ internal u32 OS_ProcCount(void);
 internal u32 OS_PageSize(void);
 internal u32 OS_ThreadGetID(void);
 
+internal void OS_Sleep(u64 Milliseconds);
+
 #endif //BASE_OS_H

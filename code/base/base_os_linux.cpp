@@ -571,16 +571,20 @@ OS_CPUTimerFreq(void)
   //- Slow path
   if (!TSCFreq)
   {
+   u64 OSFreq = OS_OSTimerFreq();
+   u64 WaitMilliseconds = 10;
+   u64 OSTargetDuration = OSFreq * WaitMilliseconds / 1000;
+
+   u64 OSEnd = 0, OSElapsed = 0;
    u64 OSBegin = OS_ReadOSTimer();
+   u64 OSTargetEnd = OSBegin + OSTargetDuration;
    u64 TSCBegin = OS_ReadCPUTimer();
 
-   // 10ms gives ~4.5 digits of precision - the longer you sleep, the more precise you get
-   usleep(10000);
-   
-   u64 OSEnd = OS_ReadOSTimer();
+   do {
+    OSEnd = OS_ReadOSTimer();
+   } while (OSEnd < OSTargetEnd);   
    u64 TSCEnd = OS_ReadCPUTimer();
 
-   u64 OSFreq = OS_OSTimerFreq();
    TSCFreq = (TSCEnd - TSCBegin) * OSFreq / (OSEnd - OSBegin);
   }
   
@@ -634,4 +638,10 @@ OS_ThreadGetID(void)
  pid_t ThreadID = gettid();
  u32 Result = SafeCastU32(ThreadID);
  return Result;
+}
+
+internal void
+OS_Sleep(u64 Milliseconds)
+{
+ usleep(Milliseconds * 1000);
 }

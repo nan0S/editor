@@ -83,6 +83,9 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
  {
   compilation_target Target = MakeTarget(Exe, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/glfw/glfw_editor.cpp")), 0);
   LinkLibrary(&Target, StrLit("pthread"));
+  LinkLibrary(&Target, StrLit("X11"));
+  LinkLibrary(&Target, StrLit("GL"));
+
   compile_result GLFWPlatformExe = Compile(Setup, Target);
   EnqueueProcess(ProcessQueue, GLFWPlatformExe.CompileProcess);
  }

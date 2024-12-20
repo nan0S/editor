@@ -184,6 +184,7 @@ union mat4
 # define CompilerWriteBarrier _WriteBarrier()
 #endif
 #if COMPILER_GCC || COMPILER_CLANG
+#include <x86intrin.h>
 # define CompilerWriteBarrier asm("":::"memory")
 #endif
 #if !defined(CompilerWriteBarrier)

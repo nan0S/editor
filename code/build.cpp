@@ -16,12 +16,11 @@
 #include "base/base_nobuild.cpp"
 
 internal void
-CompileEditor(process_queue *ProcessQueue, b32 Debug, b32 ForceRecompile, b32 Verbose)
+CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, b32 ForceRecompile, b32 Verbose)
 {
  temp_arena Temp = TempArena(0);
  
- // TODO(hbr): go back to Compiler_Default
- compiler_setup Setup = MakeCompilerSetup(Compiler_Clang, Debug, true, Verbose);
+ compiler_setup Setup = MakeCompilerSetup(Compiler, Debug, true, Verbose);
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code")));
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/third_party/imgui")));
  
@@ -115,6 +114,7 @@ int main(int ArgCount, char *Args[])
   b32 Release = false;
   b32 ForceRecompile = false;
   b32 Verbose = false;
+  compiler_choice Compiler = Compiler_Default;
   for (int ArgIndex = 1;
        ArgIndex < ArgCount;
        ++ArgIndex)
@@ -136,6 +136,22 @@ int main(int ArgCount, char *Args[])
    {
     Verbose = true;
    }
+   if (StrMatch(Arg, StrLit("gcc"), true))
+   {
+    Compiler = Compiler_GCC;
+   }
+   if (StrMatch(Arg, StrLit("clang"), true))
+   {
+    Compiler = Compiler_Clang;
+   }
+   if (StrMatch(Arg, StrLit("msvc"), true))
+   {
+    Compiler = Compiler_MSVC;
+   }
+   if (StrMatch(Arg, StrLit("default"), true))
+   {
+    Compiler = Compiler_Default;
+   }
   }
   if (!Debug && !Release)
   {
@@ -144,8 +160,8 @@ int main(int ArgCount, char *Args[])
   }
   
   process_queue ProcessQueue = {};
-  if (Debug)   CompileEditor(&ProcessQueue, true, ForceRecompile, Verbose);
-  if (Release) CompileEditor(&ProcessQueue, false, ForceRecompile, Verbose);
+  if (Debug)   CompileEditor(&ProcessQueue, Compiler, true, ForceRecompile, Verbose);
+  if (Release) CompileEditor(&ProcessQueue, Compiler, false, ForceRecompile, Verbose);
 
    for (u32 ProcessIndex = 0;
       ProcessIndex < ProcessQueue.ProcessCount;

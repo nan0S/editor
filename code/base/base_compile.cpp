@@ -151,8 +151,9 @@ Compile(compiler_setup Setup, compilation_target Target)
     StrListPushF(Arena, Cmd, "-EHa-"); // disables exceptions
    }break;
    
+   case GCC:
    case Clang: {
-    StrListPushF(Arena, Cmd, "clang");
+    StrListPushF(Arena, Cmd, (Setup.Compiler == GCC) ? "gcc" : "clang");
     if (Setup.DebugBuild)
     {
      StrListPushF(Arena, Cmd, "-O0");
@@ -165,7 +166,13 @@ Compile(compiler_setup Setup, compilation_target Target)
     {
      StrListPushF(Arena, Cmd, "-g");
     }
-    StrListPushF(Arena, Cmd, "-fdiagnostics-absolute-paths");
+    if (Setup.Compiler == Clang)
+    {
+     // NOTE(hbr): this options only exists for Clang but we should already
+     // feed GCC compiler absolute paths which means that the errors
+     // will also be printed out with absolute paths
+     StrListPushF(Arena, Cmd, "-fdiagnostics-absolute-paths");
+    }
     StrListPushF(Arena, Cmd, "-Wall");
     StrListPushF(Arena, Cmd, "-Wno-missing-braces");
     StrListPushF(Arena, Cmd, "-Wno-unused-but-set-variable");
@@ -174,8 +181,6 @@ Compile(compiler_setup Setup, compilation_target Target)
     StrListPushF(Arena, Cmd, "-Wno-char-subscripts");
     StrListPushF(Arena, Cmd, "-Wno-unused-local-typedef");
    }break;
-   
-   case GCC: {NotImplemented;}break;
   }
   
   //- define variables
@@ -227,6 +232,7 @@ Compile(compiler_setup Setup, compilation_target Target)
     }
    }break;
    
+   case GCC:
    case Clang: {
     switch (Target.TargetType)
     {
@@ -249,8 +255,6 @@ Compile(compiler_setup Setup, compilation_target Target)
     }
     StrListPushF(Arena, Cmd, "-o%S", OutputTarget);
    }break;
-   
-   case GCC: {NotImplemented;}break;
   }
   
   if (Setup.Verbose)

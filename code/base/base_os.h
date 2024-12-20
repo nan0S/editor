@@ -38,6 +38,7 @@ internal u64            OS_FileRead(os_file_handle File, char *Buf, u64 Read, u6
 internal u64            OS_FileWrite(os_file_handle File, char *Buf, u64 Write, u64 Offset = U64_MAX);
 internal u64            OS_FileSize(os_file_handle File);
 internal file_attrs     OS_FileAttributes(string Path);
+internal b32            OS_FileValid(os_file_handle File);
 
 struct dir_entry
 {
@@ -75,9 +76,9 @@ internal void OS_PrintDebugFV(char const *Format, va_list Args);
 internal void OS_PrintFileFV(os_file_handle File, char const *Format, va_list Args);
 
 //- file system, paths
-internal void   OS_FileDelete(string Path);
-internal b32    OS_FileMove(string Src, string Dest);
-internal b32    OS_FileCopy(string Src, string Dest);
+internal b32    OS_FileDelete(string Path);
+internal b32    OS_FileMove(string Src, string Dst);
+internal b32    OS_FileCopy(string Src, string Dst);
 internal b32    OS_FileExists(string Path);
 internal b32    OS_DirMake(string Path);
 internal b32    OS_DirRemove(string Path);

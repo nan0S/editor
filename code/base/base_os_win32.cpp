@@ -122,6 +122,13 @@ OS_FileOpen(string Path, file_access_flags Access)
  return Result;
 }
 
+internal b32
+OS_FileValid(os_file_handle File)
+{
+ b32 Valid = (File != INVALID_HANDLE_VALUE);
+ return Valid;
+}
+
 internal void
 OS_FileClose(os_file_handle File)
 {
@@ -224,34 +231,36 @@ OS_PrintDebug(string Str)
  EndTemp(Temp);
 }
 
-internal void
+internal b32
 OS_FileDelete(string Path)
 {
  temp_arena Temp = TempArena(0);
  string CPath = CStrFromStr(Temp.Arena, Path);
- DeleteFileA(CPath.Data);
+ BOOL Ret = DeleteFileA(CPath.Data);
+ b32 Success = (Ret != 0);
  EndTemp(Temp);
+ return Success;
 }
 
 internal b32
-OS_FileMove(string Src, string Dest)
+OS_FileMove(string Src, string Dst)
 {
  temp_arena Temp = TempArena(0);
  string CSrc  = CStrFromStr(Temp.Arena, Src);
- string CDest = CStrFromStr(Temp.Arena, Dest);
- b32 Success = (MoveFileA(CSrc.Data, CDest.Data) != 0);
+ string CDst = CStrFromStr(Temp.Arena, Dst);
+ b32 Success = (MoveFileA(CSrc.Data, CDst.Data) != 0);
  EndTemp(Temp);
  
  return Success;
 }
 
 internal b32
-OS_FileCopy(string Src, string Dest)
+OS_FileCopy(string Src, string Dst)
 {
  temp_arena Temp = TempArena(0);
  string CSrc  = CStrFromStr(Temp.Arena, Src);
- string CDest = CStrFromStr(Temp.Arena, Dest);
- b32 Success = (CopyFileA(CSrc.Data, CDest.Data, 0) != 0);
+ string CDst = CStrFromStr(Temp.Arena, Dst);
+ b32 Success = (CopyFileA(CSrc.Data, CDst.Data, 0) != 0);
  EndTemp(Temp);
  
  return Success;

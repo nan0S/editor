@@ -127,8 +127,15 @@ union mat4
 # error thread_static not defined
 #endif
 
-#define DLL_EXPORT extern "C" __declspec(dllexport)
-#define DLL_IMPORT extern "C" __declspec(dllimport)
+#if COMPILER_MSVC
+# define DLL_EXPORT extern "C" __declspec(dllexport)
+#endif
+#if COMPILER_CLANG || COMPILER_GCC
+# define DLL_EXPORT extern "C" __attribute__((visibility("default")))
+#endif
+#if !defined(DLL_EXPORT)
+# error DLL_EXPORT not defined
+#endif
 
 #define Bytes(N)      ((Cast(u64)(N)) << 0)
 #define Kilobytes(N)  ((Cast(u64)(N)) << 10)

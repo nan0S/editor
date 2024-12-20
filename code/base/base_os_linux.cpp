@@ -26,7 +26,8 @@ OS_FileOpen(string Path, file_access_flags Access)
  if (Access & FileAccess_Read && Access & FileAccess_Write) Flags = O_RDWR;
  else if (Access & FileAccess_Read) Flags = O_RDONLY;
  else if (Access & FileAccess_Write) Flags = O_WRONLY;
- int File = open(CPath.Data, Flags);
+ if (Access & FileAccess_Write) Flags |= (O_CREAT | O_TRUNC);
+ int File = open(CPath.Data, Flags, 0644);
  EndTemp(Temp);
  return File;
 }
@@ -145,11 +146,57 @@ OS_FileAttributes(string Path)
 internal os_file_handle OS_StdOut(void) { return STDOUT_FILENO; }
 internal os_file_handle OS_StdError(void) { return STDERR_FILENO; }
 
-internal void OS_PrintDebug(string Str) { OS_PrintErrorF("[DEBUG]: %S", Str); }
+internal void
+OS_PrintDebug(string Str)
+{
+ OS_PrintErrorF("[DEBUG]: %S", Str);
+}
 
-internal void   OS_FileDelete(string Path) { NotImplemented; }
-internal b32    OS_FileMove(string Src, string Dest) { NotImplemented; return {}; }
-internal b32    OS_FileCopy(string Src, string Dest) { NotImplemented; return {}; }
+internal b32
+OS_FileDelete(string Path)
+{
+ temp_arena Temp = TempArena(0);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ int Ret = unlink(CPath.Data);
+ b32 Success = (Ret == 0);
+ EndTemp(Temp);
+ return Success;
+}
+
+internal b32
+OS_FileMove(string Src, string Dst)
+{
+ temp_arena Temp = TempArena(0);
+ string CSrc = CStrFromStr(Temp.Arena, Src);
+ string CDst = CStrFromStr(Temp.Arena, Dst);
+ int Ret = rename(CSrc.Data, CDst.Data);
+ b32 Success = (Ret == 0);
+ EndTemp(Temp);
+ return Success;
+}
+
+internal b32
+OS_FileValid(os_file_handle File)
+{
+ b32 Valid = (File != -1);
+ return Valid;
+}
+
+internal b32
+OS_FileCopy(string Src, string Dst)
+{
+ os_file_handle SrcFile = OS_FileOpen(Src, FileAccess_Read);
+ u64 SrcFileSize = OS_FileSize(SrcFile);
+ os_file_handle DstFile = OS_FileOpen(Dst, FileAccess_Write);
+ 
+ int Ret = sendfile(DstFile, SrcFile, 0, SrcFileSize);
+ b32 Success = (Ret == 0);
+
+ OS_FileClose(DstFile);
+ OS_FileClose(SrcFile);
+
+ return Success;
+}
 
 internal b32
 OS_FileExists(string Path)
@@ -162,10 +209,72 @@ OS_FileExists(string Path)
  return Exists;
 }
 
-internal b32    OS_DirMake(string Path) { NotImplemented; return {}; }
-internal b32    OS_DirRemove(string Path) { NotImplemented; return {}; }
-internal b32    OS_DirChange(string Path) { NotImplemented; return {}; }
-internal string OS_CurrentDir(arena *Arena) { NotImplemented; return {}; }
+internal b32
+OS_DirMake(string Path)
+{
+ temp_arena Temp = TempArena(0);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ int Ret = mkdir(CPath.Data, 0755);
+ b32 Success = (Ret == 0);
+ EndTemp(Temp);
+ return Success;
+}
+
+internal b32
+OS_DirRemove(string Path)
+{
+ temp_arena Temp = TempArena(0);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ int Ret = rmdir(CPath.Data);
+ b32 Success = (Ret == 0);
+ EndTemp(Temp);
+ return Success;
+}
+
+internal b32
+OS_DirChange(string Path)
+{
+ temp_arena Temp = TempArena(0);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ int Ret = chdir(CPath.Data);
+ b32 Success = (Ret == 0);
+ EndTemp(Temp);
+ return Success;
+}
+
+internal string
+OS_CurrentDir(arena *Arena)
+{
+ string Result = {};
+ temp_arena Temp = BeginTemp(Arena);
+
+ u32 Count = PATH_MAX;
+ b32 Extracting = true;
+ do
+ {
+  char *Buffer = PushArrayNonZero(Arena, Count, char);
+  char *Ret = getcwd(Buffer, Count);
+  if (Ret == 0)
+  {
+   if (errno == ERANGE) // buffer too short, try again
+   {
+    EndTemp(Temp);
+    Count <<= 1;
+   }
+   else // unknown error, return empty string
+   {
+    Extracting = false;
+   }
+  }
+  else // successfully extracted current dir, return it
+  {
+   Result = StrFromCStr(Buffer);
+   Extracting = false;
+  }
+ } while (Extracting);
+
+ return Result;
+}
 
 internal string
 OS_FullPathFromPath(arena *Arena, string Path)
@@ -183,86 +292,195 @@ OS_FullPathFromPath(arena *Arena, string Path)
  return Result;
 }
 
-internal os_library_handle OS_LibraryLoad(string Path) { NotImplemented; return {}; }
-internal void *            OS_LibraryProc(os_library_handle Lib, char const *ProcName) { NotImplemented; return {}; }
-internal void              OS_LibraryUnload(os_library_handle Lib) { NotImplemented; }
+internal os_library_handle
+OS_LibraryLoad(string Path)
+{
+ temp_arena Temp = TempArena(0);
+ string CPath = CStrFromStr(Temp.Arena, Path);
+ void *Result = dlopen(CPath.Data, RTLD_LAZY);
+ EndTemp(Temp);
+ return Result;
+}
+
+internal void *
+OS_LibraryProc(os_library_handle Lib, char const *ProcName)
+{
+ void *Result = dlsym(Lib, ProcName);
+ return Result;
+}
+
+internal void
+OS_LibraryUnload(os_library_handle Lib)
+{
+ int Ret = dlclose(Lib);
+ Assert(Ret == 0);
+}
 
 internal os_process_handle
 OS_ProcessLaunch(string_list CmdList)
 {
+ os_process_handle Result = 0;
  temp_arena Temp = TempArena(0);
- string Cmd = StrListJoin(Temp.Arena, &CmdList, StrLit(" "));
- // TODO(hbr): use execve instead
- system(Cmd.Data);
+
+ if (CmdList.NodeCount > 0)
+ {
+  string ExePath = CStrFromStr(Temp.Arena, CmdList.Head->Str);
+
+  char **Argv = PushArray(Temp.Arena, CmdList.NodeCount + 1, char *);
+  string_list_node *Node = CmdList.Head;
+  for (u32 ArgIndex = 0;
+       ArgIndex < CmdList.NodeCount;
+       ++ArgIndex)
+  {
+   string Arg = Node->Str;
+   string CArg = CStrFromStr(Temp.Arena, Arg);
+   Argv[ArgIndex] = CArg.Data;
+   Node = Node->Next;
+  }
+
+  pid_t Pid = fork();
+  if (Pid >= 0)
+  {
+   if (Pid == 0) // child case
+   {
+    int Ret = execvp(ExePath.Data, Argv);
+    // NOTE(hbr): execve should never return, if it does
+    // it's always -1, and something is wrong, exit immediately
+    // because we are already in child process
+    Assert(Ret == -1);
+    exit(EXIT_FAILURE);
+   }
+   else // parent case
+   {
+    Result = Pid;
+   }
+  }
+ }
+
  EndTemp(Temp);
- return 0;
+
+ return Result;
 }
 
 internal b32
 OS_ProcessWait(os_process_handle Process)
 {
- // TODO(hbr): implement this
- return true;
+ int Status = 0;
+ pid_t Ret = waitpid(Process, &Status, 0);
+ b32 Success = (Ret == Process);
+ Assert(Success);
+ return Success;
 }
 
 internal void
 OS_ProcessCleanup(os_process_handle Handle)
 {
- // TODO(hbr): implement this
+ // NOTE(hbr): nothing to do
 }
 
 internal os_thread_handle
 OS_ThreadLaunch(os_thread_func *Func, void *Data)
 {
  pthread_t Thread = {};
- pthread_create(&Thread, 0, Func, Data);
+ int Ret = pthread_create(&Thread, 0, Func, Data);
+ Assert(Ret == 0);
  return Thread;
 }
 
 internal void
 OS_ThreadWait(os_thread_handle Thread)
 {
- NotImplemented;
+ int Ret = pthread_join(Thread, 0);
+ Assert(Ret == 0);
 }
 
 internal void
 OS_ThreadRelease(os_thread_handle Thread)
 {
- NotImplemented;
+ // TODO(hbr): not sure actually whether we should call pthread_detach here.
+ // For sure it could fail if it was called after OS_ThreadWait, but also API
+ // suggests that we should release thread after launching it, so we should
+ // do something at least. I'm fine with detach here always and maybe failing
+ // but who cares if this fails (there is OS_ThreadRelease API call because of Win32
+ // thread API).
+ pthread_detach(Thread);
 }
 
-internal void OS_MutexAlloc(os_mutex_handle *Mutex) { NotImplemented; }
-internal void OS_MutexLock(os_mutex_handle *Mutex) { NotImplemented; }
-internal void OS_MutexUnlock(os_mutex_handle *Mutex) { NotImplemented; }
-internal void OS_MutexDealloc(os_mutex_handle *Mutex) { NotImplemented; }
+internal void
+OS_MutexAlloc(os_mutex_handle *Mutex)
+{
+ int Ret = pthread_mutex_init(Mutex, 0);
+ Assert(Ret == 0);
+}
+
+internal void
+OS_MutexLock(os_mutex_handle *Mutex)
+{
+ int Ret = pthread_mutex_lock(Mutex);
+ Assert(Ret == 0);
+}
+
+internal void
+OS_MutexUnlock(os_mutex_handle *Mutex)
+{
+ int Ret = pthread_mutex_unlock(Mutex);
+ Assert(Ret == 0);
+}
+
+internal void
+OS_MutexDealloc(os_mutex_handle *Mutex)
+{
+ int Ret = pthread_mutex_destroy(Mutex);
+ Assert(Ret == 0);
+}
 
 internal void
 OS_SemaphoreAlloc(os_semaphore_handle *Sem, u32 InitialCount, u32 MaxCount)
 {
- sem_init(Sem, 0, InitialCount);
+ int Ret = sem_init(Sem, 0, InitialCount);
+ Assert(Ret == 0);
 }
 
 internal void
 OS_SemaphorePost(os_semaphore_handle *Sem)
 {
- sem_post(Sem);
+ int Ret = sem_post(Sem);
+ Assert(Ret == 0);
 }
 
 internal void
 OS_SemaphoreWait(os_semaphore_handle *Sem)
 {
- sem_wait(Sem);
+ int Ret = sem_wait(Sem);
+ Assert(Ret == 0);
 }
 
 internal void
 OS_SemaphoreDealloc(os_semaphore_handle *Sem)
 {
- sem_destroy(Sem);
+ int Ret = sem_destroy(Sem);
+ Assert(Ret == 0);
 }
 
-internal void OS_BarrierAlloc(os_barrier_handle *Barrier, u32 ThreadCount) { NotImplemented; }
-internal void OS_BarrierWait(os_barrier_handle *Barrier) { NotImplemented; }
-internal void OS_BarrierDealloc(os_barrier_handle *Barrier) { NotImplemented; }
+internal void
+OS_BarrierAlloc(os_barrier_handle *Barrier, u32 ThreadCount)
+{
+ int Ret = pthread_barrier_init(Barrier, 0, ThreadCount);
+ Assert(Ret == 0);
+}
+
+internal void
+OS_BarrierWait(os_barrier_handle *Barrier)
+{
+ pthread_barrier_wait(Barrier);
+}
+
+internal void
+OS_BarrierDealloc(os_barrier_handle *Barrier)
+{
+ int Ret = pthread_barrier_destroy(Barrier);
+ Assert(Ret == 0);
+}
 
 internal inline u64
 OS_AtomicIncr64(u64 volatile *Value)
@@ -270,9 +488,6 @@ OS_AtomicIncr64(u64 volatile *Value)
  u64 Result = OS_AtomicAdd64(Value, 1); // NOTE(hbr): I don't think Linux has builtin increment function
  return Result;
 }
-
-#define LinuxAtomicAdd(Value, Add) __sync_fetch_and_add(Value, Add) + Add
-#define LinuxAtomicCmpExch(Value, Cmp, Exch) __sync_val_compare_and_swap(Value, Cmp, Exch)
 
 internal inline u64
 OS_AtomicAdd64(u64 volatile *Value, u64 Add)
@@ -332,10 +547,10 @@ OS_CPUTimerFreq(void)
   PE.exclude_hv = 1;
   
   // __NR_perf_event_open == 298 (on x86_64)
-  int fd = syscall(298, &PE, 0, -1, -1, 0);
-  if (fd != -1)
+  int FileDesc = syscall(298, &PE, 0, -1, -1, 0);
+  if (FileDesc != -1)
   { 
-   struct perf_event_mmap_page *Page = Cast(struct perf_event_mmap_page *)mmap(NULL, 4096, PROT_READ, MAP_SHARED, fd, 0);
+   struct perf_event_mmap_page *Page = Cast(struct perf_event_mmap_page *)mmap(NULL, 4096, PROT_READ, MAP_SHARED, FileDesc, 0);
    if (Page)
    {
     // success
@@ -350,7 +565,7 @@ OS_CPUTimerFreq(void)
     }
     munmap(Page, 4096);
    }
-   close(fd);
+   close(FileDesc);
   }
   
   //- Slow path

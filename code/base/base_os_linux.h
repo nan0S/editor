@@ -1,18 +1,23 @@
 #ifndef BASE_OS_LINUX_H
 #define BASE_OS_LINUX_H
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <pthread.h>
+#include <semaphore.h>
+#include <dirent.h>
+#include <fcntl.h>
+#include <time.h>
+#include <dlfcn.h>
+#include <errno.h>
+#include <linux/perf_event.h>
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/sysinfo.h>
-#include <pthread.h>
-#include <dirent.h>
-#include <semaphore.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <time.h>
-#include <linux/perf_event.h>
+#include <sys/wait.h>
+#include <sys/sendfile.h>
 
 typedef int os_file_handle;
 typedef void *os_library_handle;

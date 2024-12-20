@@ -81,10 +81,12 @@ CompileEditor(process_queue *ProcessQueue, b32 Debug, b32 ForceRecompile, b32 Ve
  }
 #endif
 
- compilation_target Target = MakeTarget(Exe, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/glfw/glfw_editor.cpp")), 0);
- LinkLibrary(&Target, StrLit("pthread"));
- compile_result GLFWPlatformExe = Compile(Setup, Target);
- EnqueueProcess(ProcessQueue, GLFWPlatformExe.CompileProcess);
+ {
+  compilation_target Target = MakeTarget(Exe, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/glfw/glfw_editor.cpp")), 0);
+  LinkLibrary(&Target, StrLit("pthread"));
+  compile_result GLFWPlatformExe = Compile(Setup, Target);
+  EnqueueProcess(ProcessQueue, GLFWPlatformExe.CompileProcess);
+ }
 
  EndTemp(Temp);
 }

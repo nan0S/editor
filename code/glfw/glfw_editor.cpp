@@ -137,6 +137,59 @@ PrintStringWork(void *Data)
  OS_PrintF("%S\n", *StringToPrint);
 }
 
+struct thread_input
+{
+ os_barrier_handle *Barrier;
+ b32 Sleep;
+};
+
+OS_THREAD_FUNC(WaitAndPrint)
+{
+ thread_input *Input = Cast(thread_input *)ThreadEntryDataPtr;
+ OS_Print(StrLit("before\n"));
+ if (Input->Sleep) sleep(2);
+ OS_BarrierWait(Input->Barrier);
+ OS_Print(StrLit("after\n"));
+
+ return 0;
+}
+
+global volatile u64 GlobalCounter;
+
+OS_THREAD_FUNC(IncrementPlain)
+{
+ for (u32 I = 0; I < 1024; ++I)
+ {
+  ++GlobalCounter;
+ }
+ return 0;
+}
+
+OS_THREAD_FUNC(IncrementAtomic)
+{
+ for (u32 I = 0; I < 1024; ++I)
+ {
+  OS_AtomicIncr64(&GlobalCounter);
+ }
+
+ return 0;
+}
+
+OS_THREAD_FUNC(IncrementMutex)
+{
+  for (u32 I = 0; I < 1024; ++I)
+
+{
+ os_mutex_handle *Mutex = Cast(os_mutex_handle *)ThreadEntryDataPtr;
+
+ OS_MutexLock(Mutex);
+ ++GlobalCounter;
+ OS_MutexUnlock(Mutex);
+
+}
+ return 0;
+}
+
 int main()
 {
  arena *Arenas[2] = {};
@@ -150,6 +203,7 @@ int main()
 
  OS_FileAttributes(StrLit("data.txt"));
 
+#if 0
  work_queue _Queue = {};
  work_queue *Queue = &_Queue;
  u32 ThreadCount = OS_ProcCount();
@@ -165,6 +219,105 @@ int main()
  }
 
  WorkQueueCompleteAllWork(Queue);
+#endif
+
+#if 0
+ {
+  os_barrier_handle Barrier = {};
+  u32 ThreadCount = 4;
+  OS_BarrierAlloc(&Barrier, ThreadCount);
+  os_thread_handle *Threads = PushArray(Arena, ThreadCount, os_thread_handle);
+  thread_input *Inputs = PushArray(Arena, ThreadCount, thread_input);
+  for (u32 ThreadIndex = 0; ThreadIndex < ThreadCount; ++ThreadIndex)
+  {
+   thread_input *Input = Inputs + ThreadIndex;
+   Input->Barrier = &Barrier;
+   Input->Sleep = (ThreadIndex == 0);
+   os_thread_handle Thread = OS_ThreadLaunch(WaitAndPrint, Input);
+   Threads[ThreadIndex] = Thread; 
+  }
+
+  for (u32 ThreadIndex = 0; ThreadIndex < ThreadCount; ++ThreadIndex)
+  {
+   os_thread_handle Thread = Threads[ThreadIndex];
+   OS_ThreadWait(Thread);
+  }
+
+  for (u32 ThreadIndex = 0; ThreadIndex < ThreadCount; ++ThreadIndex)
+  {
+   os_thread_handle Thread = Threads[ThreadIndex];
+   OS_ThreadRelease(Thread);
+  }
+
+ }
+#endif
+
+#if 0
+{
+ u32 ThreadCount = 1024;
+ os_thread_handle *Threads = PushArray(Arena, ThreadCount, os_thread_handle);
+ for (u32 ThreadIndex = 0; ThreadIndex < ThreadCount; ++ThreadIndex)
+ {
+  os_thread_handle Thread = OS_ThreadLaunch(IncrementPlain, 0);
+  Threads[ThreadIndex] = Thread;
+ }
+ for (u32 ThreadIndex = 0; ThreadIndex < ThreadCount; ++ThreadIndex)
+ {
+  os_thread_handle Thread = Threads[ThreadIndex];
+  OS_ThreadWait(Thread);
+ }
+ OS_PrintF("GlobalCounter: %lu\n", GlobalCounter);
+ GlobalCounter = 0;
+  for (u32 ThreadIndex = 0; ThreadIndex < ThreadCount; ++ThreadIndex)
+ {
+  os_thread_handle Thread = OS_ThreadLaunch(IncrementAtomic, 0);
+  Threads[ThreadIndex] = Thread;
+ }
+ for (u32 ThreadIndex = 0; ThreadIndex < ThreadCount; ++ThreadIndex)
+ {
+  os_thread_handle Thread = Threads[ThreadIndex];
+  OS_ThreadWait(Thread);
+ }
+ OS_PrintF("GlobalCounter: %lu\n", GlobalCounter);
+ GlobalCounter = 0;
+ os_mutex_handle Mutex = {};
+ OS_MutexAlloc(&Mutex);
+  for (u32 ThreadIndex = 0; ThreadIndex < ThreadCount; ++ThreadIndex)
+ {
+  os_thread_handle Thread = OS_ThreadLaunch(IncrementMutex, &Mutex);
+  Threads[ThreadIndex] = Thread;
+ }
+ for (u32 ThreadIndex = 0; ThreadIndex < ThreadCount; ++ThreadIndex)
+ {
+  os_thread_handle Thread = Threads[ThreadIndex];
+  OS_ThreadWait(Thread);
+ }
+ OS_PrintF("GlobalCounter: %lu\n", GlobalCounter);
+ GlobalCounter = 0;
+ OS_MutexDealloc(&Mutex);
+}
+#endif
+
+#if 0
+ os_library_handle Library = OS_LibraryLoad(StrLit("build/glfw_library_debug.dll"));
+ void *AddVoid = OS_LibraryProc(Library, "add");
+ int (*Add)(int, int) = Cast(int(*)(int, int))AddVoid;
+ int Result = Add(1, 2);
+ Trap;
+#endif
+
+#if 0
+ string_list Cmd = {};
+ StrListPush(Arena, &Cmd, StrLit("ls"));
+ StrListPush(Arena, &Cmd, StrLit("-la"));
+ os_process_handle Process = OS_ProcessLaunch(Cmd);
+ b32 Success = OS_ProcessWait(Process);
+ OS_ProcessCleanup(Process);
+ Trap;
+#endif
+
+ b32 Success = OS_FileCopy(StrLit("a.txt"), StrLit("b.txt"));
+ Trap;
 
  return 0;
 }

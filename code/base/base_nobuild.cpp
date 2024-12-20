@@ -175,14 +175,15 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
    OS_PrintF("[recompiling myself]\n");
    
    // NOTE(hbr): Always debug and never debug info to be fast
-   compiler_setup Setup = MakeCompilerSetup(Compiler_Default, true, true, false);
+   compiler_setup Setup = MakeCompilerSetup(Compiler_Default, true, false, false);
    compilation_target Target = MakeTarget(Exe, SourceCodePath, CompilationFlag_TemporaryTarget);
    compile_result BuildCompile = Compile(Setup, Target);
    OS_ProcessWait(BuildCompile.CompileProcess);
    
    //- run this program again, this time with up to date binary
    string_list InvokeBuild = {};
-   StrListPush(Arena, &InvokeBuild, BuildCompile.OutputTarget);
+   // NOTE(hbr): I have to add that stupid dot on Linux
+   StrListPushF(Arena, &InvokeBuild, "./%S", BuildCompile.OutputTarget);
    for (int ArgIndex = 1;
         ArgIndex < ArgCount;
         ++ArgIndex)
@@ -190,7 +191,7 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
     string Arg = StrFromCStr(Argv[ArgIndex]);
     StrListPush(Arena, &InvokeBuild, Arg);
    }
-   
+      
    os_process_handle BuildProcess = OS_ProcessLaunch(InvokeBuild);
    OS_ProcessWait(BuildProcess);
    

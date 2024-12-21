@@ -392,22 +392,27 @@ internal int
 OS_ProcessWait(os_process_handle Process)
 {
  {
-  b32 Success = (WaitForSingleObject(Process.ProcessInfo.hProcess, INFINITE) == WAIT_OBJECT_0);
+  DWORD Ret = (WaitForSingleObject(Process.ProcessInfo.hProcess, INFINITE) == WAIT_OBJECT_0);
+  b32 Success = (Ret != WAIT_FAILED);
   Assert(Success);
  }
-
+ 
+#if 0
  DWORD ExitCode = 0;
  {
-  BOOL Success = GetExitCodeProcess(Handle.ProcessInfo.hProcess, &ExitCode);
+  BOOL Success = GetExitCodeProcess(Process.ProcessInfo.hProcess, &ExitCode);
   Assert(Success);
  }
-
- CloseHandle(Handle.StartupInfo.hStdInput);
- CloseHandle(Handle.StartupInfo.hStdOutput);
- CloseHandle(Handle.StartupInfo.hStdError);
- CloseHandle(Handle.ProcessInfo.hProcess);
- CloseHandle(Handle.ProcessInfo.hThread);
-
+ 
+ 
+ CloseHandle(Process.StartupInfo.hStdInput);
+ CloseHandle(Process.StartupInfo.hStdOutput);
+ CloseHandle(Process.StartupInfo.hStdError);
+ CloseHandle(Process.ProcessInfo.hProcess);
+ CloseHandle(Process.ProcessInfo.hThread);
+#endif
+ DWORD ExitCode = 0;
+ 
  return ExitCode;
 }
 

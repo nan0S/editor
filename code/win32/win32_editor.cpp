@@ -59,11 +59,7 @@ global imgui_bindings GlobalImGuiBindings = {
 internal void *
 Win32AllocMemory(u64 Size, b32 Commit)
 {
- void *Memory = OS_Reserve(Size);
- if (Commit)
- {
-  OS_Commit(Memory, Size);
- }
+ void *Memory = OS_Reserve(Size, Commit);
  return Memory;
 }
 

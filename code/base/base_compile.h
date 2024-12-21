@@ -1,6 +1,30 @@
 #ifndef BASE_COMPILE_H
 #define BASE_COMPILE_H
 
+/*
+
+example code:
+
+compiler_setup Setup = MakeCompilerSetup(Clang, Debug, ...);
+
+compilation_target Target1 = MakeTarget(Obj, PathToSourceCode, Flags);
+LinkLibrary(&Target1, StrLit("User32.lib"));
+LinkLibrary(&Target1, ...);
+DefineMacro(&Target1, ...);
+...
+compilation_command Command1 = ComputeCompilationCommand(Setup, Target1);
+os_process_handle Process1 = OS_ProcessLaunch(Command1.Cmd);
+
+compilation_target Target2 = MakeTarget(Exe, PathToSourceCode, Flags);
+LinkLibrary(&Target2, ...);
+compilation_command Command2 = ComputeCompilationCommand(Setup, Target2);
+os_process_handle Process2 = OS_ProcessLaunch(Command2.Cmd);
+
+OS_ProcessWait(Process1);
+OS_ProcessWait(Process2);
+
+*/
+
 enum compiler_choice
 {
  Compiler_Default,
@@ -55,10 +79,10 @@ struct compilation_target
  define_variable DefineMacros[16];
 };
 
-struct compile_result
+struct compilation_command
 {
- os_process_handle CompileProcess;
  string OutputTarget;
+ string_list Cmd;
 };
 
 struct process_queue
@@ -77,7 +101,7 @@ internal void LinkLibrary(compilation_target *Target, string Library);
 internal void StaticLink(compilation_target *Target, string Link);
 internal void DefineVariable(compilation_target *Target, string Name, string Value);
 
-internal compile_result Compile(compiler_setup Setup, compilation_target Target);
+internal compilation_command ComputeCompilationCommand(compiler_setup Setup, compilation_target Target);
 
 internal void EnqueueProcess(process_queue *Queue, os_process_handle Process);
 internal void WaitProcesses(process_queue *Queue);

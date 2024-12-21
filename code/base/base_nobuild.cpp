@@ -104,9 +104,9 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
    string Dependency = Current->Str;
    StrListPush(Arena, &AllFilesInvolved, Dependency);
    string DependencyDir = PathChopLastPart(Dependency);
-
+   
    string FileContents = OS_ReadEntireFile(Arena, Dependency);
-
+   
    include_parser _Parser = {};
    include_parser *Parser = &_Parser;
    Parser->At = FileContents.Data;
@@ -132,7 +132,7 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
        {
         string DependencyFile = MakeStr(SaveAt, Length);
         string DependencyPath = PathConcat(Arena, DependencyDir, DependencyFile);
-
+        
         // NOTE(hbr): make sure we do not recurse
         b32 AlreadyExists = false;
         ListIter(Node, AllFilesInvolved.Head, string_list_node)
@@ -178,8 +178,10 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
    // NOTE(hbr): Always debug and never debug info to be fast
    compiler_setup Setup = MakeCompilerSetup(Compiler_Default, true, false, false);
    compilation_target Target = MakeTarget(Exe, SourceCodePath, CompilationFlag_TemporaryTarget);
-   compile_result BuildCompile = Compile(Setup, Target);
-   int SelfRecompilationExitCode = OS_ProcessWait(BuildCompile.CompileProcess);
+   
+   compilation_command BuildCompile = ComputeCompilationCommand(Setup, Target);
+   os_process_handle BuildCompileProcess = OS_ProcessLaunch(BuildCompile.Cmd);
+   int SelfRecompilationExitCode = OS_ProcessWait(BuildCompileProcess);
    Result.RecompilationExitCode = SelfRecompilationExitCode;
    
    if (SelfRecompilationExitCode == 0)
@@ -195,7 +197,7 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
      string Arg = StrFromCStr(Argv[ArgIndex]);
      StrListPush(Arena, &InvokeBuild, Arg);
     }
-       
+    
     os_process_handle BuildProcess = OS_ProcessLaunch(InvokeBuild);
     int BuildProcessExitCode = OS_ProcessWait(BuildProcess);
     Result.RecompilationExitCode = BuildProcessExitCode;

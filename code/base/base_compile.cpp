@@ -70,10 +70,10 @@ DefineMacro(compilation_target *Target, string Name, string Value)
  Define->Value = Value;
 }
 
-internal compile_result
-Compile(compiler_setup Setup, compilation_target Target)
+internal compilation_command
+ComputeCompilationCommand(compiler_setup Setup, compilation_target Target)
 {
- compile_result Result = {};
+ compilation_command Result = {};
  
  arena *Arena = BuildArena;
  string_list _Cmd = {};
@@ -263,7 +263,7 @@ Compile(compiler_setup Setup, compilation_target Target)
    OS_PrintF("%S\n", CmdStr);
   }
   
-  Result.CompileProcess = OS_ProcessLaunch(*Cmd);
+  Result.Cmd = *Cmd;
  }
  
  return Result;
@@ -279,5 +279,5 @@ EnqueueProcess(process_queue *Queue, os_process_handle Process)
 internal void
 WaitProcesses(process_queue *Queue)
 {
-
+ 
 }

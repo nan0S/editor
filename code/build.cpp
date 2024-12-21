@@ -25,25 +25,6 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/third_party/imgui")));
  
 #if 0
- //- precompile third part code into obj
- compile_result ThirdParty = {};
- {
-  compilation_flags Flags = (ForceRecompile ? 0 : CompilationFlag_DontRecompileIfAlreadyExists);
-  compilation_target Target = MakeTarget(Obj, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/editor_third_party_unity.cpp")), Flags);
-  ThirdParty = Compile(Setup, Target);
-  OS_ProcessWait(ThirdParty.CompileProcess);
- }
- 
- //- compile editor code into library
- compile_result Editor = {};
- {
-  string TargetPath = {};
-  compilation_target Target = MakeTarget(Lib, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/editor.cpp")), 0);
-  StaticLink(&Target, ThirdParty.OutputTarget);
-  Editor = Compile(Setup, Target);
-  EnqueueProcess(ProcessQueue, Editor.CompileProcess);
- }
- 
  string RendererPath = {};
  string EditorPath = {};
 #if OS_WINDOWS
@@ -57,17 +38,34 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
 #endif
  
  //- compile renderer into library
- compile_result Renderer = {};
+ compilation_command Renderer = {};
  {
   compilation_target Target = MakeTarget(Lib, OS_ExecutableRelativeToFullPath(Temp.Arena, RendererPath), 0);
   LinkLibrary(&Target, StrLit("User32.lib")); // RegisterClassA,...
   LinkLibrary(&Target, StrLit("Opengl32.lib")); // wgl,glEnable,...
   LinkLibrary(&Target, StrLit("Gdi32.lib")); // SwapBuffers,SetPixelFormat,...
-  Renderer = Compile(Setup, Target);
-  EnqueueProcess(ProcessQueue, Renderer.CompileProcess);
+  Renderer = ComputeCompilationCommand(Setup, Target);
+ }
+ 
+ //- precompile third part code into obj
+ compilation_command ThirdParty = {};
+ {
+  compilation_flags Flags = (ForceRecompile ? 0 : CompilationFlag_DontRecompileIfAlreadyExists);
+  compilation_target Target = MakeTarget(Obj, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/editor_third_party_unity.cpp")), Flags);
+  ThirdParty = ComputeCompilationCommand(Setup, Target);
+ }
+ 
+ //- compile editor code into library
+ compilation_command Editor = {};
+ {
+  string TargetPath = {};
+  compilation_target Target = MakeTarget(Lib, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/editor.cpp")), 0);
+  StaticLink(&Target, ThirdParty.OutputTarget);
+  Editor = ComputeCompilationCommand(Setup, Target);
  }
  
  //- compile platform layer into executable
+ compilation_command Win32PlatformExe = {};
  {
   compilation_target Target = MakeTarget(Exe, OS_ExecutableRelativeToFullPath(Temp.Arena, EditorPath), 0);
   LinkLibrary(&Target, StrLit("User32.lib")); // CreateWindowExA,...
@@ -75,21 +73,35 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
   LinkLibrary(&Target, StrLit("Shell32.lib")); // DragQueryFileA,...
   DefineMacro(&Target, StrLit("EDITOR_DLL"), Editor.OutputTarget);
   DefineMacro(&Target, StrLit("EDITOR_RENDERER_DLL"), Renderer.OutputTarget);
-  compile_result Win32PlatformExe = Compile(Setup, Target);
-  EnqueueProcess(ProcessQueue, Win32PlatformExe.CompileProcess);
+  Win32PlatformExe = ComputeCompilationCommand(Setup, Target);
  }
+ 
+ // NOTE(hbr): Start up renderer and Win32 compilation processes first because they don't depend on anything.
+ // Do them in background when waiting for ThirdParty to compile. Editor on the other hand depends on ThirdParty
+ // to compile first.
+ os_process_handle RendererCompileProcess = OS_ProcessLaunch(Renderer.Cmd);
+ os_process_handle Win32PlatformExeCompileProcess = OS_ProcessLaunch(Win32PlatformExe.Cmd);
+ os_process_handle ThirdPartyCompileProcess = OS_ProcessLaunch(ThirdParty.Cmd);
+ OS_ProcessWait(ThirdPartyCompileProcess);
+ os_process_handle EditorCompileProcess = OS_ProcessLaunch(Editor.Cmd);
+ 
+ EnqueueProcess(ProcessQueue, EditorCompileProcess);
+ EnqueueProcess(ProcessQueue, RendererCompileProcess);
+ EnqueueProcess(ProcessQueue, Win32PlatformExeCompileProcess);
 #endif
-
+ 
+#if 1
  {
   compilation_target Target = MakeTarget(Exe, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/glfw/glfw_editor.cpp")), 0);
   LinkLibrary(&Target, StrLit("pthread"));
   LinkLibrary(&Target, StrLit("X11"));
   LinkLibrary(&Target, StrLit("GL"));
-
-  compile_result GLFWPlatformExe = Compile(Setup, Target);
-  EnqueueProcess(ProcessQueue, GLFWPlatformExe.CompileProcess);
+  compilation_command GLFWPlatformExe = ComputeCompilationCommand(Setup, Target);
+  os_process_handle GLFWPlatformExeCompileProcess = OS_ProcessLaunch(GLFWPlatformExe.Cmd);
+  EnqueueProcess(ProcessQueue, GLFWPlatformExeCompileProcess);
  }
-
+#endif
+ 
  EndTemp(Temp);
 }
 
@@ -168,10 +180,10 @@ int main(int ArgCount, char *Args[])
   process_queue ProcessQueue = {};
   if (Debug)   CompileEditor(&ProcessQueue, Compiler, true, ForceRecompile, Verbose);
   if (Release) CompileEditor(&ProcessQueue, Compiler, false, ForceRecompile, Verbose);
-
+  
   for (u32 ProcessIndex = 0;
-      ProcessIndex < ProcessQueue.ProcessCount;
-      ++ProcessIndex)
+       ProcessIndex < ProcessQueue.ProcessCount;
+       ++ProcessIndex)
   {
    int SubProcessExitCode = OS_ProcessWait(ProcessQueue.Processes[ProcessIndex]);
    if (SubProcessExitCode) ExitCode = SubProcessExitCode;
@@ -183,6 +195,6 @@ int main(int ArgCount, char *Args[])
   f32 BuildSec = Cast(f32)DiffTSC / CPUFreq;
   OS_PrintF("[build took %.3fs]\n", BuildSec);
  }
-
+ 
  return ExitCode;
 }

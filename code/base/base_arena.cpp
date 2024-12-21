@@ -5,7 +5,7 @@ AllocArena(u64 Reserve)
  
  u64 PageSize = OS_PageSize();
  u64 ReserveAligned = AlignForwardPow2(Reserve, PageSize);
- void *Memory = OS_Reserve(ReserveAligned);
+ void *Memory = OS_Reserve(ReserveAligned, false);
  
  if (Memory)
  {

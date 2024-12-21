@@ -96,6 +96,7 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
 int main(int ArgCount, char *Args[])
 {
  u64 BeginTSC = OS_ReadCPUTimer();
+ int ExitCode = 0;
  
  arena *Arenas[2] = {};
  for (u32 ArenaIndex = 0;
@@ -111,7 +112,9 @@ int main(int ArgCount, char *Args[])
  arena *Arena = Arenas[0];
  EquipBuild(Arena);
  
- if (!RecompileYourselfIfNecessary(ArgCount, Args))
+ recompilation_result Recompilation = RecompileYourselfIfNecessary(ArgCount, Args);
+ ExitCode = Recompilation.RecompilationExitCode;
+ if (!Recompilation.TriedToRecompile)
  {
   b32 Debug = false;
   b32 Release = false;
@@ -166,11 +169,12 @@ int main(int ArgCount, char *Args[])
   if (Debug)   CompileEditor(&ProcessQueue, Compiler, true, ForceRecompile, Verbose);
   if (Release) CompileEditor(&ProcessQueue, Compiler, false, ForceRecompile, Verbose);
 
-   for (u32 ProcessIndex = 0;
+  for (u32 ProcessIndex = 0;
       ProcessIndex < ProcessQueue.ProcessCount;
       ++ProcessIndex)
   {
-   OS_ProcessWait(ProcessQueue.Processes[ProcessIndex]);
+   int SubProcessExitCode = OS_ProcessWait(ProcessQueue.Processes[ProcessIndex]);
+   if (SubProcessExitCode) ExitCode = SubProcessExitCode;
   }
   
   u64 CPUFreq = OS_CPUTimerFreq();
@@ -179,6 +183,6 @@ int main(int ArgCount, char *Args[])
   f32 BuildSec = Cast(f32)DiffTSC / CPUFreq;
   OS_PrintF("[build took %.3fs]\n", BuildSec);
  }
- 
- return 0;
+
+ return ExitCode;
 }

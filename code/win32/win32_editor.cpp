@@ -60,7 +60,10 @@ internal void *
 Win32AllocMemory(u64 Size, b32 Commit)
 {
  void *Memory = OS_Reserve(Size);
- OS_Commit(Memory, Size);
+ if (Commit)
+ {
+  OS_Commit(Memory, Size);
+ }
  return Memory;
 }
 
@@ -141,6 +144,7 @@ Win32OpenFileDialog(arena *Arena)
 internal string
 Win32ReadEntireFile(arena *Arena, string FilePath)
 {
+ // TODO(hbr): probably just use OS_ReadEntireFile
  temp_arena Temp = TempArena(Arena);
  
  string CFilePath = CStrFromStr(Temp.Arena, FilePath);

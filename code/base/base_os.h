@@ -12,9 +12,10 @@
 internal void OS_Init(int ArgCount, char *Args[]);
 
 //- memory
-internal void *OS_Reserve(u64 Reserve);
+internal void *OS_Reserve(u64 Reserve, b32 Commit);
 internal void  OS_Release(void *Memory, u64 Size);
 internal void  OS_Commit(void *Memory, u64 Size);
+internal void  OS_Decommit(void *Memory, u64 Size);
 
 //- files
 enum
@@ -46,15 +47,13 @@ struct dir_entry
  file_attrs Attrs;
 };
 
-typedef b32 success_b32;
 internal string      OS_ReadEntireFile(arena *Arena, string Path);
 internal success_b32 OS_WriteDataToFile(string Path, string Data);
 internal success_b32 OS_WriteDataListToFile(string Path, string_list DataList);
 
 //- directories
 // repeatadly call with initially zero-initialized Iter, if you want to store dir_entry's FileName, you have to copy it
-typedef b32 retrieved_b32;
-internal retrieved_b32 OS_IterDir(string Path, dir_iter *Iter, dir_entry *OutEntry);
+internal success_b32 OS_IterDir(string Path, dir_iter *Iter, dir_entry *OutEntry);
 
 //- stdout, stderr, debug
 internal os_file_handle OS_StdOut(void);
@@ -76,16 +75,16 @@ internal void OS_PrintDebugFV(char const *Format, va_list Args);
 internal void OS_PrintFileFV(os_file_handle File, char const *Format, va_list Args);
 
 //- file system, paths
-internal b32    OS_FileDelete(string Path);
-internal b32    OS_FileMove(string Src, string Dst);
-internal b32    OS_FileCopy(string Src, string Dst);
-internal b32    OS_FileExists(string Path);
-internal b32    OS_DirMake(string Path);
-internal b32    OS_DirRemove(string Path);
-internal b32    OS_DirChange(string Path);
-internal string OS_CurrentDir(arena *Arena);
-internal string OS_FullPathFromPath(arena *Arena, string Path);
-internal string OS_BinaryRelativeToFullPath(arena *Arena, string Rel);
+internal success_b32 OS_FileDelete(string Path);
+internal success_b32 OS_FileMove(string Src, string Dst);
+internal success_b32 OS_FileCopy(string Src, string Dst);
+internal success_b32 OS_FileExists(string Path);
+internal success_b32 OS_DirMake(string Path);
+internal success_b32 OS_DirRemove(string Path);
+internal success_b32 OS_DirChange(string Path);
+internal string      OS_CurrentDir(arena *Arena);
+internal string      OS_FullPathFromPath(arena *Arena, string Path);
+internal string      OS_BinaryRelativeToFullPath(arena *Arena, string Rel);
 
 //- libraries
 internal os_library_handle OS_LibraryLoad(string Path);
@@ -93,9 +92,9 @@ internal void *            OS_LibraryProc(os_library_handle Lib, char const *Pro
 internal void              OS_LibraryUnload(os_library_handle Lib);
 
 //- processes
+typedef int exit_code_int;
 internal os_process_handle OS_ProcessLaunch(string_list CmdList);
-internal b32               OS_ProcessWait(os_process_handle Process);
-internal void              OS_ProcessCleanup(os_process_handle Handle);
+internal exit_code_int     OS_ProcessWait(os_process_handle Process);
 
 //- threads
 typedef OS_THREAD_FUNC(os_thread_func);

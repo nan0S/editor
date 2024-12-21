@@ -40,10 +40,10 @@ ParserCharMatchAndEat(include_parser *Parser, char C)
  return Result;
 }
 
-internal b32
+internal recompilation_result
 RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
 {
- b32 Recompiled = false;
+ recompilation_result Result = {};
  
  temp_arena Temp = TempArena(0);
  arena *Arena = Temp.Arena;
@@ -172,34 +172,38 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
   file_attrs ExeAttrs = OS_FileAttributes(InvokePathAbs);
   if (ExeAttrs.ModifyTime < LatestModifyTime)
   {
+   Result.TriedToRecompile = true;
    OS_PrintF("[recompiling myself]\n");
    
    // NOTE(hbr): Always debug and never debug info to be fast
    compiler_setup Setup = MakeCompilerSetup(Compiler_Default, true, false, false);
    compilation_target Target = MakeTarget(Exe, SourceCodePath, CompilationFlag_TemporaryTarget);
    compile_result BuildCompile = Compile(Setup, Target);
-   OS_ProcessWait(BuildCompile.CompileProcess);
+   int SelfRecompilationExitCode = OS_ProcessWait(BuildCompile.CompileProcess);
+   Result.RecompilationExitCode = SelfRecompilationExitCode;
    
-   //- run this program again, this time with up to date binary
-   string_list InvokeBuild = {};
-   // NOTE(hbr): I have to add that stupid dot on Linux
-   StrListPushF(Arena, &InvokeBuild, "./%S", BuildCompile.OutputTarget);
-   for (int ArgIndex = 1;
-        ArgIndex < ArgCount;
-        ++ArgIndex)
+   if (SelfRecompilationExitCode == 0)
    {
-    string Arg = StrFromCStr(Argv[ArgIndex]);
-    StrListPush(Arena, &InvokeBuild, Arg);
+    //- run this program again, this time with up to date binary
+    string_list InvokeBuild = {};
+    // NOTE(hbr): I have to add that stupid dot on Linux
+    StrListPushF(Arena, &InvokeBuild, "./%S", BuildCompile.OutputTarget);
+    for (int ArgIndex = 1;
+         ArgIndex < ArgCount;
+         ++ArgIndex)
+    {
+     string Arg = StrFromCStr(Argv[ArgIndex]);
+     StrListPush(Arena, &InvokeBuild, Arg);
+    }
+       
+    os_process_handle BuildProcess = OS_ProcessLaunch(InvokeBuild);
+    int BuildProcessExitCode = OS_ProcessWait(BuildProcess);
+    Result.RecompilationExitCode = BuildProcessExitCode;
    }
-      
-   os_process_handle BuildProcess = OS_ProcessLaunch(InvokeBuild);
-   OS_ProcessWait(BuildProcess);
-   
-   Recompiled = true;
   }
  }
  
  EndTemp(Temp);
  
- return Recompiled;
+ return Result;
 }

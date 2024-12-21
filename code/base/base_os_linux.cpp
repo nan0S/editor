@@ -1,7 +1,8 @@
 internal void *
-OS_Reserve(u64 Reserve)
+OS_Reserve(u64 Reserve, b32 Commit)
 {
- void *Result = mmap(0, Reserve, PROT_NONE, MAP_ANON|MAP_PRIVATE, -1, 0);
+ int ProtFlags = (Commit ? (PROT_READ | PROT_WRITE) : PROT_NONE);
+ void *Result = mmap(0, Reserve, ProtFlags, MAP_ANON | MAP_PRIVATE, -1, 0);
  return Result;
 }
 
@@ -15,6 +16,12 @@ internal void
 OS_Commit(void *Memory, u64 Size)
 {
  mprotect(Memory, Size, PROT_READ|PROT_WRITE);
+}
+
+internal void
+OS_Decommit(void *Memory, u64 Size)
+{
+ mprotect(Memory, Size, PROT_NONE);
 }
 
 internal os_file_handle
@@ -362,20 +369,14 @@ OS_ProcessLaunch(string_list CmdList)
  return Result;
 }
 
-internal b32
+internal int
 OS_ProcessWait(os_process_handle Process)
 {
  int Status = 0;
  pid_t Ret = waitpid(Process, &Status, 0);
- b32 Success = (Ret == Process);
- Assert(Success);
- return Success;
-}
-
-internal void
-OS_ProcessCleanup(os_process_handle Handle)
-{
- // NOTE(hbr): nothing to do
+ Assert(Ret == Process);
+ int ExitCode = WEXITSTATUS(Status);
+ return ExitCode;
 }
 
 internal os_thread_handle

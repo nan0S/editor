@@ -1,7 +1,8 @@
 internal void *
-OS_Reserve(u64 Reserve)
+OS_Reserve(u64 Reserve, b32 Commit)
 {
- void *Result = VirtualAlloc(0, Reserve, MEM_RESERVE, PAGE_READWRITE);
+ DWORD AllocationType = (MEM_RESERVE | (Commit ? MEM_COMMIT : 0));
+ void *Result = VirtualAlloc(0, Reserve, AllocationType, PAGE_READWRITE);
  return Result;
 }
 
@@ -15,6 +16,12 @@ internal void
 OS_Commit(void *Memory, u64 Size)
 {
  VirtualAlloc(Memory, Size, MEM_COMMIT, PAGE_READWRITE);
+}
+
+internal void
+OS_Decommit(void *Memory, u64 Size)
+{
+ VirtualAlloc(Memory, Size, MEM_RESET, PAGE_READWRITE);
 }
 
 internal date_time
@@ -381,21 +388,27 @@ OS_ProcessLaunch(string_list CmdList)
  return Handle;
 }
 
-internal b32
+internal int
 OS_ProcessWait(os_process_handle Process)
 {
- b32 Success = (WaitForSingleObject(Process.ProcessInfo.hProcess, INFINITE) == WAIT_OBJECT_0);
- return Success;
-}
+ {
+  b32 Success = (WaitForSingleObject(Process.ProcessInfo.hProcess, INFINITE) == WAIT_OBJECT_0);
+  Assert(Success);
+ }
 
-internal void
-OS_ProcessCleanup(os_process_handle Handle)
-{
+ DWORD ExitCode = 0;
+ {
+  BOOL Success = GetExitCodeProcess(Handle.ProcessInfo.hProcess, &ExitCode);
+  Assert(Success);
+ }
+
  CloseHandle(Handle.StartupInfo.hStdInput);
  CloseHandle(Handle.StartupInfo.hStdOutput);
  CloseHandle(Handle.StartupInfo.hStdError);
  CloseHandle(Handle.ProcessInfo.hProcess);
  CloseHandle(Handle.ProcessInfo.hThread);
+
+ return ExitCode;
 }
 
 internal os_thread_handle

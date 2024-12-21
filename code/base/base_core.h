@@ -58,6 +58,8 @@ typedef double f64;
 inline f32 _F32Inf(void) { union { u32 I; f32 F; } X = {0x7f800000}; return X.F; }
 inline f64 _F64Inf(void) { union { u64 I; f64 F; } X = {0x7ff0000000000000ull}; return X.F; }
 
+typedef b32 success_b32;
+
 union v2
 {
  struct { f32 X, Y; };

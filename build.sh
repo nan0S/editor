@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 build="$(dirname "$0")/build"
 mkdir -p "$build"
 save_dir=$(pwd) # /bin/sh doesn't have pushd/popd and I don't want to use /bin/bash

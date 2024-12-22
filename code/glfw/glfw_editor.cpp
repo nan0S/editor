@@ -22,6 +22,8 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
+#include <GL/glx.h>
+
 internal void *
 LinuxAllocMemory(u64 Size, b32 Commit)
 {
@@ -227,21 +229,55 @@ int main(int ArgCount, char *Argv[])
  {
   Screen *Screen = DefaultScreenOfDisplay(Display);
   int ScreenID = DefaultScreen(Display);
-  Window Parent = RootWindowOfScreen(Screen);
+  Window Root = RootWindow(Display, ScreenID);
   int X = 0;
   int Y = 0;
   uint WindowWidth = 300;
   uint WindowHeight = 300;
-  uint BorderWidth = 1;
-  ulong BorderColor = BlackPixel(Display, ScreenID);
-  ulong BackgroundColor = WhitePixel(Display, ScreenID);
-  Window Window = XCreateSimpleWindow(Display, Parent, X, Y, WindowWidth, WindowHeight, BorderWidth, BorderColor, BackgroundColor);
+  uint BorderWidth = 0;
+
+  GLint glXAttribs[] =
+  {
+   GLX_RGBA,
+   GLX_DOUBLEBUFFER,
+   GLX_DEPTH_SIZE, 24,
+   GLX_STENCIL_SIZE, 8, // maybe remove this
+   GLX_RED_SIZE, 8,
+   GLX_GREEN_SIZE, 8,
+   GLX_BLUE_SIZE, 8,
+   GLX_SAMPLE_BUFFERS, 0, // should it be 0???
+   GLX_SAMPLES, 0, // should it be 0???
+   None,
+  };
+  XVisualInfo *Visual = glXChooseVisual(Display, ScreenID, glXAttribs);
+
+  XSetWindowAttributes WindowAttributes = {};
+  WindowAttributes.border_pixel = BlackPixel(Display, ScreenID);
+  WindowAttributes.background_pixel = WhitePixel(Display, ScreenID);
+  WindowAttributes.override_redirect = True;
+  WindowAttributes.colormap = XCreateColormap(Display, RootWindow(Display, ScreenID), Visual->visual, AllocNone);
+  WindowAttributes.event_mask  = ExposureMask;
+
+  Window Window = XCreateWindow(Display, Root,
+                                X, Y,
+                                WindowWidth, WindowHeight,
+                                BorderWidth,
+                                Visual->depth, InputOutput, Visual->visual,
+                                CWBackPixel | CWColormap | CWBorderPixel | CWEventMask,
+                                &WindowAttributes);
+
+  GLXContext Context = glXCreateContext(Display, Visual, 0, GL_TRUE);
+  glXMakeCurrent(Display, Window, Context);
+
+  XStoreName(Display, Window, "Parametrics Curves Editor");
 
   long EventMask = (KeyPressMask | KeyReleaseMask | KeymapStateMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask);
   XSelectInput(Display, Window, EventMask);
 
   XClearWindow(Display, Window);
   XMapWindow(Display, Window);
+
+  glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
 
   if (Window)
   {
@@ -276,8 +312,19 @@ int main(int ArgCount, char *Argv[])
      OS_PrintDebugF("%s %s\n", EventName, KeyName);
     }
 
-    //- separator
+    //- drawing
+    glClear(GL_COLOR_BUFFER_BIT);
     
+    glBegin(GL_TRIANGLES);
+    glColor4f(1.0f, 0.0f, 0.0f, 1.0f);
+    glVertex2f(-0.5f, -0.5f);
+    glColor4f(0.0f, 1.0f, 0.0f, 1.0f);
+    glVertex2f(0.5f, -0.5f);
+    glColor4f(0.0f, 0.0f, 1.0f, 1.0f);
+    glVertex2f(0.0f, 0.5f);
+    glEnd();
+
+    glXSwapBuffers(Display, Window);
    }
   }
  }

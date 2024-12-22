@@ -9,7 +9,7 @@
 #include "editor_platform.h"
 #include "editor_work_queue.h"
 
-#include "glfw/glfw_editor.h"
+#include "x11/x11_editor.h"
 
 #include "base/base_core.cpp"
 #include "base/base_string.cpp"

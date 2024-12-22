@@ -641,15 +641,16 @@ StrChop(string Str, u64 Chop)
 internal string
 StrChopLastSlash(string Str)
 {
- char *At = Str.Data + (Str.Count - 1);
- while (At >= Str.Data && *At != '/' && *At != '\\')
+ u64 Left = Str.Count;
+ while (Left > 0 && Str.Data[Left-1] != '/' && Str.Data[Left-1] != '\\')
  {
-  --At;
+  --Left;
  }
+
  string Result = Str;
- if (At >= Str.Data)
+ if (Left > 0)
  {
-  Result.Count = At - Str.Data;
+  Result.Count = Left - 1;
  }
  
  return Result;
@@ -658,17 +659,17 @@ StrChopLastSlash(string Str)
 internal string
 StrAfterLastSlash(string Str)
 {
- char *At = Str.Data + (Str.Count - 1);
- while (At >= Str.Data && *At != '/' && *At != '\\')
+ u64 Left = Str.Count;
+ while (Left > 0 && Str.Data[Left-1] != '/' && Str.Data[Left-1] != '\\')
  {
-  --At;
+  --Left;
  }
+
  string Result = Str;
- if (At >= Str.Data)
+ if (Left > 0)
  {
-  ++At;
-  Result.Data = At;
-  Result.Count = Str.Data + Str.Count - At;
+  Result.Data = Str.Data + Left;
+  Result.Count = Str.Count - Left;
  }
  
  return Result;
@@ -677,15 +678,16 @@ StrAfterLastSlash(string Str)
 internal string
 StrChopLastDot(string Str)
 {
- char *At = Str.Data + (Str.Count - 1);
- while (At >= Str.Data && *At != '.')
+ u64 Left = Str.Count;
+ while (Left > 0 && Str.Data[Left-1] != '.')
  {
-  --At;
+  --Left;
  }
+
  string Result = Str;
- if (At >= Str.Data)
+ if (Left > 0)
  {
-  Result.Count = At - Str.Data;
+  Result.Count = Left - 1;
  }
  
  return Result;
@@ -694,22 +696,21 @@ StrChopLastDot(string Str)
 internal string
 StrAfterLastDot(string Str)
 {
- char *At = Str.Data + (Str.Count - 1);
- while (At >= Str.Data && *At != '.')
+ u64 Left = Str.Count;
+ while (Left > 0 && Str.Data[Left-1] != '.')
  {
-  --At;
+  --Left;
  }
+
  string Result = Str;
- if (At >= Str.Data)
+ if (Left > 0)
  {
-  ++At;
-  Result.Data = At;
-  Result.Count = Str.Data + Str.Count - At;
+  Result.Data = Str.Data + Left;
+  Result.Count = Str.Count - Left;
  }
  
  return Result;
 }
-
 
 internal string
 StrPrefix(string Str, u64 Count)

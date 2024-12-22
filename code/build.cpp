@@ -92,13 +92,13 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
  
 #if 1
  {
-  compilation_target Target = MakeTarget(Exe, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/glfw/glfw_editor.cpp")), 0);
+  compilation_target Target = MakeTarget(Exe, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/x11/x11_editor.cpp")), 0);
   LinkLibrary(&Target, StrLit("pthread"));
   LinkLibrary(&Target, StrLit("X11"));
   LinkLibrary(&Target, StrLit("GL"));
-  compilation_command GLFWPlatformExe = ComputeCompilationCommand(Setup, Target);
-  os_process_handle GLFWPlatformExeCompileProcess = OS_ProcessLaunch(GLFWPlatformExe.Cmd);
-  EnqueueProcess(ProcessQueue, GLFWPlatformExeCompileProcess);
+  compilation_command X11Platform = ComputeCompilationCommand(Setup, Target);
+  os_process_handle X11PlatformCompileProcess = OS_ProcessLaunch(X11Platform.Cmd);
+  EnqueueProcess(ProcessQueue, X11PlatformCompileProcess);
  }
 #endif
  

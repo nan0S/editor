@@ -401,6 +401,8 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
      
      Event->FilePaths = Files;
      Event->FileCount = FileCount;
+
+     DragFinish(DropHandle);
     }
    }break;
    

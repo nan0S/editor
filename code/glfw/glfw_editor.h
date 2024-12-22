@@ -5,8 +5,8 @@
 struct linux_platform_input
 {
  u32 EventCount;
-#define LINUX_MAX_EVENT_COUNT 128
- platform_event Events[LINUX_MAX_EVENT_COUNT];
+#define LINUX_MAX_PLATFORM_EVENT_COUNT 128
+ platform_event Events[LINUX_MAX_PLATFORM_EVENT_COUNT];
 };
 
 #endif //GLFW_EDITOR_H

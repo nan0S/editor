@@ -8,8 +8,7 @@
 #include "editor_imgui_bindings.h"
 #include "editor_platform.h"
 #include "editor_work_queue.h"
-
-#include "x11/x11_editor.h"
+#include "editor_renderer.h"
 
 #include "base/base_core.cpp"
 #include "base/base_string.cpp"
@@ -22,7 +21,8 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 
-#include <GL/glx.h>
+#include "x11/x11_editor.h"
+#include "x11/x11_editor_renderer.h"
 
 internal void *
 LinuxAllocMemory(u64 Size, b32 Commit)
@@ -167,8 +167,20 @@ LinuxPushPlatformEvent(linux_platform_input *Input, platform_event_type Type)
  return Result;
 }
 
+internal v2u
+X11GetWindowDims(Display *Display, Window Window)
+{
+ XWindowAttributes Attrs = {};
+ XGetWindowAttributes(Display, Window, &Attrs);
+ v2u Result = {};
+ Result.X = Attrs.width;
+ Result.Y = Attrs.height;
+ 
+ return Result;
+}
+
 internal void
-X11ProcessEvent(linux_platform_input *LinuxInput, Display *Display, Window Window, XEvent *Event)
+X11ProcessEvent(linux_platform_input *LinuxInput, Display *Display, Window Window, Atom AtomWMDeleteWindow, XEvent *Event)
 {
  switch (Event->type)
  {
@@ -198,12 +210,9 @@ X11ProcessEvent(linux_platform_input *LinuxInput, Display *Display, Window Windo
    {
     int X = Event->xmotion.x;
     int Y = Event->xmotion.y;
-
-    XWindowAttributes Attrs = {};
-    XGetWindowAttributes(Display, Window, &Attrs);
-
-    f32 ClipX = +(2.0f * X / Attrs.width  - 1.0f);
-    f32 ClipY = -(2.0f * Y / Attrs.height - 1.0f);
+    v2u WindowDim = X11GetWindowDims(Display, Window);
+    f32 ClipX = +(2.0f * X / WindowDim.X - 1.0f);
+    f32 ClipY = -(2.0f * Y / WindowDim.Y - 1.0f);
     PlatformEvent->ClipSpaceMouseP = V2(ClipX, ClipY);
    }
   }break;
@@ -211,10 +220,21 @@ X11ProcessEvent(linux_platform_input *LinuxInput, Display *Display, Window Windo
   case KeymapNotify: {
    XRefreshKeyboardMapping(&Event->xmapping);
   }break;
+  
+  case DestroyNotify: {
+   LinuxPushPlatformEvent(LinuxInput, PlatformEvent_WindowClose);
+  }break;
+
+  case ClientMessage: {
+			if (Cast(unsigned long int)Event->xclient.data.l[0] == AtomWMDeleteWindow) {
+    LinuxPushPlatformEvent(LinuxInput, PlatformEvent_WindowClose);
+			}
+  }break;
  }
 }
 
-int main(int ArgCount, char *Argv[])
+int
+main(int ArgCount, char *Argv[])
 {
  arena *Arenas[2] = {};
  for (u32 ArenaIndex = 0; ArenaIndex < ArrayCount(Arenas); ++ArenaIndex)
@@ -227,57 +247,33 @@ int main(int ArgCount, char *Argv[])
  Display *Display = XOpenDisplay(0);
  if (Display)
  {
-  Screen *Screen = DefaultScreenOfDisplay(Display);
-  int ScreenID = DefaultScreen(Display);
-  Window Root = RootWindow(Display, ScreenID);
-  int X = 0;
-  int Y = 0;
-  uint WindowWidth = 300;
-  uint WindowHeight = 300;
-  uint BorderWidth = 0;
+  x11_renderer_function_table RendererFunctions = {};
 
-  GLint glXAttribs[] =
+  Window Window = 0;
+  renderer *Renderer = 0;
   {
-   GLX_RGBA,
-   GLX_DOUBLEBUFFER,
-   GLX_DEPTH_SIZE, 24,
-   GLX_STENCIL_SIZE, 8, // maybe remove this
-   GLX_RED_SIZE, 8,
-   GLX_GREEN_SIZE, 8,
-   GLX_BLUE_SIZE, 8,
-   GLX_SAMPLE_BUFFERS, 0, // should it be 0???
-   GLX_SAMPLES, 0, // should it be 0???
-   None,
-  };
-  XVisualInfo *Visual = glXChooseVisual(Display, ScreenID, glXAttribs);
-
-  XSetWindowAttributes WindowAttributes = {};
-  WindowAttributes.border_pixel = BlackPixel(Display, ScreenID);
-  WindowAttributes.background_pixel = WhitePixel(Display, ScreenID);
-  WindowAttributes.override_redirect = True;
-  WindowAttributes.colormap = XCreateColormap(Display, RootWindow(Display, ScreenID), Visual->visual, AllocNone);
-  WindowAttributes.event_mask  = ExposureMask;
-
-  Window Window = XCreateWindow(Display, Root,
-                                X, Y,
-                                WindowWidth, WindowHeight,
-                                BorderWidth,
-                                Visual->depth, InputOutput, Visual->visual,
-                                CWBackPixel | CWColormap | CWBorderPixel | CWEventMask,
-                                &WindowAttributes);
-
-  GLXContext Context = glXCreateContext(Display, Visual, 0, GL_TRUE);
-  glXMakeCurrent(Display, Window, Context);
-
+   int X = 0;
+   int Y = 0;
+   uint WindowWidth = 300;
+   uint WindowHeight = 300;
+   uint BorderWidth = 0;
+   x11_renderer_init_result RendererInit = RendererFunctions.CreateWindowAndInitRenderer(Arena, Display, X, Y, WindowWidth, WindowHeight, BorderWidth);
+   Window = RendererInit.X11Window;
+   Renderer = RendererInit.Renderer;
+  }
   XStoreName(Display, Window, "Parametrics Curves Editor");
+
+  renderer_memory _RendererMemory = {};
+  renderer_memory *RendererMemory = &_RendererMemory;
+  // TODO(hbr): initialize renderer memory
 
   long EventMask = (KeyPressMask | KeyReleaseMask | KeymapStateMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask);
   XSelectInput(Display, Window, EventMask);
 
-  XClearWindow(Display, Window);
+  Atom AtomWMDeleteWindow = XInternAtom(Display, "WM_DELETE_WINDOW", False);
+	 XSetWMProtocols(Display, Window, &AtomWMDeleteWindow, 1);
+  
   XMapWindow(Display, Window);
-
-  glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
 
   if (Window)
   {
@@ -295,7 +291,7 @@ int main(int ArgCount, char *Argv[])
      {
       XEvent Event;
       XNextEvent(Display, &Event);
-      X11ProcessEvent(&LinuxInput, Display, Window, &Event);
+      X11ProcessEvent(&LinuxInput, Display, Window, AtomWMDeleteWindow, &Event);
      }
      else
      {
@@ -312,19 +308,28 @@ int main(int ArgCount, char *Argv[])
      OS_PrintDebugF("%s %s\n", EventName, KeyName);
     }
 
-    //- drawing
-    glClear(GL_COLOR_BUFFER_BIT);
-    
-    glBegin(GL_TRIANGLES);
-    glColor4f(1.0f, 0.0f, 0.0f, 1.0f);
-    glVertex2f(-0.5f, -0.5f);
-    glColor4f(0.0f, 1.0f, 0.0f, 1.0f);
-    glVertex2f(0.5f, -0.5f);
-    glColor4f(0.0f, 0.0f, 1.0f, 1.0f);
-    glVertex2f(0.0f, 0.5f);
-    glEnd();
+    platform_input Input = {};
+    Input.EventCount = LinuxInput.EventCount;
+    Input.Events = LinuxInput.Events;
 
-    glXSwapBuffers(Display, Window);
+    for (u32 EventIndex = 0;
+         EventIndex < Input.EventCount;
+         ++EventIndex)
+    {
+     platform_event *Event = Input.Events + EventIndex;
+     if (Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Escape)
+     {
+      Running = false;
+     }
+     if (Event->Type == PlatformEvent_WindowClose)
+     {
+      Running = false;
+     }
+    }
+
+    v2u WindowDim = X11GetWindowDims(Display, Window);
+    render_frame *Frame = RendererFunctions.BeginFrame(Renderer, RendererMemory, WindowDim);
+    RendererFunctions.EndFrame(Renderer, RendererMemory, Frame);
    }
   }
  }

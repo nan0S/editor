@@ -95,6 +95,7 @@ internal void              OS_LibraryUnload(os_library_handle Lib);
 typedef int exit_code_int;
 internal os_process_handle OS_ProcessLaunch(string_list CmdList);
 internal exit_code_int     OS_ProcessWait(os_process_handle Process);
+internal exit_code_int     OS_CombineExitCodes(exit_code_int CodeA, exit_code_int CodeB);
 
 //- threads
 typedef OS_THREAD_FUNC(os_thread_func);

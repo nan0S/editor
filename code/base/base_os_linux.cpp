@@ -374,7 +374,8 @@ OS_ProcessWait(os_process_handle Process)
 {
  int Status = 0;
  pid_t Ret = waitpid(Process, &Status, 0);
- Assert(Ret == Process);
+ // TODO(hbr): uncomment or actually do sth better - check if the process handle is invalid - if so do nothing - do this always in different functions around here as well 
+ //Assert(Ret == Process);
  int ExitCode = WEXITSTATUS(Status);
  return ExitCode;
 }

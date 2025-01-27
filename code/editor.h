@@ -91,6 +91,7 @@ Bugs:
 - loading a lot of files at once asynchronously doesn't work, only some images are loaded
 - I need to test what happens when queue texture memory is emptied - because I think there is a bug in there
 - scaling is not implemented correctly - specifically lines vs control points are not in the same place in relation to each other when I scale the curve
+- dragging tracked point along curve is broken - specifically for "pętelka" ale może dla innych przypadków też
 
 Stack:
  - add sorting to rendering - this then will allow to draw things out of order and will simplify the code a lot

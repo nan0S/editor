@@ -139,6 +139,22 @@ union mat4
 # error DLL_EXPORT not defined
 #endif
 
+#if COMPILER_MSVC
+# define Trap __debugbreak()
+#endif
+#if COMPILER_GCC || COMPILER_CLANG
+# define Trap __builtin_trap()
+#endif
+#if !defined(Trap)
+# error trap not defined
+#endif
+
+#if defined(BUILD_DEBUG)
+# define Assert(Expr) AssertAlways(Expr)
+#else
+# define Assert(Expr) (void)(Expr)
+#endif
+
 #define Bytes(N)      ((Cast(u64)(N)) << 0)
 #define Kilobytes(N)  ((Cast(u64)(N)) << 10)
 #define Megabytes(N)  ((Cast(u64)(N)) << 20)
@@ -153,6 +169,9 @@ union mat4
 #define StaticAssert(Expr, Label) typedef int Static_Assert_Failed_##Label[(Expr) ? 1 : -1]
 #define MarkUnused(Var) (void)Var
 #define Cast(Type) (Type)
+// this is done in this weird way because I cannot write multiple statements ended with expression
+inline void *_SafeCastToPtr(void *Expr, u64 SizeOf1, u64 SizeOf2) { Assert(SizeOf1 == SizeOf2); return Expr; }
+#define SafeCastToPtr(Var, Type) Cast(Type *)_SafeCastToPtr(&Var, SizeOf(Var), SizeOf(Type))
 #define OffsetOf(Type, Member) (Cast(u64)(&((Cast(Type *)0)->Member)))
 #define SizeOf(Expr) sizeof(Expr)
 #define MemberOf(Type, Member) ((Cast(Type *)0)->Member)
@@ -164,22 +183,6 @@ union mat4
 #define NameConcat(A, B) NameConcat_(A, B)
 #define ConvertNameToString_(Name) #Name
 #define ConvertNameToString(Name) ConvertNameToString_(Name) // convert CustomName -> "CustomName"
-
-#if defined(BUILD_DEBUG)
-# define Assert(Expr) AssertAlways(Expr)
-#else
-# define Assert(Expr) (void)(Expr)
-#endif
-
-#if COMPILER_MSVC
-# define Trap __debugbreak()
-#endif
-#if COMPILER_GCC || COMPILER_CLANG
-# define Trap __builtin_trap()
-#endif
-#if !defined(Trap)
-# error trap not defined
-#endif
 
 #if COMPILER_MSVC
 # include <intrin.h> 
@@ -223,6 +226,7 @@ union mat4
 #define MemoryCmp(Ptr1, Ptr2, Bytes) memcmp(Ptr1, Ptr2, Bytes)
 #define MemoryEqual(Ptr1, Ptr2, Bytes) (MemoryCmp(Ptr1, Ptr2, Bytes) == 0)
 #define StructZero(Ptr) MemoryZero(Ptr, SizeOf(*(Ptr)))
+#define StructsEqual(Struct1, Struct2) MemoryEqual(&(Struct1), &(Struct2), SizeOf(Struct1))
 #define ArrayCopy(Dst, Src, ElemCount) MemoryCopy(Dst, Src, (ElemCount) * SizeOf((Dst)[0]))
 #define ArrayReverse(Array, Count, Type) do { for (u64 _I_ = 0; _I_ < ((Count)>>1); ++_I_) { Swap((Array)[_I_], (Array)[(Count) - 1 - _I_], Type); } } while (0)
 #define ArrayMove(Dst, Src, ElemCount) MemoryMove(Dst, Src, (ElemCount) * SizeOf((Dst)[0]))

@@ -111,14 +111,11 @@ struct visible_cubic_bezier_points
 struct curve_point_tracking_state
 {
  b32 Active;
- b32 NeedsRecomputationThisFrame;
  f32 Fraction;
  v2 LocalSpaceTrackedPoint;
  
  b32 IsSplitting;
  
- // NOTE(hbr): De Casteljau visualization
- arena *Arena;
  all_de_casteljau_intermediate_results Intermediate;
  v4 *IterationColors;
  vertex_array *LineVerticesPerIteration;
@@ -170,8 +167,6 @@ struct curve
  vertex_array PolylineVertices;
  vertex_array ConvexHullVertices;
  
- b32 RecomputeRequested;
- 
  curve_point_tracking_state PointTracking;
  curve_degree_lowering_state DegreeLowering;
 };
@@ -218,6 +213,20 @@ struct entity
  image Image;
 };
 
+enum entity_modify_flag
+{
+ EntityModifyWitness_CurveShapeChanged = (1<<0),
+ EntityModifyWitness_PointTrackingChanged = (1<<1),
+};
+typedef u32 entity_modify_flags;
+struct entity_with_modify_witness
+{
+ entity_modify_flags ModifyFlags;
+ entity *Entity;
+};
+global entity_with_modify_witness _NilEntityWitness;
+global entity_with_modify_witness *NilEntityWitness = &_NilEntityWitness;
+
 struct entity_array
 {
  u32 Count;
@@ -233,9 +242,9 @@ struct point_info
 };
 
 internal void InitEntity(entity *Entity, v2 P, v2 Scale, v2 Rotation, string Name, i32 SortingLayer);
-internal void InitCurve(entity *Entity, curve_params Params);
+internal void InitCurve(entity_with_modify_witness *Entity, curve_params Params);
 internal void InitImage(entity *Entity);
-internal void InitEntityFromEntity(entity *Dst, entity *Src);
+internal void InitEntityFromEntity(entity_with_modify_witness *Dst, entity *Src);
 
 internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
 internal v2 LocalEntityPositionToWorld(entity *Entity, v2 P);
@@ -342,23 +351,20 @@ CurveLinePointIndexToControlPointIndex(curve *Curve, u32 CurveLinePointIndex)
  return Result;
 }
 
-internal void SetCurvePoint(entity *Entity, curve_point_index Index, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
-internal void SetCurveControlPoint(entity *Entity, control_point_index Index, v2 P, f32 Weight); // this can be only control point thus we accept weight as well
-internal void RemoveControlPoint(entity *Entity, u32 Index);
-internal control_point_index AppendControlPoint(entity *Entity, v2 Point);
-internal void InsertControlPoint(entity *Entity, v2 Point, u32 At);
-internal void SetCurveControlPoints(entity *Entity, u32 PointCount, v2 *Points, f32 *Weights, cubic_bezier_point *CubicBeziers);
+internal void MarkEntityModified(entity_with_modify_witness *Witness, entity_modify_flag Flag);
+internal entity_with_modify_witness BeginEntityModify(entity *Entity);
+internal void EndEntityModify(entity_with_modify_witness Witness);
+
+internal void SetCurvePoint(entity_with_modify_witness *Entity, curve_point_index Index, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
+internal void SetCurveControlPoint(entity_with_modify_witness *Entity, control_point_index Index, v2 P, f32 Weight); // this can be only control point thus we accept weight as well
+internal void RemoveControlPoint(entity_with_modify_witness *Entity, u32 Index);
+internal control_point_index AppendControlPoint(entity_with_modify_witness *Entity, v2 Point);
+internal void InsertControlPoint(entity_with_modify_witness *Entity, v2 Point, u32 At);
+internal void SetCurveControlPoints(entity_with_modify_witness *Entity, u32 PointCount, v2 *Points, f32 *Weights, cubic_bezier_point *CubicBeziers);
 
 internal void SelectControlPoint(curve *Curve, control_point_index Index);
 internal void SelectControlPointFromCurvePointIndex(curve *Curve, curve_point_index Index);
 internal void UnselectControlPoint(curve *Curve);
-
-inline internal void
-MarkCurveForRecomputation(curve *Curve)
-{
- Curve->RecomputeRequested = true;
-}
-internal void RecomputeCurve(entity *Entity);
 
 enum modify_curve_points_which_points
 {
@@ -374,7 +380,7 @@ struct curve_points
  modify_curve_points_which_points Which;
 };
 
-internal curve_points BeginModifyCurvePoints(curve *Curve, u32 RequestedPointCount, modify_curve_points_which_points Which);
+internal curve_points BeginModifyCurvePoints(entity_with_modify_witness *Curve, u32 RequestedPointCount, modify_curve_points_which_points Which);
 internal void EndModifyCurvePoints(curve *Curve, curve_points *Handle);
 
 #endif //EDITOR_ENTITY_H

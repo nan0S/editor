@@ -167,8 +167,9 @@ ExtractControlPointIndexAndBezierOffsetFromCurvePointIndex(curve_point_index Ind
 }
 
 internal void
-SetCurvePoint(entity *Entity, curve_point_index Index, v2 P, translate_curve_point_flags Flags)
+SetCurvePoint(entity_with_modify_witness *EntityWitness, curve_point_index Index, v2 P, translate_curve_point_flags Flags)
 {
+ entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
  
  control_point_index ControlPointIndex;
@@ -223,7 +224,7 @@ SetCurvePoint(entity *Entity, curve_point_index Index, v2 P, translate_curve_poi
   *TranslatePoint = LocalP;
  }
  
- MarkCurveForRecomputation(Curve);
+ MarkEntityModified(EntityWitness, EntityModifyWitness_CurveShapeChanged);
 }
 
 internal void
@@ -248,8 +249,9 @@ SelectControlPointFromCurvePointIndex(curve *Curve, curve_point_index Index)
 }
 
 internal void
-RemoveControlPoint(entity *Entity, control_point_index Index)
+RemoveControlPoint(entity_with_modify_witness *EntityWitness, control_point_index Index)
 {
+ entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
  if (Index.Index < Curve->ControlPointCount)
  {
@@ -278,7 +280,7 @@ MemoryMove((Array) + (At), \
    }
   }
   
-  MarkCurveForRecomputation(Curve);
+  MarkEntityModified(EntityWitness, EntityModifyWitness_CurveShapeChanged);
  }
 }
 
@@ -348,9 +350,11 @@ SortEntities(arena *Arena, entity_array Entities)
 }
 
 internal control_point_index
-AppendControlPoint(entity *Entity, v2 Point)
+AppendControlPoint(entity_with_modify_witness *EntityWitness, v2 Point)
 {
  control_point_index Result = {};
+ 
+ entity *Entity = EntityWitness->Entity;
  if (Entity->Flags & EntityFlag_CurveAppendFront)
  {
   Result.Index = 0;
@@ -359,14 +363,15 @@ AppendControlPoint(entity *Entity, v2 Point)
  {
   Result.Index = Entity->Curve.ControlPointCount;
  }
- InsertControlPoint(Entity, Point, Result.Index);
+ InsertControlPoint(EntityWitness, Point, Result.Index);
  
  return Result;
 }
 
 internal void
-InsertControlPoint(entity *Entity, v2 Point, u32 At)
+InsertControlPoint(entity_with_modify_witness *EntityWitness, v2 Point, u32 At)
 {
+ entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
  if (Curve &&
      Curve->ControlPointCount < MAX_CONTROL_POINT_COUNT &&
@@ -409,18 +414,20 @@ MemoryMove((Array) + ((At)+(ShiftCount)), \
   
   ++Curve->ControlPointCount;
   
-  MarkCurveForRecomputation(Curve);
+  MarkEntityModified(EntityWitness, EntityModifyWitness_CurveShapeChanged);
  }
 }
 
 internal void
-SetCurveControlPoints(entity *Entity,
+SetCurveControlPoints(entity_with_modify_witness *EntityWitness,
                       u32 PointCount,
                       v2 *Points,
                       f32 *Weights,
                       cubic_bezier_point *CubicBeziers)
 {
+ entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
+ 
  Assert(PointCount <= MAX_CONTROL_POINT_COUNT);
  PointCount = Min(PointCount, MAX_CONTROL_POINT_COUNT);
  
@@ -432,15 +439,16 @@ SetCurveControlPoints(entity *Entity,
  // TODO(hbr): Make sure this is expected, maybe add to internal arguments
  UnselectControlPoint(Curve);
  
- MarkCurveForRecomputation(Curve);
+ MarkEntityModified(EntityWitness, EntityModifyWitness_CurveShapeChanged);
 }
 
 internal void
-InitCurve(entity *Entity, curve_params Params)
+InitCurve(entity_with_modify_witness *EntityWitness, curve_params Params)
 {
+ entity *Entity = EntityWitness->Entity;
  Entity->Type = Entity_Curve;
  Entity->Curve.Params = Params;
- SetCurveControlPoints(Entity, 0, 0, 0, 0);
+ SetCurveControlPoints(EntityWitness, 0, 0, 0, 0);
 }
 
 internal void
@@ -466,14 +474,18 @@ InitEntity(entity *Entity,
 }
 
 internal void
-SetCurveControlPoint(entity *Entity, control_point_index Index, v2 P, f32 Weight)
+SetCurveControlPoint(entity_with_modify_witness *EntityWitness, control_point_index Index, v2 P, f32 Weight)
 {
  curve_point_index CurvePointIndex = CurvePointIndexFromControlPointIndex(Index);
- SetCurvePoint(Entity, CurvePointIndex, P, 0);
+ entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
+ 
+ SetCurvePoint(EntityWitness, CurvePointIndex, P, 0);
+ 
  if (Index.Index < Curve->ControlPointCount)
  {
   Curve->ControlPointWeights[Index.Index] = Weight;
+  MarkEntityModified(EntityWitness, EntityModifyWitness_CurveShapeChanged);
  }
 }
 
@@ -487,8 +499,10 @@ SetEntityName(entity *Entity, string Name)
 }
 
 internal void
-InitEntityFromEntity(entity *Dst, entity *Src)
+InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src)
 {
+ entity *Dst = DstWitness->Entity;
+ 
  InitEntity(Dst, Src->P, Src->Scale, Src->Rotation, Src->Name, Src->SortingLayer);
  switch (Src->Type)
  {
@@ -496,8 +510,8 @@ InitEntityFromEntity(entity *Dst, entity *Src)
    curve *SrcCurve = SafeGetCurve(Src);
    curve *DstCurve = SafeGetCurve(Dst);
    
-   InitCurve(Dst, SrcCurve->Params);
-   SetCurveControlPoints(Dst, SrcCurve->ControlPointCount, SrcCurve->ControlPoints, SrcCurve->ControlPointWeights, SrcCurve->CubicBezierPoints);
+   InitCurve(DstWitness, SrcCurve->Params);
+   SetCurveControlPoints(DstWitness, SrcCurve->ControlPointCount, SrcCurve->ControlPoints, SrcCurve->ControlPointWeights, SrcCurve->CubicBezierPoints);
    SelectControlPoint(DstCurve, SrcCurve->SelectedIndex);
   } break;
   
@@ -511,9 +525,12 @@ InitEntityFromEntity(entity *Dst, entity *Src)
 }
 
 internal curve_points
-BeginModifyCurvePoints(curve *Curve, u32 RequestedPointCount, modify_curve_points_which_points Which)
+BeginModifyCurvePoints(entity_with_modify_witness *EntityWitness, u32 RequestedPointCount, modify_curve_points_which_points Which)
 {
  curve_points Result = {};
+ 
+ entity *Entity = EntityWitness->Entity;
+ curve *Curve = SafeGetCurve(Entity);
  
  u32 ActualPointCount = Min(RequestedPointCount, MAX_CONTROL_POINT_COUNT);
  Result.PointCount = ActualPointCount;
@@ -521,6 +538,9 @@ BeginModifyCurvePoints(curve *Curve, u32 RequestedPointCount, modify_curve_point
  Result.Weights = Curve->ControlPointWeights;
  Result.CubicBeziers = Curve->CubicBezierPoints;
  Result.Which = Which;
+ 
+ // NOTE(hbr): Assume (which is very reasonable) that the curve is always changing here
+ MarkEntityModified(EntityWitness, EntityModifyWitness_CurveShapeChanged);
  
  return Result;
 }
@@ -564,19 +584,14 @@ LocalEntityPositionToWorld(entity *Entity, v2 P)
 }
 
 internal void
-SetTrackingPointFraction(curve_point_tracking_state *Tracking, f32 Fraction)
+SetTrackingPointFraction(entity_with_modify_witness *EntityWitness, f32 Fraction)
 {
- Tracking->Fraction = Clamp01(Fraction);
- Tracking->NeedsRecomputationThisFrame = true;
-}
-
-internal void
-BeginCurvePointTracking(curve *Curve, b32 IsSplitting)
-{
+ entity *Entity = EntityWitness->Entity;
+ curve *Curve = SafeGetCurve(Entity);
  curve_point_tracking_state *Tracking = &Curve->PointTracking;
- Tracking->Active = true;
- Tracking->IsSplitting = IsSplitting;
- SetTrackingPointFraction(Tracking, Tracking->Fraction);
+ 
+ Tracking->Fraction = Clamp01(Fraction);
+ MarkEntityModified(EntityWitness, EntityModifyWitness_PointTrackingChanged);
 }
 
 // TODO(hbr): Try to get rid of this function entirely
@@ -922,37 +937,122 @@ EvaluateCurve(curve *Curve, u32 LinePointCount, v2 *LinePoints)
 }
 
 internal void
-RecomputeCurve(entity *Entity)
+RecomputeCurve(entity *Entity, entity_modify_flags ModifyFlags)
 {
  curve *Curve = SafeGetCurve(Entity);
+ arena *EntityArena = Entity->Arena;
  
- ClearArena(Entity->Arena);
- 
- u32 LinePointCount = 0;
- if (Curve->ControlPointCount > 0)
+ if (ModifyFlags)
  {
-  LinePointCount = (Curve->ControlPointCount - 1) * Curve->Params.PointCountPerSegment + 1;
+  ClearArena(EntityArena);
+  
+  if (ModifyFlags & EntityModifyWitness_CurveShapeChanged)
+  {   
+   u32 LinePointCount = 0;
+   if (Curve->ControlPointCount > 0)
+   {
+    LinePointCount = (Curve->ControlPointCount - 1) * Curve->Params.PointCountPerSegment + 1;
+   }
+   Curve->LinePointCount = LinePointCount;
+   Curve->LinePoints = PushArrayNonZero(Entity->Arena, LinePointCount, v2);
+   EvaluateCurve(Curve, Curve->LinePointCount, Curve->LinePoints);
+   
+   Curve->LineVertices = ComputeVerticesOfThickLine(EntityArena,
+                                                    Curve->LinePointCount,
+                                                    Curve->LinePoints,
+                                                    Curve->Params.LineWidth,
+                                                    IsCurveLooped(Curve));
+   Curve->PolylineVertices = ComputeVerticesOfThickLine(EntityArena,
+                                                        Curve->ControlPointCount,
+                                                        Curve->ControlPoints,
+                                                        Curve->Params.PolylineWidth,
+                                                        false);
+   
+   Curve->ConvexHullPoints = PushArrayNonZero(EntityArena, Curve->ControlPointCount, v2);
+   Curve->ConvexHullCount = CalcConvexHull(Curve->ControlPointCount, Curve->ControlPoints, Curve->ConvexHullPoints);
+   Curve->ConvexHullVertices = ComputeVerticesOfThickLine(EntityArena,
+                                                          Curve->ConvexHullCount,
+                                                          Curve->ConvexHullPoints,
+                                                          Curve->Params.ConvexHullWidth,
+                                                          true);
+  }
+  
+  if ((ModifyFlags & EntityModifyWitness_CurveShapeChanged) ||
+      (ModifyFlags & EntityModifyWitness_PointTrackingChanged))
+  {
+   curve_point_tracking_state *Tracking = &Curve->PointTracking;
+   if (IsCurveEligibleForPointTracking(Curve))
+   {
+    Tracking->LocalSpaceTrackedPoint = BezierCurveEvaluateWeighted(Tracking->Fraction,
+                                                                   Curve->ControlPoints,
+                                                                   Curve->ControlPointWeights,
+                                                                   Curve->ControlPointCount);
+    
+    if (!Tracking->IsSplitting)
+    {
+     all_de_casteljau_intermediate_results Intermediate = DeCasteljauAlgorithm(EntityArena,
+                                                                               Tracking->Fraction,
+                                                                               Curve->ControlPoints,
+                                                                               Curve->ControlPointWeights,
+                                                                               Curve->ControlPointCount);
+     vertex_array *LineVerticesPerIteration = PushArray(EntityArena,
+                                                        Intermediate.IterationCount,
+                                                        vertex_array);
+     f32 LineWidth = Curve->Params.LineWidth;
+     
+     u32 IterationPointsOffset = 0;
+     for (u32 Iteration = 0;
+          Iteration < Intermediate.IterationCount;
+          ++Iteration)
+     {
+      u32 CurrentIterationPointCount = Intermediate.IterationCount - Iteration;
+      LineVerticesPerIteration[Iteration] =
+       ComputeVerticesOfThickLine(EntityArena,
+                                  CurrentIterationPointCount,
+                                  Intermediate.P + IterationPointsOffset,
+                                  LineWidth,
+                                  false);
+      IterationPointsOffset += CurrentIterationPointCount;
+     }
+     
+     Tracking->Intermediate = Intermediate;
+     Tracking->LineVerticesPerIteration = LineVerticesPerIteration;
+     Tracking->LocalSpaceTrackedPoint = Intermediate.P[Intermediate.TotalPointCount - 1];
+    }
+   }
+   else
+   {
+    Tracking->Active = false;
+   }
+  }
  }
- Curve->LinePointCount = LinePointCount;
- Curve->LinePoints = PushArrayNonZero(Entity->Arena, LinePointCount, v2);
- EvaluateCurve(Curve, Curve->LinePointCount, Curve->LinePoints);
- 
- Curve->LineVertices = ComputeVerticesOfThickLine(Entity->Arena,
-                                                  Curve->LinePointCount,
-                                                  Curve->LinePoints,
-                                                  Curve->Params.LineWidth,
-                                                  IsCurveLooped(Curve));
- Curve->PolylineVertices = ComputeVerticesOfThickLine(Entity->Arena,
-                                                      Curve->ControlPointCount,
-                                                      Curve->ControlPoints,
-                                                      Curve->Params.PolylineWidth,
-                                                      false);
- 
- Curve->ConvexHullPoints = PushArrayNonZero(Entity->Arena, Curve->ControlPointCount, v2);
- Curve->ConvexHullCount = CalcConvexHull(Curve->ControlPointCount, Curve->ControlPoints, Curve->ConvexHullPoints);
- Curve->ConvexHullVertices = ComputeVerticesOfThickLine(Entity->Arena,
-                                                        Curve->ConvexHullCount,
-                                                        Curve->ConvexHullPoints,
-                                                        Curve->Params.ConvexHullWidth,
-                                                        true);
+}
+
+internal void
+MarkEntityModified(entity_with_modify_witness *Witness, entity_modify_flag Flag)
+{
+ Witness->ModifyFlags |= Flag;
+}
+
+internal entity_with_modify_witness
+BeginEntityModify(entity *Entity)
+{
+ entity_with_modify_witness Result = {};
+ Result.Entity = Entity;
+ return Result;
+}
+
+internal void
+EndEntityModify(entity_with_modify_witness Witness)
+{
+ entity *Entity = Witness.Entity;
+ if (Entity)
+ {
+  switch (Entity->Type)
+  {
+   case Entity_Curve: {RecomputeCurve(Entity, Witness.ModifyFlags);}break;
+   case Entity_Image: {}break;
+   case Entity_Count: InvalidPath;
+  }
+ }
 }

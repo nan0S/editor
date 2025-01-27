@@ -399,11 +399,9 @@ AllocEntity(editor *Editor)
    Entity = Current;
    
    arena *EntityArena = Entity->Arena;
-   arena *PointTrackingArena = Entity->Curve.PointTracking.Arena;
    arena *DegreeLoweringArena = Entity->Curve.DegreeLowering.Arena;
    StructZero(Entity);
    Entity->Arena = EntityArena;
-   Entity->Curve.PointTracking.Arena = PointTrackingArena;
    Entity->Curve.DegreeLowering.Arena = DegreeLoweringArena;
    
    Entity->Flags |= EntityFlag_Active;
@@ -522,6 +520,10 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  
  entity *LeftEntity = Entity;
  entity *RightEntity = AllocEntity(Editor);
+ 
+ entity_with_modify_witness LeftWitness = BeginEntityModify(LeftEntity);
+ entity_with_modify_witness RightWitness = BeginEntityModify(RightEntity);
+ 
  string LeftName = StrF(Temp.Arena, "%S(left)", Entity->Name);
  string RightName = StrF(Temp.Arena, "%S(right)", Entity->Name);
  
@@ -529,11 +531,11 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  curve *RightCurve = SafeGetCurve(RightEntity);
  
  SetEntityName(LeftEntity, LeftName);
- InitEntityFromEntity(RightEntity, LeftEntity);
+ InitEntityFromEntity(&RightWitness, LeftEntity);
  SetEntityName(RightEntity, RightName);
  
- curve_points LeftPoints = BeginModifyCurvePoints(LeftCurve, ControlPointCount, ModifyCurvePointsWhichPoints_JustControlPoints);
- curve_points RightPoints = BeginModifyCurvePoints(RightCurve, ControlPointCount, ModifyCurvePointsWhichPoints_JustControlPoints);
+ curve_points LeftPoints = BeginModifyCurvePoints(&LeftWitness, ControlPointCount, ModifyCurvePointsWhichPoints_JustControlPoints);
+ curve_points RightPoints = BeginModifyCurvePoints(&RightWitness, ControlPointCount, ModifyCurvePointsWhichPoints_JustControlPoints);
  Assert(LeftPoints.PointCount == ControlPointCount);
  Assert(RightPoints.PointCount == ControlPointCount);
  
@@ -545,6 +547,9 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  EndModifyCurvePoints(RightCurve, &RightPoints);
  EndModifyCurvePoints(LeftCurve, &LeftPoints);
  
+ EndEntityModify(LeftWitness);
+ EndEntityModify(RightWitness);
+ 
  EndTemp(Temp);
 }
 
@@ -554,8 +559,10 @@ DuplicateEntity(entity *Entity, editor *Editor)
  temp_arena Temp = TempArena(0);
  
  entity *Copy = AllocEntity(Editor);
+ entity_with_modify_witness CopyWitness = BeginEntityModify(Copy);
  string CopyName = StrF(Temp.Arena, "%S(copy)", Entity->Name);
- InitEntityFromEntity(Copy, Entity);
+ 
+ InitEntityFromEntity(&CopyWitness, Entity);
  SetEntityName(Copy, CopyName);
  
  SelectEntity(Editor, Copy);
@@ -563,6 +570,8 @@ DuplicateEntity(entity *Entity, editor *Editor)
  f32 SlightTranslationX = 0.2f;
  v2 SlightTranslation = V2(SlightTranslationX, 0.0f);
  Copy->P += SlightTranslation;
+ 
+ EndEntityModify(CopyWitness);
  
  EndTemp(Temp);
 }
@@ -640,9 +649,11 @@ LowerBezierCurveDegree(entity *Entity)
    LowerWeights[LowerDegree.MiddlePointIndex] = Lerp(LowerDegree.W_I, LowerDegree.W_II, T);
   }
   
+  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
   // TODO(hbr): refactor this, it only has to be here because we still modify control points above
   BezierCubicCalculateAllControlPoints(PointCount - 1, LowerPoints, LowerBeziers);
-  SetCurveControlPoints(Entity, PointCount - 1, LowerPoints, LowerWeights, LowerBeziers);
+  SetCurveControlPoints(&EntityWitness, PointCount - 1, LowerPoints, LowerWeights, LowerBeziers);
+  EndEntityModify(EntityWitness);
   
   EndTemp(Temp);
  }
@@ -680,11 +691,13 @@ ElevateBezierCurveDegree(entity *Entity)
                                       ElevatedControlPoints,
                                       ElevatedCubicBezierPoints);
  
- SetCurveControlPoints(Entity,
+ entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
+ SetCurveControlPoints(&EntityWitness,
                        ControlPointCount + 1,
                        ElevatedControlPoints,
                        ElevatedControlPointWeights,
                        ElevatedCubicBezierPoints);
+ EndEntityModify(EntityWitness);
  
  EndTemp(Temp);
 }
@@ -748,7 +761,11 @@ SplitCurveOnControlPoint(entity *Entity, editor *Editor)
   
   entity *LeftEntity = Entity;
   entity *RightEntity = AllocEntity(Editor);
-  InitEntityFromEntity(RightEntity, LeftEntity);
+  
+  entity_with_modify_witness LeftWitness = BeginEntityModify(LeftEntity);
+  entity_with_modify_witness RightWitness = BeginEntityModify(RightEntity);
+  
+  InitEntityFromEntity(&RightWitness, LeftEntity);
   
   curve *LeftCurve = SafeGetCurve(LeftEntity);
   curve *RightCurve = SafeGetCurve(RightEntity);
@@ -758,8 +775,8 @@ SplitCurveOnControlPoint(entity *Entity, editor *Editor)
   SetEntityName(LeftEntity, LeftName);
   SetEntityName(RightEntity, RightName);
   
-  curve_points LeftPoints = BeginModifyCurvePoints(LeftCurve, LeftPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
-  curve_points RightPoints = BeginModifyCurvePoints(RightCurve, RightPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
+  curve_points LeftPoints = BeginModifyCurvePoints(&LeftWitness, LeftPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
+  curve_points RightPoints = BeginModifyCurvePoints(&RightWitness, RightPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
   Assert(LeftPoints.PointCount == LeftPointCount);
   Assert(RightPoints.PointCount == RightPointCount);
   
@@ -775,6 +792,9 @@ SplitCurveOnControlPoint(entity *Entity, editor *Editor)
   
   EndModifyCurvePoints(LeftCurve, &LeftPoints);
   EndModifyCurvePoints(RightCurve, &RightPoints);
+  
+  EndEntityModify(LeftWitness);
+  EndEntityModify(RightWitness);
   
   EndTemp(Temp);
  }
@@ -1337,155 +1357,60 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
  curve *Curve = &Entity->Curve;
  curve_params *CurveParams = &Curve->Params;
  curve_point_tracking_state *Tracking = &Curve->PointTracking;
- temp_arena Temp = TempArena(Tracking->Arena);
  
- if (Entity->Type == Entity_Curve && Tracking->Active)
+ if (Tracking->Active)
  {
-  b32 IsBezierRegular = (CurveParams->Interpolation == Interpolation_Bezier &&
-                         CurveParams->Bezier == Bezier_Regular);
-  
-  if (IsBezierRegular)
+  if (Tracking->IsSplitting)
   {
-   if (Tracking->IsSplitting)
-   {
-    b32 PerformSplit = false;
-    b32 Cancel = false;
-    b32 IsWindowOpen = true;
-    DeferBlock(UI_BeginWindowF(&IsWindowOpen, 0, "Splitting '%S'", Entity->Name),
-               UI_EndWindow())
-    {
-     Tracking->NeedsRecomputationThisFrame |= UI_SliderFloatF(&Tracking->Fraction, 0.0f, 1.0f, "Split Point");
-     PerformSplit = UI_ButtonF("Split");
-     UI_SameRow();
-     Cancel = UI_ButtonF("Cancel");
-    }
-    
-    if (PerformSplit)
-    {
-     PerformBezierCurveSplit(Editor, Entity);
-    }
-    
-    if (PerformSplit || Cancel || !IsWindowOpen)
-    {
-     Tracking->Active = false;
-    }
-    else
-    {
-     if (Tracking->NeedsRecomputationThisFrame || Curve->RecomputeRequested)
-     {
-      Tracking->LocalSpaceTrackedPoint = BezierCurveEvaluateWeighted(Tracking->Fraction,
-                                                                     Curve->ControlPoints,
-                                                                     Curve->ControlPointWeights,
-                                                                     Curve->ControlPointCount);
-     }
-     
-     f32 Radius = GetCurveTrackedPointRadius(Curve);
-     v4 Color = V4(0.0f, 1.0f, 0.0f, 0.5f);
-     f32 OutlineThickness = 0.3f * Radius;
-     v4 OutlineColor = DarkenColor(Color, 0.5f);
-     PushCircle(Group,
-                Entity->P + Tracking->LocalSpaceTrackedPoint,
-                Entity->Rotation, Entity->Scale,
-                Radius, Color,
-                GetCurvePartZOffset(CurvePart_Special),
-                OutlineThickness, OutlineColor);
-    }
-   }
-   else
-   {
-    b32 IsWindowOpen = true;
-    DeferBlock(UI_BeginWindowF(&IsWindowOpen, WindowFlag_AutoResize,
-                               "De Casteljau Algorithm '%S'", Entity->Name),
-               UI_EndWindow())
-    {
-     Tracking->NeedsRecomputationThisFrame |= UI_SliderFloatF(&Tracking->Fraction, 0.0f, 1.0f, "t");
-    }
-    
-    if (!IsWindowOpen)
-    {
-     Tracking->Active = false;
-    }
-    else
-    {
-     if (Tracking->NeedsRecomputationThisFrame || Curve->RecomputeRequested)
-     {
-      ClearArena(Tracking->Arena);
-      
-      all_de_casteljau_intermediate_results Intermediate =
-       DeCasteljauAlgorithm(Tracking->Arena,
-                            Tracking->Fraction,
-                            Curve->ControlPoints,
-                            Curve->ControlPointWeights,
-                            Curve->ControlPointCount);
-      vertex_array *LineVerticesPerIteration = PushArray(Tracking->Arena,
-                                                         Intermediate.IterationCount,
-                                                         vertex_array);
-      f32 LineWidth = Curve->Params.LineWidth;
-      
-      u32 IterationPointsOffset = 0;
-      for (u32 Iteration = 0;
-           Iteration < Intermediate.IterationCount;
-           ++Iteration)
-      {
-       u32 CurrentIterationPointCount = Intermediate.IterationCount - Iteration;
-       LineVerticesPerIteration[Iteration] =
-        ComputeVerticesOfThickLine(Tracking->Arena,
-                                   CurrentIterationPointCount,
-                                   Intermediate.P + IterationPointsOffset,
-                                   LineWidth,
-                                   false);
-       IterationPointsOffset += CurrentIterationPointCount;
-      }
-      
-      Tracking->Intermediate = Intermediate;
-      Tracking->LineVerticesPerIteration = LineVerticesPerIteration;
-      Tracking->LocalSpaceTrackedPoint = Intermediate.P[Intermediate.TotalPointCount - 1];
-     }
-     
-     u32 IterationCount = Tracking->Intermediate.IterationCount;
-     
-     f32 P = 0.0f;
-     f32 Delta_P = 1.0f / (IterationCount - 1);
-     
-     v4 GradientA = RGBA_Color(255, 0, 144);
-     v4 GradientB = RGBA_Color(155, 200, 0);
-     
-     f32 PointSize = CurveParams->PointRadius;
-     
-     u32 PointIndex = 0;
-     for (u32 Iteration = 0;
-          Iteration < IterationCount;
-          ++Iteration)
-     {
-      v4 IterationColor = Lerp(GradientA, GradientB, P);
-      
-      PushVertexArray(Group,
-                      Tracking->LineVerticesPerIteration[Iteration].Vertices,
-                      Tracking->LineVerticesPerIteration[Iteration].VertexCount,
-                      Tracking->LineVerticesPerIteration[Iteration].Primitive,
-                      IterationColor, GetCurvePartZOffset(CurvePart_Special));
-      
-      for (u32 I = 0; I < IterationCount - Iteration; ++I)
-      {
-       v2 Point = Tracking->Intermediate.P[PointIndex];
-       PushCircle(Group, Entity->P + Point, Entity->Rotation, Entity->Scale, PointSize, IterationColor, GetCurvePartZOffset(CurvePart_Special));
-       ++PointIndex;
-      }
-      
-      P += Delta_P;
-     }
-    }
-   }
+   f32 Radius = GetCurveTrackedPointRadius(Curve);
+   v4 Color = V4(0.0f, 1.0f, 0.0f, 0.5f);
+   f32 OutlineThickness = 0.3f * Radius;
+   v4 OutlineColor = DarkenColor(Color, 0.5f);
+   
+   PushCircle(Group,
+              Entity->P + Tracking->LocalSpaceTrackedPoint,
+              Entity->Rotation, Entity->Scale,
+              Radius, Color,
+              GetCurvePartZOffset(CurvePart_Special),
+              OutlineThickness, OutlineColor);
   }
   else
   {
-   Tracking->Active = false;
+   u32 IterationCount = Tracking->Intermediate.IterationCount;
+   f32 P = 0.0f;
+   f32 Delta_P = 1.0f / (IterationCount - 1);
+   v4 GradientA = RGBA_Color(255, 0, 144);
+   v4 GradientB = RGBA_Color(155, 200, 0);
+   // TODO(hbr): Shouldn't this use some of the functions that are already used for drwaing curve points to be consistent?
+   f32 PointSize = CurveParams->PointRadius;
+   
+   u32 PointIndex = 0;
+   for (u32 Iteration = 0;
+        Iteration < IterationCount;
+        ++Iteration)
+   {
+    v4 IterationColor = Lerp(GradientA, GradientB, P);
+    
+    PushVertexArray(Group,
+                    Tracking->LineVerticesPerIteration[Iteration].Vertices,
+                    Tracking->LineVerticesPerIteration[Iteration].VertexCount,
+                    Tracking->LineVerticesPerIteration[Iteration].Primitive,
+                    IterationColor, GetCurvePartZOffset(CurvePart_Special));
+    
+    for (u32 I = 0; I < IterationCount - Iteration; ++I)
+    {
+     v2 Point = Tracking->Intermediate.P[PointIndex];
+     PushCircle(Group,
+                Entity->P + Point, Entity->Rotation, Entity->Scale,
+                PointSize, IterationColor,
+                GetCurvePartZOffset(CurvePart_Special));
+     ++PointIndex;
+    }
+    
+    P += Delta_P;
+   }
   }
  }
- 
- Tracking->NeedsRecomputationThisFrame = false;
- 
- EndTemp(Temp);
 }
 
 internal void
@@ -1494,14 +1419,7 @@ UpdateAndRenderDegreeLowering(render_group *RenderGroup, entity *Entity)
  curve *Curve = SafeGetCurve(Entity);
  curve_params *CurveParams = &Curve->Params;
  curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
- 
- if (Lowering->Active)
- {
-  if (Curve->RecomputeRequested)
-  { 
-   Lowering->Active = false;
-  }
- }
+ entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
  
  if (Lowering->Active)
  {
@@ -1531,7 +1449,7 @@ UpdateAndRenderDegreeLowering(render_group *RenderGroup, entity *Entity)
    f32 NewControlPointWeight = Lerp(Lowering->LowerDegree.W_I, Lowering->LowerDegree.W_II, Lowering->MixParameter);
    
    control_point_index MiddlePointIndex = MakeControlPointIndex(Lowering->LowerDegree.MiddlePointIndex);
-   SetCurveControlPoint(Entity,
+   SetCurveControlPoint(&EntityWitness,
                         MiddlePointIndex,
                         NewControlPoint,
                         NewControlPointWeight);
@@ -1539,7 +1457,8 @@ UpdateAndRenderDegreeLowering(render_group *RenderGroup, entity *Entity)
   
   if (Revert)
   {
-   SetCurveControlPoints(Entity, Curve->ControlPointCount + 1,
+   SetCurveControlPoints(&EntityWitness,
+                         Curve->ControlPointCount + 1,
                          Lowering->SavedControlPoints,
                          Lowering->SavedControlPointWeights,
                          Lowering->SavedCubicBezierPoints);
@@ -1568,6 +1487,8 @@ UpdateAndRenderDegreeLowering(render_group *RenderGroup, entity *Entity)
   
   ResetTransform(RenderGroup);
  }
+ 
+ EndEntityModify(EntityWitness);
 }
 
 #define CURVE_NAME_HIGHLIGHT_COLOR ImVec4(1.0f, 0.5, 0.0f, 1.0f)
@@ -1871,6 +1792,8 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
    u32     FromCount  = From->ControlPointCount;
    u32     ToCount    = To->ControlPointCount;
    
+   entity_with_modify_witness ToEntityWitness = BeginEntityModify(ToEntity);
+   
    if (State->SourceCurveLastControlPoint)
    {
     ArrayReverse(From->ControlPoints,       FromCount, v2);
@@ -2018,11 +1941,14 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
     case CurveCombination_Count: InvalidPath;
    }
    
-   SetCurveControlPoints(ToEntity, CombinedPointCount, CombinedPoints,
+   SetCurveControlPoints(&ToEntityWitness,
+                         CombinedPointCount, CombinedPoints,
                          CombinedWeights, CombinedBeziers);
    
    DeallocEntity(Editor, FromEntity);
    SelectEntity(Editor, ToEntity);
+   
+   EndEntityModify(ToEntityWitness);
   }
   
   if (Combine || !IsWindowOpen || Cancel)
@@ -2285,7 +2211,6 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
   {
    entity *Entity = Editor->Entities + EntityIndex;
    Entity->Arena = AllocArena();
-   Entity->Curve.PointTracking.Arena = AllocArena();
    Entity->Curve.DegreeLowering.Arena = AllocArena();
   }
   
@@ -2298,18 +2223,23 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
   
   {
    entity *Entity = AllocEntity(Editor);
+   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
+   
    InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("special"), 0);
    curve_params Params = Editor->CurveDefaultParams;
    Params.Interpolation = Interpolation_Bezier;
-   InitCurve(Entity, Params);
+   InitCurve(&EntityWitness, Params);
    
-   AppendControlPoint(Entity, V2(-0.5f, -0.5f));
-   AppendControlPoint(Entity, V2(+0.5f, -0.5f));
-   AppendControlPoint(Entity, V2(+0.5f, +0.5f));
-   AppendControlPoint(Entity, V2(-0.5f, +0.5f));
+   AppendControlPoint(&EntityWitness, V2(-0.5f, -0.5f));
+   AppendControlPoint(&EntityWitness, V2(+0.5f, -0.5f));
+   AppendControlPoint(&EntityWitness, V2(+0.5f, +0.5f));
+   AppendControlPoint(&EntityWitness, V2(-0.5f, +0.5f));
    
-   BeginCurvePointTracking(&Entity->Curve, false);
-   SetTrackingPointFraction(&Entity->Curve.PointTracking, 0.5f);
+   Entity->Curve.PointTracking.Active = true;
+   Entity->Curve.PointTracking.IsSplitting = false;
+   SetTrackingPointFraction(&EntityWitness, 0.5f);
+   
+   EndEntityModify(EntityWitness);
   }
   
   editor_assets *Assets = &Editor->Assets;
@@ -2452,21 +2382,23 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
                                     RenderGroup->CollisionTolerance);
     }
     
-    curve *Curve = &Collision.Entity->Curve;
-    curve_point_tracking_state *Tracking = &Curve->PointTracking;
+    entity_with_modify_witness CollisionEntityWitness = BeginEntityModify(Collision.Entity);
+    curve *CollisionCurve = &Collision.Entity->Curve;
+    curve_point_tracking_state *CollisionTracking = &CollisionCurve->PointTracking;
+    
     if (Collision.Entity && (Event->Flags & PlatformEventFlag_Ctrl))
     {
      // NOTE(hbr): just move entity if ctrl is pressed
      LeftClick->Mode = EditorLeftClick_MovingEntity;
      LeftClick->TargetEntity = Collision.Entity;
     }
-    else if ((Collision.Flags & Collision_CurveLine) && Tracking->Active)
+    else if ((Collision.Flags & Collision_CurveLine) && CollisionTracking->Active)
     {
      LeftClick->Mode = EditorLeftClick_MovingTrackingPoint;
      LeftClick->TargetEntity = Collision.Entity;
      
-     f32 Fraction = SafeDiv0(Cast(f32)Collision.CurveLinePointIndex, (Curve->LinePointCount- 1));
-     SetTrackingPointFraction(Tracking, Fraction);
+     f32 Fraction = SafeDiv0(Cast(f32)Collision.CurveLinePointIndex, (CollisionCurve->LinePointCount- 1));
+     SetTrackingPointFraction(&CollisionEntityWitness, Fraction);
     }
     else if (Collision.Flags & Collision_CurvePoint)
     {
@@ -2476,9 +2408,9 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
     }
     else if (Collision.Flags & Collision_CurveLine)
     {
-     control_point_index Index = CurveLinePointIndexToControlPointIndex(Curve, Collision.CurveLinePointIndex);
+     control_point_index Index = CurveLinePointIndexToControlPointIndex(CollisionCurve, Collision.CurveLinePointIndex);
      u32 InsertAt = Index.Index + 1;
-     InsertControlPoint(Collision.Entity, MouseP, InsertAt);
+     InsertControlPoint(&CollisionEntityWitness, MouseP, InsertAt);
      
      LeftClick->Mode = EditorLeftClick_MovingCurvePoint;
      LeftClick->TargetEntity = Collision.Entity;
@@ -2499,18 +2431,29 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
      else
      {
       temp_arena Temp = TempArena(0);
+      
       entity *Entity = AllocEntity(Editor);
+      entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
+      
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
       InitEntity(Entity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
-      InitCurve(Entity, Editor->CurveDefaultParams);
-      EndTemp(Temp);
+      InitCurve(&EntityWitness, Editor->CurveDefaultParams);
       
       LeftClick->TargetEntity = Entity;
+      
+      EndEntityModify(EntityWitness);
+      
+      EndTemp(Temp);
      }
      Assert(LeftClick->TargetEntity);
      
+     entity_with_modify_witness TargetEntityWitness = BeginEntityModify(LeftClick->TargetEntity);
+     
      LeftClick->Mode = EditorLeftClick_MovingCurvePoint;
-     LeftClick->CurvePointIndex = CurvePointIndexFromControlPointIndex(AppendControlPoint(LeftClick->TargetEntity, MouseP));
+     control_point_index Appended = AppendControlPoint(&TargetEntityWitness, MouseP);
+     LeftClick->CurvePointIndex = CurvePointIndexFromControlPointIndex(Appended);
+     
+     EndEntityModify(TargetEntityWitness);
     }
     
     SelectEntity(Editor, LeftClick->TargetEntity);
@@ -2519,6 +2462,8 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
      SelectControlPointFromCurvePointIndex(SafeGetCurve(LeftClick->TargetEntity),
                                            LeftClick->CurvePointIndex);
     }
+    
+    EndEntityModify(CollisionEntityWitness);
    }
    
    if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_LeftMouseButton && LeftClick->Active)
@@ -2532,6 +2477,8 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
     // NOTE(hbr): don't eat mouse move event
     
     entity *Entity = LeftClick->TargetEntity;
+    entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
+    
     v2 Translate = MouseP - LeftClick->LastMouseP;
     v2 TranslateLocal = (WorldToLocalEntityPosition(Entity, MouseP) -
                          WorldToLocalEntityPosition(Entity, LeftClick->LastMouseP));
@@ -2542,10 +2489,11 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
       curve *Curve = SafeGetCurve(Entity);
       curve_point_tracking_state *Tracking = &Curve->PointTracking;
       f32 Fraction = Tracking->Fraction;
+      
       MovePointAlongCurve(Curve, &TranslateLocal, &Fraction, true);
       MovePointAlongCurve(Curve, &TranslateLocal, &Fraction, false);
       
-      SetTrackingPointFraction(Tracking, Fraction);
+      SetTrackingPointFraction(&EntityWitness, Fraction);
      }break;
      
      case EditorLeftClick_MovingCurvePoint: {
@@ -2567,7 +2515,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
       {
        Flags |= TranslateCurvePoint_MatchBezierTwinLength;
       }
-      SetCurvePoint(Entity, LeftClick->CurvePointIndex, MouseP, Flags);
+      SetCurvePoint(&EntityWitness, LeftClick->CurvePointIndex, MouseP, Flags);
      }break;
      
      case EditorLeftClick_MovingEntity: {
@@ -2576,6 +2524,8 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
     }
     
     LeftClick->LastMouseP = MouseP;
+    
+    EndEntityModify(EntityWitness);
    }
    
    //- right click events processing
@@ -2629,7 +2579,9 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
      {
       if (Collision->CurvePointIndex.Type == CurvePoint_ControlPoint)
       {
-       RemoveControlPoint(Entity, Collision->CurvePointIndex.ControlPoint);
+       entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
+       RemoveControlPoint(&EntityWitness, Collision->CurvePointIndex.ControlPoint);
+       EndEntityModify(EntityWitness);
       }
       else
       {
@@ -2732,6 +2684,8 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
    if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_Delete)
    {
     entity *Entity = Editor->SelectedEntity;
+    entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
+    
     if (Entity)
     {
      Eat = true;
@@ -2741,7 +2695,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
        curve *Curve = SafeGetCurve(Entity);
        if (IsControlPointSelected(Curve))
        {
-        RemoveControlPoint(Entity, Curve->SelectedIndex);
+        RemoveControlPoint(&EntityWitness, Curve->SelectedIndex);
        }
        else
        {
@@ -2756,6 +2710,8 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
       case Entity_Count: InvalidPath;
      }
     }
+    
+    EndEntityModify(EntityWitness);
    }
    
    //- misc
@@ -2895,6 +2851,8 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
   //- selected entity UI
   {
    entity *Entity = Editor->SelectedEntity;
+   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
+   
    if (Editor->SelectedEntityWindow && Entity)
    {
     UI_PushLabelF("SelectedEntity");
@@ -2956,55 +2914,49 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
      
      if (Curve)
      {
-      curve_params *CurveParams = &Curve->Params;
+      curve_params CurveParams = Curve->Params;
       curve_params *DefaultParams = &Editor->CurveDefaultParams;
-      b32 CurveChanged = false;
       
       UI_SeparatorTextF("Curve");
       UI_LabelF("Curve")
       {       
-       CurveChanged |= UI_ComboF(Cast(u32 *)&CurveParams->Interpolation, Interpolation_Count, InterpolationNames, "Interpolation");
+       UI_ComboF(SafeCastToPtr(CurveParams.Interpolation, u32), Interpolation_Count, InterpolationNames, "Interpolation");
        if (ResetCtxMenu(StrLit("InterpolationReset")))
        {
-        CurveParams->Interpolation = DefaultParams->Interpolation;
-        CurveChanged = true;
+        CurveParams.Interpolation = DefaultParams->Interpolation;
        }
        
-       switch (CurveParams->Interpolation)
+       switch (CurveParams.Interpolation)
        {
         case Interpolation_Polynomial: {
-         polynomial_interpolation_params *Polynomial = &CurveParams->Polynomial;
+         polynomial_interpolation_params *Polynomial = &CurveParams.Polynomial;
          
-         CurveChanged |= UI_ComboF(Cast(u32 *)&Polynomial->Type, PolynomialInterpolation_Count, PolynomialInterpolationNames, "Variant");
+         UI_ComboF(SafeCastToPtr(Polynomial->Type, u32), PolynomialInterpolation_Count, PolynomialInterpolationNames, "Variant");
          if (ResetCtxMenu(StrLit("PolynomialReset")))
          {
           Polynomial->Type = DefaultParams->Polynomial.Type;
-          CurveChanged = true;
          }
          
-         CurveChanged |= UI_ComboF(Cast(u32 *)&Polynomial->PointSpacing, PointSpacing_Count, PointSpacingNames, "Point Spacing");
+         UI_ComboF(SafeCastToPtr(Polynomial->PointSpacing, u32), PointSpacing_Count, PointSpacingNames, "Point Spacing");
          if (ResetCtxMenu(StrLit("PointSpacingReset")))
          {
           Polynomial->PointSpacing = DefaultParams->Polynomial.PointSpacing;
-          CurveChanged = true;
          }
         }break;
         
         case Interpolation_CubicSpline: {
-         CurveChanged |= UI_ComboF(Cast(u32 *)&CurveParams->CubicSpline, CubicSpline_Count, CubicSplineNames, "Variant");
+         UI_ComboF(SafeCastToPtr(CurveParams.CubicSpline, u32), CubicSpline_Count, CubicSplineNames, "Variant");
          if (ResetCtxMenu(StrLit("SplineReset")))
          {
-          CurveParams->CubicSpline = DefaultParams->CubicSpline;
-          CurveChanged = true;
+          CurveParams.CubicSpline = DefaultParams->CubicSpline;
          }
         }break;
         
         case Interpolation_Bezier: {
-         CurveChanged |= UI_ComboF(Cast(u32 *)&CurveParams->Bezier, Bezier_Count, BezierNames, "Variant");
+         UI_ComboF(SafeCastToPtr(CurveParams.Bezier, u32), Bezier_Count, BezierNames, "Variant");
          if (ResetCtxMenu(StrLit("BezierReset")))
          {
-          CurveParams->Bezier = DefaultParams->Bezier;
-          CurveChanged = true;
+          CurveParams.Bezier = DefaultParams->Bezier;
          }
         }break;
         
@@ -3014,62 +2966,58 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
       
       UI_LabelF("Line")
       {
-       b32 LineEnabled = !CurveParams->LineDisabled;
+       b32 LineEnabled = !CurveParams.LineDisabled;
        UI_CheckboxF(&LineEnabled, "##Disabled");
-       CurveParams->LineDisabled = !LineEnabled;
+       CurveParams.LineDisabled = !LineEnabled;
        UI_SameRow();
        UI_SeparatorTextF("Line");
-       if (!CurveParams->LineDisabled)
+       if (!CurveParams.LineDisabled)
        {
-        CurveChanged |= UI_ColorPickerF(&CurveParams->LineColor, "Color");
+        UI_ColorPickerF(&CurveParams.LineColor, "Color");
         if (ResetCtxMenu(StrLit("ColorReset")))
         {
-         CurveParams->LineColor = DefaultParams->LineColor;
-         CurveChanged = true;
+         CurveParams.LineColor = DefaultParams->LineColor;
         }
         
-        CurveChanged |= UI_DragFloatF(&CurveParams->LineWidth, 0.0f, FLT_MAX, 0, "Width");
+        UI_DragFloatF(&CurveParams.LineWidth, 0.0f, FLT_MAX, 0, "Width");
         if (ResetCtxMenu(StrLit("WidthReset")))
         {
-         CurveParams->LineWidth = DefaultParams->LineWidth;
-         CurveChanged = true;
+         CurveParams.LineWidth = DefaultParams->LineWidth;
         }
         
-        CurveChanged |= UI_SliderIntegerF(Cast(i32 *)&CurveParams->PointCountPerSegment, 1, 2000, "Detail");
+        UI_SliderIntegerF(SafeCastToPtr(CurveParams.PointCountPerSegment, i32), 1, 2000, "Detail");
         if (ResetCtxMenu(StrLit("DetailReset")))
         {
-         CurveParams->PointCountPerSegment = DefaultParams->PointCountPerSegment;
-         CurveChanged = true;
+         CurveParams.PointCountPerSegment = DefaultParams->PointCountPerSegment;
         }
        }
       }
       
       UI_LabelF("Control Points")
       {      
-       b32 PointsEnabled = !CurveParams->PointsDisabled;
+       b32 PointsEnabled = !CurveParams.PointsDisabled;
        UI_CheckboxF(&PointsEnabled, "##Disabled");
-       CurveParams->PointsDisabled = !PointsEnabled;
+       CurveParams.PointsDisabled = !PointsEnabled;
        UI_SameRow();
        UI_SeparatorTextF("Control Points");
-       if (!CurveParams->PointsDisabled)
+       if (!CurveParams.PointsDisabled)
        {
-        CurveChanged |= UI_ColorPickerF(&CurveParams->PointColor, "Color");
+        UI_ColorPickerF(&CurveParams.PointColor, "Color");
         if (ResetCtxMenu(StrLit("PointColorReset")))
         {
-         CurveParams->PointColor = DefaultParams->PointColor;
-         CurveChanged = true;
+         CurveParams.PointColor = DefaultParams->PointColor;
         }
         
-        CurveChanged |= UI_DragFloatF(&CurveParams->PointRadius, 0.0f, FLT_MAX, 0, "Radius");
+        UI_DragFloatF(&CurveParams.PointRadius, 0.0f, FLT_MAX, 0, "Radius");
         if (ResetCtxMenu(StrLit("PointRadiusReset")))
         {
-         CurveParams->PointRadius = DefaultParams->PointRadius;
-         CurveChanged = true;
+         CurveParams.PointRadius = DefaultParams->PointRadius;
         }
         
-        if (CurveParams->Interpolation == Interpolation_Bezier &&
-            CurveParams->Bezier == Bezier_Regular)
+        if (CurveParams.Interpolation == Interpolation_Bezier &&
+            CurveParams.Bezier == Bezier_Regular)
         {
+         b32 WeightChanged = false;
          u32 PointCount = Curve->ControlPointCount;
          f32 *Weights = Curve->ControlPointWeights;
          
@@ -3077,10 +3025,11 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
          if (IsControlPointSelected(Curve))
          {
           Selected = Curve->SelectedIndex.Index;
-          CurveChanged |= UI_DragFloatF(&Weights[Selected], 0.0f, FLT_MAX, 0, "Weight (%u)", Selected);
+          WeightChanged |= UI_DragFloatF(&Weights[Selected], 0.0f, FLT_MAX, 0, "Weight (%u)", Selected);
           if (ResetCtxMenu(StrLit("WeightReset")))
           {
            Weights[Selected] = 1.0f;
+           WeightChanged = true;
           }
           ImGui::Spacing();
          }
@@ -3102,15 +3051,21 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
           {
            UI_Id(PointIndex)
            {                              
-            CurveChanged |= UI_DragFloatF(&Weights[PointIndex], 0.0f, FLT_MAX, 0, "Point (%u)", PointIndex);
+            WeightChanged |= UI_DragFloatF(&Weights[PointIndex], 0.0f, FLT_MAX, 0, "Point (%u)", PointIndex);
             if (ResetCtxMenu(StrLit("WeightReset")))
             {
              Weights[PointIndex] = 1.0f;
+             WeightChanged = true;
             }
            }
           }
           
           UI_EndTree();
+         }
+         
+         if (WeightChanged)
+         {
+          MarkEntityModified(&EntityWitness, EntityModifyWitness_CurveShapeChanged);
          }
         }
        }
@@ -3118,46 +3073,42 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
       
       UI_LabelF("Polyline")
       {      
-       UI_CheckboxF(&CurveParams->PolylineEnabled, "##Enabled");
+       UI_CheckboxF(&CurveParams.PolylineEnabled, "##Enabled");
        UI_SameRow();
        UI_SeparatorTextF("Polyline");
-       if (CurveParams->PolylineEnabled)
+       if (CurveParams.PolylineEnabled)
        {
-        CurveChanged |= UI_ColorPickerF(&CurveParams->PolylineColor, "Color");
+        UI_ColorPickerF(&CurveParams.PolylineColor, "Color");
         if (ResetCtxMenu(StrLit("PolylineColorReset")))
         {
-         CurveParams->PolylineColor = DefaultParams->PolylineColor;
-         CurveChanged = true;
+         CurveParams.PolylineColor = DefaultParams->PolylineColor;
         }
         
-        CurveChanged |= UI_DragFloatF(&CurveParams->PolylineWidth, 0.0f, FLT_MAX, 0, "Width");
+        UI_DragFloatF(&CurveParams.PolylineWidth, 0.0f, FLT_MAX, 0, "Width");
         if (ResetCtxMenu(StrLit("PolylineWidthReset")))
         {
-         CurveParams->PolylineWidth = DefaultParams->PolylineWidth;
-         CurveChanged = true;
+         CurveParams.PolylineWidth = DefaultParams->PolylineWidth;
         }
        }
       }
       
       UI_LabelF("Convex Hull")
       {   
-       UI_CheckboxF(&CurveParams->ConvexHullEnabled, "##Enabled");
+       UI_CheckboxF(&CurveParams.ConvexHullEnabled, "##Enabled");
        UI_SameRow();
        UI_SeparatorTextF("Convex Hull");
-       if (CurveParams->ConvexHullEnabled)
+       if (CurveParams.ConvexHullEnabled)
        {
-        CurveChanged |= UI_ColorPickerF(&CurveParams->ConvexHullColor, "Color");
+        UI_ColorPickerF(&CurveParams.ConvexHullColor, "Color");
         if (ResetCtxMenu(StrLit("ConvexHullColorReset")))
         {
-         CurveParams->ConvexHullColor = DefaultParams->ConvexHullColor;
-         CurveChanged = true;
+         CurveParams.ConvexHullColor = DefaultParams->ConvexHullColor;
         }
         
-        CurveChanged |= UI_DragFloatF(&CurveParams->ConvexHullWidth, 0.0f, FLT_MAX, 0, "Width");
+        UI_DragFloatF(&CurveParams.ConvexHullWidth, 0.0f, FLT_MAX, 0, "Width");
         if (ResetCtxMenu(StrLit("ConvexHullWidthReset")))
         {
-         CurveParams->ConvexHullWidth = DefaultParams->ConvexHullWidth;
-         CurveChanged = true;
+         CurveParams.ConvexHullWidth = DefaultParams->ConvexHullWidth;
         }
        }
       }
@@ -3176,6 +3127,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
         UI_LabelF("PointTracking")
         {
          curve_point_tracking_state *Tracking = &Curve->PointTracking;
+         f32 Fraction = Tracking->Fraction;
          b32 BezierTrackingActive = (Tracking->IsSplitting ? false : Tracking->Active);
          b32 SplittingTrackingActive = (Tracking->IsSplitting ? Tracking->Active : false);
          
@@ -3185,17 +3137,13 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
           if (Tracking->Active)
           {
            Tracking->IsSplitting = false;
-           Tracking->NeedsRecomputationThisFrame = true;
           }
          }
          UI_SameRow();
          UI_SeparatorTextF("De Casteljau's Algorithm");
          if (BezierTrackingActive)
          {
-          if (UI_SliderFloatF(&Tracking->Fraction, 0.0f, 1.0f, "t"))
-          {
-           Tracking->NeedsRecomputationThisFrame = true;
-          }
+          UI_SliderFloatF(&Fraction, 0.0f, 1.0f, "t");
          }
          
          if (UI_CheckboxF(&SplittingTrackingActive, "##SplittingEnabled"))
@@ -3204,31 +3152,40 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
           if (Tracking->Active)
           {
            Tracking->IsSplitting = true;
-           Tracking->NeedsRecomputationThisFrame = true;
           }
          }
          UI_SameRow();
          UI_SeparatorTextF("Split Bezier Curve");
          if (SplittingTrackingActive)
          {
-          if (UI_SliderFloatF(&Tracking->Fraction, 0.0f, 1.0f, "t"))
-          {
-           Tracking->NeedsRecomputationThisFrame = true;
-          }
+          UI_SliderFloatF(&Fraction, 0.0f, 1.0f, "t");
           UI_SameRow();
           if (UI_ButtonF("Split!"))
           {
            PerformBezierCurveSplit(Editor, Entity);
           }
          }
+         
+         if (Fraction != Tracking->Fraction)
+         {
+          SetTrackingPointFraction(&EntityWitness, Fraction);
+         }
         }
        }
+      }
+      
+      if (!StructsEqual(Curve->Params, CurveParams))
+      {
+       Curve->Params = CurveParams;
+       MarkEntityModified(&EntityWitness, EntityModifyWitness_CurveShapeChanged);
       }
      }
     }
     UI_EndWindow();
     UI_PopLabel();
    }
+   
+   EndEntityModify(EntityWitness);
   }
   
   //- render menu bar UI
@@ -3534,11 +3491,6 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
      curve *Curve = &Entity->Curve;
      curve_params *CurveParams = &Curve->Params;
      
-     if (Curve->RecomputeRequested)
-     {
-      RecomputeCurve(Entity);
-     }
-     
      if (!CurveParams->LineDisabled)
      {
       PushVertexArray(RenderGroup,
@@ -3634,8 +3586,6 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
      }
      
      UpdateAndRenderPointTracking(RenderGroup, Editor, Entity);
-     
-     Curve->RecomputeRequested = false;
     } break;
     
     case Entity_Image: {

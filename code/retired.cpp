@@ -1,7 +1,7 @@
 #if 0
 if (Collision.Entity)
 {
- curve *Curve = GetCurve(Collision.Entity);
+ curve *Curve = SafeGetCurve(Collision.Entity);
  b32 ClickActionDone = false; 
  
  if (Editor->CurveAnimation.Stage == AnimateCurveAnimation_PickingTarget &&
@@ -32,7 +32,7 @@ if (Collision.Entity)
   {
    if (Collision.Entity == Combining->SourceEntity)
    {
-    curve *SourceCurve = GetCurve(Combining->SourceEntity);
+    curve *SourceCurve = SafeGetCurve(Combining->SourceEntity);
     if (Collision.PointIndex == 0)
     {
      if (!Combining->SourceCurveLastControlPoint)
@@ -64,7 +64,7 @@ if (Collision.Entity)
    }
    else if (Collision.Entity == Combining->WithEntity)
    {
-    curve *WithCurve = GetCurve(Combining->WithEntity);
+    curve *WithCurve = SafeGetCurve(Combining->WithEntity);
     if (Collision.PointIndex == 0)
     {
      Combining->WithCurveFirstControlPoint = true;

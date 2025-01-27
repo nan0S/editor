@@ -646,7 +646,7 @@ StrChopLastSlash(string Str)
  {
   --Left;
  }
-
+ 
  string Result = Str;
  if (Left > 0)
  {
@@ -664,7 +664,7 @@ StrAfterLastSlash(string Str)
  {
   --Left;
  }
-
+ 
  string Result = Str;
  if (Left > 0)
  {
@@ -683,7 +683,7 @@ StrChopLastDot(string Str)
  {
   --Left;
  }
-
+ 
  string Result = Str;
  if (Left > 0)
  {
@@ -701,7 +701,7 @@ StrAfterLastDot(string Str)
  {
   --Left;
  }
-
+ 
  string Result = Str;
  if (Left > 0)
  {
@@ -858,7 +858,7 @@ PathListJoin(arena *Arena, string_list *Path)
 #elif
 # error unsupported OS
 #endif
- string Result = StrListJoin(Arena, Path, Sep);
+ string Result = StrListJoin(Arena, Path, Sep, StringListJoinFlag_SkipEmpty);
  return Result;
 }
 
@@ -918,28 +918,36 @@ StrListConcatInPlace(string_list *List, string_list *ToPush)
 }
 
 internal string
-StrListJoin(arena *Arena, string_list *List, string Sep)
+StrListJoin(arena *Arena, string_list *List, string Sep, string_list_join_flags Flags)
 {
  string Result = {};
- u64 SepTotalLength = 0;
+ u64 MaxSepTotalSize = 0;
  if (List->NodeCount > 0)
  {
-  SepTotalLength = Sep.Count * (List->NodeCount - 1);
+  MaxSepTotalSize = Sep.Count * (List->NodeCount - 1);
  }
- Result.Count = List->TotalSize + SepTotalLength;
- Result.Data = PushArrayNonZero(Arena, Result.Count + 1, char);
+ u64 MaxSize = List->TotalSize + MaxSepTotalSize;
+ Result.Data = PushArrayNonZero(Arena, MaxSize + 1, char);
  
  char *At = Result.Data;
  string CurSep = {};
  ListIter(Node, List->Head, string_list_node)
  {
-  MemoryCopy(At, CurSep.Data, CurSep.Count);
-  At += CurSep.Count;
-  MemoryCopy(At, Node->Str.Data, Node->Str.Count);
-  At += Node->Str.Count;
-  CurSep = Sep;
+  if ((Flags & StringListJoinFlag_SkipEmpty) && Node->Str.Count == 0)
+  {
+   // nothing to do
+  }
+  else
+  {
+   MemoryCopy(At, CurSep.Data, CurSep.Count);
+   At += CurSep.Count;
+   MemoryCopy(At, Node->Str.Data, Node->Str.Count);
+   At += Node->Str.Count;
+   CurSep = Sep;
+  }
  }
- Assert(Cast(u64)(At - Result.Data) == Result.Count);
+ Assert(At >= Result.Data);
+ Result.Count = Cast(u64)(At - Result.Data);
  *At++ = 0;
  
  return Result;

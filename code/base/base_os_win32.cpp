@@ -380,7 +380,7 @@ OS_ProcessLaunch(string_list CmdList)
  os_process_handle Handle = {};
  Handle.StartupInfo.cb = SizeOf(Handle.StartupInfo);
  DWORD CreationFlags = 0;
- string Cmd = StrListJoin(Temp.Arena, &CmdList, StrLit(" "));
+ string Cmd = StrListJoin(Temp.Arena, &CmdList, StrLit(" "), 0);
  CreateProcessA(0, Cmd.Data, 0, 0, 0, CreationFlags, 0, 0,
                 &Handle.StartupInfo, &Handle.ProcessInfo);
  EndTemp(Temp);
@@ -403,7 +403,6 @@ OS_ProcessWait(os_process_handle Process)
   BOOL Success = GetExitCodeProcess(Process.ProcessInfo.hProcess, &ExitCode);
   Assert(Success);
  }
- 
  
  CloseHandle(Process.StartupInfo.hStdInput);
  CloseHandle(Process.StartupInfo.hStdOutput);

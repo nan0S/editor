@@ -12,7 +12,6 @@
 #include "editor_renderer.h"
 #include "editor_math.h"
 #include "editor_sort.h"
-#include "editor_entity2.h"
 #include "editor_entity.h"
 #include "editor_ui.h"
 #include "editor_stb.h"
@@ -59,7 +58,7 @@ TODOs:
 - maybe rename EntityDestroy, in general consider using Allocate/Deallocate maybe or Make/Destroy, or something consistent more, just think about it
 - in general do a pass on variable names, make them less descriptive, like [EditorParams], [EditorState], [ChckecCollisionWithFlags], ...
 - when returning named type from internal like [added_point_index], include 64 in the name, and don't use this name at call sites, just variable name will do
-- is [RecomputeCurve] really needed after every operation to curve like [Append] or [Insert], can't just set the flag instead
+- is [MarkCurveForRecomputation] really needed after every operation to curve like [Append] or [Insert], can't just set the flag instead
 - when passing [curve] to a internal but as [entity], maybe write a macro that gets [curve] from that [entity] but asserts that it really is a curve
 - get rid of defer and templates
 - get rid of [MemoryZero] in all initialization internals?
@@ -91,6 +90,7 @@ Bugs:
 - there might be something wrong with right-click - I think (but not sure) that sometimes releasing doesnt remove images for example (but curves also)
 - loading a lot of files at once asynchronously doesn't work, only some images are loaded
 - I need to test what happens when queue texture memory is emptied - because I think there is a bug in there
+- scaling is not implemented correctly - specifically lines vs control points are not in the same place in relation to each other when I scale the curve
 
 Stack:
  - add sorting to rendering - this then will allow to draw things out of order and will simplify the code a lot

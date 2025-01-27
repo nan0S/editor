@@ -1,152 +1,380 @@
 #ifndef EDITOR_ENTITY_H
 #define EDITOR_ENTITY_H
 
-internal curve *
-GetCurve(entity *Entity)
+enum interpolation_type : u32
 {
- curve *Result = 0;
- if (Entity)
- {
-  Assert(Entity->Type == Entity_Curve);
-  Result = &Entity->Curve;
- }
+ Interpolation_CubicSpline,
+ Interpolation_Bezier,
+ Interpolation_Polynomial,
+ Interpolation_Count
+};
+// TODO(hbr): Try to add designated array intializers
+global char const *InterpolationNames[] = { "Cubic Spline", "Bezier", "Polynomial" };
+StaticAssert(ArrayCount(InterpolationNames) == Interpolation_Count, InterpolationNamesDefined);
+
+enum polynomial_interpolation_type : u32
+{
+ PolynomialInterpolation_Barycentric,
+ PolynomialInterpolation_Newton,
+ PolynomialInterpolation_Count,
+};
+global char const *PolynomialInterpolationNames[] = { "Barycentric", "Newton" };
+StaticAssert(ArrayCount(PolynomialInterpolationNames) == PolynomialInterpolation_Count, PolynomialInterpolationNamesDefined);
+
+enum point_spacing : u32
+{
+ PointSpacing_Chebychev,
+ PointSpacing_Equidistant,
+ PointSpacing_Count,
+};
+global char const *PointSpacingNames[] = { "Chebychev", "Equidistant" };
+StaticAssert(ArrayCount(PointSpacingNames) == PointSpacing_Count, PointSpacingNamesDefined);
+
+struct polynomial_interpolation_params
+{
+ polynomial_interpolation_type Type;
+ point_spacing PointSpacing;
+};
+
+enum cubic_spline_type : u32
+{
+ CubicSpline_Natural,
+ CubicSpline_Periodic,
+ CubicSpline_Count,
+};
+global char const *CubicSplineNames[] = { "Natural", "Periodic" };
+StaticAssert(ArrayCount(CubicSplineNames) == CubicSpline_Count, CubicSplineNamesDefined);
+
+enum bezier_type : u32
+{
+ Bezier_Regular,
+ Bezier_Cubic,
+ Bezier_Count,
+};
+global char const *BezierNames[] = { "Regular", "Cubic" };
+StaticAssert(ArrayCount(BezierNames) == Bezier_Count, BezierNamesDefined);
+
+struct curve_params
+{
+ interpolation_type Interpolation;
+ polynomial_interpolation_params Polynomial;
+ cubic_spline_type CubicSpline;
+ bezier_type Bezier;
  
- return Result;
+ b32 LineDisabled;
+ v4 LineColor;
+ f32 LineWidth;
+ 
+ b32 PointsDisabled;
+ v4 PointColor;
+ f32 PointRadius;
+ 
+ b32 PolylineEnabled;
+ v4 PolylineColor;
+ f32 PolylineWidth;
+ 
+ b32 ConvexHullEnabled;
+ v4 ConvexHullColor;
+ f32 ConvexHullWidth;
+ 
+ u32 PointCountPerSegment;
+};
+
+struct control_point_index
+{
+ u32 Index;
+};
+struct cubic_bezier_point_index
+{
+ u32 Index;
+};
+enum curve_point_type
+{
+ CurvePoint_ControlPoint,
+ CurvePoint_CubicBezierPoint,
+};
+struct curve_point_index
+{
+ curve_point_type Type;
+ union {
+  control_point_index ControlPoint;
+  cubic_bezier_point_index BezierPoint;
+ };
+};
+
+struct visible_cubic_bezier_points
+{
+ u32 Count;
+ cubic_bezier_point_index Indices[4];
+};
+
+struct curve_point_tracking_state
+{
+ b32 Active;
+ b32 NeedsRecomputationThisFrame;
+ f32 Fraction;
+ v2 LocalSpaceTrackedPoint;
+ 
+ b32 IsSplitting;
+ 
+ // NOTE(hbr): De Casteljau visualization
+ arena *Arena;
+ all_de_casteljau_intermediate_results Intermediate;
+ v4 *IterationColors;
+ vertex_array *LineVerticesPerIteration;
+};
+
+struct curve_degree_lowering_state
+{
+ b32 Active;
+ 
+ arena *Arena;
+ 
+ // TODO(hbr): Replace Saved with Original or the other way around - I already used original somewhere
+ v2 *SavedControlPoints;
+ f32 *SavedControlPointWeights;
+ cubic_bezier_point *SavedCubicBezierPoints;
+ vertex_array SavedLineVertices;
+ 
+ bezier_lower_degree LowerDegree;
+ f32 MixParameter;
+};
+
+typedef u32 translate_curve_point_flags;
+enum
+{
+ TranslateCurvePoint_MatchBezierTwinDirection = (1<<0),
+ TranslateCurvePoint_MatchBezierTwinLength    = (1<<1),
+};
+
+struct curve
+{
+ curve_params Params;
+ 
+ // all points here are in local space
+ u32 ControlPointCount;
+#define MAX_CONTROL_POINT_COUNT 1024
+ v2 ControlPoints[MAX_CONTROL_POINT_COUNT];
+ f32 ControlPointWeights[MAX_CONTROL_POINT_COUNT];
+ cubic_bezier_point CubicBezierPoints[MAX_CONTROL_POINT_COUNT];
+ 
+ control_point_index SelectedIndex;
+ 
+ u32 LinePointCount;
+ v2 *LinePoints;
+ 
+ u32 ConvexHullCount;
+ v2 *ConvexHullPoints;
+ 
+ vertex_array LineVertices;
+ vertex_array PolylineVertices;
+ vertex_array ConvexHullVertices;
+ 
+ b32 RecomputeRequested;
+ 
+ curve_point_tracking_state PointTracking;
+ curve_degree_lowering_state DegreeLowering;
+};
+
+struct renderer_index;
+struct image
+{
+ v2 Dim;
+ renderer_index *TextureIndex;
+};
+
+enum entity_type
+{
+ Entity_Curve,
+ Entity_Image,
+ Entity_Count,
+};
+
+enum
+{
+ EntityFlag_Active   = (1<<0),
+ EntityFlag_Hidden   = (1<<1),
+ EntityFlag_Selected = (1<<2),
+ EntityFlag_CurveAppendFront = (1<<3),
+};
+typedef u32 entity_flags;
+
+struct entity
+{
+ arena *Arena;
+ 
+ v2 P;
+ v2 Scale;
+ v2 Rotation;
+ 
+ char NameBuffer[64];
+ string Name;
+ 
+ i32 SortingLayer;
+ entity_flags Flags;
+ 
+ entity_type Type;
+ curve Curve;
+ image Image;
+};
+
+struct entity_array
+{
+ u32 Count;
+ entity *Entities;
+};
+
+struct point_info
+{
+ f32 Radius;
+ v4 Color;
+ f32 OutlineThickness;
+ v4 OutlineColor;
+};
+
+internal void InitEntity(entity *Entity, v2 P, v2 Scale, v2 Rotation, string Name, i32 SortingLayer);
+internal void InitCurve(entity *Entity, curve_params Params);
+internal void InitImage(entity *Entity);
+internal void InitEntityFromEntity(entity *Dst, entity *Src);
+
+internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
+internal v2 LocalEntityPositionToWorld(entity *Entity, v2 P);
+
+inline internal curve *
+SafeGetCurve(entity *Entity)
+{
+ Assert(Entity->Type == Entity_Curve);
+ return &Entity->Curve;
 }
 
-internal image *
-GetImage(entity *Entity)
+inline internal image *
+SafeGetImage(entity *Entity)
 {
  Assert(Entity->Type == Entity_Image);
  return &Entity->Image;
 }
 
-// TODO(hbr): Rename this internal and also maybe others to [EntityRotateAround] because it's not [curve] specific.
-internal void
-CurveRotateAround(entity *CurveEntity, v2 Center, v2 Rotation)
+internal void SetEntityName(entity *Entity, string Name);
+internal sorted_entries SortEntities(arena *Arena, entity_array Entities);
+internal void RotateEntityAround(entity *Entity, v2 Rotate, v2 Around);
+
+internal b32 IsEntityVisible(entity *Entity);
+internal b32 IsEntitySelected(entity *Entity);
+internal b32 IsControlPointSelected(curve *Curve);
+internal b32 AreLinePointsVisible(curve *Curve);
+internal point_info GetCurveControlPointInfo(entity *Curve, u32 PointIndex);
+internal f32 GetCurveTrackedPointRadius(curve *Curve);
+internal f32 GetCurveCubicBezierPointRadius(curve *Curve);
+internal visible_cubic_bezier_points GetVisibleCubicBezierPoints(entity *Entity);
+internal b32 IsCurveEligibleForPointTracking(curve *Curve);
+
+inline internal curve_point_index
+CurvePointIndexFromControlPointIndex(control_point_index Index)
 {
- CurveEntity->Rotation = CombineRotations2D(CurveEntity->Rotation, Rotation);
+ curve_point_index Result = {};
+ Result.Type = CurvePoint_ControlPoint;
+ Result.ControlPoint = Index;
+ 
+ return Result;
 }
 
-struct entity_sort_entry
+inline internal curve_point_index
+CurvePointIndexFromBezierPointIndex(cubic_bezier_point_index Index)
 {
- entity *Entity;
- u32 OriginalOrder;
-};
-struct sorted_entity_array
-{
- u32 EntityCount;
- entity_sort_entry *Entries;
-};
+ curve_point_index Result = {};
+ Result.Type = CurvePoint_CubicBezierPoint;
+ Result.BezierPoint = Index;
+ 
+ return Result;
+}
 
-internal int
-EntitySortEntryCmp(entity_sort_entry *A, entity_sort_entry *B)
+inline internal cubic_bezier_point_index
+CubicBezierPointIndexFromControlPointIndex(control_point_index Index)
 {
- int Result = 0;
- int Cmp1 = Cmp(A->Entity->SortingLayer, B->Entity->SortingLayer);
- if (Cmp1 == 0)
+ cubic_bezier_point_index Result = {};
+ Result.Index = 3 * Index.Index + 1;
+ 
+ return Result;
+}
+
+inline internal control_point_index
+MakeControlPointIndex(u32 Index)
+{
+ control_point_index Result = {};
+ Result.Index = Index;
+ return Result;
+}
+
+inline internal v2
+GetCubicBezierPoint(curve *Curve, cubic_bezier_point_index Index)
+{
+ v2 Result = {};
+ if (Index.Index < 3 * Curve->ControlPointCount)
  {
-  int Cmp2 = Cmp(A->OriginalOrder, B->OriginalOrder);
-  Result = Cmp2;
- }
- else
- {
-  Result = Cmp1;
+  v2 *Beziers = Cast(v2 *)Curve->CubicBezierPoints;
+  Result = Beziers[Index.Index];
  }
  
  return Result;
 }
 
-internal void
-SetEntityName(entity *Entity, string Name)
+inline internal v2
+GetCenterPointFromCubicBezierPointIndex(curve *Curve, cubic_bezier_point_index Index)
 {
- u64 ToCopy = Min(Name.Count, ArrayCount(Entity->NameBuffer) - 1);
- MemoryCopy(Entity->NameBuffer, Name.Data, ToCopy);
- Entity->NameBuffer[ToCopy] = 0;
- Entity->Name = MakeStr(Entity->NameBuffer, ToCopy);
+ v2 Result = {};
+ u32 ControlPointIndex = Index.Index / 3;
+ if (ControlPointIndex < Curve->ControlPointCount)
+ {
+  Result = Curve->ControlPoints[ControlPointIndex];
+ }
+ 
+ return Result;
 }
 
-internal void
-InitEntity(entity *Entity,
-           v2 P,
-           v2 Scale,
-           v2 Rotation,
-           string Name,
-           i32 SortingLayer)
+inline internal control_point_index
+CurveLinePointIndexToControlPointIndex(curve *Curve, u32 CurveLinePointIndex)
 {
- Entity->P = P;
- Entity->Scale = Scale;
- Entity->Rotation = Rotation;
- SetEntityName(Entity, Name);
- Entity->SortingLayer = SortingLayer;
+ u32 Index = SafeDiv0(CurveLinePointIndex, Curve->Params.PointCountPerSegment);
+ Assert(Index < Curve->ControlPointCount);
+ control_point_index Result = {};
+ Result.Index = ClampTop(Index, Curve->ControlPointCount - 1);
+ 
+ return Result;
 }
 
-internal void SetCurveControlPoints(entity *Entity, u32 ControlPointCount, v2 *ControlPoints,
-                                    f32 *ControlPointWeights, cubic_bezier_point *CubicBezierPoints);
+internal void SetCurvePoint(entity *Entity, curve_point_index Index, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
+internal void SetCurveControlPoint(entity *Entity, control_point_index Index, v2 P, f32 Weight); // this can be only control point thus we accept weight as well
+internal void RemoveControlPoint(entity *Entity, u32 Index);
+internal control_point_index AppendControlPoint(entity *Entity, v2 Point);
+internal void InsertControlPoint(entity *Entity, v2 Point, u32 At);
+internal void SetCurveControlPoints(entity *Entity, u32 PointCount, v2 *Points, f32 *Weights, cubic_bezier_point *CubicBeziers);
 
-// TODO(hbr): remove this
+internal void SelectControlPoint(curve *Curve, control_point_index Index);
+internal void SelectControlPointFromCurvePointIndex(curve *Curve, curve_point_index Index);
 internal void UnselectControlPoint(curve *Curve);
 
-internal void
-InitCurve(entity *Entity, curve_params Params)
-{
- Entity->Type = Entity_Curve;
- Entity->Curve.Params = Params;
- UnselectControlPoint(&Entity->Curve);
- SetCurveControlPoints(Entity, 0, 0, 0, 0);
-}
-
-internal void
-InitImage(entity *Entity)
-{
- Entity->Type = Entity_Image;
- ClearArena(Entity->Arena);
-}
-
-internal b32
-BeginLinePoints(curve *Curve, u32 ControlPointCount)
-{
- b32 Result = false;
- if (ControlPointCount <= MAX_CONTROL_POINT_COUNT)
- {
-  Curve->ControlPointCount = ControlPointCount;
-  Result = true;
- }
- 
- return Result;
-}
-
-internal void
-EndLinePoints(curve *Curve)
+inline internal void
+MarkCurveForRecomputation(curve *Curve)
 {
  Curve->RecomputeRequested = true;
 }
+internal void RecomputeCurve(entity *Entity);
 
-internal v2
-WorldToLocalEntityPosition(entity *Entity, v2 P)
+enum modify_curve_points_which_points
 {
- v2 Result = RotateAround(P - Entity->P,
-                          V2(0.0f, 0.0f),
-                          Rotation2DInverse(Entity->Rotation));
- Result = Hadamard(V2(1.0f / Entity->Scale.X, 1.0f / Entity->Scale.Y), Result);
- return Result;
-}
-
-internal v2
-LocalEntityPositionToWorld(entity *Entity, v2 P)
+ ModifyCurvePointsWhichPoints_JustControlPoints,
+ ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers,
+};
+struct curve_points
 {
- v2 Result = RotateAround(P, V2(0.0f, 0.0f), Entity->Rotation) + Entity->P;
- return Result;
-}
+ u32 PointCount;
+ v2 *ControlPoints;
+ f32 *Weights;
+ cubic_bezier_point *CubicBeziers;
+ modify_curve_points_which_points Which;
+};
 
-// TODO(hbr): Rename this function into MarkCurveChanged or sth like that
-internal void
-RecomputeCurve(entity *Entity)
-{
- Entity->Curve.RecomputeRequested = true;
-}
-
-// TODO(hbr): remove this
-internal void CalculateBezierCubicPointAt(u32 N, v2 *P, cubic_bezier_point *Out, u32 At);
+internal curve_points BeginModifyCurvePoints(curve *Curve, u32 RequestedPointCount, modify_curve_points_which_points Which);
+internal void EndModifyCurvePoints(curve *Curve, curve_points *Handle);
 
 #endif //EDITOR_ENTITY_H

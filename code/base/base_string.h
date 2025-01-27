@@ -19,6 +19,11 @@ struct string_list
  u64 NodeCount;
  u64 TotalSize;
 };
+enum
+{
+ StringListJoinFlag_SkipEmpty = (1<<0),
+};
+typedef u64 string_list_join_flags;
 
 struct arena;
 
@@ -66,7 +71,7 @@ internal string      PathListJoin(arena *Arena, string_list *Path);
 internal void        StrListPush(arena *Arena, string_list *List, string Str);
 internal void        StrListPushF(arena *Arena, string_list *List, char const *Format, ...);
 internal void        StrListPushFV(arena *Arena, string_list *List, char const *Format, va_list Args);
-internal string      StrListJoin(arena *Arena, string_list *List, string Sep);
+internal string      StrListJoin(arena *Arena, string_list *List, string Sep, string_list_join_flags Flags);
 internal string_list StrListCopy(arena *Arena, string_list *List);
 internal void        StrListConcatInPlace(string_list *List, string_list *ToPush);
 

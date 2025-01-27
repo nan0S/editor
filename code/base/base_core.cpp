@@ -39,12 +39,3 @@ DateTimeToTimestamp(date_time Dt)
  
  return Ts;
 }
-
-internal exit_code_int
-OS_CombineExitCodes(exit_code_int CodeA, exit_code_int CodeB)
-{
- exit_code_int Result = 0;
- if (CodeA) Result = CodeA;
- else Result = CodeB;
- return Result;
-}

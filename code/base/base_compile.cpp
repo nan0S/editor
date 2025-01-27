@@ -149,6 +149,17 @@ ComputeCompilationCommand(compiler_setup Setup, compilation_target Target)
     StrListPushF(Arena, Cmd, "-wd4189"); // unreferenced variables
     StrListPushF(Arena, Cmd, "-wd4456"); // hiding previous local declaration - shadowing
     StrListPushF(Arena, Cmd, "-EHa-"); // disables exceptions
+    
+    // TODO(hbr): Investigate this, this is weird, I don't understand something here.
+#if 0
+    if (Target.TargetType == Exe)
+    {
+     // NOTE(hbr): I don't know exactly why this is needed. I don't even know if this is needed in
+     // general case. I came across this when trying to link GLFW. Not having this caused error:
+     // "defaulblib 'MSVCRT' conflicts with use of other libs ..."
+     StrListPushF(Arena, Cmd, "-MD");
+    }
+#endif
    }break;
    
    case GCC:
@@ -222,6 +233,7 @@ ComputeCompilationCommand(compiler_setup Setup, compilation_target Target)
       StrListPushF(Arena, Cmd, "-opt:ref"); // eliminates functions and data that are never referenced
       StrListPushF(Arena, Cmd, "-incremental:no"); // don't prepare file for incremental linking
       StrListPushF(Arena, Cmd, "-out:%S", OutputTarget);
+      StrListPushF(Arena, Cmd, "-IGNORE:4099"); // ignore PDB was not found with some_library.lib
       
       StrListConcatInPlace(Cmd, &Target.DynamicLinkLibraries);
      }break;
@@ -259,7 +271,7 @@ ComputeCompilationCommand(compiler_setup Setup, compilation_target Target)
   
   if (Setup.Verbose)
   {
-   string CmdStr = StrListJoin(Arena, Cmd, StrLit(" "));
+   string CmdStr = StrListJoin(Arena, Cmd, StrLit(" "), 0);
    OS_PrintF("%S\n", CmdStr);
   }
   

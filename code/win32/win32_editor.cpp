@@ -27,19 +27,12 @@
 #include "editor_memory.cpp"
 #include "editor_work_queue.cpp"
 
-#ifndef EDITOR_DLL
-# error EDITOR_DLL with path to editor DLL code is not defined
-#endif
-#ifndef EDITOR_RENDERER_DLL
-# error EDITOR_RENDERER_DLL with path to editor renderer DLL code is not defined
-#endif
-#define EDITOR_DLL_FILE_NAME ConvertNameToString(EDITOR_DLL)
-#define EDITOR_RENDERER_DLL_FILE_NAME ConvertNameToString(EDITOR_RENDERER_DLL)
+#include "platform_shared.h"
+#include "platform_shared.cpp"
 
 global win32_platform_input GlobalWin32Input;
 global platform_input *GlobalInput;
 global arena *InputArena;
-global string GlobalWin32ExeDir;
 
 #define WIN32_KEY_COUNT 0xFF
 global platform_key Win32KeyTable[WIN32_KEY_COUNT];
@@ -401,7 +394,7 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
      
      Event->FilePaths = Files;
      Event->FileCount = FileCount;
-
+     
      DragFinish(DropHandle);
     }
    }break;
@@ -415,7 +408,7 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
 
 internal void
 Win32DisplayErrorBox(char const *Msg)
-{
+{             
  MessageBoxA(0, Msg, 0, MB_OK);
 }
 
@@ -424,15 +417,6 @@ Win32HotReloadTask(void *UserData)
 {
  win32_hot_reload_task *Task = Cast(win32_hot_reload_task *)UserData;
  Task->CodeReloaded = HotReloadIfRecompiled(Task->Code);
-}
-
-internal string
-Win32ExeRelativeToAbsolutePath(arena *Arena, string ExeRelPath)
-{
- string Path = PathConcat(Arena, GlobalWin32ExeDir, ExeRelPath);
- Path = OS_FullPathFromPath(Arena, Path);
- 
- return Path;
 }
 
 int
@@ -444,8 +428,10 @@ WinMain(HINSTANCE Instance,
  WIN32_BEGIN_DEBUG_BLOCK(FromBegin);
  
  int ArgCount = __argc;
- char **Argv = __argv;
+ char **Args = __argv;
  b32 InitSuccess = false;
+ 
+ OS_Init(ArgCount, Args);
  
  arena *Arenas[2] = {};
  for (u32 ArenaIndex = 0;
@@ -457,12 +443,6 @@ WinMain(HINSTANCE Instance,
  ThreadCtxEquip(Arenas, ArrayCount(Arenas));
  
  arena *PermamentArena = AllocArena();
- 
- {
-  string ProgramInvocationPath = StrFromCStr(Argv[0]);
-  string ProgramInvocationAbsPath = OS_FullPathFromPath(PermamentArena, ProgramInvocationPath);
-  GlobalWin32ExeDir = PathChopLastPart(ProgramInvocationAbsPath);
- }
  
  //- key mappings
  {
@@ -576,41 +556,11 @@ WinMain(HINSTANCE Instance,
    HDC WindowDC = GetDC(Window);
    arena *RendererArena = AllocArena();
    
-   renderer_memory RendererMemory = {};
-   {
-    RendererMemory.PlatformAPI = Platform;
-    
-    platform_renderer_limits *Limits = &RendererMemory.Limits;
-    // TODO(hbr): Revise those limits
-    Limits->MaxTextureCount = 256;
-    Limits->MaxBufferCount = 1024;
-    
-    renderer_transfer_queue *Queue = &RendererMemory.RendererQueue;
-    Queue->TransferMemorySize = Megabytes(100);
-    // TODO(hbr): use this value to test when memory renderer queue doesnt have space for an image
-    //Queue->TransferMemorySize = 7680000 + 667152 - 1;
-    Queue->TransferMemory = PushArrayNonZero(PermamentArena, Queue->TransferMemorySize, char);
-    
-    // TODO(hbr): Tweak these parameters
-    RendererMemory.MaxLineCount = 1024;
-    RendererMemory.LineBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxLineCount, render_line);
-    
-    // TODO(hbr): Tweak these parameters
-    RendererMemory.MaxCircleCount = 4096;
-    RendererMemory.CircleBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxCircleCount, render_circle);
-    
-    // TODO(hbr): Tweak these parameters
-    RendererMemory.MaxImageCount = Limits->MaxTextureCount;
-    RendererMemory.ImageBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxImageCount, render_image);
-    
-    // TODO(hbr): Tweak these parameters
-    RendererMemory.MaxVertexCount = 8 * 1024;
-    RendererMemory.VertexBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxVertexCount, render_vertex);
-   }
+   renderer_memory RendererMemory = Platform_MakeRendererMemory(PermamentArena);
    
    win32_renderer_function_table RendererFunctionTable = {};
    win32_renderer_function_table TempRendererFunctionTable = {};
-   string RendererDLL = Win32ExeRelativeToAbsolutePath(PermamentArena, StrFromCStr(EDITOR_RENDERER_DLL_FILE_NAME));
+   string RendererDLL = OS_ExecutableRelativeToFullPath(PermamentArena, StrFromCStr(EDITOR_RENDERER_DLL_FILE_NAME));
    hot_reload_library RendererCode = MakeHotReloadableLibrary(PermamentArena,
                                                               RendererDLL,
                                                               Win32RendererFunctionTableNames,
@@ -618,28 +568,14 @@ WinMain(HINSTANCE Instance,
                                                               TempRendererFunctionTable.Functions,
                                                               ArrayCount(RendererFunctionTable.Functions));
    
-   //- init multithreading work queues
-   work_queue LowPriorityQueue_ = {};
-   work_queue *LowPriorityQueue = &LowPriorityQueue_;
-   work_queue HighPriorityQueue_ = {};
-   work_queue *HighPriorityQueue = &HighPriorityQueue_;
-   
-   {
-    u32 ProcCount = OS_ProcCount();
-    
-    u32 LowPriorityThreadCount = ProcCount * 1/4;
-    u32 HighPriorityThreadCount = ProcCount * 3/4;
-    LowPriorityThreadCount = ClampBot(LowPriorityThreadCount, 1);
-    HighPriorityThreadCount = ClampBot(HighPriorityThreadCount, 1);
-    
-    WorkQueueInit(LowPriorityQueue, LowPriorityThreadCount);
-    WorkQueueInit(HighPriorityQueue, HighPriorityThreadCount);
-   }
+   platform_shared_work_queues Queues = Platform_MakeWorkQueues();
+   work_queue *LowPriorityQueue = &Queues.LowPriorityQueue;
+   work_queue *HighPriorityQueue = &Queues.HighPriorityQueue;
    
    //- init editor stuff
    editor_function_table EditorFunctionTable = {};
    editor_function_table TempEditorFunctionTable = {};
-   string EditorDLL = Win32ExeRelativeToAbsolutePath(PermamentArena, StrFromCStr(EDITOR_DLL_FILE_NAME));
+   string EditorDLL = OS_ExecutableRelativeToFullPath(PermamentArena, StrFromCStr(EDITOR_DLL_FILE_NAME));
    hot_reload_library EditorCode = MakeHotReloadableLibrary(PermamentArena,
                                                             EditorDLL,
                                                             EditorFunctionTableNames,
@@ -647,27 +583,15 @@ WinMain(HINSTANCE Instance,
                                                             TempEditorFunctionTable.Functions,
                                                             ArrayCount(EditorFunctionTable.Functions));
    
-   editor_memory EditorMemory = {};
-   EditorMemory.PermamentArena = PermamentArena;
-   EditorMemory.MaxTextureCount = RendererMemory.Limits.MaxTextureCount;
-   EditorMemory.RendererQueue = &RendererMemory.RendererQueue;
-   EditorMemory.LowPriorityQueue = LowPriorityQueue;
-   EditorMemory.HighPriorityQueue = HighPriorityQueue;
-   EditorMemory.PlatformAPI = Platform;
+   editor_memory EditorMemory = Platform_MakeEditorMemory(PermamentArena, RendererMemory,
+                                                          LowPriorityQueue, HighPriorityQueue,
+                                                          Platform);
    
    u64 LastTSC = OS_ReadCPUTimer();
    
    platform_input Input = {};
    GlobalInput = &Input;
    InputArena = AllocArena();
-   
-   work_queue _Queue = {};
-   work_queue *Queue = &_Queue;
-   {
-    u32 ThreadCount = Cast(u32)OS_ProcCount() - 1;
-    Assert(ThreadCount > 0);
-    WorkQueueInit(Queue, ThreadCount);
-   }
    
    WIN32_END_DEBUG_BLOCK(LoopInit);
    
@@ -692,10 +616,10 @@ WinMain(HINSTANCE Instance,
      // TODO(hbr): Unfortunately multithreaded path doesn't improve performance. It seems as
      // OS_LoadLibrary (LoadLibrary from Win32 API) grabs mutex or something, making the calls
      // serial in practice.
-     WorkQueueAddEntry(Queue, Win32HotReloadTask, &RendererTask);
-     WorkQueueAddEntry(Queue, Win32HotReloadTask, &EditorTask);
+     WorkQueueAddEntry(HighPriorityQueue, Win32HotReloadTask, &RendererTask);
+     WorkQueueAddEntry(HighPriorityQueue, Win32HotReloadTask, &EditorTask);
      
-     WorkQueueCompleteAllWork(Queue);
+     WorkQueueCompleteAllWork(HighPriorityQueue);
 #else
      Win32HotReloadTask(&RendererTask);
      Win32HotReloadTask(&EditorTask);

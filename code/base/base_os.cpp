@@ -157,3 +157,12 @@ OS_ExecutableRelativeToFullPath(arena *Arena, string Relative)
  string Result = OS_FullPathFromPath(Arena, Absolute);
  return Result;
 }
+
+internal int
+OS_CombineExitCodes(int CodeA, int CodeB)
+{
+ int Result = 0;
+ if (CodeA) Result = CodeA;
+ else Result = CodeB;
+ return Result;
+}

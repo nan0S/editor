@@ -125,29 +125,39 @@ DeallocateTextureIndex(editor_assets *Assets, renderer_index *Index)
 }
 //////////////////////
 
-struct line_collision
+// TODO(hbr): rename to multiline collision
+struct multiline_collision
 {
  b32 Collided;
  u32 PointIndex;
 };
-internal line_collision
+internal multiline_collision
 CheckCollisionWithMultiLine(v2 LocalAtP, v2 *LinePoints, u32 PointCount, f32 Width, f32 Tolerance)
 {
- line_collision Result = {};
+ multiline_collision Result = {};
  
- f32 CheckWidth = Width + 2 * Tolerance;
+ f32 CheckWidth = Width + Tolerance;
+ u32 MinDistancePointIndex = 0;
+ f32 MinDistance = 1.0f;
  for (u32 PointIndex = 0;
       PointIndex + 1 < PointCount;
       ++PointIndex)
  {
   v2 P1 = LinePoints[PointIndex + 0];
   v2 P2 = LinePoints[PointIndex + 1];
-  if (SegmentCollision(LocalAtP, P1, P2, CheckWidth))
+  
+  f32 Distance = SegmentSignedDistance(LocalAtP, P1, P2, CheckWidth);
+  if (Distance < MinDistance)
   {
-   Result.Collided = true;
-   Result.PointIndex = PointIndex;
-   break;
+   MinDistance = Distance;
+   MinDistancePointIndex = PointIndex;
   }
+ }
+ 
+ if (MinDistance <= 0.0f)
+ {
+  Result.Collided = true;
+  Result.PointIndex = MinDistancePointIndex;
  }
  
  return Result;
@@ -199,7 +209,7 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
         // due to performance reasons.
         point_info PointInfo = GetCurveControlPointInfo(Entity, PointIndex);
         f32 CollisionRadius = PointInfo.Radius + PointInfo.OutlineThickness + Tolerance;
-        f32 SignedDistance = PointSignedDistanceSquared(LocalAtP, ControlPoints[PointIndex], CollisionRadius);
+        f32 SignedDistance = PointDistanceSquaredSigned(LocalAtP, ControlPoints[PointIndex], CollisionRadius);
         if (SignedDistance < MinSignedDistance)
         {
          MinSignedDistance = SignedDistance;
@@ -228,7 +238,7 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
         f32 PointRadius = GetCurveCubicBezierPointRadius(Curve);
         cubic_bezier_point_index BezierIndex = VisibleBeziers.Indices[Index];
         v2 BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
-        f32 SignedDistance = PointSignedDistanceSquared(LocalAtP, BezierPoint, PointRadius + Tolerance);
+        f32 SignedDistance = PointDistanceSquaredSigned(LocalAtP, BezierPoint, PointRadius + Tolerance);
         if (SignedDistance < MinSignedDistance)
         {
          MinSignedDistance = SignedDistance;
@@ -268,8 +278,8 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
        {
         v2 *LinePoints = Points + PointIndex;
         u32 PointCount = IterationCount - Iteration;
-        line_collision Line = CheckCollisionWithMultiLine(LocalAtP, LinePoints, PointCount,
-                                                          Params->LineWidth, Tolerance);
+        multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP, LinePoints, PointCount,
+                                                               Params->LineWidth, Tolerance);
         if (Line.Collided)
         {
          Result.Entity = Entity;
@@ -293,9 +303,9 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
      
      if (!Curve->Params.LineDisabled)
      {
-      line_collision Line = CheckCollisionWithMultiLine(LocalAtP,
-                                                        Curve->LinePoints, Curve->LinePointCount,
-                                                        Params->LineWidth, Tolerance);
+      multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP,
+                                                             Curve->LinePoints, Curve->LinePointCount,
+                                                             Params->LineWidth, Tolerance);
       if (Line.Collided)
       {
        Result.Entity = Entity;
@@ -308,9 +318,9 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
      // anything to Flags.
      if (Curve->Params.ConvexHullEnabled && !Result.Entity)
      {
-      line_collision Line = CheckCollisionWithMultiLine(LocalAtP,
-                                                        Curve->ConvexHullPoints, Curve->ConvexHullCount,
-                                                        Params->ConvexHullWidth, Tolerance);
+      multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP,
+                                                             Curve->ConvexHullPoints, Curve->ConvexHullCount,
+                                                             Params->ConvexHullWidth, Tolerance);
       if (Line.Collided)
       {
        Result.Entity = Entity;
@@ -321,9 +331,9 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
      // anything to Flags.
      if (Curve->Params.PolylineEnabled && !Result.Entity)
      {
-      line_collision Line = CheckCollisionWithMultiLine(LocalAtP,
-                                                        ControlPoints, ControlPointCount,
-                                                        Params->PolylineWidth, Tolerance);
+      multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP,
+                                                             ControlPoints, ControlPointCount,
+                                                             Params->PolylineWidth, Tolerance);
       if (Line.Collided)
       {
        Result.Entity = Entity;
@@ -1371,7 +1381,7 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
               Entity->P + Tracking->LocalSpaceTrackedPoint,
               Entity->Rotation, Entity->Scale,
               Radius, Color,
-              GetCurvePartZOffset(CurvePart_Special),
+              GetCurvePartZOffset(CurvePart_BezierSplitPoint),
               OutlineThickness, OutlineColor);
   }
   else
@@ -1395,7 +1405,7 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
                     Tracking->LineVerticesPerIteration[Iteration].Vertices,
                     Tracking->LineVerticesPerIteration[Iteration].VertexCount,
                     Tracking->LineVerticesPerIteration[Iteration].Primitive,
-                    IterationColor, GetCurvePartZOffset(CurvePart_Special));
+                    IterationColor, GetCurvePartZOffset(CurvePart_DeCasteljauAlgorithmLines));
     
     for (u32 I = 0; I < IterationCount - Iteration; ++I)
     {
@@ -1403,7 +1413,7 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
      PushCircle(Group,
                 Entity->P + Point, Entity->Rotation, Entity->Scale,
                 PointSize, IterationColor,
-                GetCurvePartZOffset(CurvePart_Special));
+                GetCurvePartZOffset(CurvePart_DeCasteljauAlgorithmPoints));
      ++PointIndex;
     }
     
@@ -1983,12 +1993,12 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
   f32 TriangleSide = 10.0f * LineWidth;
   f32 TriangleHeight = TriangleSide * SqrtF32(3.0f) / 2.0f;
   v2 BaseVertex = WithPoint - TriangleHeight * LineDirection;
-  PushLine(Group, SourcePoint, BaseVertex, LineWidth, Color, GetCurvePartZOffset(CurvePart_Special));
+  PushLine(Group, SourcePoint, BaseVertex, LineWidth, Color, GetCurvePartZOffset(CurvePart_Count));
   
   v2 LinePerpendicular = Rotate90DegreesAntiClockwise(LineDirection);
   v2 LeftVertex = BaseVertex + 0.5f * TriangleSide * LinePerpendicular;
   v2 RightVertex = BaseVertex - 0.5f * TriangleSide * LinePerpendicular;
-  PushTriangle(Group, LeftVertex, RightVertex, WithPoint, Color, GetCurvePartZOffset(CurvePart_Special));
+  PushTriangle(Group, LeftVertex, RightVertex, WithPoint, Color, GetCurvePartZOffset(CurvePart_Count));
  }
  
  EndTemp(Temp);
@@ -2383,6 +2393,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
     }
     
     entity_with_modify_witness CollisionEntityWitness = BeginEntityModify(Collision.Entity);
+    // TODO(hbr): I think this might not necessarily exist
     curve *CollisionCurve = &Collision.Entity->Curve;
     curve_point_tracking_state *CollisionTracking = &CollisionCurve->PointTracking;
     
@@ -3065,7 +3076,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
          
          if (WeightChanged)
          {
-          MarkEntityModified(&EntityWitness, EntityModifyWitness_CurveShapeChanged);
+          MarkEntityModified(&EntityWitness);
          }
         }
        }
@@ -3177,7 +3188,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
       if (!StructsEqual(Curve->Params, CurveParams))
       {
        Curve->Params = CurveParams;
-       MarkEntityModified(&EntityWitness, EntityModifyWitness_CurveShapeChanged);
+       MarkEntityModified(&EntityWitness);
       }
      }
     }
@@ -3498,7 +3509,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
                       Curve->LineVertices.VertexCount,
                       Curve->LineVertices.Primitive,
                       Curve->Params.LineColor,
-                      GetCurvePartZOffset(CurvePart_Line));
+                      GetCurvePartZOffset(CurvePart_CurveLine));
      }
      
      if (CurveParams->PolylineEnabled)
@@ -3508,7 +3519,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
                       Curve->PolylineVertices.VertexCount,
                       Curve->PolylineVertices.Primitive,
                       Curve->Params.PolylineColor,
-                      GetCurvePartZOffset(CurvePart_Special));
+                      GetCurvePartZOffset(CurvePart_CurvePolyline));
      }
      
      if (CurveParams->ConvexHullEnabled)
@@ -3518,7 +3529,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
                       Curve->ConvexHullVertices.VertexCount,
                       Curve->ConvexHullVertices.Primitive,
                       Curve->Params.ConvexHullColor,
-                      GetCurvePartZOffset(CurvePart_Special));
+                      GetCurvePartZOffset(CurvePart_CurveConvexHull));
      }
      
      if (AreLinePointsVisible(Curve))
@@ -3537,11 +3548,11 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
        f32 HelperLineWidth = 0.2f * CurveParams->LineWidth;
        
        PushLine(RenderGroup, BezierPoint, CenterPoint, HelperLineWidth, CurveParams->LineColor,
-                GetCurvePartZOffset(CurvePart_Line));
+                GetCurvePartZOffset(CurvePart_CubicBezierHelperLines));
        PushCircle(RenderGroup,
                   Entity->P + BezierPoint, Entity->Rotation, Entity->Scale,
                   BezierPointRadius, CurveParams->PointColor,
-                  GetCurvePartZOffset(CurvePart_ControlPoint));
+                  GetCurvePartZOffset(CurvePart_CubicBezierHelperPoints));
       }
       
       u32 ControlPointCount = Curve->ControlPointCount;
@@ -3556,7 +3567,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
                   Entity->Rotation, Entity->Scale,
                   PointInfo.Radius,
                   PointInfo.Color,
-                  GetCurvePartZOffset(CurvePart_ControlPoint),
+                  GetCurvePartZOffset(CurvePart_CurveControlPoint),
                   PointInfo.OutlineThickness,
                   PointInfo.OutlineColor);
       }
@@ -3575,7 +3586,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input *Input, struct r
                       Animation->AnimatedLineVertices.VertexCount,
                       Animation->AnimatedLineVertices.Primitive,
                       Color,
-                      GetCurvePartZOffset(CurvePart_Line));
+                      GetCurvePartZOffset(CurvePart_Count));
      }
      
      // TODO(hbr): Update this

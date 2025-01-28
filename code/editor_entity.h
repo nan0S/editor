@@ -213,16 +213,10 @@ struct entity
  image Image;
 };
 
-enum entity_modify_flag
-{
- EntityModifyWitness_CurveShapeChanged = (1<<0),
- EntityModifyWitness_PointTrackingChanged = (1<<1),
-};
-typedef u32 entity_modify_flags;
 struct entity_with_modify_witness
 {
- entity_modify_flags ModifyFlags;
  entity *Entity;
+ b32 EntityModified;
 };
 global entity_with_modify_witness _NilEntityWitness;
 global entity_with_modify_witness *NilEntityWitness = &_NilEntityWitness;
@@ -351,7 +345,7 @@ CurveLinePointIndexToControlPointIndex(curve *Curve, u32 CurveLinePointIndex)
  return Result;
 }
 
-internal void MarkEntityModified(entity_with_modify_witness *Witness, entity_modify_flag Flag);
+internal void MarkEntityModified(entity_with_modify_witness *Witness);
 internal entity_with_modify_witness BeginEntityModify(entity *Entity);
 internal void EndEntityModify(entity_with_modify_witness Witness);
 

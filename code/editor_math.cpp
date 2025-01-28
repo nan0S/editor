@@ -1334,7 +1334,7 @@ DeCasteljauAlgorithm(arena *Arena, f32 T, v2 *P, f32 *W, u32 N)
 }
 
 internal f32
-PointSignedDistanceSquared(v2 P, v2 Point, f32 Radius)
+PointDistanceSquaredSigned(v2 P, v2 Point, f32 Radius)
 {
  f32 Result = NormSquared(P - Point) - Radius*Radius;
  return Result;
@@ -1349,41 +1349,48 @@ PointCollision(v2 Position, v2 Point, f32 PointRadius)
  return Collision;
 }
 
+internal f32
+AABBSignedDistance(v2 P, v2 BoxP, v2 BoxSize)
+{
+ v2 HalfSize = 0.5f * BoxSize;
+ 
+ f32 Left = BoxP.X - HalfSize.X;
+ f32 Right = BoxP.X + HalfSize.X;
+ f32 Bottom = BoxP.Y - HalfSize.Y;
+ f32 Top = BoxP.Y + HalfSize.Y;
+ 
+ f32 DistX = Max(Left-P.X, P.X-Right);
+ f32 DistY = Max(Bottom-P.Y, P.Y-Top);
+ f32 Dist = Max(DistX, DistY);
+ 
+ return Dist;
+}
+
+internal f32
+SegmentSignedDistance(v2 P, v2 SegmentBegin, v2 SegmentEnd, f32 SegmentWidth)
+{
+ v2 Rotation = Rotation2DFromVector(SegmentEnd - SegmentBegin);
+ v2 InvRotation = Rotation2DInverse(Rotation);
+ v2 SegmentEndAligned = RotateAround(SegmentEnd, SegmentBegin, InvRotation);
+ v2 SegmentSize = V2(Abs(SegmentEndAligned.X - SegmentBegin.X), SegmentWidth);
+ 
+ v2 SegmentMid = SegmentBegin;
+ SegmentMid.X += 0.5f * SegmentSize.X;
+ 
+ v2 PAligned = RotateAround(P, SegmentBegin, InvRotation);
+ 
+ f32 Result = AABBSignedDistance(PAligned, SegmentMid, SegmentSize);
+ 
+ return Result;
+}
+
 internal b32
-SegmentCollision(v2 Position,
-                 v2 LineA, v2 LineB, f32 LineWidth)
+SegmentCollision(v2 P, v2 LineA, v2 LineB, f32 LineWidth)
 {
  b32 Result = false;
  
- // TODO(hbr): Remove, deprecated
-#if 0
- 
-#if 0
- f32 BoundaryLeft   = Min(LineA.X, LineB.X) - 0.5f * LineWidth;
- f32 BoundaryRight  = Max(LineA.X, LineB.X) + 0.5f * LineWidth;
- f32 BoundaryBottom = Min(LineA.Y, LineB.Y) - 0.5f * LineWidth;
- f32 BoundaryTop    = Max(LineA.Y, LineB.Y) + 0.5f * LineWidth;
- 
-#else
- 
- f32 BoundaryLeft   = Min(LineA.X, LineB.X);
- f32 BoundaryRight  = Max(LineA.X, LineB.X);
- f32 BoundaryBottom = Min(LineA.Y, LineB.Y);
- f32 BoundaryTop    = Max(LineA.Y, LineB.Y);
- 
-#endif
- 
- if (BoundaryLeft <= Position.X && Position.X <= BoundaryRight &&
-     BoundaryBottom <= Position.Y && Position.Y <= BoundaryTop)
- {
-  f32 Distance = LineDistance(Position, LineA, LineB);
-  Result = (Distance <= LineWidth * 0.5f);
- }
- 
-#else
- 
  v2 U = LineA - LineB;
- v2 V = Position - LineB;
+ v2 V = P - LineB;
  
  f32 SegmentLengthSquared = Dot(U, U);
  f32 DotUV = Dot(U, V);
@@ -1399,14 +1406,11 @@ SegmentCollision(v2 Position,
    f32 B = -U.X;
    f32 C = -A*LineA.X - B*LineA.Y;
    
-   f32 LineDist = Abs(A*Position.X + B*Position.Y + C) *
-    SqrtF32(Inv_SegmentLengthSquared);
+   f32 LineDist = Abs(A*P.X + B*P.Y + C) * SqrtF32(Inv_SegmentLengthSquared);
    
    Result = (LineDist <= 0.5f * LineWidth);
   }
  }
- 
-#endif
  
  return Result;
 }

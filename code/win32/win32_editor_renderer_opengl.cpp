@@ -168,11 +168,18 @@ Win32OpenGLInit(arena *Arena, renderer_memory *Memory, HWND Window, HDC WindowDC
  
  if (wglMakeCurrent(WindowDC, OpenGLRC))
  {
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  // TODO(hbr): Probably move these things into platform-non-specific opengl code.
   glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  
   glEnable(GL_MULTISAMPLE);
   // NOTE(hbr): So that glEnable,glEnd with glBindTexture works. When using shaders it is not needed.
   glEnable(GL_TEXTURE_2D);
+  
+  glEnable(GL_DEPTH_TEST);
+  // TODO(hbr): For now I set this to always so that transparency somehow works.
+  // I think I need to implement depth peeling (or sorting but this can be ugly).
+  glDepthFunc(GL_ALWAYS);
   
   Win32OpenGLFunction(wglSwapIntervalEXT);
   OpenGLFunction(glGenVertexArrays);

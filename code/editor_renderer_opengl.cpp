@@ -552,7 +552,8 @@ f32 Dist = Length(FragP);
 // NOTE(hbr): This is a really really nice function. fwidth returns derivative
 // basically. GLSL, OpenGL or whatever calculates how "Dist" variable changes
 // compared to the fragments (pixels) that are around the currently computed pixel.
-// This let's us have resolution independent antialiasing.
+// This let's us have resolution independent antialiasing. 1.6f parameter has been
+// chosen experimentally - too high causes too much blur, too low causes sharp edges.
 f32 Delta = 1.6f * fwidth(Dist);
 
 f32 ProperEdge = Clamp0Inf(FragRadiusProper - (FragRadiusProper < 1 ? Delta : 0));
@@ -563,6 +564,8 @@ f32 OutlineT = smoothstep(OutlineEdge, 1.0f, Dist);
 v4 ProperColor = Lerp(FragColor, FragOutlineColor, ProperT);
 f32 AlphaChannel = Lerp(ProperColor.a, 0, OutlineT);
  OutColor = V4(ProperColor.xyz, AlphaChannel);
+
+//OutColor = V4(AlphaChannel, AlphaChannel, AlphaChannel, AlphaChannel);
  }
  )FOO";
  
@@ -941,7 +944,7 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
  
  v4 Clear = Frame->ClearColor;
  GL_CALL(glClearColor(Clear.R, Clear.G, Clear.B, Clear.A));
- GL_CALL(glClear(GL_COLOR_BUFFER_BIT));
+ GL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
  GL_CALL(glViewport(0, 0, Frame->WindowDim.X, Frame->WindowDim.Y));
  
  OpenGLManageTransferQueue(OpenGL, Queue);

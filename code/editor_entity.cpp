@@ -224,7 +224,7 @@ SetCurvePoint(entity_with_modify_witness *EntityWitness, curve_point_index Index
   *TranslatePoint = LocalP;
  }
  
- MarkEntityModified(EntityWitness, EntityModifyWitness_CurveShapeChanged);
+ MarkEntityModified(EntityWitness);
 }
 
 internal void
@@ -280,7 +280,7 @@ MemoryMove((Array) + (At), \
    }
   }
   
-  MarkEntityModified(EntityWitness, EntityModifyWitness_CurveShapeChanged);
+  MarkEntityModified(EntityWitness);
  }
 }
 
@@ -414,7 +414,7 @@ MemoryMove((Array) + ((At)+(ShiftCount)), \
   
   ++Curve->ControlPointCount;
   
-  MarkEntityModified(EntityWitness, EntityModifyWitness_CurveShapeChanged);
+  MarkEntityModified(EntityWitness);
  }
 }
 
@@ -439,7 +439,7 @@ SetCurveControlPoints(entity_with_modify_witness *EntityWitness,
  // TODO(hbr): Make sure this is expected, maybe add to internal arguments
  UnselectControlPoint(Curve);
  
- MarkEntityModified(EntityWitness, EntityModifyWitness_CurveShapeChanged);
+ MarkEntityModified(EntityWitness);
 }
 
 internal void
@@ -485,7 +485,7 @@ SetCurveControlPoint(entity_with_modify_witness *EntityWitness, control_point_in
  if (Index.Index < Curve->ControlPointCount)
  {
   Curve->ControlPointWeights[Index.Index] = Weight;
-  MarkEntityModified(EntityWitness, EntityModifyWitness_CurveShapeChanged);
+  MarkEntityModified(EntityWitness);
  }
 }
 
@@ -540,7 +540,7 @@ BeginModifyCurvePoints(entity_with_modify_witness *EntityWitness, u32 RequestedP
  Result.Which = Which;
  
  // NOTE(hbr): Assume (which is very reasonable) that the curve is always changing here
- MarkEntityModified(EntityWitness, EntityModifyWitness_CurveShapeChanged);
+ MarkEntityModified(EntityWitness);
  
  return Result;
 }
@@ -591,7 +591,7 @@ SetTrackingPointFraction(entity_with_modify_witness *EntityWitness, f32 Fraction
  curve_point_tracking_state *Tracking = &Curve->PointTracking;
  
  Tracking->Fraction = Clamp01(Fraction);
- MarkEntityModified(EntityWitness, EntityModifyWitness_PointTrackingChanged);
+ MarkEntityModified(EntityWitness);
 }
 
 // TODO(hbr): Try to get rid of this function entirely
@@ -814,7 +814,6 @@ CalcRegularBezierLinePoints(v2 *ControlPoints,
       OutputIndex < OutputLinePointCount;
       ++OutputIndex)
  {
-  
   OutputLinePoints[OutputIndex] = BezierCurveEvaluateWeighted(T,
                                                               ControlPoints,
                                                               ControlPointWeights,
@@ -937,101 +936,91 @@ EvaluateCurve(curve *Curve, u32 LinePointCount, v2 *LinePoints)
 }
 
 internal void
-RecomputeCurve(entity *Entity, entity_modify_flags ModifyFlags)
+RecomputeCurve(entity *Entity)
 {
  curve *Curve = SafeGetCurve(Entity);
  arena *EntityArena = Entity->Arena;
  
- if (ModifyFlags)
+ ClearArena(EntityArena);
+ 
+ u32 LinePointCount = 0;
+ if (Curve->ControlPointCount > 0)
  {
-  ClearArena(EntityArena);
+  LinePointCount = (Curve->ControlPointCount - 1) * Curve->Params.PointCountPerSegment + 1;
+ }
+ Curve->LinePointCount = LinePointCount;
+ Curve->LinePoints = PushArrayNonZero(Entity->Arena, LinePointCount, v2);
+ EvaluateCurve(Curve, Curve->LinePointCount, Curve->LinePoints);
+ 
+ Curve->LineVertices = ComputeVerticesOfThickLine(EntityArena,
+                                                  Curve->LinePointCount,
+                                                  Curve->LinePoints,
+                                                  Curve->Params.LineWidth,
+                                                  IsCurveLooped(Curve));
+ Curve->PolylineVertices = ComputeVerticesOfThickLine(EntityArena,
+                                                      Curve->ControlPointCount,
+                                                      Curve->ControlPoints,
+                                                      Curve->Params.PolylineWidth,
+                                                      false);
+ 
+ Curve->ConvexHullPoints = PushArrayNonZero(EntityArena, Curve->ControlPointCount, v2);
+ Curve->ConvexHullCount = CalcConvexHull(Curve->ControlPointCount, Curve->ControlPoints, Curve->ConvexHullPoints);
+ Curve->ConvexHullVertices = ComputeVerticesOfThickLine(EntityArena,
+                                                        Curve->ConvexHullCount,
+                                                        Curve->ConvexHullPoints,
+                                                        Curve->Params.ConvexHullWidth,
+                                                        true);
+ 
+ curve_point_tracking_state *Tracking = &Curve->PointTracking;
+ if (IsCurveEligibleForPointTracking(Curve))
+ {
+  Tracking->LocalSpaceTrackedPoint = BezierCurveEvaluateWeighted(Tracking->Fraction,
+                                                                 Curve->ControlPoints,
+                                                                 Curve->ControlPointWeights,
+                                                                 Curve->ControlPointCount);
   
-  if (ModifyFlags & EntityModifyWitness_CurveShapeChanged)
-  {   
-   u32 LinePointCount = 0;
-   if (Curve->ControlPointCount > 0)
-   {
-    LinePointCount = (Curve->ControlPointCount - 1) * Curve->Params.PointCountPerSegment + 1;
-   }
-   Curve->LinePointCount = LinePointCount;
-   Curve->LinePoints = PushArrayNonZero(Entity->Arena, LinePointCount, v2);
-   EvaluateCurve(Curve, Curve->LinePointCount, Curve->LinePoints);
-   
-   Curve->LineVertices = ComputeVerticesOfThickLine(EntityArena,
-                                                    Curve->LinePointCount,
-                                                    Curve->LinePoints,
-                                                    Curve->Params.LineWidth,
-                                                    IsCurveLooped(Curve));
-   Curve->PolylineVertices = ComputeVerticesOfThickLine(EntityArena,
-                                                        Curve->ControlPointCount,
-                                                        Curve->ControlPoints,
-                                                        Curve->Params.PolylineWidth,
-                                                        false);
-   
-   Curve->ConvexHullPoints = PushArrayNonZero(EntityArena, Curve->ControlPointCount, v2);
-   Curve->ConvexHullCount = CalcConvexHull(Curve->ControlPointCount, Curve->ControlPoints, Curve->ConvexHullPoints);
-   Curve->ConvexHullVertices = ComputeVerticesOfThickLine(EntityArena,
-                                                          Curve->ConvexHullCount,
-                                                          Curve->ConvexHullPoints,
-                                                          Curve->Params.ConvexHullWidth,
-                                                          true);
-  }
-  
-  if ((ModifyFlags & EntityModifyWitness_CurveShapeChanged) ||
-      (ModifyFlags & EntityModifyWitness_PointTrackingChanged))
+  if (!Tracking->IsSplitting)
   {
-   curve_point_tracking_state *Tracking = &Curve->PointTracking;
-   if (IsCurveEligibleForPointTracking(Curve))
+   all_de_casteljau_intermediate_results Intermediate = DeCasteljauAlgorithm(EntityArena,
+                                                                             Tracking->Fraction,
+                                                                             Curve->ControlPoints,
+                                                                             Curve->ControlPointWeights,
+                                                                             Curve->ControlPointCount);
+   vertex_array *LineVerticesPerIteration = PushArray(EntityArena,
+                                                      Intermediate.IterationCount,
+                                                      vertex_array);
+   f32 LineWidth = Curve->Params.LineWidth;
+   
+   u32 IterationPointsOffset = 0;
+   for (u32 Iteration = 0;
+        Iteration < Intermediate.IterationCount;
+        ++Iteration)
    {
-    Tracking->LocalSpaceTrackedPoint = BezierCurveEvaluateWeighted(Tracking->Fraction,
-                                                                   Curve->ControlPoints,
-                                                                   Curve->ControlPointWeights,
-                                                                   Curve->ControlPointCount);
-    
-    if (!Tracking->IsSplitting)
-    {
-     all_de_casteljau_intermediate_results Intermediate = DeCasteljauAlgorithm(EntityArena,
-                                                                               Tracking->Fraction,
-                                                                               Curve->ControlPoints,
-                                                                               Curve->ControlPointWeights,
-                                                                               Curve->ControlPointCount);
-     vertex_array *LineVerticesPerIteration = PushArray(EntityArena,
-                                                        Intermediate.IterationCount,
-                                                        vertex_array);
-     f32 LineWidth = Curve->Params.LineWidth;
-     
-     u32 IterationPointsOffset = 0;
-     for (u32 Iteration = 0;
-          Iteration < Intermediate.IterationCount;
-          ++Iteration)
-     {
-      u32 CurrentIterationPointCount = Intermediate.IterationCount - Iteration;
-      LineVerticesPerIteration[Iteration] =
-       ComputeVerticesOfThickLine(EntityArena,
-                                  CurrentIterationPointCount,
-                                  Intermediate.P + IterationPointsOffset,
-                                  LineWidth,
-                                  false);
-      IterationPointsOffset += CurrentIterationPointCount;
-     }
-     
-     Tracking->Intermediate = Intermediate;
-     Tracking->LineVerticesPerIteration = LineVerticesPerIteration;
-     Tracking->LocalSpaceTrackedPoint = Intermediate.P[Intermediate.TotalPointCount - 1];
-    }
+    u32 CurrentIterationPointCount = Intermediate.IterationCount - Iteration;
+    LineVerticesPerIteration[Iteration] =
+     ComputeVerticesOfThickLine(EntityArena,
+                                CurrentIterationPointCount,
+                                Intermediate.P + IterationPointsOffset,
+                                LineWidth,
+                                false);
+    IterationPointsOffset += CurrentIterationPointCount;
    }
-   else
-   {
-    Tracking->Active = false;
-   }
+   
+   Tracking->Intermediate = Intermediate;
+   Tracking->LineVerticesPerIteration = LineVerticesPerIteration;
+   Tracking->LocalSpaceTrackedPoint = Intermediate.P[Intermediate.TotalPointCount - 1];
   }
+ }
+ else
+ {
+  Tracking->Active = false;
  }
 }
 
 internal void
-MarkEntityModified(entity_with_modify_witness *Witness, entity_modify_flag Flag)
+MarkEntityModified(entity_with_modify_witness *Witness)
 {
- Witness->ModifyFlags |= Flag;
+ Witness->EntityModified = true;
 }
 
 internal entity_with_modify_witness
@@ -1046,11 +1035,11 @@ internal void
 EndEntityModify(entity_with_modify_witness Witness)
 {
  entity *Entity = Witness.Entity;
- if (Entity)
+ if (Entity && Witness.EntityModified)
  {
   switch (Entity->Type)
   {
-   case Entity_Curve: {RecomputeCurve(Entity, Witness.ModifyFlags);}break;
+   case Entity_Curve: {RecomputeCurve(Entity);}break;
    case Entity_Image: {}break;
    case Entity_Count: InvalidPath;
   }

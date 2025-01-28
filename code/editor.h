@@ -222,15 +222,28 @@ struct notification
 enum curve_part
 {
  CurvePart_LineShadow,
- CurvePart_Line,
- CurvePart_ControlPoint,
- CurvePart_Special,
+ 
+ CurvePart_CurveLine,
+ CurvePart_CurveControlPoint,
+ 
+ CurvePart_CurvePolyline,
+ CurvePart_CurveConvexHull,
+ 
+ CurvePart_CubicBezierHelperLines,
+ CurvePart_CubicBezierHelperPoints,
+ 
+ CurvePart_DeCasteljauAlgorithmLines,
+ CurvePart_DeCasteljauAlgorithmPoints,
+ 
+ CurvePart_BezierSplitPoint,
+ 
  CurvePart_Count,
 };
 internal f32
 GetCurvePartZOffset(curve_part Part)
 {
- f32 Result = Cast(f32)Part / Cast(f32)CurvePart_Count;
+ Assert(Part < CurvePart_Count);
+ f32 Result = Cast(f32)(CurvePart_Count-1 - Part) / CurvePart_Count;
  return Result;
 }
 

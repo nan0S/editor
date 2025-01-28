@@ -174,8 +174,10 @@ struct line_intersection
 };
 
 internal b32               PointCollision(v2 Position, v2 Point, f32 PointRadius);
-internal f32               PointSignedDistanceSquared(v2 P, v2 Point, f32 Radius);
+internal f32               PointDistanceSquaredSigned(v2 P, v2 Point, f32 Radius); // Dist^2 - R^2
 internal b32               SegmentCollision(v2 Position, v2 LineA, v2 LineB, f32 LineWidth);
 internal line_intersection LineIntersection(v2 A, v2 B, v2 C, v2 D);
+internal f32               AABBSignedDistance(v2 P, v2 BoxP, v2 BoxSize);
+internal f32               SegmentSignedDistance(v2 P, v2 SegmentBegin, v2 SegmentEnd, f32 SegmentWidth);
 
 #endif //EDITOR_MATH_H

@@ -58,14 +58,19 @@ PushRectangle(render_group *Group,
  {
   render_vertex *V = Frame->Vertices + Frame->VertexCount;
   
-  //mat3 Model = ModelTransform(P, Rotation, 0.5f * Size);
   v2 HalfSize = 0.5f * Size;
   
-  // TODO(hbr): Map those corners through matrix
   v2 Corner00 = V2(P.X - HalfSize.X, P.Y - HalfSize.Y);
   v2 Corner10 = V2(P.X + HalfSize.X, P.Y - HalfSize.Y);
   v2 Corner11 = V2(P.X + HalfSize.X, P.Y + HalfSize.Y);
   v2 Corner01 = V2(P.X - HalfSize.X, P.Y + HalfSize.Y);
+  
+  // TODO(hbr): Map those corners through matrix
+  // TODO(hbr): I don't know, is this ok???
+  Corner00 = RotateAround(Corner00, P, Rotation);
+  Corner01 = RotateAround(Corner01, P, Rotation);
+  Corner11 = RotateAround(Corner11, P, Rotation);
+  Corner10 = RotateAround(Corner10, P, Rotation);
   
   f32 Z = ZOffset + Group->ZOffset;
   
@@ -102,10 +107,8 @@ PushLine(render_group *Group,
  v2 Position = 0.5f * (BeginPoint + EndPoint);
  v2 Line = EndPoint - BeginPoint;
  f32 Length = Norm(Line);
- v2 Size = V2(LineWidth, Length);
- // NOTE(hbr): Rotate 90 degrees clockwise, because our 0 degree rotation
- // corresponds to -90 degrees rotation in the real world
- v2 Rotation = Rotate90DegreesClockwise(Rotation2DFromVector(Line));
+ v2 Size = V2(Length, LineWidth);
+ v2 Rotation = Rotation2DFromVector(Line);
  PushRectangle(Group, Position, Size, Rotation, Color, ZOffset);
 }
 

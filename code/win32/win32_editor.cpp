@@ -655,6 +655,7 @@ WinMain(HINSTANCE Instance,
     v2u WindowDim = {};
     {
      GlobalWin32Input = {};
+     Input = {};
      ClearArena(InputArena);
      
      MSG Msg;

@@ -143,44 +143,6 @@ struct collision
  u32 CurveLinePointIndex;
 };
 
-enum animate_curve_animation_stage
-{
- AnimateCurveAnimation_None,
- AnimateCurveAnimation_PickingTarget,
- AnimateCurveAnimation_Animating,
-};
-
-enum animation_type
-{
- Animation_Smooth,
- Animation_Linear,
- Animation_Count,
-};
-global char const *AnimationNames[] = { "Smooth", "Linear" };
-StaticAssert(ArrayCount(AnimationNames) == Animation_Count, AllAnimationNamesDefined);
-
-struct curve_animation_state
-{
- animate_curve_animation_stage Stage;
- 
- entity *FromCurveEntity;
- entity *ToCurveEntity;
- 
- arena *Arena;
- u64 SavedToCurveVersion;
- // NOTE(hbr): Number of points in ToCurve has to match number
- // of points in FromCurve in order to avoid animation artifacts.
- u32 LinePointCount;
- v2 *ToLinePoints;
- vertex_array AnimatedLineVertices;
- 
- b32 IsAnimationPlaying;
- animation_type Animation;
- f32 AnimationSpeed;
- f32 AnimationMultiplier;
- f32 Blend;
-};
-
 enum curve_combination_type : u32
 {
  CurveCombination_None,
@@ -219,8 +181,10 @@ struct notification
  f32 ScreenPosY;
 };
 
+// defines visibility/draw order for different curve parts
 enum curve_part
 {
+ // this is at the bottom
  CurvePart_LineShadow,
  
  CurvePart_CurveLine,
@@ -235,6 +199,7 @@ enum curve_part
  CurvePart_DeCasteljauAlgorithmLines,
  CurvePart_DeCasteljauAlgorithmPoints,
  
+ // this is at the very top
  CurvePart_BezierSplitPoint,
  
  CurvePart_Count,
@@ -338,6 +303,29 @@ struct async_task
  renderer_index *TextureIndex;
 };
 
+struct bouncing_parameter
+{
+ f32 T;
+ f32 Sign;
+ f32 Speed;
+};
+
+enum
+{
+ AnimatingCurves_Active = (1<<0),
+ AnimatingCurves_ChoosingCurve = (1<<1),
+ AnimatingCurves_Animating = (1<<2),
+};
+typedef u32 animating_curves_flags;
+struct animating_curves_state
+{
+ animating_curves_flags Flags;
+ entity *Curves[2];
+ u32 ChoosingCurveIndex;
+ bouncing_parameter Bouncing;
+ arena *Arena;
+};
+
 struct editor
 {
  camera Camera;
@@ -370,6 +358,8 @@ struct editor
  struct work_queue *LowPriorityQueue;
  struct work_queue *HighPriorityQueue;
  
+ animating_curves_state AnimatingCurves;
+ 
  //////////////////////////////
  
  // TODO(hbr): Remove this from the state
@@ -383,7 +373,6 @@ struct editor
  f32 RotationRadiusClip;
  curve_params CurveDefaultParams;
  
- curve_animation_state CurveAnimation;
  curve_combining_state CurveCombining;
 };
 

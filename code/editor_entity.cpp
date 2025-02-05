@@ -872,6 +872,37 @@ CalcCubicBezierLinePoints(cubic_bezier_point *CubicBezierPoints,
  }
 }
 
+internal v2
+ParametricCurveEvaluate(f32 T, parametric_equation_expr *Equation)
+{
+ v2 P = {};
+ return P;
+}
+
+internal void
+CalcParametricCurveLinePoints(f32 MinT, f32 MaxT,
+                              parametric_equation_expr X_Equation,
+                              parametric_equation_expr Y_Equation,
+                              u32 LinePointCount, v2 *LinePoints)
+{
+ f32 T = MinT;
+ Assert(MinT <= MaxT);
+ f32 DeltaT = (MaxT - MinT) / (LinePointCount - 1);
+ 
+ for (u32 LinePointIndex = 0;
+      LinePointIndex	< LinePointCount;
+      ++LinePointIndex)
+ {
+  f32 X = ParametricEquationEvalWithT(X_Equation, T);
+  f32 Y = ParametricEquationEvalWithT(Y_Equation, T);
+  
+  v2 Point = V2(X, Y);
+  LinePoints[LinePointIndex] = Point;
+  
+  T += DeltaT;
+ }
+}
+
 internal void
 EvaluateCurve(curve *Curve, u32 LinePointCount, v2 *LinePoints)
 {
@@ -929,6 +960,13 @@ EvaluateCurve(curve *Curve, u32 LinePointCount, v2 *LinePoints)
     case Bezier_Count: InvalidPath;
    }
   } break;
+  
+  case Interpolation_Parametric: {
+   parametric_curve_params *Parametric = &CurveParams->Parametric;
+   CalcParametricCurveLinePoints(Parametric->MinT, Parametric->MaxT,
+                                 Parametric->X_Equation, Parametric->Y_Equation,
+                                 LinePointCount, LinePoints);
+  }break;
   
   case Interpolation_Count: InvalidPath;
  }

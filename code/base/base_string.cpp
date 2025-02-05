@@ -432,6 +432,14 @@ CharIsWhiteSpace(char C)
 }
 
 internal b32
+CharIsAlpha(char C)
+{
+ b32 Result = ((C >= 'a' && C <= 'z') ||
+               (C >= 'A' && C <= 'Z'));
+ return Result;
+}
+
+internal b32
 CharIsUpper(char C)
 {
  b32 Result = ('A' <= C && C <= 'Z');

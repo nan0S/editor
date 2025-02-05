@@ -331,20 +331,23 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
    } // fallthrough
    case WM_KEYUP:
    case WM_KEYDOWN: {
-    b32 WasDown = ((lParam & 1<<30) != 0);
-    b32 IsDown =  ((lParam & 1<<31) == 0);
-    // NOTE(hbr): dont't repeat PlatformEvent_Press msgs when holding a key
-    if (WasDown != IsDown)
+    if (!ImGuiResult.ImGuiWantCaptureKeyboard)
     {
-     b32 Pressed = (Msg == WM_KEYDOWN);
-     platform_key Key = Win32KeyTable[wParam];
-     platform_event *Event = Win32PushPlatformEvent(Pressed ? PlatformEvent_Press : PlatformEvent_Release);
-     if (Event)
+     b32 WasDown = ((lParam & 1<<30) != 0);
+     b32 IsDown =  ((lParam & 1<<31) == 0);
+     // NOTE(hbr): dont't repeat PlatformEvent_Press msgs when holding a key
+     if (WasDown != IsDown)
      {
-      Event->Key = Key;
-      if (Key == PlatformKey_Ctrl && (Event->Flags & PlatformEventFlag_Ctrl)) Event->Flags &= ~PlatformEventFlag_Ctrl;
-      if (Key == PlatformKey_Shift && (Event->Flags & PlatformEventFlag_Shift)) Event->Flags &= ~PlatformEventFlag_Shift;
-      if (Key == PlatformKey_Alt && (Event->Flags & PlatformEventFlag_Alt)) Event->Flags &= ~PlatformEventFlag_Alt;
+      b32 Pressed = (Msg == WM_KEYDOWN);
+      platform_key Key = Win32KeyTable[wParam];
+      platform_event *Event = Win32PushPlatformEvent(Pressed ? PlatformEvent_Press : PlatformEvent_Release);
+      if (Event)
+      {
+       Event->Key = Key;
+       if (Key == PlatformKey_Ctrl && (Event->Flags & PlatformEventFlag_Ctrl)) Event->Flags &= ~PlatformEventFlag_Ctrl;
+       if (Key == PlatformKey_Shift && (Event->Flags & PlatformEventFlag_Shift)) Event->Flags &= ~PlatformEventFlag_Shift;
+       if (Key == PlatformKey_Alt && (Event->Flags & PlatformEventFlag_Alt)) Event->Flags &= ~PlatformEventFlag_Alt;
+      }
      }
     }
    }break;

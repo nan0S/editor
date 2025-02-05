@@ -7,6 +7,9 @@
 #define DegToRad32 (Pi32 / 180.0f)
 #define RadToDeg32 (180.0f / Pi32)
 
+#define Euler32 0.0f
+#define Tau32 0.0f
+
 #define PowF32(Base, Exponent) powf(Base, Exponent)
 #define SinF32(X)              sinf(X)
 #define CosF32(X)              cosf(X)
@@ -16,6 +19,10 @@
 #define RoundF32(X)            roundf(X)
 #define SqrtF32(X)             sqrtf(X)
 #define Atan2F32(Y, X)         atan2f(Y, X)
+#define LogF32(X)              logf(X)
+#define TanF32(X)              tanf(X)
+#define TanhF32(X)             tanhf(X)
+#define ExpF32(X)              expf(X)
 
 //~ Basic operations
 inline internal v2  operator+ (v2 U, v2 V)   { return V2(U.X + V.X, U.Y + V.Y); }

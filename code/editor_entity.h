@@ -1,15 +1,17 @@
 #ifndef EDITOR_ENTITY_H
 #define EDITOR_ENTITY_H
 
+// TODO(hbr): This is not interpolation_type anymore - with parametric variant
 enum interpolation_type : u32
 {
  Interpolation_CubicSpline,
  Interpolation_Bezier,
  Interpolation_Polynomial,
+ Interpolation_Parametric,
  Interpolation_Count
 };
 // TODO(hbr): Try to add designated array intializers
-global char const *InterpolationNames[] = { "Cubic Spline", "Bezier", "Polynomial" };
+global char const *InterpolationNames[] = { "Cubic Spline", "Bezier", "Polynomial", "Parametric" };
 StaticAssert(ArrayCount(InterpolationNames) == Interpolation_Count, InterpolationNamesDefined);
 
 enum polynomial_interpolation_type : u32
@@ -54,12 +56,22 @@ enum bezier_type : u32
 global char const *BezierNames[] = { "Regular", "Cubic" };
 StaticAssert(ArrayCount(BezierNames) == Bezier_Count, BezierNamesDefined);
 
+struct parametric_curve_params
+{
+ f32 MinT;
+ f32 MaxT;
+ 
+ parametric_equation_expr X_Equation;
+ parametric_equation_expr Y_Equation;
+};
+
 struct curve_params
 {
  interpolation_type Interpolation;
  polynomial_interpolation_params Polynomial;
  cubic_spline_type CubicSpline;
  bezier_type Bezier;
+ parametric_curve_params Parametric;
  
  b32 LineDisabled;
  v4 LineColor;
@@ -144,6 +156,18 @@ enum
  TranslateCurvePoint_MatchBezierTwinLength    = (1<<1),
 };
 
+struct parametric_curve_resources
+{
+ arena *Arena;
+ 
+#define MAX_EQUATION_BUFFER_LENGTH 64
+ char MinT_EquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
+ char MaxT_EquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
+ 
+ char X_EquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
+ char Y_EquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
+};
+
 struct curve
 {
  curve_params Params;
@@ -169,6 +193,7 @@ struct curve
  
  curve_point_tracking_state PointTracking;
  curve_degree_lowering_state DegreeLowering;
+ parametric_curve_resources ParametricResources;
 };
 
 struct renderer_index;

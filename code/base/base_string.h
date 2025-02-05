@@ -36,6 +36,7 @@ internal char        CharToLower(char C);
 internal char        CharToUpper(char C);
 internal b32         CharIsDigit(char C);
 internal b32         CharIsWhiteSpace(char C);
+internal b32         CharIsAlpha(char C);
 
 internal string      MakeStr(char *Data, u64 Count);
 #define              StrLit(Lit) MakeStr(Cast(char *)Lit, ArrayCount(Lit) - 1)

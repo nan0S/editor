@@ -46,6 +46,7 @@ IMGUI_MAYBE_CAPTURE_INPUT_FUNC()
 {
  imgui_maybe_capture_input_result Result = {};
  Result.CapturedInput = Cast(b32)ImGui_ImplWin32_WndProcHandler(Input->Window, Input->Msg, Input->wParam, Input->lParam);
+ Result.ImGuiWantCaptureKeyboard = Cast(b32)ImGui::GetIO().WantCaptureKeyboard;
  Result.ImGuiWantCaptureMouse = Cast(b32)ImGui::GetIO().WantCaptureMouse;
  
  return Result;

@@ -6,6 +6,7 @@
 #include "editor_memory.cpp"
 #include "editor_math.cpp"
 #include "editor_renderer.cpp"
+#include "editor_parametric_equation.cpp"
 #include "editor_entity.cpp"
 #include "editor_ui.cpp"
 #include "editor_stb.cpp"
@@ -382,9 +383,13 @@ AllocEntity(editor *Editor)
    
    arena *EntityArena = Entity->Arena;
    arena *DegreeLoweringArena = Entity->Curve.DegreeLowering.Arena;
+   arena *ParametricArena = Entity->Curve.ParametricResources.Arena;
+   
    StructZero(Entity);
+   
    Entity->Arena = EntityArena;
    Entity->Curve.DegreeLowering.Arena = DegreeLoweringArena;
+   Entity->Curve.ParametricResources.Arena = ParametricArena;
    
    Entity->Flags |= EntityFlag_Active;
    ClearArena(Entity->Arena);
@@ -1985,6 +1990,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->CurveDefaultParams.ConvexHullColor = PolylineColor;
  Editor->CurveDefaultParams.ConvexHullWidth = LineWidth;
  Editor->CurveDefaultParams.PointCountPerSegment = 50;
+ Editor->CurveDefaultParams.Parametric.MaxT = 1.0f;
  
  Editor->Camera.P = V2(0.0f, 0.0f);
  Editor->Camera.Rotation = Rotation2DZero();
@@ -2004,6 +2010,9 @@ InitEditor(editor *Editor, editor_memory *Memory)
   entity *Entity = Editor->Entities + EntityIndex;
   Entity->Arena = AllocArena();
   Entity->Curve.DegreeLowering.Arena = AllocArena();
+  
+  curve *Curve = &Entity->Curve;
+  Curve->ParametricResources.Arena = AllocArena();
  }
  
  Editor->EntityListWindow = true;
@@ -2389,6 +2398,131 @@ UpdateRenderSelectedEntityUI(editor *Editor)
        }
       }break;
       
+      case Interpolation_Parametric: {
+       parametric_curve_params *Parametric = &CurveParams.Parametric;
+       parametric_curve_resources *Resources = &Curve->ParametricResources;
+       
+       string MinT_Equation = UI_InputTextF(Resources->MinT_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, "##MinT");
+       UI_SameRow();
+       UI_TextF(" <= t <= ");
+       UI_SameRow();
+       string MaxT_Equation = UI_InputTextF(Resources->MaxT_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, "##MaxT");
+       
+       UI_TextF("x(t) := ");
+       UI_SameRow();
+       string X_Equation = UI_InputTextF(Resources->X_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, "##x(t)");
+       
+       UI_TextF("y(t) := ");
+       UI_SameRow();
+       string Y_Equation = UI_InputTextF(Resources->Y_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, "##y(t)");
+       
+       arena *Arena = Resources->Arena;
+       temp_arena Temp = TempArena(Arena);
+       
+       parametric_equation_eval_result MinT_Eval = ParametricEquationEval(Temp.Arena, MinT_Equation);
+       
+       string MinT_ErrorMsg = {};
+       if (!MinT_Eval.ErrorMsg)
+       {
+        f32 MinT = MinT_Eval.Value;
+        if (MinT <= Parametric->MaxT)
+        {
+         Parametric->MinT = MinT;
+        }
+        else
+        {
+         MinT_ErrorMsg = StrF(Temp.Arena,
+                              "min_t (%f) exceeds max_t (%f)",
+                              MinT, Parametric->MaxT);
+        }
+       }
+       else
+       {
+        MinT_ErrorMsg = StrFromCStr(MinT_Eval.ErrorMsg);
+       }
+       if (MinT_ErrorMsg.Data)
+       {
+        UI_ColoredText(RedColor)
+        {
+         UI_TextF("t_min: %S", MinT_ErrorMsg);
+        }
+       }
+       
+       parametric_equation_eval_result MaxT_Eval = ParametricEquationEval(Temp.Arena, MaxT_Equation);
+       
+       string MaxT_ErrorMsg = {};
+       if (!MaxT_Eval.ErrorMsg)
+       {
+        f32 MaxT = MaxT_Eval.Value;
+        if (MaxT >= Parametric->MinT)
+        {
+         Parametric->MaxT = MaxT;
+        }
+        else
+        {
+         MaxT_ErrorMsg = StrF(Temp.Arena,
+                              "min_t (%f) exceeds max_t (%f)",
+                              Parametric->MinT, MaxT);
+        }
+       }
+       else
+       {
+        MaxT_ErrorMsg = StrFromCStr(MaxT_Eval.ErrorMsg);
+       }
+       if (MaxT_ErrorMsg.Data)
+       {
+        UI_ColoredText(RedColor)
+        {
+         UI_TextF("t_max: %S", MaxT_ErrorMsg);
+        }
+       }
+       
+       // TODO(hbr): There is a memory leak here - if parametric equations suceeed to parse, then we will not free
+       // the previous ones
+       {       
+        temp_arena Checkpoint = BeginTemp(Arena);
+        parametric_equation_parse_result X_Parse = ParametricEquationParse(Checkpoint.Arena, X_Equation);
+        if (!X_Parse.ErrorMsg)
+        {
+         Parametric->X_Equation = *X_Parse.ParsedExpr;
+        }
+        else
+        {
+         UI_TextF(X_Parse.ErrorMsg);
+         EndTemp(Checkpoint);
+        }
+       }
+       
+       {       
+        temp_arena Checkpoint = BeginTemp(Arena);
+        parametric_equation_parse_result Y_Parse = ParametricEquationParse(Checkpoint.Arena, Y_Equation);
+        if (!Y_Parse.ErrorMsg)
+        {
+         Parametric->Y_Equation = *Y_Parse.ParsedExpr;
+        }
+        else
+        {
+         UI_TextF(Y_Parse.ErrorMsg);
+         EndTemp(Checkpoint);
+        }
+       }
+       
+       EndTemp(Temp);
+       
+#if 0
+       // TODO(hbr): Move this out into a library
+       // TODO(hbr): Also grow this buffer if necessary
+       // TODO(hbr): And also, make it possible to move it into a separate window to have more space
+       ImGui::InputTextMultiline("Parametric Equation",
+                                 Parametric->SourceCodeBuffer,
+                                 MAX_PARAMETRIC_CURVE_SOURCE_CODE_SIZE,
+                                 ImVec2(0, 0),
+                                 ImGuiInputTextFlags_AllowTabInput);
+       Parametric->SourceCode = StrFromCStr(Parametric->SourceCodeBuffer);
+#endif
+       
+      }break;
+      
       case Interpolation_Count: InvalidPath;
      }
     }
@@ -2588,6 +2722,7 @@ UpdateRenderSelectedEntityUI(editor *Editor)
      }
     }
     
+    // TODO(hbr): This is wrong now with SourceCode stored as string
     if (!StructsEqual(Curve->Params, CurveParams))
     {
      Curve->Params = CurveParams;
@@ -2907,11 +3042,11 @@ UpdateAndRenderAnimatingCurvesUI(editor *Editor)
    
    b32 ChoosingCurve = (Animation->Flags & AnimatingCurves_ChoosingCurve);
    
+   b32 Disable0 = false;
    string Button0 = {};
-   b32 Disabled0 = false;
    if (ChoosingCurve && Animation->ChoosingCurveIndex == 0)
    {
-    Disabled0 = true;
+    Disable0 = true;
     Button0 = StrLit("Click on Curve to choose");
    }
    else
@@ -2922,7 +3057,7 @@ UpdateAndRenderAnimatingCurvesUI(editor *Editor)
     }
     else
     {
-     Button0 = StrLit("..");
+     Button0 = StrLit("...");
     }
    }
    
@@ -2930,9 +3065,13 @@ UpdateAndRenderAnimatingCurvesUI(editor *Editor)
    {
     UI_TextF("Curve 0: ");
     UI_SameRow();
-    UI_Disabled(Disabled0)
+    if (UI_Button(Button0))
     {
-     if (UI_Button(Button0))
+     if (Disable0)
+     {
+      Animation->Flags &= ~AnimatingCurves_ChoosingCurve;
+     }
+     else
      {
       Animation->Flags |= AnimatingCurves_ChoosingCurve;
       Animation->ChoosingCurveIndex = 0;
@@ -2941,10 +3080,10 @@ UpdateAndRenderAnimatingCurvesUI(editor *Editor)
    }
    
    string Button1 = {};
-   b32 Disabled1 = false;
+   b32 Disable1 = false;
    if (ChoosingCurve && Animation->ChoosingCurveIndex == 1)
    {
-    Disabled1 = true;
+    Disable1 = true;
     Button1 = StrLit("Click on Curve to choose");
    }
    else
@@ -2963,9 +3102,13 @@ UpdateAndRenderAnimatingCurvesUI(editor *Editor)
    {
     UI_TextF("Curve 1: ");
     UI_SameRow();
-    UI_Disabled(Disabled1)
+    if (UI_Button(Button1))
     {
-     if (UI_Button(Button1))
+     if (Disable1)
+     {
+      Animation->Flags &= ~AnimatingCurves_ChoosingCurve;
+     }
+     else
      {
       Animation->Flags |= AnimatingCurves_ChoosingCurve;
       Animation->ChoosingCurveIndex = 1;
@@ -3593,6 +3736,137 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
 }
 
 internal void
+RenderParametricExpressionUI(parametric_equation_expr *Expr)
+{
+ UI_Id(Cast(u32)(Cast(u64)Expr))
+ {
+  if (Expr)
+  {
+   temp_arena Temp = TempArena(0);
+   
+   string TypeStr = {};
+   switch (Expr->Type)
+   {
+    case ParametricEquationExpr_Negation: {
+     TypeStr = StrLit("Negation");
+    }break;
+    
+    case ParametricEquationExpr_BinaryOp: {
+     char const *OpStr = 0;
+     switch (Expr->Binary.Type)
+     {
+      case ParametricEquationOp_Pow: {OpStr = "^";}break;
+      case ParametricEquationOp_Plus: {OpStr = "+";}break;
+      case ParametricEquationOp_Minus: {OpStr = "-";}break;
+      case ParametricEquationOp_Mult: {OpStr = "*";}break;
+      case ParametricEquationOp_Div: {OpStr = "/";}break;
+     }
+     TypeStr = StrF(Temp.Arena, "BinaryOp(%s)", OpStr);
+    }break;
+    
+    case ParametricEquationExpr_Number: {
+     TypeStr = StrF(Temp.Arena, "Number(%f)", Expr->Number.Number);
+    }break;
+    
+    case ParametricEquationExpr_Application: {
+     string Identifier = {};
+     switch (Expr->Application.Identifier.Type)
+     {
+      case ParametricEquationIdentifier_Sin: {Identifier=StrLit("sin");}break;
+      case ParametricEquationIdentifier_Cos: {Identifier=StrLit("Cos");}break;
+      case ParametricEquationIdentifier_Tan: {Identifier=StrLit("Tan");}break;
+      case ParametricEquationIdentifier_Sqrt: {Identifier=StrLit("Sqrt");}break;
+      case ParametricEquationIdentifier_Log: {Identifier=StrLit("Log");}break;
+      case ParametricEquationIdentifier_Log10: {Identifier=StrLit("Log10");}break;
+      case ParametricEquationIdentifier_Floor: {Identifier=StrLit("Floor");}break;
+      case ParametricEquationIdentifier_Ceil: {Identifier=StrLit("Ceil");}break;
+      case ParametricEquationIdentifier_Round: {Identifier=StrLit("Round");}break;
+      case ParametricEquationIdentifier_Pow: {Identifier=StrLit("Pow");}break;
+      case ParametricEquationIdentifier_Tanh: {Identifier=StrLit("Tanh");}break;
+      case ParametricEquationIdentifier_Exp: {Identifier=StrLit("Exp");}break;
+      case ParametricEquationIdentifier_Pi: {Identifier=StrLit("Pi");}break;
+      case ParametricEquationIdentifier_Tau: {Identifier=StrLit("Tau");}break;
+      case ParametricEquationIdentifier_Euler: {Identifier=StrLit("Euler");}break;
+      case ParametricEquationIdentifier_Custom: {Identifier=Expr->Application.Identifier.Custom;}break;
+     }
+     TypeStr = StrF(Temp.Arena, "Application(%S)", Identifier);
+    }break;
+   }
+   UI_Text(TypeStr);
+   
+   switch (Expr->Type)
+   {
+    case ParametricEquationExpr_Negation: {
+     parametric_equation_expr_negation Negation = Expr->Negation;
+     ImGui::SetNextItemOpen(true);
+     if (UI_BeginTreeF("Sub"))
+     {
+      RenderParametricExpressionUI(Negation.SubExpr);
+      UI_EndTree();
+     }
+    }break;
+    
+    case ParametricEquationExpr_BinaryOp: {
+     parametric_equation_expr_binary_op Binary = Expr->Binary;
+     ImGui::SetNextItemOpen(true);
+     if (UI_BeginTreeF("Left"))
+     {
+      RenderParametricExpressionUI(Binary.Left);
+      UI_EndTree();
+     }
+     ImGui::SetNextItemOpen(true);
+     if (UI_BeginTreeF("Right"))
+     {
+      RenderParametricExpressionUI(Binary.Right);
+      UI_EndTree();
+     }
+    }break;
+    
+    case ParametricEquationExpr_Number: {
+    }break;
+    
+    case ParametricEquationExpr_Application: {
+     parametric_equation_expr_application Application = Expr->Application;
+     for (u32 ArgIndex = 0;
+          ArgIndex < Application.ArgCount;
+          ++ArgIndex)
+     {
+      ImGui::SetNextItemOpen(true);
+      if (UI_BeginTreeF("%u", ArgIndex))
+      {
+       RenderParametricExpressionUI(Application.ArgExprs + ArgIndex);
+       UI_EndTree();
+      }
+     }
+    }break;
+   }
+   
+   EndTemp(Temp);
+  }
+ }
+}
+
+internal void
+RenderParametricEquationUI(void)
+{
+ if (UI_BeginWindowF(0, 0, "Parametric Equation"))
+ {
+  local char SourceCodeBuffer[1024];
+  UI_InputTextF(SourceCodeBuffer, ArrayCount(SourceCodeBuffer), "Parametric Equation");
+  string Equation = StrFromCStr(SourceCodeBuffer);
+  
+  temp_arena Temp = TempArena(0);
+  
+  parametric_equation_parse_result Parse = ParametricEquationParse(Temp.Arena, Equation);
+  RenderParametricExpressionUI(Parse.ParsedExpr);
+  
+  EndTemp(Temp);
+  
+  UI_EndWindow();
+ }
+}
+
+internal void
 EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct render_frame *Frame)
 {
  Platform = Memory->PlatformAPI;
@@ -3641,6 +3915,9 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
   UpdateRenderDiagnosticsUI(Editor, Input);
   UpdateAndRenderNotifications(Editor, Input, RenderGroup);
   UpdateAndRenderAnimatingCurvesUI(Editor);
+  
+  // TODO(hbr): temp
+  RenderParametricEquationUI();
   
 #if BUILD_DEBUG
   ImGui::ShowDemoWindow();

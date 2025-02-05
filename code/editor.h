@@ -12,6 +12,7 @@
 #include "editor_renderer.h"
 #include "editor_math.h"
 #include "editor_sort.h"
+#include "editor_parametric_equation.h"
 #include "editor_entity.h"
 #include "editor_ui.h"
 #include "editor_stb.h"
@@ -92,6 +93,7 @@ Bugs:
 - I need to test what happens when queue texture memory is emptied - because I think there is a bug in there
 - scaling is not implemented correctly - specifically lines vs control points are not in the same place in relation to each other when I scale the curve
 - dragging tracked point along curve is broken - specifically for "pętelka" ale może dla innych przypadków też
+- disabling control points is done globally currently - not per entity as it should be
 
 Stack:
  - add sorting to rendering - this then will allow to draw things out of order and will simplify the code a lot
@@ -107,6 +109,7 @@ Stack:
 - load files texture asynchronously
 - do accumulated input pass after procsesing all the input - instead of accumulating by overwriting Pressed inside input handling function
 that way we can be sure what is the final state of Platform_Key/Button
+
 
 Testing:
 - check what happens when texture queue is very small

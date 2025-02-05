@@ -17,6 +17,7 @@ struct imgui_maybe_capture_input_result
 {
  b32 CapturedInput;
  b32 ImGuiWantCaptureMouse;
+ b32 ImGuiWantCaptureKeyboard;
 };
 #define IMGUI_MAYBE_CAPTURE_INPUT(Name) imgui_maybe_capture_input_result Name(struct imgui_maybe_capture_input_data *Input)
 #define IMGUI_MAYBE_CAPTURE_INPUT_FUNC() IMGUI_MAYBE_CAPTURE_INPUT(ImGuiMaybeCaptureInput)

@@ -61,8 +61,8 @@ struct parametric_curve_params
  f32 MinT;
  f32 MaxT;
  
- parametric_equation_expr X_Equation;
- parametric_equation_expr Y_Equation;
+ parametric_equation_expr *X_Equation;
+ parametric_equation_expr *Y_Equation;
 };
 
 struct curve_params

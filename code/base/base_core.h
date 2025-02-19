@@ -129,6 +129,21 @@ union mat4
 # error thread_static not defined
 #endif
 
+
+#if COMPILER_MSVC || (COMPILER_CLANG && OS_WINDOWS)
+# pragma section(".rdata$", read)
+# define read_only __declspec(allocate(".rdata$"))
+#elif (COMPILER_CLANG && OS_LINUX)
+# define read_only __attribute__((section(".rodata")))
+#else
+// NOTE(rjf): I don't know of a useful way to do this in GCC land.
+// __attribute__((section(".rodata"))) looked promising, but it introduces a
+// strange warning about malformed section attributes, and it doesn't look
+// like writing to that section reliably produces access violations, strangely
+// enough. (It does on Clang)
+# define read_only
+#endif
+
 #if COMPILER_MSVC
 # define DLL_EXPORT extern "C" __declspec(dllexport)
 #endif
@@ -237,7 +252,9 @@ inline void *_SafeCastToPtr(void *Expr, u64 SizeOf1, u64 SizeOf2) { Assert(SizeO
 #define StackPush(Head, Node) (Node)->Next = (Head); (Head) = (Node)
 #define StackPop(Head) (Head) = ((Head) ? (Head)->Next : 0)
 #define QueuePush(Head, Tail, Node) if (Tail) (Tail)->Next = (Node); else (Head) = (Node); (Node)->Next = 0; (Tail) = (Node)
+#define QueuePushCounted(Head, Tail, Node, Count) QueuePush(Head, Tail, Node); ++(Count)
 #define QueuePop(Head, Tail) (Head) = ((Head) ? (Head)->Next : 0); (Tail) = ((Head) ? (Tail) : 0)
+#define QueuePopCounted(Head, Tail, Count) QueuePop(Head, Tail); --(Count)
 #define DLLPushFront(Head, Tail, Node)  (Node)->Next = (Head);  (Node)->Prev = 0; if ((Head)) (Head)->Prev = (Node); else (Tail) = (Node); (Head) = (Node)
 #define DLLPushBack(Head, Tail, Node) (Node)->Next = 0;  (Node)->Prev = (Tail); if ((Tail)) (Tail)->Next = (Node); else (Head) = (Node); (Tail) = (Node)
 #define DLLInsert(Head, Tail, After, Node) \

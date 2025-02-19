@@ -488,8 +488,9 @@ internal string
 StrCopy(arena *Arena, string Str)
 {
  string Result = {};
- Result.Data = PushArrayNonZero(Arena, Str.Count, char);
+ Result.Data = PushArrayNonZero(Arena, Str.Count + 1, char);
  MemoryCopy(Result.Data, Str.Data, Str.Count);
+ Result.Data[Str.Count] = 0;
  Result.Count = Str.Count;
  return Result;
 }

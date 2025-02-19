@@ -6,18 +6,24 @@ enum parametric_equation_token_type
  ParametricEquationToken_None,
  ParametricEquationToken_Identifier,
  ParametricEquationToken_Number,
- ParametricEquationToken_Definition,
+ ParametricEquationToken_Equal,
  ParametricEquationToken_Slash,
- ParametricEquationToken_Asterisk,
+ ParametricEquationToken_Mult,
  ParametricEquationToken_Plus,
  ParametricEquationToken_Minus,
- ParametricEquationToken_Caret,
+ ParametricEquationToken_Pow,
  ParametricEquationToken_OpenParen,
  ParametricEquationToken_CloseParen,
  ParametricEquationToken_OpenBrace,
  ParametricEquationToken_CloseBrace,
  ParametricEquationToken_Semicolon,
  ParametricEquationToken_Comma,
+};
+
+struct parametric_equation_source_location
+{
+ u32 LineAt;
+ u32 CharWithinLineAt;
 };
 
 struct parametric_equation_token
@@ -27,141 +33,113 @@ struct parametric_equation_token
   string Identifier;
   f32 Number;
  };
-};
-
-struct parametric_equation_tokenize_result
-{
- parametric_equation_token *Tokens;
- char const *ErrorMsg;
-};
-
-struct parametric_equation_tokenizer
-{
- arena *Arena;
- parametric_equation_token *Tokens;
- u32 TokenCount;
- u32 MaxTokenCount;
  
- char *At;
- u64 Left;
+ parametric_equation_source_location Location;
+ string OriginalString;
 };
 
-struct parametric_equation_token_array
+enum parametric_equation_unary_operator
 {
- parametric_equation_token *Tokens;
- u32 TokenCount;
+ ParametricEquationUnaryOp_Plus,
+ ParametricEquationUnaryOp_Minus,
+};
+struct parametric_equation_unary_expr
+{
+ parametric_equation_unary_operator Operator;
+ struct parametric_equation_expr *SubExpr;
 };
 
-struct parametric_equation_function
+enum parametric_equation_binary_operator
 {
+ ParametricEquationBinaryOp_Plus,
+ ParametricEquationBinaryOp_Minus,
+ ParametricEquationBinaryOp_Mult,
+ ParametricEquationBinaryOp_Div,
+ ParametricEquationBinaryOp_Pow,
 };
-
-enum parametric_equation_env_value_type
+struct parametric_equation_binary_expr
 {
- ParametricEquationEnvValue_Number,
- ParametricEquationEnvValue_Function,
-};
-struct parametric_equation_env_value
-{
- parametric_equation_env_value_type Type;
- union {
-  parametric_equation_function *Function;
-  f32 Number;
- };
-};
-struct parametric_equation_env
-{
- u32 Capacity;
- u32 Count;
- string *Keys;
- parametric_equation_env_value *Values;
-};
-
-struct parametric_equation_expr;
-
-enum parametric_equation_op_type
-{
- ParametricEquationOp_None,
- 
- ParametricEquationOp_Plus,
- ParametricEquationOp_Minus,
- ParametricEquationOp_Mult,
- ParametricEquationOp_Div,
- ParametricEquationOp_Pow,
-};
-
-struct parametric_equation_expr_negation
-{
- parametric_equation_expr *SubExpr;
-};
-
-struct parametric_equation_expr_binary_op
-{
- parametric_equation_op_type Type;
- 
- parametric_equation_expr *Parent;
  parametric_equation_expr *Left;
  parametric_equation_expr *Right;
+ parametric_equation_binary_operator Operator;
 };
 
-struct parametric_equation_expr_number
+struct parametric_equation_number_expr
 {
  f32 Number;
 };
 
+#define ParametricEquationIdentifiers \
+X(sin, 1) \
+X(cos, 1) \
+X(tan, 1) \
+X(sqrt, 1) \
+X(log, 1) \
+X(log10, 1) \
+X(floor, 1) \
+X(ceil, 1) \
+X(round, 1) \
+X(pow, 2) \
+X(tanh, 1) \
+X(exp, 1) \
+X(pi, 0) \
+X(tau, 0) \
+X(euler, 0) \
+X(var, 0) // this is just regular user-defined variable but we have to define all the types
+
+global char const *ParametricEquationIdentifierNames[] = {
+#define X(_Func, _ArgCount) #_Func,
+ ParametricEquationIdentifiers
+#undef X
+};
+
+global u32 ParametricEquationIdentifierArgCounts[] = {
+#define X(_Func, _ArgCount) _ArgCount,
+ ParametricEquationIdentifiers
+#undef X
+};
+
 enum parametric_equation_identifier_type
 {
- ParametricEquationIdentifier_Sin,
- ParametricEquationIdentifier_Cos,
- ParametricEquationIdentifier_Tan,
- ParametricEquationIdentifier_Sqrt,
- ParametricEquationIdentifier_Log,
- ParametricEquationIdentifier_Log10,
- ParametricEquationIdentifier_Floor,
- ParametricEquationIdentifier_Ceil,
- ParametricEquationIdentifier_Round,
- ParametricEquationIdentifier_Pow,
- ParametricEquationIdentifier_Tanh,
- ParametricEquationIdentifier_Exp,
- 
- ParametricEquationIdentifier_Pi,
- ParametricEquationIdentifier_Tau,
- ParametricEquationIdentifier_Euler,
- 
- ParametricEquationIdentifier_Custom,
+#define X(_Func, _ArgCount) ParametricEquationIdentifier_##_Func,
+ ParametricEquationIdentifiers
+#undef X
 };
-struct parametric_equation_identifier
+
+struct parametric_equation_application_expr_identifier
 {
  parametric_equation_identifier_type Type;
- string Custom;
+ string Var;
+ parametric_equation_source_location Location;
 };
-struct parametric_equation_expr_application
+struct parametric_equation_application_expr
 {
- parametric_equation_identifier Identifier;
+ parametric_equation_application_expr_identifier Identifier;
  u32 ArgCount;
- parametric_equation_expr *ArgExprs;
+ parametric_equation_expr *Args;
 };
 
 enum parametric_equation_expr_type
 {
- ParametricEquationExpr_None,
- ParametricEquationExpr_Negation,
- ParametricEquationExpr_BinaryOp,
  ParametricEquationExpr_Number,
+ ParametricEquationExpr_Unary,
+ ParametricEquationExpr_Binary,
  ParametricEquationExpr_Application,
 };
 struct parametric_equation_expr
 {
+ parametric_equation_expr *Next;
  parametric_equation_expr_type Type;
  union {
-  parametric_equation_expr_negation Negation;
-  parametric_equation_expr_binary_op Binary;
-  parametric_equation_expr_number Number;
-  parametric_equation_expr_application Application;
+  parametric_equation_unary_expr Unary;
+  parametric_equation_binary_expr Binary;
+  parametric_equation_number_expr Number;
+  parametric_equation_application_expr Application;
  };
 };
+read_only global parametric_equation_expr NilExpr = { &NilExpr };
 
-struct parametric_equation_env2
+struct parametric_equation_env
 {
  u32 Count;
  // TODO(hbr): add dynamic growing
@@ -188,41 +166,62 @@ and transforms +/- div multiply power into functionInvocations
 - there is an issue that we store the identifier as text that we got externally, but then when I modify this text in my editor then it is no longer valid - I think ids might solve this
 - number of points we have for parametric curve should not depend on number of control points it has
 - when I recompute the curve_params and parametric_equation, I shouldn't only check for equality of curve_params struct but instead, work with everything
+ 
+r := 10;
+
+ my_func(x, r) {
+my_var := 10;
+r*sin(my_var*x) + r*cos(my_var*y)
+
+}
+
+2*pi*sin(t)*cos(t)*my_func(10)
 
 */
 
-struct parametric_equation_parser
-{
- parametric_equation_token *At;
- char const *ErrorMsg;
-};
-
-struct parametric_equation_expr_array
-{
- u32 Count;
- u32 MaxCount;
- parametric_equation_expr *Exprs;
-};
-
 struct parametric_equation_parse_result
 {
+ b32 Ok;
+ string ErrorMessage;
  parametric_equation_expr *ParsedExpr;
- char const *ErrorMsg;
 };
 
 struct parametric_equation_eval_result
 {
+ b32 Ok;
+ string ErrorMessage;
  f32 Value;
- char const *ErrorMsg;
 };
 
-struct parametric_equation_type_checker
+struct parametric_equation_parse_env_result
 {
- char const *ErrorMsg;
+ b32 Ok;
+ string ErrorMessage;
+ parametric_equation_env Env;
 };
 
-internal parametric_equation_parse_result ParametricEquationParse(arena *Arena, string Equation);
+struct parametric_equation_parser
+{
+ arena *Arena;
+ 
+ char *CharBegin;
+ char *CharAt;
+ parametric_equation_source_location CharLocation;
+ 
+ parametric_equation_token *Tokens;
+ u32 TokenCount;
+ u32 MaxTokenCount;
+ 
+ parametric_equation_token *TokenAt;
+ 
+ b32 T_ImplicitlyBound;
+ 
+ string ErrorMessage;
+};
+
+
+internal parametric_equation_parse_result ParametricEquationParse(arena *Arena, string Equation, b32 T_ImplicitlyBound);
 internal parametric_equation_eval_result  ParametricEquationEval(arena *Arena, string Equation);
-internal f32                              ParametricEquationEvalWithT(parametric_equation_expr Expr, f32 T);
+internal f32                              ParametricEquationEvalWithT(parametric_equation_expr *Expr, f32 T);
 
 #endif //EDITOR_PARAMETRIC_EQUATION_H

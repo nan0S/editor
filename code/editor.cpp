@@ -1991,6 +1991,8 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->CurveDefaultParams.ConvexHullWidth = LineWidth;
  Editor->CurveDefaultParams.PointCountPerSegment = 50;
  Editor->CurveDefaultParams.Parametric.MaxT = 1.0f;
+ Editor->CurveDefaultParams.Parametric.X_Equation = &NilExpr;
+ Editor->CurveDefaultParams.Parametric.Y_Equation = &NilExpr;
  
  Editor->Camera.P = V2(0.0f, 0.0f);
  Editor->Camera.Rotation = Rotation2DZero();
@@ -2422,7 +2424,7 @@ UpdateRenderSelectedEntityUI(editor *Editor)
        parametric_equation_eval_result MinT_Eval = ParametricEquationEval(Temp.Arena, MinT_Equation);
        
        string MinT_ErrorMsg = {};
-       if (!MinT_Eval.ErrorMsg)
+       if (MinT_Eval.Ok)
        {
         f32 MinT = MinT_Eval.Value;
         if (MinT <= Parametric->MaxT)
@@ -2438,20 +2440,16 @@ UpdateRenderSelectedEntityUI(editor *Editor)
        }
        else
        {
-        MinT_ErrorMsg = StrFromCStr(MinT_Eval.ErrorMsg);
-       }
-       if (MinT_ErrorMsg.Data)
-       {
         UI_ColoredText(RedColor)
         {
-         UI_TextF("t_min: %S", MinT_ErrorMsg);
+         UI_TextF("t_min: %S", MinT_Eval.ErrorMessage);
         }
        }
        
        parametric_equation_eval_result MaxT_Eval = ParametricEquationEval(Temp.Arena, MaxT_Equation);
        
        string MaxT_ErrorMsg = {};
-       if (!MaxT_Eval.ErrorMsg)
+       if (MaxT_Eval.Ok)
        {
         f32 MaxT = MaxT_Eval.Value;
         if (MaxT >= Parametric->MinT)
@@ -2467,13 +2465,9 @@ UpdateRenderSelectedEntityUI(editor *Editor)
        }
        else
        {
-        MaxT_ErrorMsg = StrFromCStr(MaxT_Eval.ErrorMsg);
-       }
-       if (MaxT_ErrorMsg.Data)
-       {
         UI_ColoredText(RedColor)
         {
-         UI_TextF("t_max: %S", MaxT_ErrorMsg);
+         UI_TextF("t_max: %S", MaxT_Eval.ErrorMessage);
         }
        }
        
@@ -2481,28 +2475,34 @@ UpdateRenderSelectedEntityUI(editor *Editor)
        // the previous ones
        {       
         temp_arena Checkpoint = BeginTemp(Arena);
-        parametric_equation_parse_result X_Parse = ParametricEquationParse(Checkpoint.Arena, X_Equation);
-        if (!X_Parse.ErrorMsg)
+        parametric_equation_parse_result X_Parse = ParametricEquationParse(Checkpoint.Arena, X_Equation, true);
+        if (X_Parse.Ok)
         {
-         Parametric->X_Equation = *X_Parse.ParsedExpr;
+         Parametric->X_Equation = X_Parse.ParsedExpr;
         }
         else
         {
-         UI_TextF(X_Parse.ErrorMsg);
+         UI_ColoredText(RedColor)
+         {
+          UI_TextF("x(t): %S", X_Parse.ErrorMessage);
+         }
          EndTemp(Checkpoint);
         }
        }
        
        {       
         temp_arena Checkpoint = BeginTemp(Arena);
-        parametric_equation_parse_result Y_Parse = ParametricEquationParse(Checkpoint.Arena, Y_Equation);
-        if (!Y_Parse.ErrorMsg)
+        parametric_equation_parse_result Y_Parse = ParametricEquationParse(Checkpoint.Arena, Y_Equation, true);
+        if (Y_Parse.Ok)
         {
-         Parametric->Y_Equation = *Y_Parse.ParsedExpr;
+         Parametric->Y_Equation = Y_Parse.ParsedExpr;
         }
         else
         {
-         UI_TextF(Y_Parse.ErrorMsg);
+         UI_ColoredText(RedColor)
+         {
+          UI_TextF("y(t): %S", Y_Parse.ErrorMessage);
+         }
          EndTemp(Checkpoint);
         }
        }
@@ -3747,19 +3747,19 @@ RenderParametricExpressionUI(parametric_equation_expr *Expr)
    string TypeStr = {};
    switch (Expr->Type)
    {
-    case ParametricEquationExpr_Negation: {
-     TypeStr = StrLit("Negation");
+    case ParametricEquationExpr_Unary: {
+     TypeStr = StrLit("Unary");
     }break;
     
-    case ParametricEquationExpr_BinaryOp: {
-     char const *OpStr = 0;
-     switch (Expr->Binary.Type)
+    case ParametricEquationExpr_Binary: {
+     char const *OpStr = "null";
+     switch (Expr->Binary.Operator)
      {
-      case ParametricEquationOp_Pow: {OpStr = "^";}break;
-      case ParametricEquationOp_Plus: {OpStr = "+";}break;
-      case ParametricEquationOp_Minus: {OpStr = "-";}break;
-      case ParametricEquationOp_Mult: {OpStr = "*";}break;
-      case ParametricEquationOp_Div: {OpStr = "/";}break;
+      case ParametricEquationBinaryOp_Pow: {OpStr = "^";}break;
+      case ParametricEquationBinaryOp_Plus: {OpStr = "+";}break;
+      case ParametricEquationBinaryOp_Minus: {OpStr = "-";}break;
+      case ParametricEquationBinaryOp_Mult: {OpStr = "*";}break;
+      case ParametricEquationBinaryOp_Div: {OpStr = "/";}break;
      }
      TypeStr = StrF(Temp.Arena, "BinaryOp(%s)", OpStr);
     }break;
@@ -3769,51 +3769,45 @@ RenderParametricExpressionUI(parametric_equation_expr *Expr)
     }break;
     
     case ParametricEquationExpr_Application: {
-     string Identifier = {};
-     switch (Expr->Application.Identifier.Type)
+     parametric_equation_application_expr Application = Expr->Application;
+     
+     string IdentifierName = {};
+     if (Application.Identifier.Type == ParametricEquationIdentifier_var)
      {
-      case ParametricEquationIdentifier_Sin: {Identifier=StrLit("sin");}break;
-      case ParametricEquationIdentifier_Cos: {Identifier=StrLit("Cos");}break;
-      case ParametricEquationIdentifier_Tan: {Identifier=StrLit("Tan");}break;
-      case ParametricEquationIdentifier_Sqrt: {Identifier=StrLit("Sqrt");}break;
-      case ParametricEquationIdentifier_Log: {Identifier=StrLit("Log");}break;
-      case ParametricEquationIdentifier_Log10: {Identifier=StrLit("Log10");}break;
-      case ParametricEquationIdentifier_Floor: {Identifier=StrLit("Floor");}break;
-      case ParametricEquationIdentifier_Ceil: {Identifier=StrLit("Ceil");}break;
-      case ParametricEquationIdentifier_Round: {Identifier=StrLit("Round");}break;
-      case ParametricEquationIdentifier_Pow: {Identifier=StrLit("Pow");}break;
-      case ParametricEquationIdentifier_Tanh: {Identifier=StrLit("Tanh");}break;
-      case ParametricEquationIdentifier_Exp: {Identifier=StrLit("Exp");}break;
-      case ParametricEquationIdentifier_Pi: {Identifier=StrLit("Pi");}break;
-      case ParametricEquationIdentifier_Tau: {Identifier=StrLit("Tau");}break;
-      case ParametricEquationIdentifier_Euler: {Identifier=StrLit("Euler");}break;
-      case ParametricEquationIdentifier_Custom: {Identifier=Expr->Application.Identifier.Custom;}break;
+      IdentifierName = Application.Identifier.Var;
      }
-     TypeStr = StrF(Temp.Arena, "Application(%S)", Identifier);
+     else
+     {
+      IdentifierName = StrFromCStr(ParametricEquationIdentifierNames[Application.Identifier.Type]);
+     }
+     
+     TypeStr = StrF(Temp.Arena, "Application(%S)", IdentifierName);
     }break;
    }
    UI_Text(TypeStr);
    
    switch (Expr->Type)
    {
-    case ParametricEquationExpr_Negation: {
-     parametric_equation_expr_negation Negation = Expr->Negation;
+    case ParametricEquationExpr_Unary: {
+     parametric_equation_unary_expr Unary = Expr->Unary;
      ImGui::SetNextItemOpen(true);
      if (UI_BeginTreeF("Sub"))
      {
-      RenderParametricExpressionUI(Negation.SubExpr);
+      RenderParametricExpressionUI(Unary.SubExpr);
       UI_EndTree();
      }
     }break;
     
-    case ParametricEquationExpr_BinaryOp: {
-     parametric_equation_expr_binary_op Binary = Expr->Binary;
+    case ParametricEquationExpr_Binary: {
+     parametric_equation_binary_expr Binary = Expr->Binary;
+     
      ImGui::SetNextItemOpen(true);
      if (UI_BeginTreeF("Left"))
      {
       RenderParametricExpressionUI(Binary.Left);
       UI_EndTree();
      }
+     
      ImGui::SetNextItemOpen(true);
      if (UI_BeginTreeF("Right"))
      {
@@ -3822,21 +3816,21 @@ RenderParametricExpressionUI(parametric_equation_expr *Expr)
      }
     }break;
     
-    case ParametricEquationExpr_Number: {
-    }break;
+    case ParametricEquationExpr_Number: {}break;
     
     case ParametricEquationExpr_Application: {
-     parametric_equation_expr_application Application = Expr->Application;
-     for (u32 ArgIndex = 0;
-          ArgIndex < Application.ArgCount;
-          ++ArgIndex)
+     parametric_equation_application_expr Application = Expr->Application;
+     
+     u32 ArgIndex = 0;
+     ListIter(Arg, Application.Args, parametric_equation_expr)
      {
       ImGui::SetNextItemOpen(true);
       if (UI_BeginTreeF("%u", ArgIndex))
       {
-       RenderParametricExpressionUI(Application.ArgExprs + ArgIndex);
+       RenderParametricExpressionUI(Arg);
        UI_EndTree();
       }
+      ++ArgIndex;
      }
     }break;
    }
@@ -3851,14 +3845,46 @@ RenderParametricEquationUI(void)
 {
  if (UI_BeginWindowF(0, 0, "Parametric Equation"))
  {
-  local char SourceCodeBuffer[1024];
-  UI_InputTextF(SourceCodeBuffer, ArrayCount(SourceCodeBuffer), "Parametric Equation");
-  string Equation = StrFromCStr(SourceCodeBuffer);
+  local char ParametricEquationBuffer[1024];
+  UI_InputTextF(ParametricEquationBuffer, ArrayCount(ParametricEquationBuffer), "Parametric Equation");
+  string Equation = StrFromCStr(ParametricEquationBuffer);
+  
+  local char EnvCodeBuffer[1024];
+  ImGui::InputTextMultiline("Parametric Equation Env",
+                            EnvCodeBuffer,
+                            ArrayCount(EnvCodeBuffer),
+                            ImVec2(0, 0),
+                            ImGuiInputTextFlags_AllowTabInput);
+  string Env = StrFromCStr(EnvCodeBuffer);
   
   temp_arena Temp = TempArena(0);
   
-  parametric_equation_parse_result Parse = ParametricEquationParse(Temp.Arena, Equation);
-  RenderParametricExpressionUI(Parse.ParsedExpr);
+  parametric_equation_parse_result EquationParse = ParametricEquationParse(Temp.Arena, Equation, true);
+  RenderParametricExpressionUI(EquationParse.ParsedExpr);
+  
+  if (!EquationParse.Ok)
+  {
+   UI_ColoredText(RedColor)
+   {
+    UI_TextF("error: %S", EquationParse.ErrorMessage);
+   }
+  }
+  
+  parametric_equation_parse_env_result EnvParse = ParametricEquationParseEnvCode(Temp.Arena, Env);
+  for (u32 Index = 0;
+       Index < EnvParse.Env.Count;
+       ++Index)
+  {
+   UI_TextF("%S := %f", EnvParse.Env.Keys[Index], EnvParse.Env.Values[Index]);
+  }
+  
+  if (!EnvParse.Ok)
+  {
+   UI_ColoredText(RedColor)
+   {
+    UI_TextF("error: %S", EnvParse.ErrorMessage);
+   }
+  }
   
   EndTemp(Temp);
   

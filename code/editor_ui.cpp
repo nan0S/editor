@@ -125,26 +125,77 @@ UI_AngleSliderF(v2 *Rotation, char const *Format, ...)
  EndTemp(Temp);
 }
 
-internal string
-UI_InputText(char *Buf, u64 BufSize, string Label)
+internal void
+PushTightInputText(u32 InputWidthInChars)
 {
+ if (InputWidthInChars)
+ {
+  float FontSize = ImGui::GetFontSize();
+  ImGui::PushItemWidth(FontSize * InputWidthInChars);
+ }
+}
+
+internal void
+PopTightInputText(u32 InputWidthInChars)
+{
+ if (InputWidthInChars)
+ {
+  ImGui::PopItemWidth();
+ }
+}
+
+internal ui_input_result
+UI_InputText(char *Buf, u64 BufSize, u32 InputWidthInChars, string Label)
+{
+ ui_input_result Result = {};
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
- ImGui::InputText(CLabel.Data, Buf, BufSize);
- string Result = StrFromCStr(Buf);
+ PushTightInputText(InputWidthInChars);
+ Result.Changed = Cast(b32)ImGui::InputText(CLabel.Data, Buf, BufSize);
+ PopTightInputText(InputWidthInChars);
+ Result.Input = StrFromCStr(Buf);
  EndTemp(Temp);
  
  return Result;
 }
 
-internal string
-UI_InputTextF(char *Buf, u64 BufSize, char const *Format, ...)
+internal ui_input_result
+UI_InputTextF(char *Buf, u64 BufSize, u32 InputWidthInChars, char const *Format, ...)
 {
  temp_arena Temp = TempArena(0);
  va_list Args;
  va_start(Args, Format);
  string Label = StrFV(Temp.Arena, Format, Args);
- string Result = UI_InputText(Buf, BufSize, Label);
+ ui_input_result Result = UI_InputText(Buf, BufSize, InputWidthInChars, Label);
+ va_end(Args);
+ EndTemp(Temp);
+ 
+ return Result;
+}
+
+internal ui_input_result
+UI_MultiLineInputText(char *Buf, u64 BufSize, u32 InputWidthInChars, string Label)
+{
+ ui_input_result Result = {};
+ temp_arena Temp = TempArena(0);
+ string CLabel = CStrFromStr(Temp.Arena, Label);
+ PushTightInputText(InputWidthInChars);
+ Result.Changed = Cast(b32)ImGui::InputTextMultiline(CLabel.Data, Buf, BufSize, ImVec2(0, 0), ImGuiInputTextFlags_AllowTabInput);
+ PopTightInputText(InputWidthInChars);
+ Result.Input = StrFromCStr(Buf);
+ EndTemp(Temp);
+ 
+ return Result;
+}
+
+internal ui_input_result
+UI_MultiLineInputTextF(char *Buf, u64 BufSize, u32 InputWidthInChars, char const *Format, ...)
+{
+ temp_arena Temp = TempArena(0);
+ va_list Args;
+ va_start(Args, Format);
+ string Label = StrFV(Temp.Arena, Format, Args);
+ ui_input_result Result = UI_MultiLineInputText(Buf, BufSize, InputWidthInChars, Label);
  va_end(Args);
  EndTemp(Temp);
  

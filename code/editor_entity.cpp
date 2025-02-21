@@ -883,9 +883,11 @@ internal void
 CalcParametricCurveLinePoints(f32 MinT, f32 MaxT,
                               parametric_equation_expr *X_Equation,
                               parametric_equation_expr *Y_Equation,
+                              parametric_equation_env *EquationEnv,
                               u32 LinePointCount, v2 *LinePoints)
 {
  f32 T = MinT;
+ MaxT = Max(MinT, MaxT);
  Assert(MinT <= MaxT);
  f32 DeltaT = (MaxT - MinT) / (LinePointCount - 1);
  
@@ -965,6 +967,7 @@ EvaluateCurve(curve *Curve, u32 LinePointCount, v2 *LinePoints)
    parametric_curve_params *Parametric = &CurveParams->Parametric;
    CalcParametricCurveLinePoints(Parametric->MinT, Parametric->MaxT,
                                  Parametric->X_Equation, Parametric->Y_Equation,
+                                 &Parametric->EquationEnv,
                                  LinePointCount, LinePoints);
   }break;
   

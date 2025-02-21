@@ -3,12 +3,12 @@
 
 #include <math.h>
 
-#define Pi32 3.14159265359f
+#define Pi32    3.14159265358979323846f
+#define Euler32 2.71828182845904523536f
+#define Tau32   6.28318530717958647692f
+
 #define DegToRad32 (Pi32 / 180.0f)
 #define RadToDeg32 (180.0f / Pi32)
-
-#define Euler32 0.0f
-#define Tau32 0.0f
 
 #define PowF32(Base, Exponent) powf(Base, Exponent)
 #define SinF32(X)              sinf(X)

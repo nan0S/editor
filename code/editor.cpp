@@ -2312,7 +2312,7 @@ UpdateRenderSelectedEntityUI(editor *Editor)
    {
     Entity->Name = UI_InputTextF(Entity->NameBuffer,
                                  ArrayCount(Entity->NameBuffer),
-                                 "Name");
+                                 0, "Name").Input;
     
     UI_DragFloat2F(Entity->P.E, 0.0f, 0.0f, 0, "Position");
     if (ResetCtxMenu(StrLit("PositionReset")))
@@ -2401,126 +2401,142 @@ UpdateRenderSelectedEntityUI(editor *Editor)
       }break;
       
       case Interpolation_Parametric: {
-       parametric_curve_params *Parametric = &CurveParams.Parametric;
-       parametric_curve_resources *Resources = &Curve->ParametricResources;
-       
-       string MinT_Equation = UI_InputTextF(Resources->MinT_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, "##MinT");
-       UI_SameRow();
-       UI_TextF(" <= t <= ");
-       UI_SameRow();
-       string MaxT_Equation = UI_InputTextF(Resources->MaxT_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, "##MaxT");
-       
-       UI_TextF("x(t) := ");
-       UI_SameRow();
-       string X_Equation = UI_InputTextF(Resources->X_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, "##x(t)");
-       
-       UI_TextF("y(t) := ");
-       UI_SameRow();
-       string Y_Equation = UI_InputTextF(Resources->Y_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, "##y(t)");
-       
-       arena *Arena = Resources->Arena;
-       temp_arena Temp = TempArena(Arena);
-       
-       parametric_equation_eval_result MinT_Eval = ParametricEquationEval(Temp.Arena, MinT_Equation);
-       
-       string MinT_ErrorMsg = {};
-       if (MinT_Eval.Ok)
+       ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+       if (UI_BeginTreeF("Equation"))
        {
-        f32 MinT = MinT_Eval.Value;
-        if (MinT <= Parametric->MaxT)
+        parametric_curve_params *Parametric = &CurveParams.Parametric;
+        parametric_curve_resources *Resources = &Curve->ParametricResources;
+        arena *EquationArena = Resources->Arena;
+        temp_arena Temp = TempArena(EquationArena);
+        
+        ClearArena(EquationArena);
+        
+        //- additional vars
+        UI_TextF("Additional Vars");
+        UI_SameRow();
+        UI_Disabled(!HasFreeAdditionalVar(Resources))
         {
-         Parametric->MinT = MinT;
+         if (UI_ButtonF("+"))
+         {
+          ActivateNewAdditionalVar(Resources);
+         }
         }
-        else
+        
+        string *VarNames = PushArrayNonZero(Temp.Arena, Resources->AdditionalVarCount, string);
+        f32 *VarValues = PushArrayNonZero(Temp.Arena, Resources->AdditionalVarCount, f32);
+        u32 VarCount = 0;
+        
+        for (u32 VarIndex = 0;
+             VarIndex < Resources->AdditionalVarCount;
+             ++VarIndex)
         {
-         MinT_ErrorMsg = StrF(Temp.Arena,
-                              "min_t (%f) exceeds max_t (%f)",
-                              MinT, Parametric->MaxT);
+         parametric_curve_additional_var *Var = Resources->AdditionalVars + VarIndex;
+         
+         UI_PushId(Var->Id);
+         
+         string VarName = UI_InputTextF(Var->VarNameBuffer, MAX_VAR_NAME_BUFFER_LENGTH, 3, "##Var").Input;
+         UI_SameRow();
+         UI_TextF(" := ");
+         UI_SameRow();
+         string VarEquation = UI_InputTextF(Var->VarEquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##Equation").Input;
+         UI_SameRow();
+         if (UI_ButtonF("-"))
+         {
+          DeactiveAdditionalVar(Resources, VarIndex);
+         }
+         else
+         {
+          parametric_equation_eval_result VarEval = ParametricEquationEval(Temp.Arena, VarEquation,
+                                                                           VarCount, VarNames, VarValues);
+          
+          VarValues[VarCount] = VarEval.Value;
+          VarNames[VarCount] = VarName;
+          ++VarCount;
+          
+          if (!VarEval.Ok)
+          {
+           UI_SameRow();
+           UI_ColoredText(RedColor)
+           {
+            UI_Text(VarEval.ErrorMessage);
+           }
+          }
+         }
+         
+         UI_PopId();
         }
-       }
-       else
-       {
-        UI_ColoredText(RedColor)
+        
+        //- min/max bounds
+        UI_TextF("t_min := ");
+        UI_SameRow();
+        string MinT_Equation = UI_InputTextF(Resources->MinT_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##MinT").Input;
+        parametric_equation_eval_result MinT_Eval = ParametricEquationEval(Temp.Arena, MinT_Equation,
+                                                                           VarCount, VarNames, VarValues);
+        UI_SameRow();
+        if (MinT_Eval.Ok)
         {
-         UI_TextF("t_min: %S", MinT_Eval.ErrorMessage);
-        }
-       }
-       
-       parametric_equation_eval_result MaxT_Eval = ParametricEquationEval(Temp.Arena, MaxT_Equation);
-       
-       string MaxT_ErrorMsg = {};
-       if (MaxT_Eval.Ok)
-       {
-        f32 MaxT = MaxT_Eval.Value;
-        if (MaxT >= Parametric->MinT)
-        {
-         Parametric->MaxT = MaxT;
-        }
-        else
-        {
-         MaxT_ErrorMsg = StrF(Temp.Arena,
-                              "min_t (%f) exceeds max_t (%f)",
-                              Parametric->MinT, MaxT);
-        }
-       }
-       else
-       {
-        UI_ColoredText(RedColor)
-        {
-         UI_TextF("t_max: %S", MaxT_Eval.ErrorMessage);
-        }
-       }
-       
-       // TODO(hbr): There is a memory leak here - if parametric equations suceeed to parse, then we will not free
-       // the previous ones
-       {       
-        temp_arena Checkpoint = BeginTemp(Arena);
-        parametric_equation_parse_result X_Parse = ParametricEquationParse(Checkpoint.Arena, X_Equation, true);
-        if (X_Parse.Ok)
-        {
-         Parametric->X_Equation = X_Parse.ParsedExpr;
+         UI_TextF("%f", MinT_Eval.Value);
         }
         else
         {
          UI_ColoredText(RedColor)
          {
-          UI_TextF("x(t): %S", X_Parse.ErrorMessage);
+          UI_Text(MinT_Eval.ErrorMessage);
          }
-         EndTemp(Checkpoint);
         }
-       }
-       
-       {       
-        temp_arena Checkpoint = BeginTemp(Arena);
-        parametric_equation_parse_result Y_Parse = ParametricEquationParse(Checkpoint.Arena, Y_Equation, true);
-        if (Y_Parse.Ok)
+        
+        UI_TextF("t_max := ");
+        UI_SameRow();
+        string MaxT_Equation = UI_InputTextF(Resources->MaxT_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##MaxT").Input;
+        parametric_equation_eval_result MaxT_Eval = ParametricEquationEval(Temp.Arena, MaxT_Equation,
+                                                                           VarCount, VarNames, VarValues);
+        if (!MaxT_Eval.Ok)
         {
-         Parametric->Y_Equation = Y_Parse.ParsedExpr;
-        }
-        else
-        {
+         UI_SameRow();
          UI_ColoredText(RedColor)
          {
-          UI_TextF("y(t): %S", Y_Parse.ErrorMessage);
+          UI_Text(MaxT_Eval.ErrorMessage);
          }
-         EndTemp(Checkpoint);
         }
+        
+        //- (x,y) equations
+        UI_TextF("x(t)  := ");
+        UI_SameRow();
+        string X_Equation = UI_InputTextF(Resources->X_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##x(t)").Input;
+        parametric_equation_parse_result X_Parse = ParametricEquationParse(EquationArena, X_Equation,
+                                                                           VarCount, VarNames, VarValues);
+        if (!X_Parse.Ok)
+        {
+         UI_SameRow();
+         UI_ColoredText(RedColor)
+         {
+          UI_Text(X_Parse.ErrorMessage);
+         }
+        }
+        
+        UI_TextF("y(t)  := ");
+        UI_SameRow();
+        string Y_Equation = UI_InputTextF(Resources->Y_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##y(t)").Input;
+        parametric_equation_parse_result Y_Parse = ParametricEquationParse(EquationArena, Y_Equation,
+                                                                           VarCount, VarNames, VarValues);
+        if (!Y_Parse.Ok)
+        {
+         UI_SameRow();
+         UI_ColoredText(RedColor)
+         {
+          UI_Text(Y_Parse.ErrorMessage);
+         }
+        }
+        
+        Parametric->MinT = MinT_Eval.Value;
+        Parametric->MaxT = MaxT_Eval.Value;
+        
+        Parametric->X_Equation = X_Parse.ParsedExpr;
+        Parametric->Y_Equation = Y_Parse.ParsedExpr;
+        EndTemp(Temp);
+        
+        UI_EndTree();
        }
-       
-       EndTemp(Temp);
-       
-#if 0
-       // TODO(hbr): Move this out into a library
-       // TODO(hbr): Also grow this buffer if necessary
-       // TODO(hbr): And also, make it possible to move it into a separate window to have more space
-       ImGui::InputTextMultiline("Parametric Equation",
-                                 Parametric->SourceCodeBuffer,
-                                 MAX_PARAMETRIC_CURVE_SOURCE_CODE_SIZE,
-                                 ImVec2(0, 0),
-                                 ImGuiInputTextFlags_AllowTabInput);
-       Parametric->SourceCode = StrFromCStr(Parametric->SourceCodeBuffer);
-#endif
-       
       }break;
       
       case Interpolation_Count: InvalidPath;
@@ -3846,7 +3862,7 @@ RenderParametricEquationUI(void)
  if (UI_BeginWindowF(0, 0, "Parametric Equation"))
  {
   local char ParametricEquationBuffer[1024];
-  UI_InputTextF(ParametricEquationBuffer, ArrayCount(ParametricEquationBuffer), "Parametric Equation");
+  UI_InputTextF(ParametricEquationBuffer, ArrayCount(ParametricEquationBuffer), 0, "Parametric Equation");
   string Equation = StrFromCStr(ParametricEquationBuffer);
   
   local char EnvCodeBuffer[1024];
@@ -3859,7 +3875,7 @@ RenderParametricEquationUI(void)
   
   temp_arena Temp = TempArena(0);
   
-  parametric_equation_parse_result EquationParse = ParametricEquationParse(Temp.Arena, Equation, true);
+  parametric_equation_parse_result EquationParse = ParametricEquationParse(Temp.Arena, Equation, 0, 0, 0);
   RenderParametricExpressionUI(EquationParse.ParsedExpr);
   
   if (!EquationParse.Ok)
@@ -3870,7 +3886,8 @@ RenderParametricEquationUI(void)
    }
   }
   
-  parametric_equation_parse_env_result EnvParse = ParametricEquationParseEnvCode(Temp.Arena, Env);
+#if 0
+  parametric_equation_parse_statements_result EnvParse = ParametricEquationParseStatements(Temp.Arena, Env);
   for (u32 Index = 0;
        Index < EnvParse.Env.Count;
        ++Index)
@@ -3885,6 +3902,7 @@ RenderParametricEquationUI(void)
     UI_TextF("error: %S", EnvParse.ErrorMessage);
    }
   }
+#endif
   
   EndTemp(Temp);
   

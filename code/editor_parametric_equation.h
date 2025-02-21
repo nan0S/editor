@@ -141,11 +141,12 @@ read_only global parametric_equation_expr NilExpr = { &NilExpr };
 
 struct parametric_equation_env
 {
- u32 Count;
- // TODO(hbr): add dynamic growing
-#define MAX_ENV_VARIABLE_COUNT 16
- f32 Values[MAX_ENV_VARIABLE_COUNT];
- string Keys[MAX_ENV_VARIABLE_COUNT];
+ b32 T_Bounded;
+ f32 T_Value;
+ 
+ u32 VarCount;
+ string *VarNames;
+ f32 *VarValues;
 };
 
 /*
@@ -193,7 +194,7 @@ struct parametric_equation_eval_result
  f32 Value;
 };
 
-struct parametric_equation_parse_env_result
+struct parametric_equation_parse_statements_result
 {
  b32 Ok;
  string ErrorMessage;
@@ -214,14 +215,16 @@ struct parametric_equation_parser
  
  parametric_equation_token *TokenAt;
  
- b32 T_ImplicitlyBound;
- 
  string ErrorMessage;
 };
 
+struct parametric_equation_lexer
+{
+ 
+};
 
-internal parametric_equation_parse_result ParametricEquationParse(arena *Arena, string Equation, b32 T_ImplicitlyBound);
-internal parametric_equation_eval_result  ParametricEquationEval(arena *Arena, string Equation);
-internal f32                              ParametricEquationEvalWithT(parametric_equation_expr *Expr, f32 T);
+internal parametric_equation_parse_result            ParametricEquationParse(arena *Arena, string Equation, u32 VarCount, string *VarNames, f32 *VarValues); // assumes that "t" is implicitly bound
+internal parametric_equation_eval_result             ParametricEquationEval(arena *Arena, string Equation, u32 VarCount, string *VarNames, f32 *VarValues);
+internal f32                                         ParametricEquationEvalWithT(parametric_equation_expr *Expr, f32 T);
 
 #endif //EDITOR_PARAMETRIC_EQUATION_H

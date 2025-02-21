@@ -15,6 +15,12 @@ enum
 };
 typedef u32 window_flags;
 
+struct ui_input_result
+{
+ string Input;
+ b32 Changed;
+};
+
 internal void UI_PushLabel(string Label);
 internal void UI_PushLabelF(char const *Format, ...);
 internal void UI_PushId(u32 Id);
@@ -79,8 +85,10 @@ internal void              UI_AngleSlider(v2 *Rotation, string Label);
 internal void              UI_AngleSliderF(v2 *Rotation, char const *Format, ...);
 internal changed_b32       UI_ColorPicker(v4 *Color, string Label);
 internal changed_b32       UI_ColorPickerF(v4 *Color, char const *Format, ...);
-internal string            UI_InputText(char *Buf, u64 BufSize, string Label);
-internal string            UI_InputTextF(char *Buf, u64 BufSize, char const *Format, ...);
+internal ui_input_result   UI_InputText(char *Buf, u64 BufSize, u32 InputWidthInChars, string Label);
+internal ui_input_result   UI_InputTextF(char *Buf, u64 BufSize, u32 InputWidthInChars, char const *Format, ...);
+internal ui_input_result   UI_MultiLineInputText(char *Buf, u64 BufSize, u32 InputWidthInChars, string Label);
+internal ui_input_result   UI_MultiLineInputTextF(char *Buf, u64 BufSize, u32 InputWidthInChars, char const *Format, ...);
 internal void              UI_Text(string Text);
 internal void              UI_TextF(char const *Format, ...);
 internal void              UI_SeparatorText(string Text);

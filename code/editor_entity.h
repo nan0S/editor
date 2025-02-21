@@ -63,6 +63,10 @@ struct parametric_curve_params
  
  parametric_equation_expr *X_Equation;
  parametric_equation_expr *Y_Equation;
+ 
+ // TODO(hbr): Once we optimize the equation, we shouldn't need to store this
+ // because everything in env is a number anyway so we can replace it when parsing
+ parametric_equation_env EquationEnv;
 };
 
 struct curve_params
@@ -156,17 +160,66 @@ enum
  TranslateCurvePoint_MatchBezierTwinLength    = (1<<1),
 };
 
+#define MAX_EQUATION_BUFFER_LENGTH 64
+struct parametric_curve_additional_var
+{
+ u32 Id;
+ 
+#define MAX_VAR_NAME_BUFFER_LENGTH 16
+ char VarNameBuffer[MAX_VAR_NAME_BUFFER_LENGTH];
+ char VarEquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
+};
 struct parametric_curve_resources
 {
  arena *Arena;
  
-#define MAX_EQUATION_BUFFER_LENGTH 64
+ // TODO(hbr): Make length of these things different
  char MinT_EquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
  char MaxT_EquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
  
  char X_EquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
  char Y_EquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
+ 
+#define MAX_ADDITIONAL_VARS_COUNT 16
+ u32 AdditionalVarCount;
+ parametric_curve_additional_var AdditionalVars[MAX_ADDITIONAL_VARS_COUNT];
 };
+
+internal b32
+HasFreeAdditionalVar(parametric_curve_resources *Resources)
+{
+ b32 Result = (Resources->AdditionalVarCount < MAX_ADDITIONAL_VARS_COUNT);
+ return Result;
+}
+
+internal void
+ActivateNewAdditionalVar(parametric_curve_resources *Resources)
+{
+ Assert(HasFreeAdditionalVar(Resources));
+ parametric_curve_additional_var *Var = Resources->AdditionalVars + Resources->AdditionalVarCount;
+ ++Resources->AdditionalVarCount;
+ if (Var->Id == 0)
+ {
+  Var->Id = Resources->AdditionalVarCount;
+ }
+}
+
+internal void
+DeactiveAdditionalVar(parametric_curve_resources *Resources, u32 VarIndex)
+{
+ Assert(VarIndex < Resources->AdditionalVarCount);
+ 
+ parametric_curve_additional_var *Remove = Resources->AdditionalVars + VarIndex;
+ parametric_curve_additional_var *From = Resources->AdditionalVars + (Resources->AdditionalVarCount - 1);
+ 
+ u32 RemoveId = Remove->Id;
+ ArrayMove(Remove, Remove + 1, (Resources->AdditionalVarCount - 1) - VarIndex);
+ 
+ StructZero(From);
+ From->Id = RemoveId;
+ 
+ --Resources->AdditionalVarCount;
+}
 
 struct curve
 {

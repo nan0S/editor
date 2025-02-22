@@ -20,12 +20,6 @@ enum parametric_equation_token_type
  ParametricEquationToken_Comma,
 };
 
-struct parametric_equation_source_location
-{
- u32 LineAt;
- u32 CharWithinLineAt;
-};
-
 struct parametric_equation_token
 {
  parametric_equation_token_type Type;
@@ -34,7 +28,6 @@ struct parametric_equation_token
   f32 Number;
  };
  
- parametric_equation_source_location Location;
  string OriginalString;
 };
 
@@ -85,6 +78,7 @@ X(exp, 1) \
 X(pi, 0) \
 X(tau, 0) \
 X(euler, 0) \
+X(t, 0) \
 X(var, 0) // this is just regular user-defined variable but we have to define all the types
 
 global char const *ParametricEquationIdentifierNames[] = {
@@ -110,13 +104,13 @@ struct parametric_equation_application_expr_identifier
 {
  parametric_equation_identifier_type Type;
  string Var;
- parametric_equation_source_location Location;
 };
 struct parametric_equation_application_expr
 {
  parametric_equation_application_expr_identifier Identifier;
  u32 ArgCount;
- parametric_equation_expr *Args;
+#define PARAMETRIC_EQUATION_APPLICATION_MAX_ARG_COUNT 2
+ parametric_equation_expr *Args[PARAMETRIC_EQUATION_APPLICATION_MAX_ARG_COUNT];
 };
 
 enum parametric_equation_expr_type
@@ -128,7 +122,6 @@ enum parametric_equation_expr_type
 };
 struct parametric_equation_expr
 {
- parametric_equation_expr *Next;
  parametric_equation_expr_type Type;
  union {
   parametric_equation_unary_expr Unary;
@@ -137,11 +130,18 @@ struct parametric_equation_expr
   parametric_equation_application_expr Application;
  };
 };
-read_only global parametric_equation_expr NilExpr = { &NilExpr };
+read_only global parametric_equation_expr NilExpr;
+
+enum parametric_equation_t_mode
+{
+ ParametricEquationT_Unbound,
+ ParametricEquationT_JustBound,
+ ParametricEquationT_BoundAndValueProvided,
+};
 
 struct parametric_equation_env
 {
- b32 T_Bounded;
+ parametric_equation_t_mode T_Mode;
  f32 T_Value;
  
  u32 VarCount;
@@ -201,30 +201,35 @@ struct parametric_equation_parse_statements_result
  parametric_equation_env Env;
 };
 
-struct parametric_equation_parser
+struct parametric_equation_parsing_error
 {
  arena *Arena;
- 
- char *CharBegin;
- char *CharAt;
- parametric_equation_source_location CharLocation;
- 
- parametric_equation_token *Tokens;
- u32 TokenCount;
- u32 MaxTokenCount;
- 
- parametric_equation_token *TokenAt;
- 
  string ErrorMessage;
 };
 
 struct parametric_equation_lexer
 {
+ char *CharAt;
  
+ u32 MaxTokenCount;
+ u32 TokenCount;
+ parametric_equation_token *Tokens;
 };
 
-internal parametric_equation_parse_result            ParametricEquationParse(arena *Arena, string Equation, u32 VarCount, string *VarNames, f32 *VarValues); // assumes that "t" is implicitly bound
-internal parametric_equation_eval_result             ParametricEquationEval(arena *Arena, string Equation, u32 VarCount, string *VarNames, f32 *VarValues);
-internal f32                                         ParametricEquationEvalWithT(parametric_equation_expr *Expr, f32 T);
+struct parametric_equation_token_array
+{
+ u32 TokenCount;
+ parametric_equation_token *Tokens;
+};
+
+struct parametric_equation_parser
+{
+ parametric_equation_token *TokenAt;
+ parametric_equation_parsing_error *ErrorCapture;
+};
+
+internal parametric_equation_parse_result ParametricEquationParse(arena *Arena, string Equation, u32 VarCount, string *VarNames, f32 *VarValues, b32 DontOptimize = false); // assumes that "t" is implicitly bound
+internal parametric_equation_eval_result  ParametricEquationEval(arena *Arena, string Equation, u32 VarCount, string *VarNames, f32 *VarValues);
+internal f32                              ParametricEquationEvalWithT(parametric_equation_expr *Expr, f32 T);
 
 #endif //EDITOR_PARAMETRIC_EQUATION_H

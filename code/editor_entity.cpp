@@ -1,3 +1,92 @@
+inline internal curve *
+SafeGetCurve(entity *Entity)
+{
+ Assert(Entity->Type == Entity_Curve);
+ return &Entity->Curve;
+}
+
+inline internal image *
+SafeGetImage(entity *Entity)
+{
+ Assert(Entity->Type == Entity_Image);
+ return &Entity->Image;
+}
+
+inline internal curve_point_index
+CurvePointIndexFromControlPointIndex(control_point_index Index)
+{
+ curve_point_index Result = {};
+ Result.Type = CurvePoint_ControlPoint;
+ Result.ControlPoint = Index;
+ 
+ return Result;
+}
+
+inline internal curve_point_index
+CurvePointIndexFromBezierPointIndex(cubic_bezier_point_index Index)
+{
+ curve_point_index Result = {};
+ Result.Type = CurvePoint_CubicBezierPoint;
+ Result.BezierPoint = Index;
+ 
+ return Result;
+}
+
+inline internal cubic_bezier_point_index
+CubicBezierPointIndexFromControlPointIndex(control_point_index Index)
+{
+ cubic_bezier_point_index Result = {};
+ Result.Index = 3 * Index.Index + 1;
+ 
+ return Result;
+}
+
+inline internal control_point_index
+MakeControlPointIndex(u32 Index)
+{
+ control_point_index Result = {};
+ Result.Index = Index;
+ return Result;
+}
+
+inline internal v2
+GetCubicBezierPoint(curve *Curve, cubic_bezier_point_index Index)
+{
+ v2 Result = {};
+ if (Index.Index < 3 * Curve->ControlPointCount)
+ {
+  v2 *Beziers = Cast(v2 *)Curve->CubicBezierPoints;
+  Result = Beziers[Index.Index];
+ }
+ 
+ return Result;
+}
+
+inline internal v2
+GetCenterPointFromCubicBezierPointIndex(curve *Curve, cubic_bezier_point_index Index)
+{
+ v2 Result = {};
+ u32 ControlPointIndex = Index.Index / 3;
+ if (ControlPointIndex < Curve->ControlPointCount)
+ {
+  Result = Curve->ControlPoints[ControlPointIndex];
+ }
+ 
+ return Result;
+}
+
+inline internal control_point_index
+CurveLinePointIndexToControlPointIndex(curve *Curve, u32 CurveLinePointIndex)
+{
+ Assert(!IsCurveTotalSamplesMode(Curve));
+ u32 Index = SafeDiv0(CurveLinePointIndex, Curve->Params.SamplesPerControlPoint);
+ Assert(Index < Curve->ControlPointCount);
+ control_point_index Result = {};
+ Result.Index = ClampTop(Index, Curve->ControlPointCount - 1);
+ 
+ return Result;
+}
+
 internal b32
 AreLinePointsVisible(curve *Curve)
 {
@@ -8,7 +97,7 @@ AreLinePointsVisible(curve *Curve)
 internal b32
 DoesCurveUseControlPoints(curve *Curve)
 {
- b32 Result = (Curve->Params.Interpolation != Interpolation_Parametric);
+ b32 Result = (Curve->Params.Type != Curve_Parametric);
  return Result;
 }
 
@@ -86,7 +175,7 @@ GetVisibleCubicBezierPoints(entity *Entity)
  curve *Curve = SafeGetCurve(Entity);
  if (IsEntitySelected(Entity) &&
      IsControlPointSelected(Curve) &&
-     Curve->Params.Interpolation == Interpolation_Bezier &&
+     Curve->Params.Type == Curve_Bezier &&
      Curve->Params.Bezier == Bezier_Cubic)
  {
   cubic_bezier_point_index StartIndex = CubicBezierPointIndexFromControlPointIndex(Curve->SelectedIndex);
@@ -119,9 +208,9 @@ internal b32
 IsCurveEligibleForPointTracking(curve *Curve)
 {
  curve_params *Params = &Curve->Params;
- interpolation_type Interpolation = Params->Interpolation;
+ curve_type Interpolation = Params->Type;
  bezier_type BezierVariant = Params->Bezier;
- b32 Result = (Interpolation == Interpolation_Bezier && BezierVariant == Bezier_Regular);
+ b32 Result = (Interpolation == Curve_Bezier && BezierVariant == Bezier_Regular);
  
  return Result;
 }
@@ -129,7 +218,7 @@ IsCurveEligibleForPointTracking(curve *Curve)
 internal b32
 CurveHasWeights(curve *Curve)
 {
- b32 Result = (Curve->Params.Interpolation == Interpolation_Bezier &&
+ b32 Result = (Curve->Params.Type == Curve_Bezier &&
                Curve->Params.Bezier == Bezier_Regular);
  return Result;
 }
@@ -138,17 +227,17 @@ internal b32
 IsCurveTotalSamplesMode(curve *Curve)
 {
  b32 Result = false;
- switch (Curve->Params.Interpolation)
+ switch (Curve->Params.Type)
  {
-  case Interpolation_CubicSpline:
-  case Interpolation_Bezier:
-  case Interpolation_Polynomial: {}break;
+  case Curve_CubicSpline:
+  case Curve_Bezier:
+  case Curve_Polynomial: {}break;
   
-  case Interpolation_Parametric: {
+  case Curve_Parametric: {
    Result = true;
   }break;
   
-  case Interpolation_Count: InvalidPath;
+  case Curve_Count: InvalidPath;
  }
  
  return Result;
@@ -158,15 +247,15 @@ internal b32
 CanAddControlPoints(curve *Curve)
 {
  b32 Result = false;
- switch (Curve->Params.Interpolation)
+ switch (Curve->Params.Type)
  {
-  case Interpolation_CubicSpline:
-  case Interpolation_Bezier:
-  case Interpolation_Polynomial: {Result = true;}break;
+  case Curve_CubicSpline:
+  case Curve_Bezier:
+  case Curve_Polynomial: {Result = true;}break;
   
-  case Interpolation_Parametric: {}break;
+  case Curve_Parametric: {}break;
   
-  case Interpolation_Count: InvalidPath;
+  case Curve_Count: InvalidPath;
  }
  
  return Result;
@@ -183,11 +272,11 @@ AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method M
  
  string IncompatibleTypes = StrLit("cannot merge curves of different types");
  
- if (Params0->Interpolation == Params1->Interpolation)
+ if (Params0->Type == Params1->Type)
  {
-  switch (Params0->Interpolation)
+  switch (Params0->Type)
   {
-   case Interpolation_Polynomial: {
+   case Curve_Polynomial: {
     if (Method == CurveMerge_Concat)
     {
      Compatible = true;
@@ -198,7 +287,7 @@ AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method M
     }
    }break;
    
-   case Interpolation_CubicSpline: {
+   case Curve_CubicSpline: {
     if (Params0->CubicSpline == Params1->CubicSpline)
     {
      if (Method == CurveMerge_Concat)
@@ -216,7 +305,7 @@ AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method M
     }
    }break;
    
-   case Interpolation_Bezier: {
+   case Curve_Bezier: {
     if (Params0->Bezier == Params1->Bezier)
     {
      switch (Params0->Bezier)
@@ -245,11 +334,11 @@ AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method M
     }
    }break;
    
-   case Interpolation_Parametric: {
+   case Curve_Parametric: {
     WhyIncompatible = IncompatibleTypes;
    }break;
    
-   case Interpolation_Count: InvalidPath;
+   case Curve_Count: InvalidPath;
   }
  }
  else
@@ -792,7 +881,7 @@ SetTrackingPointFraction(entity_with_modify_witness *EntityWitness, f32 Fraction
 internal b32
 IsCurveLooped(curve *Curve)
 {
- b32 IsLooped = (Curve->Params.Interpolation == Interpolation_CubicSpline &&
+ b32 IsLooped = (Curve->Params.Type == Curve_CubicSpline &&
                  Curve->Params.CubicSpline   == CubicSpline_Periodic);
  return IsLooped;
 }
@@ -1103,9 +1192,9 @@ EvaluateCurve(curve *Curve, u32 LinePointCount, v2 *LinePoints)
 {
  temp_arena Temp = TempArena(0);
  curve_params *CurveParams = &Curve->Params;
- switch (CurveParams->Interpolation)
+ switch (CurveParams->Type)
  {
-  case Interpolation_Polynomial: {
+  case Curve_Polynomial: {
    polynomial_interpolation_params *Polynomial = &CurveParams->Polynomial;
    
    f32 *Ti = PushArrayNonZero(Temp.Arena, Curve->ControlPointCount, f32);
@@ -1133,13 +1222,13 @@ EvaluateCurve(curve *Curve, u32 LinePointCount, v2 *LinePoints)
    }
   } break;
   
-  case Interpolation_CubicSpline: {
+  case Curve_CubicSpline: {
    CalcCubicSplineLinePoints(Curve->ControlPoints, Curve->ControlPointCount,
                              CurveParams->CubicSpline,
                              LinePointCount, LinePoints);
   } break;
   
-  case Interpolation_Bezier: {
+  case Curve_Bezier: {
    switch (CurveParams->Bezier)
    {
     case Bezier_Regular: {
@@ -1156,14 +1245,14 @@ EvaluateCurve(curve *Curve, u32 LinePointCount, v2 *LinePoints)
    }
   } break;
   
-  case Interpolation_Parametric: {
+  case Curve_Parametric: {
    parametric_curve_params *Parametric = &CurveParams->Parametric;
    CalcParametricCurveLinePoints(Parametric->MinT, Parametric->MaxT,
                                  Parametric->X_Equation, Parametric->Y_Equation,
                                  LinePointCount, LinePoints);
   }break;
   
-  case Interpolation_Count: InvalidPath;
+  case Curve_Count: InvalidPath;
  }
  EndTemp(Temp);
 }
@@ -1285,4 +1374,42 @@ EndEntityModify(entity_with_modify_witness Witness)
    case Entity_Count: InvalidPath;
   }
  }
+}
+
+internal b32
+HasFreeAdditionalVar(parametric_curve_resources *Resources)
+{
+ b32 Result = (Resources->AdditionalVarCount < MAX_ADDITIONAL_VARS_COUNT);
+ return Result;
+}
+
+internal void
+ActivateNewAdditionalVar(parametric_curve_resources *Resources)
+{
+ Assert(HasFreeAdditionalVar(Resources));
+ 
+ parametric_curve_var *Var = Resources->AdditionalVars + Resources->AdditionalVarCount;
+ ++Resources->AdditionalVarCount;
+ 
+ u32 Id = Var->Id;
+ if (Id == 0)
+ {
+  Id = Resources->AdditionalVarCount;
+ }
+ 
+ StructZero(Var);
+ Var->Id = Id;
+}
+
+internal void
+DeactiveAdditionalVar(parametric_curve_resources *Resources, u32 VarIndex)
+{
+ Assert(VarIndex < Resources->AdditionalVarCount);
+ 
+ parametric_curve_var *Remove = Resources->AdditionalVars + VarIndex;
+ parametric_curve_var *From = Resources->AdditionalVars + (Resources->AdditionalVarCount - 1);
+ 
+ ArrayMove(Remove, Remove + 1, (Resources->AdditionalVarCount - 1) - VarIndex);
+ 
+ --Resources->AdditionalVarCount;
 }

@@ -1,18 +1,16 @@
 #ifndef EDITOR_ENTITY_H
 #define EDITOR_ENTITY_H
 
-// TODO(hbr): This is not interpolation_type anymore - with parametric variant
-enum interpolation_type : u32
+enum curve_type : u32
 {
- Interpolation_CubicSpline,
- Interpolation_Bezier,
- Interpolation_Polynomial,
- Interpolation_Parametric,
- Interpolation_Count
+ Curve_CubicSpline,
+ Curve_Bezier,
+ Curve_Polynomial,
+ Curve_Parametric,
+ Curve_Count
 };
-// TODO(hbr): Try to add designated array intializers
-global char const *InterpolationNames[] = { "Cubic Spline", "Bezier", "Polynomial", "Parametric" };
-StaticAssert(ArrayCount(InterpolationNames) == Interpolation_Count, InterpolationNamesDefined);
+global char const *CurveTypeNames[] = { "Cubic Spline", "Bezier", "Polynomial", "Parametric" };
+StaticAssert(ArrayCount(CurveTypeNames) == Curve_Count, CurveTypeNamesDefined);
 
 enum polynomial_interpolation_type : u32
 {
@@ -20,8 +18,8 @@ enum polynomial_interpolation_type : u32
  PolynomialInterpolation_Newton,
  PolynomialInterpolation_Count,
 };
-global char const *PolynomialInterpolationNames[] = { "Barycentric", "Newton" };
-StaticAssert(ArrayCount(PolynomialInterpolationNames) == PolynomialInterpolation_Count, PolynomialInterpolationNamesDefined);
+global char const *PolynomialInterpolationTypeNames[] = { "Barycentric", "Newton" };
+StaticAssert(ArrayCount(PolynomialInterpolationTypeNames) == PolynomialInterpolation_Count, PolynomialInterpolationTypeNamesDefined);
 
 enum point_spacing : u32
 {
@@ -67,7 +65,7 @@ struct parametric_curve_params
 
 struct curve_params
 {
- interpolation_type Interpolation;
+ curve_type Type;
  polynomial_interpolation_params Polynomial;
  cubic_spline_type CubicSpline;
  bezier_type Bezier;
@@ -195,44 +193,6 @@ struct parametric_curve_resources
  parametric_curve_var AdditionalVars[MAX_ADDITIONAL_VARS_COUNT];
 };
 
-internal b32
-HasFreeAdditionalVar(parametric_curve_resources *Resources)
-{
- b32 Result = (Resources->AdditionalVarCount < MAX_ADDITIONAL_VARS_COUNT);
- return Result;
-}
-
-internal void
-ActivateNewAdditionalVar(parametric_curve_resources *Resources)
-{
- Assert(HasFreeAdditionalVar(Resources));
- 
- parametric_curve_var *Var = Resources->AdditionalVars + Resources->AdditionalVarCount;
- ++Resources->AdditionalVarCount;
- 
- u32 Id = Var->Id;
- if (Id == 0)
- {
-  Id = Resources->AdditionalVarCount;
- }
- 
- StructZero(Var);
- Var->Id = Id;
-}
-
-internal void
-DeactiveAdditionalVar(parametric_curve_resources *Resources, u32 VarIndex)
-{
- Assert(VarIndex < Resources->AdditionalVarCount);
- 
- parametric_curve_var *Remove = Resources->AdditionalVars + VarIndex;
- parametric_curve_var *From = Resources->AdditionalVars + (Resources->AdditionalVarCount - 1);
- 
- ArrayMove(Remove, Remove + 1, (Resources->AdditionalVarCount - 1) - VarIndex);
- 
- --Resources->AdditionalVarCount;
-}
-
 struct curve
 {
  curve_params Params;
@@ -261,11 +221,10 @@ struct curve
  parametric_curve_resources ParametricResources;
 };
 
-struct renderer_index;
 struct image
 {
  v2 Dim;
- renderer_index *TextureIndex;
+ struct renderer_index *TextureIndex;
 };
 
 enum entity_type
@@ -310,10 +269,9 @@ struct entity_with_modify_witness
 };
 global entity_with_modify_witness _NilEntityWitness;
 global entity_with_modify_witness *NilEntityWitness = &_NilEntityWitness;
-
-internal void MarkEntityModified(entity_with_modify_witness *Witness);
 internal entity_with_modify_witness BeginEntityModify(entity *Entity);
-internal void EndEntityModify(entity_with_modify_witness Witness);
+internal void                       EndEntityModify(entity_with_modify_witness Witness);
+internal void                       MarkEntityModified(entity_with_modify_witness *Witness);
 
 struct entity_array
 {
@@ -338,23 +296,50 @@ internal void InitEntityFromEntity(entity_with_modify_witness *Dst, entity *Src)
 internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
 internal v2 LocalEntityPositionToWorld(entity *Entity, v2 P);
 
-inline internal curve *
-SafeGetCurve(entity *Entity)
-{
- Assert(Entity->Type == Entity_Curve);
- return &Entity->Curve;
-}
-
-inline internal image *
-SafeGetImage(entity *Entity)
-{
- Assert(Entity->Type == Entity_Image);
- return &Entity->Image;
-}
-
 internal void SetEntityName(entity *Entity, string Name);
 internal sorted_entries SortEntities(arena *Arena, entity_array Entities);
 internal void RotateEntityAround(entity *Entity, v2 Rotate, v2 Around);
+
+internal void SetCurvePoint(entity_with_modify_witness *Entity, curve_point_index Index, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
+internal void SetCurveControlPoint(entity_with_modify_witness *Entity, control_point_index Index, v2 P, f32 Weight); // this can be only control point thus we accept weight as well
+internal void RemoveControlPoint(entity_with_modify_witness *Entity, u32 Index);
+internal control_point_index AppendControlPoint(entity_with_modify_witness *Entity, v2 Point);
+internal void InsertControlPoint(entity_with_modify_witness *Entity, v2 Point, u32 At);
+internal void SetCurveControlPoints(entity_with_modify_witness *Entity, u32 PointCount, v2 *Points, f32 *Weights, cubic_bezier_point *CubicBeziers);
+
+internal void SelectControlPoint(curve *Curve, control_point_index Index);
+internal void SelectControlPointFromCurvePointIndex(curve *Curve, curve_point_index Index);
+internal void UnselectControlPoint(curve *Curve);
+
+enum modify_curve_points_which_points
+{
+ ModifyCurvePointsWhichPoints_JustControlPoints,
+ ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers,
+};
+struct curve_points
+{
+ u32 PointCount;
+ v2 *ControlPoints;
+ f32 *Weights;
+ cubic_bezier_point *CubicBeziers;
+ modify_curve_points_which_points Which;
+};
+internal curve_points BeginModifyCurvePoints(entity_with_modify_witness *Curve, u32 RequestedPointCount, modify_curve_points_which_points Which);
+internal void EndModifyCurvePoints(curve *Curve, curve_points *Handle);
+
+union entity_colors
+{
+ struct {
+  v4 CurveLineColor;
+  v4 CurvePointColor;
+  v4 CurvePolylineColor;
+  v4 CurveConvexHullColor;
+ };
+ v4 AllColors[4];
+};
+StaticAssert(SizeOf(MemberOf(entity_colors, AllColors)) == SizeOf(entity_colors), EntityColors_ArrayLengthMatchesDefinedColors);
+internal entity_colors ExtractEntityColors(entity *Entity);
+internal void ApplyColorsToEntity(entity *Entity, entity_colors Colors);
 
 internal b32 IsEntityVisible(entity *Entity);
 internal void SwitchEntityVisibility(entity *Entity);
@@ -391,122 +376,5 @@ struct curve_merge_compatibility
  string WhyIncompatible;
 };
 internal curve_merge_compatibility AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method Method);
-
-union entity_colors
-{
- struct {
-  v4 CurveLineColor;
-  v4 CurvePointColor;
-  v4 CurvePolylineColor;
-  v4 CurveConvexHullColor;
- };
- v4 AllColors[4];
-};
-StaticAssert(SizeOf(MemberOf(entity_colors, AllColors)) == SizeOf(entity_colors), EntityColors_ArrayLengthMatchesDefinedColors);
-internal entity_colors ExtractEntityColors(entity *Entity);
-internal void ApplyColorsToEntity(entity *Entity, entity_colors Colors);
-
-inline internal curve_point_index
-CurvePointIndexFromControlPointIndex(control_point_index Index)
-{
- curve_point_index Result = {};
- Result.Type = CurvePoint_ControlPoint;
- Result.ControlPoint = Index;
- 
- return Result;
-}
-
-inline internal curve_point_index
-CurvePointIndexFromBezierPointIndex(cubic_bezier_point_index Index)
-{
- curve_point_index Result = {};
- Result.Type = CurvePoint_CubicBezierPoint;
- Result.BezierPoint = Index;
- 
- return Result;
-}
-
-inline internal cubic_bezier_point_index
-CubicBezierPointIndexFromControlPointIndex(control_point_index Index)
-{
- cubic_bezier_point_index Result = {};
- Result.Index = 3 * Index.Index + 1;
- 
- return Result;
-}
-
-inline internal control_point_index
-MakeControlPointIndex(u32 Index)
-{
- control_point_index Result = {};
- Result.Index = Index;
- return Result;
-}
-
-inline internal v2
-GetCubicBezierPoint(curve *Curve, cubic_bezier_point_index Index)
-{
- v2 Result = {};
- if (Index.Index < 3 * Curve->ControlPointCount)
- {
-  v2 *Beziers = Cast(v2 *)Curve->CubicBezierPoints;
-  Result = Beziers[Index.Index];
- }
- 
- return Result;
-}
-
-inline internal v2
-GetCenterPointFromCubicBezierPointIndex(curve *Curve, cubic_bezier_point_index Index)
-{
- v2 Result = {};
- u32 ControlPointIndex = Index.Index / 3;
- if (ControlPointIndex < Curve->ControlPointCount)
- {
-  Result = Curve->ControlPoints[ControlPointIndex];
- }
- 
- return Result;
-}
-
-inline internal control_point_index
-CurveLinePointIndexToControlPointIndex(curve *Curve, u32 CurveLinePointIndex)
-{
- Assert(!IsCurveTotalSamplesMode(Curve));
- u32 Index = SafeDiv0(CurveLinePointIndex, Curve->Params.SamplesPerControlPoint);
- Assert(Index < Curve->ControlPointCount);
- control_point_index Result = {};
- Result.Index = ClampTop(Index, Curve->ControlPointCount - 1);
- 
- return Result;
-}
-
-internal void SetCurvePoint(entity_with_modify_witness *Entity, curve_point_index Index, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
-internal void SetCurveControlPoint(entity_with_modify_witness *Entity, control_point_index Index, v2 P, f32 Weight); // this can be only control point thus we accept weight as well
-internal void RemoveControlPoint(entity_with_modify_witness *Entity, u32 Index);
-internal control_point_index AppendControlPoint(entity_with_modify_witness *Entity, v2 Point);
-internal void InsertControlPoint(entity_with_modify_witness *Entity, v2 Point, u32 At);
-internal void SetCurveControlPoints(entity_with_modify_witness *Entity, u32 PointCount, v2 *Points, f32 *Weights, cubic_bezier_point *CubicBeziers);
-
-internal void SelectControlPoint(curve *Curve, control_point_index Index);
-internal void SelectControlPointFromCurvePointIndex(curve *Curve, curve_point_index Index);
-internal void UnselectControlPoint(curve *Curve);
-
-enum modify_curve_points_which_points
-{
- ModifyCurvePointsWhichPoints_JustControlPoints,
- ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers,
-};
-struct curve_points
-{
- u32 PointCount;
- v2 *ControlPoints;
- f32 *Weights;
- cubic_bezier_point *CubicBeziers;
- modify_curve_points_which_points Which;
-};
-
-internal curve_points BeginModifyCurvePoints(entity_with_modify_witness *Curve, u32 RequestedPointCount, modify_curve_points_which_points Which);
-internal void EndModifyCurvePoints(curve *Curve, curve_points *Handle);
 
 #endif //EDITOR_ENTITY_H

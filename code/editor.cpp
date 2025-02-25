@@ -554,7 +554,7 @@ LowerBezierCurveDegree(entity *Entity)
  u32 PointCount = Curve->ControlPointCount;
  if (PointCount > 0)
  {
-  Assert(Curve->Params.Interpolation == Interpolation_Bezier);
+  Assert(Curve->Params.Type== Curve_Bezier);
   temp_arena Temp = TempArena(Lowering->Arena);
   
   v2 *LowerPoints = PushArrayNonZero(Temp.Arena, PointCount, v2);
@@ -600,7 +600,7 @@ internal void
 ElevateBezierCurveDegree(entity *Entity)
 {
  curve *Curve = SafeGetCurve(Entity);
- Assert(Curve->Params.Interpolation == Interpolation_Bezier);
+ Assert(Curve->Params.Type == Curve_Bezier);
  temp_arena Temp = TempArena(0);
  
  u32 ControlPointCount = Curve->ControlPointCount;
@@ -794,7 +794,7 @@ RenderSelectedEntityUI(editor *Editor)
         SplitOnControlPoint = UI_ButtonF("Split on Control Point");
        }
        
-       b32 IsBezierRegular = (CurveParams->Interpolation == Interpolation_Bezier &&
+       b32 IsBezierRegular = (CurveParams->Interpolation == Curve_Bezier &&
                               CurveParams->Bezier == Bezier_Regular);
        UI_Disabled(!IsBezierRegular)
        {
@@ -1385,7 +1385,7 @@ UpdateAndRenderDegreeLowering(rendering_entity_handle Handle)
  
  if (Lowering->Active)
  {
-  Assert(CurveParams->Interpolation == Interpolation_Bezier);
+  Assert(CurveParams->Type == Curve_Bezier);
   
   b32 IsDegreeLoweringWindowOpen = true;
   b32 MixChanged = false;
@@ -1505,19 +1505,19 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
     {
      switch (SourceParams->Interpolation)
      {
-      case Interpolation_Polynomial:  {
+      case Curve_Polynomial:  {
        CanCombine = (State->CombinationType == CurveCombination_Merge);
       } break;
-      case Interpolation_CubicSpline: {
+      case Curve_CubicSpline: {
        CanCombine = ((SourceParams->CubicSpline == WithParams->CubicSpline) &&
                      (State->CombinationType == CurveCombination_Merge));
       } break;
-      case Interpolation_Bezier: {
+      case Curve_Bezier: {
        CanCombine = ((SourceParams->Bezier == WithParams->Bezier) &&
                      (SourceParams->Bezier != Bezier_Cubic));
       } break;
       
-      case Interpolation_Count: InvalidPath;
+      case Curve_Count: InvalidPath;
      }
     }
    }
@@ -2083,7 +2083,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
   
   InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("special"), 0);
   curve_params Params = Editor->CurveDefaultParams;
-  Params.Interpolation = Interpolation_Bezier;
+  Params.Type = Curve_Bezier;
   InitCurve(&EntityWitness, Params);
   
   AppendControlPoint(&EntityWitness, V2(-0.5f, -0.5f));
@@ -2539,18 +2539,18 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
     UI_SeparatorTextF("Curve");
     UI_LabelF("Curve")
     {       
-     UI_ComboF(SafeCastToPtr(CurveParams.Interpolation, u32), Interpolation_Count, InterpolationNames, "Interpolation");
+     UI_ComboF(SafeCastToPtr(CurveParams.Type, u32), Curve_Count, CurveTypeNames, "Interpolation");
      if (ResetCtxMenu(StrLit("InterpolationReset")))
      {
-      CurveParams.Interpolation = DefaultParams->Interpolation;
+      CurveParams.Type = DefaultParams->Type;
      }
      
-     switch (CurveParams.Interpolation)
+     switch (CurveParams.Type)
      {
-      case Interpolation_Polynomial: {
+      case Curve_Polynomial: {
        polynomial_interpolation_params *Polynomial = &CurveParams.Polynomial;
        
-       UI_ComboF(SafeCastToPtr(Polynomial->Type, u32), PolynomialInterpolation_Count, PolynomialInterpolationNames, "Variant");
+       UI_ComboF(SafeCastToPtr(Polynomial->Type, u32), PolynomialInterpolation_Count, PolynomialInterpolationTypeNames, "Variant");
        if (ResetCtxMenu(StrLit("PolynomialReset")))
        {
         Polynomial->Type = DefaultParams->Polynomial.Type;
@@ -2563,7 +2563,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
        }
       }break;
       
-      case Interpolation_CubicSpline: {
+      case Curve_CubicSpline: {
        UI_ComboF(SafeCastToPtr(CurveParams.CubicSpline, u32), CubicSpline_Count, CubicSplineNames, "Variant");
        if (ResetCtxMenu(StrLit("SplineReset")))
        {
@@ -2571,7 +2571,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
        }
       }break;
       
-      case Interpolation_Bezier: {
+      case Curve_Bezier: {
        UI_ComboF(SafeCastToPtr(CurveParams.Bezier, u32), Bezier_Count, BezierNames, "Variant");
        if (ResetCtxMenu(StrLit("BezierReset")))
        {
@@ -2579,7 +2579,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
        }
       }break;
       
-      case Interpolation_Parametric: {
+      case Curve_Parametric: {
        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
        if (UI_BeginTreeF("Equation"))
        {
@@ -2735,7 +2735,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
        }
       }break;
       
-      case Interpolation_Count: InvalidPath;
+      case Curve_Count: InvalidPath;
      }
     }
     

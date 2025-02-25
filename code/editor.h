@@ -281,25 +281,25 @@ struct async_task
  renderer_index *TextureIndex;
 };
 
-struct bouncing_parameter
-{
- f32 T;
- f32 Sign;
- f32 Speed;
-};
-
-enum
-{
- AnimatingCurves_Active = (1<<0),
- AnimatingCurves_Animating = (1<<1),
-};
-typedef u32 animating_curves_flags;
 struct choose_2_curves_state
 {
  b32 WaitingForChoice;
  entity *Curves[2];
  u32 ChoosingCurveIndex;
 };
+
+struct bouncing_parameter
+{
+ f32 T;
+ f32 Sign;
+ f32 Speed;
+};
+enum
+{
+ AnimatingCurves_Active = (1<<0),
+ AnimatingCurves_Animating = (1<<1),
+};
+typedef u32 animating_curves_flags;
 struct animating_curves_state
 {
  animating_curves_flags Flags;

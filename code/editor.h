@@ -135,14 +135,6 @@ struct collision
  u32 CurveLinePointIndex;
 };
 
-struct curve_combining_state
-{
- entity *SourceEntity;
- entity *WithEntity;
- b32 SourceCurveLastControlPoint;
- b32 WithCurveFirstControlPoint;
-};
-
 enum notification_type
 {
  Notification_None,
@@ -284,7 +276,7 @@ struct async_task
 struct choose_2_curves_state
 {
  b32 WaitingForChoice;
- entity *Curves[2];
+ entity_id Curves[2];
  u32 ChoosingCurveIndex;
 };
 
@@ -363,8 +355,6 @@ struct editor
  f32 CollisionToleranceClip;
  f32 RotationRadiusClip;
  curve_params CurveDefaultParams;
- 
- curve_combining_state CurveCombining;
 };
 
 struct load_image_work

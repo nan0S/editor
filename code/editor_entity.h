@@ -239,7 +239,7 @@ enum
  EntityFlag_Active   = (1<<0),
  EntityFlag_Hidden   = (1<<1),
  EntityFlag_Selected = (1<<2),
- EntityFlag_CurveAppendFront = (1<<3),
+ EntityFlag_CurveAppendFront_ = (1<<3),
 };
 typedef u32 entity_flags;
 
@@ -257,6 +257,9 @@ struct entity
  i32 SortingLayer;
  entity_flags Flags;
  
+ // NOTE(hbr): I don't think this needs to be bigger than u32
+ u32 Generation;
+ 
  entity_type Type;
  curve Curve;
  image Image;
@@ -273,6 +276,36 @@ internal entity_with_modify_witness BeginEntityModify(entity *Entity);
 internal void                       EndEntityModify(entity_with_modify_witness Witness);
 internal void                       MarkEntityModified(entity_with_modify_witness *Witness);
 
+struct entity_id
+{
+ entity *Entity;
+ u32 Generation;
+};
+
+inline internal entity_id
+MakeEntityId(entity *Entity)
+{
+ entity_id Id = {};
+ if (Entity)
+ {
+  Id.Entity = Entity;
+  Id.Generation = Entity->Generation;
+ }
+ 
+ return Id;
+}
+
+inline internal entity *
+EntityFromId(entity_id Id)
+{
+ entity *Result = 0;
+ if (Id.Entity && (Id.Generation == Id.Entity->Generation))
+ {
+  Result = Id.Entity;
+ }
+ return Result;
+}
+
 struct entity_array
 {
  u32 Count;
@@ -287,7 +320,7 @@ struct point_info
  v4 OutlineColor;
 };
 
-internal void InitAllocEntity(entity *Entity);
+internal void AllocEntityResources(entity *Entity);
 internal void InitEntity(entity *Entity, v2 P, v2 Scale, v2 Rotation, string Name, i32 SortingLayer);
 internal void InitCurve(entity_with_modify_witness *Entity, curve_params Params);
 internal void InitImage(entity *Entity);
@@ -345,8 +378,8 @@ internal b32 IsEntityVisible(entity *Entity);
 internal void SwitchEntityVisibility(entity *Entity);
 internal b32 IsEntitySelected(entity *Entity);
 internal b32 IsControlPointSelected(curve *Curve);
-internal b32 AreLinePointsVisible(curve *Curve);
-internal b32 DoesCurveUseControlPoints(curve *Curve);
+internal b32 AreCurvePointsVisible(curve *Curve);
+internal b32 UsesControlPoints(curve *Curve);
 internal point_info GetCurveControlPointInfo(entity *Curve, u32 PointIndex);
 internal f32 GetCurveTrackedPointRadius(curve *Curve);
 internal f32 GetCurveCubicBezierPointRadius(curve *Curve);
@@ -355,6 +388,7 @@ internal b32 IsCurveEligibleForPointTracking(curve *Curve);
 internal b32 CurveHasWeights(curve *Curve);
 internal b32 IsCurveTotalSamplesMode(curve *Curve);
 internal b32 CanAddControlPoints(curve *Curve);
+internal b32 IsCurveReversed(entity *Curve);
 
 enum curve_merge_method : u32
 {

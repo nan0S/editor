@@ -88,14 +88,14 @@ CurveLinePointIndexToControlPointIndex(curve *Curve, u32 CurveLinePointIndex)
 }
 
 internal b32
-AreLinePointsVisible(curve *Curve)
+AreCurvePointsVisible(curve *Curve)
 {
- b32 Result = (!Curve->Params.PointsDisabled && DoesCurveUseControlPoints(Curve));
+ b32 Result = (!Curve->Params.PointsDisabled && UsesControlPoints(Curve));
  return Result;
 }
 
 internal b32
-DoesCurveUseControlPoints(curve *Curve)
+UsesControlPoints(curve *Curve)
 {
  b32 Result = (Curve->Params.Type != Curve_Parametric);
  return Result;
@@ -261,6 +261,21 @@ CanAddControlPoints(curve *Curve)
  return Result;
 }
 
+inline internal b32
+IsCurve(entity *Entity)
+{
+ b32 Result = (Entity->Type == Entity_Curve);
+ return Result;
+}
+
+internal b32
+IsCurveReversed(entity *Entity)
+{
+ curve *Curve = SafeGetCurve(Entity);
+ b32 Result = (UsesControlPoints(Curve) && (Entity->Flags & EntityFlag_CurveAppendFront_));
+ return Result;
+}
+
 internal curve_merge_compatibility
 AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method Method)
 {
@@ -387,8 +402,8 @@ GetCurveControlPointInfo(entity *Entity, u32 PointIndex)
  
  Result.Radius = Params->PointRadius;
  
- if (( (Entity->Flags & EntityFlag_CurveAppendFront) && PointIndex == 0) ||
-     (!(Entity->Flags & EntityFlag_CurveAppendFront) && PointIndex == Curve->ControlPointCount-1))
+ if (( (Entity->Flags & EntityFlag_CurveAppendFront_) && PointIndex == 0) ||
+     (!(Entity->Flags & EntityFlag_CurveAppendFront_) && PointIndex == Curve->ControlPointCount-1))
  {
   Result.Radius *= 1.5f;
  }
@@ -626,7 +641,7 @@ AppendControlPoint(entity_with_modify_witness *EntityWitness, v2 Point)
  control_point_index Result = {};
  
  entity *Entity = EntityWitness->Entity;
- if (Entity->Flags & EntityFlag_CurveAppendFront)
+ if (Entity->Flags & EntityFlag_CurveAppendFront_)
  {
   Result.Index = 0;
  }
@@ -732,7 +747,7 @@ InitImage(entity *Entity)
 }
 
 internal void
-InitAllocEntity(entity *Entity)
+AllocEntityResources(entity *Entity)
 {
  Entity->Arena = AllocArena();
  Entity->Curve.DegreeLowering.Arena = AllocArena();

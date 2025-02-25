@@ -154,7 +154,7 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
      curve_params *Params = &Curve->Params;
      curve_point_tracking_state *Tracking = &Curve->PointTracking;
      
-     if (AreLinePointsVisible(Curve))
+     if (AreCurvePointsVisible(Curve))
      {
       //- control points
       {
@@ -326,7 +326,7 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
 }
 
 internal entity *
-AllocEntity(editor *Editor)
+AllocEntityFromPool(editor *Editor)
 {
  entity *Entity = 0;
  
@@ -343,12 +343,14 @@ AllocEntity(editor *Editor)
    arena *EntityArena = Entity->Arena;
    arena *DegreeLoweringArena = Entity->Curve.DegreeLowering.Arena;
    arena *ParametricArena = Entity->Curve.ParametricResources.Arena;
+   u32 Generation = Entity->Generation;
    
    StructZero(Entity);
    
    Entity->Arena = EntityArena;
    Entity->Curve.DegreeLowering.Arena = DegreeLoweringArena;
    Entity->Curve.ParametricResources.Arena = ParametricArena;
+   Entity->Generation = Generation;
    
    Entity->Flags |= EntityFlag_Active;
    ClearArena(Entity->Arena);
@@ -361,29 +363,8 @@ AllocEntity(editor *Editor)
 }
 
 internal void
-BeginCurveCombining(curve_combining_state *State, entity *CurveEntity)
-{
- StructZero(State);
- State->SourceEntity = CurveEntity;
-}
-
-internal void
-EndCurveCombining(curve_combining_state *State)
-{
- StructZero(State);
-}
-
-internal void
 DeallocEntity(editor *Editor, entity *Entity)
 {
- if (Editor->CurveCombining.SourceEntity == Entity)
- {
-  EndCurveCombining(&Editor->CurveCombining);
- }
- if (Editor->CurveCombining.WithEntity == Entity)
- {
-  Editor->CurveCombining.WithEntity = 0;
- }
  if (Editor->SelectedEntity == Entity)
  {
   Editor->SelectedEntity = 0;
@@ -396,6 +377,7 @@ DeallocEntity(editor *Editor, entity *Entity)
  }
  
  Entity->Flags &= ~EntityFlag_Active;
+ ++Entity->Generation;
 }
 
 internal void
@@ -460,7 +442,7 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  u32 ControlPointCount = Curve->ControlPointCount;
  
  entity *LeftEntity = Entity;
- entity *RightEntity = AllocEntity(Editor);
+ entity *RightEntity = AllocEntityFromPool(Editor);
  
  entity_with_modify_witness LeftWitness = BeginEntityModify(LeftEntity);
  entity_with_modify_witness RightWitness = BeginEntityModify(RightEntity);
@@ -499,7 +481,7 @@ DuplicateEntity(entity *Entity, editor *Editor)
 {
  temp_arena Temp = TempArena(0);
  
- entity *Copy = AllocEntity(Editor);
+ entity *Copy = AllocEntityFromPool(Editor);
  entity_with_modify_witness CopyWitness = BeginEntityModify(Copy);
  string CopyName = StrF(Temp.Arena, "%S(copy)", Entity->Name);
  
@@ -697,7 +679,7 @@ SplitCurveOnControlPoint(entity *Entity, editor *Editor)
   u32 TailPointCount = Curve->ControlPointCount - Curve->SelectedIndex.Index;
   
   entity *HeadEntity = Entity;
-  entity *TailEntity = AllocEntity(Editor);
+  entity *TailEntity = AllocEntityFromPool(Editor);
   
   entity_with_modify_witness HeadWitness = BeginEntityModify(HeadEntity);
   entity_with_modify_witness TailWitness = BeginEntityModify(TailEntity);
@@ -730,557 +712,6 @@ SplitCurveOnControlPoint(entity *Entity, editor *Editor)
   
   EndTemp(Temp);
  }
-}
-
-#if 0
-// TODO(hbr): Do a pass oveer this internal to simplify the logic maybe (and simplify how the UI looks like in real life)
-// TODO(hbr): Maybe also shorten some labels used to pass to ImGUI
-internal void
-RenderSelectedEntityUI(editor *Editor)
-{
- entity *Entity = Editor->SelectedEntity;
- ui_config *UI_Config = &Editor->UI_Config;
- if (UI_Config->ViewSelectedEntityWindow && Entity)
- {
-  UI_LabelF("SelectedEntity")
-  {
-   if (UI_BeginWindowF(&UI_Config->ViewSelectedEntityWindow, "Selected Entity"))
-   {
-    b32 SomeCurveParamChanged = false;
-    if (Curve)
-    {
-     curve_params DefaultParams = Editor->CurveDefaultParams;
-     curve_params *CurveParams = &Curve->Params;
-     
-     b32 Delete                        = false;
-     b32 Copy                          = false;
-     b32 SwitchVisibility              = false;
-     b32 Deselect                      = false;
-     b32 FocusOn                       = false;
-     b32 ElevateBezierCurve            = false;
-     b32 LowerBezierCurve              = false;
-     b32 SplitBezierCurve              = false;
-     b32 AnimateCurve                  = false;
-     b32 CombineCurve                  = false;
-     b32 SplitOnControlPoint           = false;
-     b32 VisualizeDeCasteljau          = false;
-     
-     UI_NewRow();
-     UI_SeparatorTextF("Actions");
-     {
-      Delete = UI_ButtonF("Delete");
-      UI_SameRow();
-      Copy = UI_ButtonF("Copy");
-      UI_SameRow();
-      SwitchVisibility = UI_ButtonF((Entity->Flags & EntityFlag_Hidden) ? "Show" : "Hide");
-      UI_SameRow();
-      Deselect = UI_ButtonF("Deselect");
-      UI_SameRow();
-      FocusOn = UI_ButtonF("Focus");
-      
-      if (Curve)
-      {
-       curve_params *CurveParams = &Curve->Params;
-       
-       // TODO(hbr): Maybe pick better name than transform
-       AnimateCurve = UI_ButtonF("Animate");
-       UI_SameRow();
-       // TODO(hbr): Maybe pick better name than "Combine"
-       CombineCurve = UI_ButtonF("Combine");
-       
-       UI_Disabled(!IsControlPointSelected(Curve))
-       {
-        UI_SameRow();
-        SplitOnControlPoint = UI_ButtonF("Split on Control Point");
-       }
-       
-       b32 IsBezierRegular = (CurveParams->Interpolation == Curve_Bezier &&
-                              CurveParams->Bezier == Bezier_Regular);
-       UI_Disabled(!IsBezierRegular)
-       {
-        UI_Disabled(Curve->ControlPointCount < 2)
-        {
-         UI_SameRow();
-         SplitBezierCurve = UI_ButtonF("Split");
-        }
-        ElevateBezierCurve = UI_ButtonF("Elevate Degree");
-        UI_Disabled(Curve->ControlPointCount == 0)
-        {
-         UI_SameRow();
-         LowerBezierCurve = UI_ButtonF("Lower Degree");
-        }
-        VisualizeDeCasteljau = UI_ButtonF("Visualize De Casteljau");
-       }
-       
-      }
-     }
-     
-     if (Delete)
-     {
-      DeallocEntity(Editor, Entity);
-     }
-     
-     if (Copy)
-     {
-      DuplicateEntity(Entity, Editor);
-     }
-     
-     if (SwitchVisibility)
-     {
-      Entity->Flags ^= EntityFlag_Hidden;
-     }
-     
-     if (Deselect)
-     {
-      DeselectCurrentEntity(Editor);
-     }
-     
-     if (FocusOn)
-     {
-      FocusCameraOnEntity(Editor, Entity);
-     }
-     
-     if (ElevateBezierCurve)
-     {
-      ElevateBezierCurveDegree(Entity);
-     }
-     
-     if (LowerBezierCurve)
-     {
-      LowerBezierCurveDegree(Entity);
-     }
-     
-     if (SplitBezierCurve)
-     {
-      BeginCurvePointTracking(Curve, true);
-     }
-     
-     if (AnimateCurve)
-     {
-      BeginAnimatingCurve(&Editor->CurveAnimation, Entity);
-     }
-     
-     if (CombineCurve)
-     {
-      BeginCurveCombining(&Editor->CurveCombining, Entity);
-     }
-     
-     if (SplitOnControlPoint)
-     {
-      SplitCurveOnControlPoint(Entity, Editor);
-     }
-     
-     if (VisualizeDeCasteljau)
-     {
-      BeginCurvePointTracking(Curve, false);
-     }
-     
-     if (SomeCurveParamChanged)
-     {
-      MarkCurveForRecomputation(Entity);
-     }
-    }
-    UI_EndWindow();
-   }
-  }
- }
-}
-#endif
-
-internal void
-UpdateAndRenderMenuBar(editor *Editor, platform_input *Input, render_group *RenderGroup)
-{
- local char const *SaveAsLabel = "SaveAsWindow";
- local char const *SaveAsTitle = "Save As";
- local char const *OpenNewProjectLabel = "OpenNewProject";
- local char const *OpenNewProjectTitle = "Open";
- 
- local ImGuiWindowFlags FileDialogWindowFlags = ImGuiWindowFlags_NoCollapse;
- 
- v2u WindowDim = RenderGroup->Frame->WindowDim;
- ImVec2 HalfWindowDim = ImVec2(0.5f * WindowDim.X, 0.5f * WindowDim.Y);
- ImVec2 FileDialogMinSize = HalfWindowDim;
- ImVec2 FileDialogMaxSize = ImVec2(Cast(f32)WindowDim.X, Cast(f32)WindowDim.Y);
- 
-#if 0
- auto FileDialog = ImGuiFileDialog::Instance();
- 
- string ConfirmCloseProject = StrLit("ConfirmCloseCurrentProject");
- if (NewProject || KeyPressed(Input, Key_N, Modifier_Ctrl))
- {
-  UI_OpenPopup(ConfirmCloseProject);
-  Editor->ActionWaitingToBeDone = ActionToDo_NewProject;
- }
- if (OpenProject || KeyPressed(Input, Key_O, Modifier_Ctrl))
- {
-  UI_OpenPopup(ConfirmCloseProject);
-  Editor->ActionWaitingToBeDone = ActionToDo_OpenProject;
- }
- if (Quit || KeyPressed(Input, Key_Q, 0) || KeyPressed(Input, Key_Esc, 0))
- {
-  UI_OpenPopup(ConfirmCloseProject);
-  Editor->ActionWaitingToBeDone = ActionToDo_Quit;
- }
- 
- if (SaveProject || KeyPressed(Input, Key_S, Modifier_Ctrl))
- {
-  // TODO(hbr): Implement
-  
-  if (IsValid(Editor->ProjectSavePath))
-  {
-   temp_arena Temp = TempArena(0);
-   
-   error_string SaveProjectInFormatError = SaveProjectInFormat(Temp.Arena,
-                                                               Editor->SaveProjectFormat,
-                                                               Editor->ProjectSavePath,
-                                                               Editor);
-   
-   if (IsError(SaveProjectInFormatError))
-   {
-    AddNotificationF(Editor, Notification_Error, SaveProjectInFormatError.Data);
-   }
-   else
-   {
-    AddNotificationF(Editor, Notification_Success, "project successfully saved in %s",
-                     Editor->ProjectSavePath.Data);
-   }
-   
-   EndTemp(Temp);
-  }
-  else
-  {
-   FileDialog->OpenModal(SaveAsLabel, SaveAsTitle,
-                         SAVE_AS_MODAL_EXTENSION_SELECTION,
-                         ".");
-  }
- }
- 
- if (SaveProjectAs || KeyPressed(Input, Key_S, Modifier_Ctrl|Modifier_Shift))
- {
-  FileDialog->OpenModal(SaveAsLabel, SaveAsTitle,
-                        SAVE_AS_MODAL_EXTENSION_SELECTION,
-                        ".");
- }
- 
- if (LoadImage)
- {
-  FileDialog->OpenModal(LoadImageLabel, LoadImageTitle,
-                        "Image Files (*.jpg *.png){.jpg,.png}",
-                        ".");
- }
- 
- 
- action_to_do ActionToDo = ActionToDo_Nothing;
- // NOTE(hbr): Open "Are you sure you want to exit?" popup
- {   
-  // NOTE(hbr): Center window.
-  ImGui::SetNextWindowPos(HalfWindowDim, ImGuiCond_Always, ImVec2(0.5f,0.5f));
-  if (UI_BeginPopupModal(ConfirmCloseProject))
-  {
-   UI_TextF("You are about to discard current project. Save it?");
-   ImGui::Separator();
-   b32 Yes    = UI_ButtonF("Yes"); UI_SameRow();
-   b32 No     = UI_ButtonF("No"); UI_SameRow();
-   b32 Cancel = UI_ButtonF("Cancel");
-   
-   if (Yes || No)
-   {
-    if (Yes)
-    {
-     // TODO(hbr): Implement
-     if (IsValid(Editor->ProjectSavePath))
-     {
-      temp_arena Temp = TempArena(0);
-      
-      string SaveProjectFilePath = Editor->ProjectSavePath;
-      save_project_format SaveProjectFormat = Editor->SaveProjectFormat;
-      
-      error_string SaveProjectInFormatError = SaveProjectInFormat(Temp.Arena,
-                                                                  SaveProjectFormat,
-                                                                  SaveProjectFilePath,
-                                                                  Editor);
-      
-      if (IsError(SaveProjectInFormatError))
-      {
-       AddNotificationF(Editor, Notification_Error, "failed to discard current project: %s",
-                        SaveProjectInFormatError.Data);
-       
-       Editor->ActionWaitingToBeDone = ActionToDo_Nothing;
-      }
-      else
-      {
-       AddNotificationF(Editor, Notification_Success, "project sucessfully saved in %s",
-                        SaveProjectFilePath.Data);
-       
-       ActionToDo = Editor->ActionWaitingToBeDone;
-       Editor->ActionWaitingToBeDone = ActionToDo_Nothing;
-      }
-      
-      EndTemp(Temp);
-     }
-     else
-     {
-      FileDialog->OpenModal(SaveAsLabel, SaveAsTitle,
-                            SAVE_AS_MODAL_EXTENSION_SELECTION,
-                            ".");
-      // NOTE(hbr): Action is still waiting to be done as soon as save path is chosen.
-     }
-    }
-    else if (No)
-    {
-     // NOTE(hbr): Do action now.
-     ActionToDo = Editor->ActionWaitingToBeDone;
-     Editor->ActionWaitingToBeDone = ActionToDo_Nothing;
-    }
-   }
-   
-   if (Yes || No || Cancel)
-   {
-    UI_CloseCurrentPopup();
-   }
-   
-   UI_EndPopup();
-  }
- }
- 
- // NOTE(hbr): Open dialog to Save Project As 
- if (FileDialog->Display(SaveAsLabel,
-                         FileDialogWindowFlags,
-                         FileDialogMinSize,
-                         FileDialogMaxSize))
- {
-  if (FileDialog->IsOk())
-  {
-   temp_arena Temp = TempArena(0);
-   
-   std::string const &SelectedPath = FileDialog->GetFilePathName();
-   std::string const &SelectedFilter = FileDialog->GetCurrentFilter();
-   string SaveProjectFilePath = Str(Temp.Arena,
-                                    SelectedPath.c_str(),
-                                    SelectedPath.size());
-   string SaveProjectExtension = Str(Temp.Arena,
-                                     SelectedFilter.c_str(),
-                                     SelectedFilter.size());
-   
-   string Project = StrLitArena(Temp.Arena, PROJECT_FILE_EXTENSION_SELECTION);
-   string JPG     = StrLitArena(Temp.Arena, JPG_FILE_EXTENSION_SELECTION);
-   string PNG     = StrLitArena(Temp.Arena, PNG_FILE_EXTENSION_SELECTION);
-   
-   string AddExtension = {};
-   save_project_format SaveProjectFormat = SaveProjectFormat_None;
-   if (AreStringsEqual(SaveProjectExtension, Project))
-   {
-    AddExtension = StrLitArena(Temp.Arena, SAVED_PROJECT_FILE_EXTENSION);
-    SaveProjectFormat = SaveProjectFormat_ProjectFile;
-   }
-   else if (AreStringsEqual(SaveProjectExtension, JPG))
-   {
-    AddExtension = StrLitArena(Temp.Arena, ".jpg");
-    SaveProjectFormat = SaveProjectFormat_ImageFile;
-   }
-   else if (AreStringsEqual(SaveProjectExtension, PNG))
-   {
-    AddExtension = StrLitArena(Temp.Arena, ".png");
-    SaveProjectFormat = SaveProjectFormat_ImageFile;
-   }
-   
-   string SaveProjectFilePathWithExtension = SaveProjectFilePath;
-   if (IsValid(AddExtension))
-   {
-    if (!HasSuffix(SaveProjectFilePathWithExtension, AddExtension))
-    {
-     SaveProjectFilePathWithExtension = StrF(Temp.Arena,
-                                             "%s%s",
-                                             SaveProjectFilePathWithExtension,
-                                             AddExtension);
-    }
-   }
-   
-   error_string SaveProjectInFormatError = SaveProjectInFormat(Temp.Arena,
-                                                               SaveProjectFormat,
-                                                               SaveProjectFilePathWithExtension,
-                                                               Editor);
-   
-   if (IsError(SaveProjectInFormatError))
-   {
-    AddNotificationF(Editor, Notification_Error, SaveProjectInFormatError.Data);
-    
-    Editor->ActionWaitingToBeDone = ActionToDo_Nothing;
-   }
-   else
-   {
-    EditorSetSaveProjectPath(Editor, SaveProjectFormat, SaveProjectFilePathWithExtension);
-    
-    AddNotificationF(Editor, Notification_Success, "project sucessfully saved in %s",
-                     SaveProjectFilePathWithExtension.Data);
-    
-    ActionToDo = Editor->ActionWaitingToBeDone;
-    Editor->ActionWaitingToBeDone = ActionToDo_Nothing;
-   }
-   
-   EndTemp(Temp);
-  }
-  else
-  {
-   Editor->ActionWaitingToBeDone = ActionToDo_Nothing;
-  }
-  
-  FileDialog->Close();
- }
- 
- switch (ActionToDo)
- {
-  case ActionToDo_Nothing: {} break;
-  
-  case ActionToDo_NewProject: {
-   
-   // TODO(hbr): Load new project
-   
-   editor_state NewEditor =
-    CreateDefaultEditor(Editor->EntityPool,
-                        Editor->DeCasteljauVisual.Arena,
-                        Editor->DegreeLowering.Arena,
-                        Editor->MovingPointArena,
-                        Editor->CurveAnimation.Arena);
-   
-   DeallocEditor(&Editor);
-   Editor = NewEditor;
-   
-   EditorSetSaveProjectPath(Editor, SaveProjectFormat_None, {});
-  } break;
-  
-  case ActionToDo_OpenProject: {
-   Assert(Editor->ActionWaitingToBeDone == ActionToDo_Nothing);
-   FileDialog->OpenModal(OpenNewProjectLabel, OpenNewProjectTitle,
-                         SAVED_PROJECT_FILE_EXTENSION, ".");
-  } break;
-  
-  case ActionToDo_Quit: {
-   Assert(Editor->ActionWaitingToBeDone == ActionToDo_Nothing);
-   Input->QuitRequested = true;
-  } break;
- }
- 
- // NOTE(hbr): Open dialog to Open New Project
- if (FileDialog->Display(OpenNewProjectLabel,
-                         FileDialogWindowFlags,
-                         FileDialogMinSize,
-                         FileDialogMaxSize))
- {
-  if (FileDialog->IsOk())
-  {
-   temp_arena Temp = TempArena(0);
-   // TODO(hbr): Implement this
-   std::string const &SelectedPath = FileDialog->GetFilePathName();
-   string OpenProjectFilePath = Str(Temp.Arena,
-                                    SelectedPath.c_str(),
-                                    SelectedPath.size());
-   
-   
-   load_project_result LoadResult = LoadProjectFromFile(Temp.Arena,
-                                                        OpenProjectFilePath,
-                                                        Editor->EntityPool,
-                                                        Editor->DeCasteljauVisual.Arena,
-                                                        Editor->DegreeLowering.Arena,
-                                                        Editor->MovingPointArena,
-                                                        Editor->CurveAnimation.Arena);
-   if (IsError(LoadResult.Error))
-   {
-    AddNotificationF(&Editor->Notifications,
-                     Notification_Error,
-                     "failed to open new project: %s",
-                     LoadResult.Error.Data);
-   }
-   else
-   {
-    AddNotificationF(&Editor->Notifications,
-                     Notification_Success,
-                     "project successfully loaded from %s",
-                     OpenProjectFilePath.Data);
-    
-    DeallocEditor(&Editor);
-    Editor = LoadResult.Editor;
-    Editor->Params = LoadResult.EditorParameters;
-    Editor->UI_Config = LoadResult.UI_Config;
-    
-    EditorSetSaveProjectPath(Editor,
-                             SaveProjectFormat_ProjectFile,
-                             OpenProjectFilePath);
-   }
-   
-   ListIter(Warning, LoadResult.Warnings.Head, string_list_node)
-   {
-    AddNotificationF(&Editor->Notifications,
-                     Notification_Warning,
-                     Warning->String.Data);
-   }
-   
-   EndTemp(Temp);
-   
-   
-  }
-  
-  FileDialog->Close();
- }
- 
- // NOTE(hbr): Open dialog to Load Image
- if (FileDialog->Display(LoadImageLabel,
-                         FileDialogWindowFlags,
-                         FileDialogMinSize,
-                         FileDialogMaxSize))
- {
-  if (FileDialog->IsOk())
-  {
-   temp_arena Temp = TempArena(0);
-   
-   std::string const &SelectedPath = FileDialog->GetFilePathName();
-   string NewImageFilePath = Str(Temp.Arena,
-                                 SelectedPath.c_str(),
-                                 SelectedPath.size());
-   
-   string LoadTextureError = {};
-   sf::Texture LoadedTexture = LoadTextureFromFile(Temp.Arena,
-                                                   NewImageFilePath,
-                                                   &LoadTextureError);
-   
-   if (IsError(LoadTextureError))
-   {
-    AddNotificationF(&Editor->Notifications,
-                     Notification_Error,
-                     "failed to load image: %s",
-                     LoadTextureError.Data);
-   }
-   else
-   {
-    std::string const &SelectedFileName = FileDialog->GetCurrentFileName();
-    string ImageFileName = Str(Temp.Arena,
-                               SelectedFileName.c_str(),
-                               SelectedFileName.size());
-    RemoveExtension(&ImageFileName);
-    
-    entity *Entity = AllocEntity(&Editor);
-    InitImageEntity(Entity,
-                    V2(0.0f, 0.0f),
-                    V2(1.0f, 1.0f),
-                    Rotation2DZero(),
-                    StrToNameStr(ImageFileName),
-                    NewImageFilePath,
-                    &LoadedTexture);
-    
-    SelectEntity(&Editor, Entity);
-    
-    AddNotificationF(&Editor->Notifications,
-                     Notification_Success,
-                     "successfully loaded image from %s",
-                     NewImageFilePath.Data);
-   }
-   
-   EndTemp(Temp);
-  }
-  
-  FileDialog->Close();
- }
-#endif
 }
 
 struct rendering_entity_handle
@@ -1446,301 +877,6 @@ UpdateAndRenderDegreeLowering(rendering_entity_handle Handle)
  }
  
  EndEntityModify(EntityWitness);
-}
-
-// TODO(hbr): Refactor this function
-internal void
-RenderEntityCombo(u32 EntityCount, entity *Entities, entity **InOutEntity, string Label)
-{
- entity *Entity = *InOutEntity;
- string Preview = (Entity ? Entity->Name : StrLit(""));
- if (UI_BeginCombo(Preview, Label))
- {
-  for (u32 EntityIndex = 0;
-       EntityIndex < MAX_ENTITY_COUNT;
-       ++EntityIndex)
-  {
-   entity *Current= Entities + EntityIndex;
-   if ((Current->Flags & EntityFlag_Active) &&
-       (Current->Type == Entity_Curve) &&
-       UI_SelectableItem(Current == Entity, Current->Name))
-   {
-    *InOutEntity = Current;
-    break;
-   }
-  }
-  UI_EndCombo();
- }
-}
-
-internal void
-UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
-{
-#if 0
- temp_arena Temp = TempArena(0);
- 
- curve_combining_state *State = &Editor->CurveCombining;
- if (State->SourceEntity)
- {
-  b32 Combine      = false;
-  b32 Cancel       = false;
-  b32 IsWindowOpen = true;
-  if (UI_BeginWindowF(&IsWindowOpen, 0, "Combine Curves"))
-  {                 
-   if (IsWindowOpen)
-   {
-    RenderEntityCombo(MAX_ENTITY_COUNT, Editor->Entities, &State->SourceEntity, StrLit("Curve 1"));
-    RenderEntityCombo(MAX_ENTITY_COUNT, Editor->Entities, &State->WithEntity,   StrLit("Curve 2"));
-    UI_ComboF(Cast(u32 *)&State->CombinationType, CurveCombination_Count, CurveCombinationNames, "Method");
-   }
-   
-   b32 CanCombine = (State->CombinationType != CurveCombination_None);
-   if (State->WithEntity)
-   {
-    curve_params *SourceParams = &SafeGetCurve(State->SourceEntity)->Params;
-    curve_params *WithParams = &SafeGetCurve(State->WithEntity)->Params;
-    
-    if (SourceParams != WithParams &&
-        SourceParams->Interpolation == WithParams->Interpolation)
-    {
-     switch (SourceParams->Interpolation)
-     {
-      case Curve_Polynomial:  {
-       CanCombine = (State->CombinationType == CurveCombination_Merge);
-      } break;
-      case Curve_CubicSpline: {
-       CanCombine = ((SourceParams->CubicSpline == WithParams->CubicSpline) &&
-                     (State->CombinationType == CurveCombination_Merge));
-      } break;
-      case Curve_Bezier: {
-       CanCombine = ((SourceParams->Bezier == WithParams->Bezier) &&
-                     (SourceParams->Bezier != Bezier_Cubic));
-      } break;
-      
-      case Curve_Count: InvalidPath;
-     }
-    }
-   }
-   UI_Disabled(!CanCombine)
-   {
-    Combine = UI_ButtonF("Combine");
-    UI_SameRow();
-   }
-   Cancel = UI_ButtonF("Cancel");
-  }
-  UI_EndWindow();
-  
-  if (Combine)
-  {
-   entity *FromEntity = State->SourceEntity;
-   entity *ToEntity   = State->WithEntity;
-   curve  *From       = SafeGetCurve(FromEntity);
-   curve  *To         = SafeGetCurve(ToEntity);
-   u32     FromCount  = From->ControlPointCount;
-   u32     ToCount    = To->ControlPointCount;
-   
-   entity_with_modify_witness ToEntityWitness = BeginEntityModify(ToEntity);
-   
-   if (State->SourceCurveLastControlPoint)
-   {
-    ArrayReverse(From->ControlPoints,       FromCount, v2);
-    ArrayReverse(From->ControlPointWeights, FromCount, f32);
-    ArrayReverse(From->CubicBezierPoints,   FromCount, cubic_bezier_point);
-   }
-   
-   if (State->WithCurveFirstControlPoint)
-   {
-    ArrayReverse(To->ControlPoints,       ToCount, v2);
-    ArrayReverse(To->ControlPointWeights, ToCount, f32);
-    ArrayReverse(To->CubicBezierPoints,   ToCount, cubic_bezier_point);
-   }
-   
-   u32 CombinedPointCount = ToCount;
-   u32 StartIndex = 0;
-   v2 Translation = {};
-   switch (State->CombinationType)
-   {
-    case CurveCombination_Merge: {
-     CombinedPointCount += FromCount;
-    } break;
-    
-    case CurveCombination_C0:
-    case CurveCombination_C1:
-    case CurveCombination_C2:
-    case CurveCombination_G1: {
-     if (FromCount > 0)
-     {
-      CombinedPointCount += FromCount - 1;
-      StartIndex = 1;
-      if (ToCount > 0)
-      {
-       Translation =
-        LocalEntityPositionToWorld(ToEntity, To->ControlPoints[ToCount - 1]) -
-        LocalEntityPositionToWorld(FromEntity, From->ControlPoints[0]);
-      }
-     }
-    } break;
-    
-    case CurveCombination_None:
-    case CurveCombination_Count: InvalidPath;
-   }
-   
-   // NOTE(hbr): Allocate buffers and copy control points into them
-   v2 *CombinedPoints  = PushArrayNonZero(Temp.Arena, CombinedPointCount, v2);
-   f32 *CombinedWeights = PushArrayNonZero(Temp.Arena, CombinedPointCount, f32);
-   cubic_bezier_point *CombinedBeziers = PushArrayNonZero(Temp.Arena, CombinedPointCount, cubic_bezier_point);
-   ArrayCopy(CombinedPoints, To->ControlPoints, ToCount);
-   ArrayCopy(CombinedWeights, To->ControlPointWeights, ToCount);
-   ArrayCopy(CombinedBeziers, To->CubicBezierPoints, ToCount);
-   
-   // TODO(hbr): SIMD?
-   for (u32 I = StartIndex; I < FromCount; ++I)
-   {
-    v2 FromPoint = LocalEntityPositionToWorld(FromEntity, From->ControlPoints[I]);
-    v2 ToPoint   = WorldToLocalEntityPosition(ToEntity, FromPoint + Translation);
-    CombinedPoints[ToCount - StartIndex + I] = ToPoint;
-   }
-   for (u32 I = StartIndex; I < FromCount; ++I)
-   {
-    for (u32 J = 0; J < 3; ++J)
-    {
-     v2 FromBezier = LocalEntityPositionToWorld(FromEntity, From->CubicBezierPoints[I].Ps[J]);
-     v2 ToBezier   = WorldToLocalEntityPosition(ToEntity, FromBezier + Translation); 
-     CombinedBeziers[(ToCount - StartIndex) + I].Ps[J] = ToBezier;
-    }
-   }
-   ArrayCopy(CombinedWeights + ToCount,
-             From->ControlPointWeights + StartIndex,
-             (FromCount - StartIndex));
-   
-   // NOTE(hbr): Combine control points properly on the border
-   switch (State->CombinationType)
-   {
-    // NOTE(hbr): Nothing to do
-    case CurveCombination_Merge:
-    case CurveCombination_C0: {} break;
-    
-    case CurveCombination_C1: {
-     if (FromCount >= 2 && ToCount >= 2)
-     {
-      v2 P = CombinedPoints[ToCount - 1];
-      v2 Q = CombinedPoints[ToCount - 2];
-      
-      // NOTE(hbr): First derivative equal
-      v2 FixedControlPoint = Cast(f32)ToCount/FromCount * (P - Q) + P;
-      v2 Fix = FixedControlPoint - CombinedPoints[ToCount];
-      CombinedPoints[ToCount] = FixedControlPoint;
-      
-      CombinedBeziers[ToCount].P0 += Fix;
-      CombinedBeziers[ToCount].P1 += Fix;
-      CombinedBeziers[ToCount].P2 += Fix;
-     }
-    } break;
-    
-    case CurveCombination_C2: {
-     if (FromCount >= 3 && ToCount >= 3)
-     {
-      // TODO(hbr): Merge C1 with C2, maybe G1.
-      v2 R = CombinedPoints[ToCount - 3];
-      v2 Q = CombinedPoints[ToCount - 2];
-      v2 P = CombinedPoints[ToCount - 1];
-      
-      // NOTE(hbr): First derivative equal
-      v2 Fixed_T = Cast(f32)ToCount/FromCount * (P - Q) + P;
-      // NOTE(hbr): Second derivative equal
-      v2 Fixed_U = Cast(f32)(FromCount * (FromCount-1))/(ToCount * (ToCount-1)) * (P - 2.0f * Q + R) + 2.0f * Fixed_T - P;
-      v2 Fix_T = Fixed_T - CombinedPoints[ToCount];
-      v2 Fix_U = Fixed_U - CombinedPoints[ToCount + 1];
-      CombinedPoints[ToCount] = Fixed_T;
-      CombinedPoints[ToCount + 1] = Fixed_U;
-      
-      CombinedBeziers[ToCount].P0 += Fix_T;
-      CombinedBeziers[ToCount].P1 += Fix_T;
-      CombinedBeziers[ToCount].P2 += Fix_T;
-      
-      CombinedBeziers[ToCount + 1].P0 += Fix_U;
-      CombinedBeziers[ToCount + 1].P1 += Fix_U;
-      CombinedBeziers[ToCount + 1].P2 += Fix_U;
-     }
-    } break;
-    
-    case CurveCombination_G1: {
-     if (FromCount >= 2 && ToCount >= 2)
-     {
-      f32 PreserveLength = Norm(From->ControlPoints[1] - From->ControlPoints[0]);
-      
-      v2 P = CombinedPoints[ToCount - 2];
-      v2 Q = CombinedPoints[ToCount - 1];
-      v2 Direction = P - Q;
-      Normalize(&Direction);
-      
-      v2 FixedControlPoint = Q - PreserveLength * Direction;
-      v2 Fix = FixedControlPoint - CombinedPoints[ToCount];
-      CombinedPoints[ToCount] = FixedControlPoint;
-      
-      CombinedBeziers[ToCount].P0 += Fix;
-      CombinedBeziers[ToCount].P1 += Fix;
-      CombinedBeziers[ToCount].P2 += Fix;
-     }
-    } break;
-    
-    case CurveCombination_None:
-    case CurveCombination_Count: InvalidPath;
-   }
-   
-   SetCurveControlPoints(&ToEntityWitness,
-                         CombinedPointCount, CombinedPoints,
-                         CombinedWeights, CombinedBeziers);
-   
-   DeallocEntity(Editor, FromEntity);
-   SelectEntity(Editor, ToEntity);
-   
-   EndEntityModify(ToEntityWitness);
-  }
-  
-  if (Combine || !IsWindowOpen || Cancel)
-  {
-   EndCurveCombining(State);
-  }
- }
- 
- curve *SourceCurve = SafeGetCurve(State->SourceEntity);
- curve *WithCurve = SafeGetCurve(State->WithEntity);
- if (SourceCurve && WithCurve && (SourceCurve != WithCurve) &&
-     SourceCurve->ControlPointCount > 0 &&
-     WithCurve->ControlPointCount > 0)
- {
-  v2 SourcePointLocal = (State->SourceCurveLastControlPoint ?
-                         SourceCurve->ControlPoints[SourceCurve->ControlPointCount - 1] :
-                         SourceCurve->ControlPoints[0]);
-  v2 WithPointLocal = (State->WithCurveFirstControlPoint ?
-                       WithCurve->ControlPoints[0] :
-                       WithCurve->ControlPoints[WithCurve->ControlPointCount - 1]);
-  
-  v2 SourcePoint = LocalEntityPositionToWorld(State->SourceEntity, SourcePointLocal);
-  v2 WithPoint = LocalEntityPositionToWorld(State->WithEntity, WithPointLocal);
-  
-  f32 LineWidth = 0.5f * SourceCurve->Params.LineWidth;
-  v4 Color = SourceCurve->Params.LineColor;
-  Color.A = Cast(u8)(0.5f * Color.A);
-  
-  v2 LineDirection = WithPoint - SourcePoint;
-  Normalize(&LineDirection);
-  
-  f32 TriangleSide = 10.0f * LineWidth;
-  f32 TriangleHeight = TriangleSide * SqrtF32(3.0f) / 2.0f;
-  v2 BaseVertex = WithPoint - TriangleHeight * LineDirection;
-  PushLine(Group, SourcePoint, BaseVertex, LineWidth, Color, GetCurvePartZOffset(CurvePart_Count));
-  
-  v2 LinePerpendicular = Rotate90DegreesAntiClockwise(LineDirection);
-  v2 LeftVertex = BaseVertex + 0.5f * TriangleSide * LinePerpendicular;
-  v2 RightVertex = BaseVertex - 0.5f * TriangleSide * LinePerpendicular;
-  PushTriangle(Group, LeftVertex, RightVertex, WithPoint, Color, GetCurvePartZOffset(CurvePart_Count));
- }
- 
- EndTemp(Temp);
- 
-#endif
 }
 
 internal task_with_memory *
@@ -1943,7 +1079,7 @@ BeginChoosing2Curves(choose_2_curves_state *Choosing)
 {
  Choosing->WaitingForChoice = true;
  Choosing->ChoosingCurveIndex = 0;
- Choosing->Curves[0] = Choosing->Curves[1] = 0;
+ Choosing->Curves[0] = Choosing->Curves[1] = {};
 }
 
 internal b32
@@ -1951,12 +1087,12 @@ SupplyCurve(choose_2_curves_state *Choosing, entity *Curve)
 {
  b32 AllSupplied = false;
  
- Choosing->Curves[Choosing->ChoosingCurveIndex] = Curve;
- if (Choosing->Curves[0] == 0)
+ Choosing->Curves[Choosing->ChoosingCurveIndex] = MakeEntityId(Curve);
+ if (EntityFromId(Choosing->Curves[0]) == 0)
  {
   Choosing->ChoosingCurveIndex = 0;
  }
- else if (Choosing->Curves[1] == 0)
+ else if (EntityFromId(Choosing->Curves[1]) == 0)
  {
   Choosing->ChoosingCurveIndex = 1;
  }
@@ -2008,7 +1144,7 @@ EndMergingCurves(editor *Editor, b32 Merged)
  
  if (Merged)
  {
-  entity *Entity = AllocEntity(Editor);
+  entity *Entity = AllocEntityFromPool(Editor);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
   
   InitEntityFromEntity(&EntityWitness, &Merging->MergeEntity);
@@ -2065,7 +1201,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
       ++EntityIndex)
  {
   entity *Entity = Editor->Entities + EntityIndex;
-  InitAllocEntity(Entity);
+  AllocEntityResources(Entity);
  }
  
  Editor->EntityListWindow = true;
@@ -2075,10 +1211,10 @@ InitEditor(editor *Editor, editor_memory *Memory)
  
  Editor->LeftClick.OriginalVerticesArena = AllocArena();
  
- InitAllocEntity(&Editor->MergingCurves.MergeEntity);
+ AllocEntityResources(&Editor->MergingCurves.MergeEntity);
  
  {
-  entity *Entity = AllocEntity(Editor);
+  entity *Entity = AllocEntityFromPool(Editor);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
   
   InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("special"), 0);
@@ -2145,11 +1281,10 @@ InitEditor(editor *Editor, editor_memory *Memory)
 }
 
 internal void
-UpdateAndRenderAnimatingCurves(editor *Editor, platform_input *Input, render_group *RenderGroup)
+UpdateAndRenderAnimatingCurves(animating_curves_state *Animation, platform_input *Input, render_group *RenderGroup)
 {
- animating_curves_state *Animation = &Editor->AnimatingCurves;
- entity *Entity0 = Animation->Choose2Curves.Curves[0];
- entity *Entity1 = Animation->Choose2Curves.Curves[1];
+ entity *Entity0 = EntityFromId(Animation->Choose2Curves.Curves[0]);
+ entity *Entity1 = EntityFromId(Animation->Choose2Curves.Curves[1]);
  
  if ((Animation->Flags & AnimatingCurves_Active) && Entity0 && Entity1)
  {
@@ -2189,6 +1324,9 @@ UpdateAndRenderAnimatingCurves(editor *Editor, platform_input *Input, render_gro
   {
    u32 LinePointIndex0 = ClampTop(LinePointCount0 * LinePointIndex / (LinePointCount - 1), LinePointCount0 - 1);
    u32 LinePointIndex1 = ClampTop(LinePointCount1 * LinePointIndex / (LinePointCount - 1), LinePointCount1 - 1);
+   
+   if (IsCurveReversed(Entity0)) LinePointIndex0 = (LinePointCount0-1 - LinePointIndex0);
+   if (IsCurveReversed(Entity1)) LinePointIndex1 = (LinePointCount1-1 - LinePointIndex1);
    
    v2 PointLocal0 = Curve0->LinePoints[LinePointIndex0];
    v2 PointLocal1 = Curve1->LinePoints[LinePointIndex1];
@@ -2262,7 +1400,7 @@ RenderEntity(rendering_entity_handle Handle)
                     GetCurvePartZOffset(CurvePart_CurveConvexHull));
    }
    
-   if (AreLinePointsVisible(Curve))
+   if (AreCurvePointsVisible(Curve))
    {
     visible_cubic_bezier_points VisibleBeziers = GetVisibleCubicBezierPoints(Entity);
     for (u32 Index = 0;
@@ -2320,13 +1458,13 @@ RenderEntity(rendering_entity_handle Handle)
 }
 
 internal void
-UpdateAndRenderEntities(editor *Editor, render_group *RenderGroup)
+UpdateAndRenderEntities(u32 EntityCount, entity *Entities, render_group *RenderGroup)
 {
- for (u32 EntryIndex = 0;
-      EntryIndex < MAX_ENTITY_COUNT;
-      ++EntryIndex)
+ for (u32 EntityIndex = 0;
+      EntityIndex < EntityCount;
+      ++EntityIndex)
  {
-  entity *Entity = Editor->Entities + EntryIndex;
+  entity *Entity = Entities + EntityIndex;
   if ((Entity->Flags & EntityFlag_Active))
   {
    if (IsEntityVisible(Entity))
@@ -2775,7 +1913,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
      UI_EndTree();
     }
     
-    if (DoesCurveUseControlPoints(Curve))
+    if (UsesControlPoints(Curve))
     {
      ImGui::SetNextItemOpen(true, ImGuiCond_Once);
      CurveParams.PointsDisabled = !UI_BeginTreeF("Control Points");
@@ -2892,7 +2030,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
      UI_SeparatorTextF("Misc");
      if (UI_ButtonF("Swap Append Side"))
      {
-      Entity->Flags ^= EntityFlag_CurveAppendFront;
+      Entity->Flags ^= EntityFlag_CurveAppendFront_;
      }
      
      if (IsCurveEligibleForPointTracking(Curve))
@@ -3260,9 +2398,8 @@ UpdateAndRenderNotifications(editor *Editor, platform_input *Input, render_group
 internal void
 Choose2CurvesUI(choose_2_curves_state *Choosing)
 {
- // TODO(hbr): I think we need to introduce generational entity pointers
- entity *Curve0 = Choosing->Curves[0];
- entity *Curve1 = Choosing->Curves[1];
+ entity *Curve0 = EntityFromId(Choosing->Curves[0]);
+ entity *Curve1 = EntityFromId(Choosing->Curves[1]);
  
  b32 ChoosingCurve = Choosing->WaitingForChoice;
  
@@ -3354,8 +2491,8 @@ UpdateAndRenderAnimatingCurvesUI(editor *Editor)
   {
    Choose2CurvesUI(&Animation->Choose2Curves);
    
-   entity *Curve0 = Animation->Choose2Curves.Curves[0];
-   entity *Curve1 = Animation->Choose2Curves.Curves[1];
+   entity *Curve0 = EntityFromId(Animation->Choose2Curves.Curves[0]);
+   entity *Curve1 = EntityFromId(Animation->Choose2Curves.Curves[1]);
    
    if (UI_SliderFloatF(&Animation->Bouncing.T, 0.0f, 1.0f, "t"))
    {
@@ -3413,7 +2550,7 @@ ProcessAsyncEvents(editor *Editor)
    {
     if (Task->State == Image_Loaded)
     {
-     entity *Entity = AllocEntity(Editor);
+     entity *Entity = AllocEntityFromPool(Editor);
      if (Entity)
      {
       string FileName = PathLastPart(Task->ImageFilePath);
@@ -3443,9 +2580,8 @@ ProcessAsyncEvents(editor *Editor)
 }
 
 internal void
-UpdateFrameStats(editor *Editor, platform_input *Input)
+UpdateFrameStats(frame_stats *Stats, platform_input *Input)
 {
- frame_stats *Stats = &Editor->FrameStats;
  f32 dt = Input->dtForFrame;
  
  Stats->Calculation.FrameCount += 1;
@@ -3605,7 +2741,7 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
      {
       temp_arena Temp = TempArena(0);
       
-      entity *Entity = AllocEntity(Editor);
+      entity *Entity = AllocEntityFromPool(Editor);
       entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
       
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
@@ -3934,7 +3070,7 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
 internal void
 MaybeReverseCurvePoints(entity *Entity)
 {
- if (Entity->Flags & EntityFlag_CurveAppendFront)
+ if (IsCurveReversed(Entity))
  {
   curve *Curve = SafeGetCurve(Entity);
   
@@ -4038,8 +3174,8 @@ UpdateAndRenderMergingCurvesUI(editor *Editor)
    
    UI_Combo(SafeCastToPtr(Merging->Method, u32), CurveMerge_Count, CurveMergeNames, StrLit("Merge Method"));
    
-   entity *Entity0 = Merging->Choose2Curves.Curves[0];
-   entity *Entity1 = Merging->Choose2Curves.Curves[1];
+   entity *Entity0 = EntityFromId(Merging->Choose2Curves.Curves[0]);
+   entity *Entity1 = EntityFromId(Merging->Choose2Curves.Curves[1]);
    
    curve *Curve0 = ((Entity0 && Entity0->Type == Entity_Curve) ? &Entity0->Curve : 0);
    curve *Curve1 = ((Entity1 && Entity1->Type == Entity_Curve) ? &Entity1->Curve : 0);
@@ -4092,9 +3228,8 @@ UpdateAndRenderMergingCurvesUI(editor *Editor)
 }
 
 internal void
-RenderMergingCurves(editor *Editor, render_group *RenderGroup)
+RenderMergingCurves(merging_curves_state *Merging, render_group *RenderGroup)
 {
- merging_curves_state *Merging = &Editor->MergingCurves;
  if (Merging->Active)
  {
   entity *Entity = &Merging->MergeEntity;
@@ -4209,7 +3344,7 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
  }
  
  UpdateCamera(&Editor->Camera, Input);
- UpdateFrameStats(Editor, Input);
+ UpdateFrameStats(&Editor->FrameStats, Input);
  
  if (!Editor->HideUI)
  {
@@ -4251,9 +3386,9 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
   BeginMergingCurves(&Editor->MergingCurves);
  }
  
- UpdateAndRenderEntities(Editor, RenderGroup);
- UpdateAndRenderAnimatingCurves(Editor, Input, RenderGroup);
- RenderMergingCurves(Editor, RenderGroup);
+ UpdateAndRenderEntities(MAX_ENTITY_COUNT, Editor->Entities, RenderGroup);
+ UpdateAndRenderAnimatingCurves(&Editor->AnimatingCurves, Input, RenderGroup);
+ RenderMergingCurves(&Editor->MergingCurves, RenderGroup);
  
 #if BUILD_DEBUG
  Input->RefreshRequested = true;

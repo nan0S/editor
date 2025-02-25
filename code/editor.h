@@ -16,6 +16,7 @@
 #include "editor_entity.h"
 #include "editor_ui.h"
 #include "editor_stb.h"
+#include "editor_camera.h"
 
 /* TODO(hbr):
 Ideas:
@@ -118,20 +119,6 @@ Testing:
 - task with memory queue
 
 */
-
-// TODO(hbr): I think it's fair to move out this struct (and associated functions) into it's own file
-struct camera
-{
- v2 P;
- v2 Rotation;
- f32 Zoom;
- f32 ZoomSensitivity;
- 
- b32 ReachingTarget;
- f32 ReachingTargetSpeed;
- v2 TargetP;
- f32 TargetZoom;
-};
 
 typedef u32 collision_flags;
 enum

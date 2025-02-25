@@ -4128,7 +4128,7 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
   InitEditor(Editor, Memory);
  }
  
- render_group RenderGroup_;
+ render_group RenderGroup_ = {};
  render_group *RenderGroup = &RenderGroup_;
  {
   camera *Camera = &Editor->Camera;

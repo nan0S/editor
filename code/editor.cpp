@@ -547,8 +547,8 @@ DuplicateEntity(entity *Entity, editor *Editor)
  
  InitEntityFromEntity(&CopyWitness, Entity);
  SetEntityName(Copy, CopyName);
- 
  SelectEntity(Editor, Copy);
+ 
  // TODO(hbr): This is not right, translate depending on camera zoom
  f32 SlightTranslationX = 0.2f;
  v2 SlightTranslation = V2(SlightTranslationX, 0.0f);
@@ -584,6 +584,10 @@ ResetCtxMenu(string Label)
 // wrap control points, weights and cubicbezier poiints in a structure and just assign data here.
 // In other words - refactor this function
 // TODO(hbr): Refactor this function big time!!!
+// TODO(hbr): This function is kind of broken - for example, we can modify the curve while we are in the "lowering degree failed" mode. While
+// this on its own can be useful, because one can fit the curve more tighly to the original one, when we add some control points due to modyfing this,
+// and then go back to tweaking the Middle_T value to tweak the middle point when fixing "failed lowering", the point that we tweak might no longer be
+// the point that was originally there. In other words, saved control point index got invalidated.
 internal void
 LowerBezierCurveDegree(entity *Entity)
 {
@@ -731,45 +735,40 @@ SplitCurveOnControlPoint(entity *Entity, editor *Editor)
  {
   temp_arena Temp = TempArena(0);
   
-  u32 LeftPointCount = Curve->SelectedIndex.Index + 1;
-  u32 RightPointCount = Curve->ControlPointCount - Curve->SelectedIndex.Index;
+  u32 HeadPointCount = Curve->SelectedIndex.Index + 1;
+  u32 TailPointCount = Curve->ControlPointCount - Curve->SelectedIndex.Index;
   
-  entity *LeftEntity = Entity;
-  entity *RightEntity = AllocEntity(Editor);
+  entity *HeadEntity = Entity;
+  entity *TailEntity = AllocEntity(Editor);
   
-  entity_with_modify_witness LeftWitness = BeginEntityModify(LeftEntity);
-  entity_with_modify_witness RightWitness = BeginEntityModify(RightEntity);
+  entity_with_modify_witness HeadWitness = BeginEntityModify(HeadEntity);
+  entity_with_modify_witness TailWitness = BeginEntityModify(TailEntity);
   
-  InitEntityFromEntity(&RightWitness, LeftEntity);
+  InitEntityFromEntity(&TailWitness, HeadEntity);
   
-  curve *LeftCurve = SafeGetCurve(LeftEntity);
-  curve *RightCurve = SafeGetCurve(RightEntity);
+  curve *HeadCurve = SafeGetCurve(HeadEntity);
+  curve *TailCurve = SafeGetCurve(TailEntity);
   
-  string LeftName  = StrF(Temp.Arena, "%S(left)", Entity->Name);
-  string RightName = StrF(Temp.Arena, "%S(right)", Entity->Name);
-  SetEntityName(LeftEntity, LeftName);
-  SetEntityName(RightEntity, RightName);
+  string HeadName  = StrF(Temp.Arena, "%S (head)", Entity->Name);
+  string TailName = StrF(Temp.Arena, "%S (tail)", Entity->Name);
+  SetEntityName(HeadEntity, HeadName);
+  SetEntityName(TailEntity, TailName);
   
-  curve_points LeftPoints = BeginModifyCurvePoints(&LeftWitness, LeftPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
-  curve_points RightPoints = BeginModifyCurvePoints(&RightWitness, RightPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
-  Assert(LeftPoints.PointCount == LeftPointCount);
-  Assert(RightPoints.PointCount == RightPointCount);
+  curve_points HeadPoints = BeginModifyCurvePoints(&HeadWitness, HeadPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
+  curve_points TailPoints = BeginModifyCurvePoints(&TailWitness, TailPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
+  Assert(HeadPoints.PointCount == HeadPointCount);
+  Assert(TailPoints.PointCount == TailPointCount);
   
-  ArrayCopy(RightPoints.ControlPoints,
-            Curve->ControlPoints + Curve->SelectedIndex.Index,
-            RightPoints.PointCount);
-  ArrayCopy(RightPoints.Weights,
-            Curve->ControlPointWeights + Curve->SelectedIndex.Index,
-            RightPoints.PointCount);
-  ArrayCopy(RightCurve->CubicBezierPoints,
-            Curve->CubicBezierPoints + Curve->SelectedIndex.Index,
-            RightPoints.PointCount);
+  u32 SplitAt = Curve->SelectedIndex.Index;
+  ArrayCopy(TailPoints.ControlPoints, Curve->ControlPoints + SplitAt, TailPoints.PointCount);
+  ArrayCopy(TailPoints.Weights, Curve->ControlPointWeights + SplitAt, TailPoints.PointCount);
+  ArrayCopy(TailCurve->CubicBezierPoints, Curve->CubicBezierPoints + SplitAt, TailPoints.PointCount);
   
-  EndModifyCurvePoints(LeftCurve, &LeftPoints);
-  EndModifyCurvePoints(RightCurve, &RightPoints);
+  EndModifyCurvePoints(HeadCurve, &HeadPoints);
+  EndModifyCurvePoints(TailCurve, &TailPoints);
   
-  EndEntityModify(LeftWitness);
-  EndEntityModify(RightWitness);
+  EndEntityModify(HeadWitness);
+  EndEntityModify(TailWitness);
   
   EndTemp(Temp);
  }
@@ -1326,9 +1325,36 @@ UpdateAndRenderMenuBar(editor *Editor, platform_input *Input, render_group *Rend
 #endif
 }
 
-internal void
-UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity)
+struct rendering_entity_handle
 {
+ entity *Entity;
+ render_group *RenderGroup;
+};
+// TODO(hbr): I would ideally get rid of these calls
+internal rendering_entity_handle
+BeginRenderingEntity(entity *Entity, render_group *RenderGroup)
+{
+ rendering_entity_handle Handle = {};
+ Handle.Entity = Entity;
+ Handle.RenderGroup = RenderGroup;
+ 
+ mat3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
+ SetTransform(RenderGroup, Model, Cast(f32)Entity->SortingLayer);
+ 
+ return Handle;
+}
+internal void
+EndRenderingEntity(rendering_entity_handle Handle)
+{
+ ResetTransform(Handle.RenderGroup);
+}
+
+internal void
+UpdateAndRenderPointTracking(rendering_entity_handle Handle)
+{
+ entity *Entity = Handle.Entity;
+ render_group *RenderGroup = Handle.RenderGroup;
+ 
  curve *Curve = &Entity->Curve;
  curve_params *CurveParams = &Curve->Params;
  curve_point_tracking_state *Tracking = &Curve->PointTracking;
@@ -1342,7 +1368,7 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
    f32 OutlineThickness = 0.3f * Radius;
    v4 OutlineColor = DarkenColor(Color, 0.5f);
    
-   PushCircle(Group,
+   PushCircle(RenderGroup,
               Entity->P + Tracking->LocalSpaceTrackedPoint,
               Entity->Rotation, Entity->Scale,
               Radius, Color,
@@ -1366,7 +1392,7 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
    {
     v4 IterationColor = Lerp(GradientA, GradientB, P);
     
-    PushVertexArray(Group,
+    PushVertexArray(RenderGroup,
                     Tracking->LineVerticesPerIteration[Iteration].Vertices,
                     Tracking->LineVerticesPerIteration[Iteration].VertexCount,
                     Tracking->LineVerticesPerIteration[Iteration].Primitive,
@@ -1375,7 +1401,7 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
     for (u32 I = 0; I < IterationCount - Iteration; ++I)
     {
      v2 Point = Tracking->Intermediate.P[PointIndex];
-     PushCircle(Group,
+     PushCircle(RenderGroup,
                 Entity->P + Point, Entity->Rotation, Entity->Scale,
                 PointSize, IterationColor,
                 GetCurvePartZOffset(CurvePart_DeCasteljauAlgorithmPoints));
@@ -1389,8 +1415,11 @@ UpdateAndRenderPointTracking(render_group *Group, editor *Editor, entity *Entity
 }
 
 internal void
-UpdateAndRenderDegreeLowering(render_group *RenderGroup, entity *Entity)
+UpdateAndRenderDegreeLowering(rendering_entity_handle Handle)
 {
+ entity *Entity = Handle.Entity;
+ render_group *RenderGroup = Handle.RenderGroup;
+ 
  curve *Curve = SafeGetCurve(Entity);
  curve_params *CurveParams = &Curve->Params;
  curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
@@ -1447,9 +1476,6 @@ UpdateAndRenderDegreeLowering(render_group *RenderGroup, entity *Entity)
  
  if (Lowering->Active)
  {
-  mat3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
-  SetTransform(RenderGroup, Model, Cast(f32)Entity->SortingLayer);
-  
   v4 Color = Curve->Params.LineColor;
   Color.A *= 0.5f;
   
@@ -1459,8 +1485,6 @@ UpdateAndRenderDegreeLowering(render_group *RenderGroup, entity *Entity)
                   Lowering->SavedLineVertices.Primitive,
                   Color,
                   GetCurvePartZOffset(CurvePart_LineShadow));
-  
-  ResetTransform(RenderGroup);
  }
  
  EndEntityModify(EntityWitness);
@@ -1494,6 +1518,7 @@ RenderEntityCombo(u32 EntityCount, entity *Entities, entity **InOutEntity, strin
 internal void
 UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
 {
+#if 0
  temp_arena Temp = TempArena(0);
  
  curve_combining_state *State = &Editor->CurveCombining;
@@ -1756,6 +1781,8 @@ UpdateAndRenderCurveCombining(render_group *Group, editor *Editor)
  }
  
  EndTemp(Temp);
+ 
+#endif
 }
 
 internal task_with_memory *
@@ -1954,14 +1981,43 @@ UpdateBouncingParam(bouncing_parameter *Bouncing, f32 dt)
 }
 
 internal void
+BeginChoosing2Curves(choose_2_curves_state *Choosing)
+{
+ Choosing->WaitingForChoice = true;
+ Choosing->ChoosingCurveIndex = 0;
+ Choosing->Curves[0] = Choosing->Curves[1] = 0;
+}
+
+internal b32
+SupplyCurve(choose_2_curves_state *Choosing, entity *Curve)
+{
+ b32 AllSupplied = false;
+ 
+ Choosing->Curves[Choosing->ChoosingCurveIndex] = Curve;
+ if (Choosing->Curves[0] == 0)
+ {
+  Choosing->ChoosingCurveIndex = 0;
+ }
+ else if (Choosing->Curves[1] == 0)
+ {
+  Choosing->ChoosingCurveIndex = 1;
+ }
+ else
+ {
+  Choosing->WaitingForChoice = false;
+  AllSupplied = true;
+ }
+ 
+ return AllSupplied;
+}
+
+internal void
 BeginAnimatingCurves(animating_curves_state *Animation)
 {
  arena *Arena = Animation->Arena;
  StructZero(Animation);
- 
- Animation->Flags = (AnimatingCurves_Active | AnimatingCurves_ChoosingCurve);
- Animation->ChoosingCurveIndex = 0;
- Animation->Curves[0] = Animation->Curves[1] = 0;
+ Animation->Flags = AnimatingCurves_Active;
+ BeginChoosing2Curves(&Animation->Choose2Curves);
  Animation->Bouncing = MakeBouncingParam();
  Animation->Arena = Arena;
 }
@@ -1973,11 +2029,50 @@ EndAnimatingCurves(animating_curves_state *Animation)
  ClearArena(Animation->Arena);
 }
 
+internal b32
+AnimationWantsInput(animating_curves_state *Animation)
+{
+ b32 WantsInput = ((Animation->Flags & AnimatingCurves_Active) && Animation->Choose2Curves.WaitingForChoice);
+ return WantsInput;
+}
+
+internal void
+BeginMergingCurves(merging_curves_state *Merging)
+{
+ Merging->Active = true;
+ BeginChoosing2Curves(&Merging->Choose2Curves);
+}
+
+internal void
+EndMergingCurves(editor *Editor, b32 Merged)
+{
+ merging_curves_state *Merging = &Editor->MergingCurves;
+ 
+ if (Merged)
+ {
+  entity *Entity = AllocEntity(Editor);
+  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
+  
+  InitEntityFromEntity(&EntityWitness, &Merging->MergeEntity);
+  
+  EndEntityModify(EntityWitness);
+ }
+ 
+ Merging->Active = false;
+}
+
+internal b32
+MergingWantsInput(merging_curves_state *Merging)
+{
+ b32 WantsInput = (Merging->Active && Merging->Choose2Curves.WaitingForChoice);
+ return WantsInput;
+}
+
 internal void
 InitEditor(editor *Editor, editor_memory *Memory)
 {
  Editor->BackgroundColor = Editor->DefaultBackgroundColor = RGBA_Color(21, 21, 21);
- Editor->CollisionToleranceClip = 0.02f;
+ Editor->CollisionToleranceClip = 0.04f;
  Editor->RotationRadiusClip = 0.1f;
  
  f32 LineWidth = 0.009f;
@@ -1990,7 +2085,8 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->CurveDefaultParams.PolylineWidth = LineWidth;
  Editor->CurveDefaultParams.ConvexHullColor = PolylineColor;
  Editor->CurveDefaultParams.ConvexHullWidth = LineWidth;
- Editor->CurveDefaultParams.PointCountPerSegment = 50;
+ Editor->CurveDefaultParams.SamplesPerControlPoint = 50;
+ Editor->CurveDefaultParams.TotalSamples = 1000;
  Editor->CurveDefaultParams.Parametric.MaxT = 1.0f;
  Editor->CurveDefaultParams.Parametric.X_Equation = &NilExpr;
  Editor->CurveDefaultParams.Parametric.Y_Equation = &NilExpr;
@@ -2011,11 +2107,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
       ++EntityIndex)
  {
   entity *Entity = Editor->Entities + EntityIndex;
-  Entity->Arena = AllocArena();
-  Entity->Curve.DegreeLowering.Arena = AllocArena();
-  
-  curve *Curve = &Entity->Curve;
-  Curve->ParametricResources.Arena = AllocArena();
+  InitAllocEntity(Entity);
  }
  
  Editor->EntityListWindow = true;
@@ -2024,6 +2116,8 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->SelectedEntityWindow = true;
  
  Editor->LeftClick.OriginalVerticesArena = AllocArena();
+ 
+ InitAllocEntity(&Editor->MergingCurves.MergeEntity);
  
  {
   entity *Entity = AllocEntity(Editor);
@@ -2096,8 +2190,8 @@ internal void
 UpdateAndRenderAnimatingCurves(editor *Editor, platform_input *Input, render_group *RenderGroup)
 {
  animating_curves_state *Animation = &Editor->AnimatingCurves;
- entity *Entity0 = Animation->Curves[0];
- entity *Entity1 = Animation->Curves[1];
+ entity *Entity0 = Animation->Choose2Curves.Curves[0];
+ entity *Entity1 = Animation->Choose2Curves.Curves[1];
  
  if ((Animation->Flags & AnimatingCurves_Active) && Entity0 && Entity1)
  {
@@ -2128,6 +2222,7 @@ UpdateAndRenderAnimatingCurves(editor *Editor, platform_input *Input, render_gro
   arena *Arena = Animation->Arena;
   ClearArena(Arena);
   
+  // TODO(hbr): Use max instead
   u32 LinePointCount = Min(Curve0->LinePointCount, Curve1->LinePointCount);
   v2 *LinePoints = PushArrayNonZero(Arena, LinePointCount, v2);
   for (u32 LinePointIndex = 0;
@@ -2168,6 +2263,105 @@ UpdateAndRenderAnimatingCurves(editor *Editor, platform_input *Input, render_gro
 }
 
 internal void
+RenderEntity(rendering_entity_handle Handle)
+{
+ entity *Entity = Handle.Entity;
+ render_group *RenderGroup = Handle.RenderGroup;
+ 
+ switch (Entity->Type)
+ {
+  case Entity_Curve: {
+   curve *Curve = &Entity->Curve;
+   curve_params *CurveParams = &Curve->Params;
+   
+   if (!CurveParams->LineDisabled)
+   {
+    PushVertexArray(RenderGroup,
+                    Curve->LineVertices.Vertices,
+                    Curve->LineVertices.VertexCount,
+                    Curve->LineVertices.Primitive,
+                    Curve->Params.LineColor,
+                    GetCurvePartZOffset(CurvePart_CurveLine));
+   }
+   
+   if (CurveParams->PolylineEnabled)
+   {
+    PushVertexArray(RenderGroup,
+                    Curve->PolylineVertices.Vertices,
+                    Curve->PolylineVertices.VertexCount,
+                    Curve->PolylineVertices.Primitive,
+                    Curve->Params.PolylineColor,
+                    GetCurvePartZOffset(CurvePart_CurvePolyline));
+   }
+   
+   if (CurveParams->ConvexHullEnabled)
+   {
+    PushVertexArray(RenderGroup,
+                    Curve->ConvexHullVertices.Vertices,
+                    Curve->ConvexHullVertices.VertexCount,
+                    Curve->ConvexHullVertices.Primitive,
+                    Curve->Params.ConvexHullColor,
+                    GetCurvePartZOffset(CurvePart_CurveConvexHull));
+   }
+   
+   if (AreLinePointsVisible(Curve))
+   {
+    visible_cubic_bezier_points VisibleBeziers = GetVisibleCubicBezierPoints(Entity);
+    for (u32 Index = 0;
+         Index < VisibleBeziers.Count;
+         ++Index)
+    {
+     cubic_bezier_point_index BezierIndex = VisibleBeziers.Indices[Index];
+     
+     v2 BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
+     v2 CenterPoint = GetCenterPointFromCubicBezierPointIndex(Curve, BezierIndex);
+     
+     f32 BezierPointRadius = GetCurveCubicBezierPointRadius(Curve);
+     f32 HelperLineWidth = 0.2f * CurveParams->LineWidth;
+     
+     // TODO(hbr): It is really fucked up I have to add Entity->P when I do [SetTransform] above.
+     // clean up this mess
+     PushLine(RenderGroup,
+              Entity->P + BezierPoint,
+              Entity->P + CenterPoint,
+              HelperLineWidth,
+              CurveParams->LineColor,
+              GetCurvePartZOffset(CurvePart_CubicBezierHelperLines));
+     PushCircle(RenderGroup,
+                Entity->P + BezierPoint, Entity->Rotation, Entity->Scale,
+                BezierPointRadius, CurveParams->PointColor,
+                GetCurvePartZOffset(CurvePart_CubicBezierHelperPoints));
+    }
+    
+    u32 ControlPointCount = Curve->ControlPointCount;
+    v2 *ControlPoints = Curve->ControlPoints;
+    for (u32 PointIndex = 0;
+         PointIndex < ControlPointCount;
+         ++PointIndex)
+    {
+     point_info PointInfo = GetCurveControlPointInfo(Entity, PointIndex);
+     PushCircle(RenderGroup,
+                Entity->P + ControlPoints[PointIndex],
+                Entity->Rotation, Entity->Scale,
+                PointInfo.Radius,
+                PointInfo.Color,
+                GetCurvePartZOffset(CurvePart_CurveControlPoint),
+                PointInfo.OutlineThickness,
+                PointInfo.OutlineColor);
+    }
+   }
+  } break;
+  
+  case Entity_Image: {
+   image *Image = &Entity->Image;
+   PushImage(RenderGroup, Image->Dim, Image->TextureIndex->Index);
+  }break;
+  
+  case Entity_Count: InvalidPath; break;
+ }
+}
+
+internal void
 UpdateAndRenderEntities(editor *Editor, render_group *RenderGroup)
 {
  for (u32 EntryIndex = 0;
@@ -2175,124 +2369,115 @@ UpdateAndRenderEntities(editor *Editor, render_group *RenderGroup)
       ++EntryIndex)
  {
   entity *Entity = Editor->Entities + EntryIndex;
-  if ((Entity->Flags & EntityFlag_Active) && IsEntityVisible(Entity))
+  if ((Entity->Flags & EntityFlag_Active))
   {
-   mat3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
-   SetTransform(RenderGroup, Model, Cast(f32)Entity->SortingLayer);
-   
-   switch (Entity->Type)
+   if (IsEntityVisible(Entity))
    {
-    case Entity_Curve: {
-     curve *Curve = &Entity->Curve;
-     curve_params *CurveParams = &Curve->Params;
-     
-     if (!CurveParams->LineDisabled)
-     {
-      PushVertexArray(RenderGroup,
-                      Curve->LineVertices.Vertices,
-                      Curve->LineVertices.VertexCount,
-                      Curve->LineVertices.Primitive,
-                      Curve->Params.LineColor,
-                      GetCurvePartZOffset(CurvePart_CurveLine));
-     }
-     
-     if (CurveParams->PolylineEnabled)
-     {
-      PushVertexArray(RenderGroup,
-                      Curve->PolylineVertices.Vertices,
-                      Curve->PolylineVertices.VertexCount,
-                      Curve->PolylineVertices.Primitive,
-                      Curve->Params.PolylineColor,
-                      GetCurvePartZOffset(CurvePart_CurvePolyline));
-     }
-     
-     if (CurveParams->ConvexHullEnabled)
-     {
-      PushVertexArray(RenderGroup,
-                      Curve->ConvexHullVertices.Vertices,
-                      Curve->ConvexHullVertices.VertexCount,
-                      Curve->ConvexHullVertices.Primitive,
-                      Curve->Params.ConvexHullColor,
-                      GetCurvePartZOffset(CurvePart_CurveConvexHull));
-     }
-     
-     if (AreLinePointsVisible(Curve))
-     {
-      visible_cubic_bezier_points VisibleBeziers = GetVisibleCubicBezierPoints(Entity);
-      for (u32 Index = 0;
-           Index < VisibleBeziers.Count;
-           ++Index)
-      {
-       cubic_bezier_point_index BezierIndex = VisibleBeziers.Indices[Index];
-       
-       v2 BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
-       v2 CenterPoint = GetCenterPointFromCubicBezierPointIndex(Curve, BezierIndex);
-       
-       f32 BezierPointRadius = GetCurveCubicBezierPointRadius(Curve);
-       f32 HelperLineWidth = 0.2f * CurveParams->LineWidth;
-       
-       // TODO(hbr): It is really fucked up I have to add Entity->P when I do [SetTransform] above.
-       // clean up this mess
-       PushLine(RenderGroup,
-                Entity->P + BezierPoint,
-                Entity->P + CenterPoint,
-                HelperLineWidth,
-                CurveParams->LineColor,
-                GetCurvePartZOffset(CurvePart_CubicBezierHelperLines));
-       PushCircle(RenderGroup,
-                  Entity->P + BezierPoint, Entity->Rotation, Entity->Scale,
-                  BezierPointRadius, CurveParams->PointColor,
-                  GetCurvePartZOffset(CurvePart_CubicBezierHelperPoints));
-      }
-      
-      u32 ControlPointCount = Curve->ControlPointCount;
-      v2 *ControlPoints = Curve->ControlPoints;
-      for (u32 PointIndex = 0;
-           PointIndex < ControlPointCount;
-           ++PointIndex)
-      {
-       point_info PointInfo = GetCurveControlPointInfo(Entity, PointIndex);
-       PushCircle(RenderGroup,
-                  Entity->P + ControlPoints[PointIndex],
-                  Entity->Rotation, Entity->Scale,
-                  PointInfo.Radius,
-                  PointInfo.Color,
-                  GetCurvePartZOffset(CurvePart_CurveControlPoint),
-                  PointInfo.OutlineThickness,
-                  PointInfo.OutlineColor);
-      }
-     }
-     
-     UpdateAndRenderDegreeLowering(RenderGroup, Entity);
-     
-     // TODO(hbr): Update this
-     curve_combining_state *Combining = &Editor->CurveCombining;
-     if (Combining->SourceEntity == Entity)
-     {
-      UpdateAndRenderCurveCombining(RenderGroup, Editor);
-     }
-     
-     UpdateAndRenderPointTracking(RenderGroup, Editor, Entity);
-    } break;
+    rendering_entity_handle Handle = BeginRenderingEntity(Entity, RenderGroup);
     
-    case Entity_Image: {
-     image *Image = &Entity->Image;
-     PushImage(RenderGroup, Image->Dim, Image->TextureIndex->Index);
-    }break;
+    RenderEntity(Handle);
+    UpdateAndRenderDegreeLowering(Handle);
+    UpdateAndRenderPointTracking(Handle);
     
-    case Entity_Count: InvalidPath; break;
+    EndRenderingEntity(Handle);
    }
-   
-   ResetTransform(RenderGroup);
   }
  }
 }
 
+struct update_parametric_curve_var
+{
+ b32 Changed;
+ b32 Remove;
+ f32 Value;
+};
+enum update_parametric_curve_var_mode
+{
+ UpdateParametricCurveVar_Static,
+ UpdateParametricCurveVar_Dynamic,
+};
+internal update_parametric_curve_var
+UpdateAndRenderParametricCurveVar(arena *Arena,
+                                  parametric_curve_var *Var,
+                                  b32 ForceRecomputeEquation,
+                                  string *VarNames,
+                                  f32 *VarValues,
+                                  u32 VarCount,
+                                  update_parametric_curve_var_mode Mode)
+{
+ b32 VarChanged = false;
+ 
+ b32 VarEquationChanged = false;
+ if (Var->EquationMode)
+ {
+  VarEquationChanged = UI_InputTextF(Var->VarEquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##Equation").Changed;
+ }
+ else
+ {
+  VarChanged |= UI_DragFloat(&Var->DragValue, 0, 0, 0, StrLit("##Drag"));
+ }
+ 
+ if (ForceRecomputeEquation || VarEquationChanged)
+ {
+  VarChanged = true;
+  
+  string VarEquationInput = StrFromCStr(Var->VarEquationBuffer);
+  
+  parametric_equation_eval_result VarEval = ParametricEquationEval(Arena, VarEquationInput, VarCount, VarNames, VarValues);
+  Var->EquationFail = VarEval.Fail;
+  Var->EquationErrorMessage = VarEval.ErrorMessage;
+  Var->EquationValue = VarEval.Value;
+ }
+ 
+ if (Var->EquationMode)
+ {
+  Var->DragValue = Var->EquationValue;
+ }
+ 
+ b32 Remove = false;
+ if (Mode == UpdateParametricCurveVar_Dynamic)
+ {
+  UI_SameRow();
+  Remove = UI_ButtonF("-");
+ }
+ 
+ UI_SameRow();
+ b32 SwapMode = UI_ButtonF(Var->EquationMode ? "D" : "C");
+ 
+ if (Var->EquationMode && Var->EquationFail)
+ {
+  UI_ColoredText(RedColor)
+  {
+   UI_SameRow();
+   UI_Text(Var->EquationErrorMessage);
+  }
+ }
+ 
+ if (SwapMode)
+ {
+  VarChanged = true;
+  Var->EquationMode = !Var->EquationMode;
+ }
+ 
+ if (Remove)
+ {
+  VarChanged = true;
+ }
+ 
+ update_parametric_curve_var Result = {};
+ Result.Changed = VarChanged;
+ Result.Remove = Remove;
+ Result.Value = (Var->EquationMode ? Var->EquationValue : Var->DragValue);
+ 
+ return Result;
+}
+
 internal void
-UpdateRenderSelectedEntityUI(editor *Editor)
+UpdateAndRenderSelectedEntityUI(editor *Editor)
 {
  entity *Entity = Editor->SelectedEntity;
  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
+ b32 DeleteEntity = false;
  
  if (Editor->SelectedEntityWindow && Entity)
  {
@@ -2350,6 +2535,41 @@ UpdateRenderSelectedEntityUI(editor *Editor)
     if (ResetCtxMenu(StrLit("SortingLayerReset")))
     {
      Entity->SortingLayer = 0;
+    }
+    
+    b32 Hidden = !IsEntityVisible(Entity);
+    UI_Checkbox(&Hidden, StrLit("Hidden"));
+    SetEntityVisibility(Entity, Hidden);
+    
+    DeleteEntity = UI_Button(StrLit("Delete"));
+    
+    // TODO(hbr): Most of those buttons shouldn't be here in case of Entity_Image.
+    // But they will not be buttons in the first place as well.
+    if (UI_Button(StrLit("Split on Control Point")))
+    {
+     SplitCurveOnControlPoint(Entity, Editor);
+    }
+    
+    if (UI_Button(StrLit("Focus")))
+    {
+     FocusCameraOnEntity(Editor, Entity);
+    }
+    
+    if (UI_Button(StrLit("Copy")))
+    {
+     DuplicateEntity(Entity, Editor);
+    }
+    
+    if (UI_Button(StrLit("Elevate Degree")))
+    {
+     // TODO(hbr): Work on this function
+     ElevateBezierCurveDegree(Entity);
+    }
+    
+    if (UI_Button(StrLit("Lower Degree")))
+    {
+     // TODO(hbr): Work on this function
+     LowerBezierCurveDegree(Entity);
     }
    }
    
@@ -2409,8 +2629,15 @@ UpdateRenderSelectedEntityUI(editor *Editor)
         parametric_curve_resources *Resources = &Curve->ParametricResources;
         arena *EquationArena = Resources->Arena;
         temp_arena Temp = TempArena(EquationArena);
+        b32 EquationChanged = false;
         
-        ClearArena(EquationArena);
+        b32 ArenaCleared = false;
+        if (Resources->ShouldClearArena)
+        {
+         ArenaCleared = true;
+         Resources->ShouldClearArena = false;
+         ClearArena(EquationArena);
+        }
         
         //- additional vars
         UI_TextF("Additional Vars");
@@ -2426,117 +2653,123 @@ UpdateRenderSelectedEntityUI(editor *Editor)
         string *VarNames = PushArrayNonZero(Temp.Arena, Resources->AdditionalVarCount, string);
         f32 *VarValues = PushArrayNonZero(Temp.Arena, Resources->AdditionalVarCount, f32);
         u32 VarCount = 0;
+        b32 VarChanged = false;
         
         for (u32 VarIndex = 0;
              VarIndex < Resources->AdditionalVarCount;
              ++VarIndex)
         {
-         parametric_curve_additional_var *Var = Resources->AdditionalVars + VarIndex;
+         parametric_curve_var *Var = Resources->AdditionalVars + VarIndex;
          
          UI_PushId(Var->Id);
          
-         string VarName = UI_InputTextF(Var->VarNameBuffer, MAX_VAR_NAME_BUFFER_LENGTH, 3, "##Var").Input;
+         ui_input_result VarName = UI_InputTextF(Var->VarNameBuffer, MAX_VAR_NAME_BUFFER_LENGTH, 3, "##Var");
+         if (VarName.Changed)
+         {
+          VarChanged = true;
+         }
          UI_SameRow();
          UI_TextF(" := ");
          UI_SameRow();
-         string VarEquation = UI_InputTextF(Var->VarEquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##Equation").Input;
-         UI_SameRow();
-         if (UI_ButtonF("-"))
+         
+         update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena, Var,
+                                                                                ArenaCleared || VarChanged,
+                                                                                VarNames, VarValues, VarCount,
+                                                                                UpdateParametricCurveVar_Dynamic);
+         VarChanged |= Update.Changed;
+         if (Update.Remove)
          {
           DeactiveAdditionalVar(Resources, VarIndex);
          }
          else
          {
-          parametric_equation_eval_result VarEval = ParametricEquationEval(Temp.Arena, VarEquation,
-                                                                           VarCount, VarNames, VarValues);
-          
-          VarValues[VarCount] = VarEval.Value;
-          VarNames[VarCount] = VarName;
+          VarValues[VarCount] = Update.Value;
+          VarNames[VarCount] = VarName.Input;
           ++VarCount;
-          
-          if (!VarEval.Ok)
-          {
-           UI_SameRow();
-           UI_ColoredText(RedColor)
-           {
-            UI_Text(VarEval.ErrorMessage);
-           }
-          }
          }
          
          UI_PopId();
         }
         
         //- min/max bounds
-        UI_TextF("t_min := ");
-        UI_SameRow();
-        string MinT_Equation = UI_InputTextF(Resources->MinT_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##MinT").Input;
-        parametric_equation_eval_result MinT_Eval = ParametricEquationEval(Temp.Arena, MinT_Equation,
-                                                                           VarCount, VarNames, VarValues);
-        UI_SameRow();
-        if (MinT_Eval.Ok)
+        UI_Label(StrLit("t_min"))
         {
-         UI_TextF("%f", MinT_Eval.Value);
-        }
-        else
-        {
-         UI_ColoredText(RedColor)
-         {
-          UI_Text(MinT_Eval.ErrorMessage);
-         }
+         UI_TextF("t_min := ");
+         UI_SameRow();
+         update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
+                                                                                &Resources->MinT_Var,
+                                                                                ArenaCleared || VarChanged,
+                                                                                VarNames, VarValues, VarCount,
+                                                                                UpdateParametricCurveVar_Static);
+         EquationChanged |= Update.Changed;
+         Parametric->MinT = Update.Value;
         }
         
-        UI_TextF("t_max := ");
-        UI_SameRow();
-        string MaxT_Equation = UI_InputTextF(Resources->MaxT_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##MaxT").Input;
-        parametric_equation_eval_result MaxT_Eval = ParametricEquationEval(Temp.Arena, MaxT_Equation,
-                                                                           VarCount, VarNames, VarValues);
-        if (!MaxT_Eval.Ok)
+        UI_Label(StrLit("t_max"))
         {
+         UI_TextF("t_max := ");
          UI_SameRow();
-         UI_ColoredText(RedColor)
-         {
-          UI_Text(MaxT_Eval.ErrorMessage);
-         }
+         update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
+                                                                                &Resources->MaxT_Var,
+                                                                                ArenaCleared || VarChanged,
+                                                                                VarNames, VarValues, VarCount,
+                                                                                UpdateParametricCurveVar_Static);
+         EquationChanged |= Update.Changed;
+         Parametric->MaxT = Update.Value;
         }
         
         //- (x,y) equations
         UI_TextF("x(t)  := ");
         UI_SameRow();
-        string X_Equation = UI_InputTextF(Resources->X_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##x(t)").Input;
-        parametric_equation_parse_result X_Parse = ParametricEquationParse(EquationArena, X_Equation,
-                                                                           VarCount, VarNames, VarValues);
-        if (!X_Parse.Ok)
+        ui_input_result X_Equation = UI_InputTextF(Resources->X_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##x(t)");
+        if (ArenaCleared || VarChanged || X_Equation.Changed)
+        {
+         EquationChanged = true;
+         
+         parametric_equation_parse_result X_Parse = ParametricEquationParse(EquationArena, X_Equation.Input, VarCount, VarNames, VarValues);
+         Parametric->X_Equation = X_Parse.ParsedExpr;
+         Resources->X_Fail = X_Parse.Fail;
+         Resources->X_ErrorMessage = X_Parse.ErrorMessage;
+        }
+        if (Resources->X_Fail)
         {
          UI_SameRow();
          UI_ColoredText(RedColor)
          {
-          UI_Text(X_Parse.ErrorMessage);
+          UI_Text(Resources->X_ErrorMessage);
          }
         }
         
         UI_TextF("y(t)  := ");
         UI_SameRow();
-        string Y_Equation = UI_InputTextF(Resources->Y_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##y(t)").Input;
-        parametric_equation_parse_result Y_Parse = ParametricEquationParse(EquationArena, Y_Equation,
-                                                                           VarCount, VarNames, VarValues);
-        if (!Y_Parse.Ok)
+        ui_input_result Y_Equation = UI_InputTextF(Resources->Y_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##y(t)");
+        if (ArenaCleared || VarChanged || Y_Equation.Changed)
+        {
+         EquationChanged = true;
+         
+         parametric_equation_parse_result Y_Parse = ParametricEquationParse(EquationArena, Y_Equation.Input, VarCount, VarNames, VarValues);
+         Parametric->Y_Equation = Y_Parse.ParsedExpr;
+         Resources->Y_Fail = Y_Parse.Fail;
+         Resources->Y_ErrorMessage = Y_Parse.ErrorMessage;
+        }
+        if (Resources->Y_Fail)
         {
          UI_SameRow();
          UI_ColoredText(RedColor)
          {
-          UI_Text(Y_Parse.ErrorMessage);
+          UI_Text(Resources->Y_ErrorMessage);
          }
         }
         
-        UI_ParametricEquationExpr(X_Parse.ParsedExpr, StrLit("x(t)"));
-        UI_ParametricEquationExpr(Y_Parse.ParsedExpr, StrLit("y(t)"));
+        if (EquationChanged)
+        {
+         MarkEntityModified(&EntityWitness);
+        }
         
-        Parametric->MinT = MinT_Eval.Value;
-        Parametric->MaxT = MaxT_Eval.Value;
-        
-        Parametric->X_Equation = X_Parse.ParsedExpr;
-        Parametric->Y_Equation = Y_Parse.ParsedExpr;
+        if (EquationChanged && !ArenaCleared)
+        {
+         Resources->ShouldClearArena = true;
+        }
         
         EndTemp(Temp);
         
@@ -2564,87 +2797,100 @@ UpdateRenderSelectedEntityUI(editor *Editor)
       CurveParams.LineWidth = DefaultParams->LineWidth;
      }
      
-     UI_SliderIntegerF(SafeCastToPtr(CurveParams.PointCountPerSegment, i32), 1, 2000, "Detail");
-     if (ResetCtxMenu(StrLit("DetailReset")))
+     if (IsCurveTotalSamplesMode(Curve))
      {
-      CurveParams.PointCountPerSegment = DefaultParams->PointCountPerSegment;
+      UI_SliderIntegerF(SafeCastToPtr(CurveParams.TotalSamples, i32), 1, 5000, "Total Samples");
+      if (ResetCtxMenu(StrLit("Samples")))
+      {
+       CurveParams.TotalSamples = DefaultParams->TotalSamples;
+      }
+     }
+     else
+     {
+      UI_SliderIntegerF(SafeCastToPtr(CurveParams.SamplesPerControlPoint, i32), 1, 500, "Samples per Control Point");
+      if (ResetCtxMenu(StrLit("Samples")))
+      {
+       CurveParams.SamplesPerControlPoint = DefaultParams->SamplesPerControlPoint;
+      }
      }
      
      UI_EndTree();
     }
     
-    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-    CurveParams.PointsDisabled = !UI_BeginTreeF("Control Points");
-    if (!CurveParams.PointsDisabled)
+    if (DoesCurveUseControlPoints(Curve))
     {
-     UI_ColorPickerF(&CurveParams.PointColor, "Color");
-     if (ResetCtxMenu(StrLit("PointColorReset")))
+     ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+     CurveParams.PointsDisabled = !UI_BeginTreeF("Control Points");
+     if (!CurveParams.PointsDisabled)
      {
-      CurveParams.PointColor = DefaultParams->PointColor;
-     }
-     
-     UI_DragFloatF(&CurveParams.PointRadius, 0.0f, FLT_MAX, 0, "Radius");
-     if (ResetCtxMenu(StrLit("PointRadiusReset")))
-     {
-      CurveParams.PointRadius = DefaultParams->PointRadius;
-     }
-     
-     if (CurveParams.Interpolation == Interpolation_Bezier &&
-         CurveParams.Bezier == Bezier_Regular)
-     {
-      b32 WeightChanged = false;
-      u32 PointCount = Curve->ControlPointCount;
-      f32 *Weights = Curve->ControlPointWeights;
-      
-      u32 Selected = 0;
-      if (IsControlPointSelected(Curve))
+      UI_ColorPickerF(&CurveParams.PointColor, "Color");
+      if (ResetCtxMenu(StrLit("PointColorReset")))
       {
-       Selected = Curve->SelectedIndex.Index;
-       WeightChanged |= UI_DragFloatF(&Weights[Selected], 0.0f, FLT_MAX, 0, "Weight (%u)", Selected);
-       if (ResetCtxMenu(StrLit("WeightReset")))
-       {
-        Weights[Selected] = 1.0f;
-        WeightChanged = true;
-       }
-       ImGui::Spacing();
+       CurveParams.PointColor = DefaultParams->PointColor;
       }
       
-      if (UI_BeginTreeF("Weights"))
+      UI_DragFloatF(&CurveParams.PointRadius, 0.0f, FLT_MAX, 0, "Radius");
+      if (ResetCtxMenu(StrLit("PointRadiusReset")))
       {
-       // NOTE(hbr): Limit the number of points displayed in the case
-       // curve has A LOT of them
-       u32 ShowCount = 100;
-       u32 ToIndex = ClampTop(Selected + ShowCount/2, PointCount);
-       u32 FromIndex = Selected - Min(Selected, ShowCount/2);
-       u32 LeftCount = ShowCount - (ToIndex - FromIndex);
-       ToIndex = ClampTop(ToIndex + LeftCount, PointCount);
-       FromIndex = FromIndex - Min(FromIndex, LeftCount);
+       CurveParams.PointRadius = DefaultParams->PointRadius;
+      }
+      
+      if (CurveHasWeights(Curve))
+      {
+       b32 WeightChanged = false;
+       u32 PointCount = Curve->ControlPointCount;
+       f32 *Weights = Curve->ControlPointWeights;
        
-       for (u32 PointIndex = FromIndex;
-            PointIndex < ToIndex;
-            ++PointIndex)
+       u32 Selected = 0;
+       if (IsControlPointSelected(Curve))
        {
-        UI_Id(PointIndex)
-        {                              
-         WeightChanged |= UI_DragFloatF(&Weights[PointIndex], 0.0f, FLT_MAX, 0, "Point (%u)", PointIndex);
-         if (ResetCtxMenu(StrLit("WeightReset")))
-         {
-          Weights[PointIndex] = 1.0f;
-          WeightChanged = true;
+        Selected = Curve->SelectedIndex.Index;
+        WeightChanged |= UI_DragFloatF(&Weights[Selected], 0.0f, FLT_MAX, 0, "Weight (%u)", Selected);
+        if (ResetCtxMenu(StrLit("WeightReset")))
+        {
+         Weights[Selected] = 1.0f;
+         WeightChanged = true;
+        }
+        ImGui::Spacing();
+       }
+       
+       if (UI_BeginTreeF("Weights"))
+       {
+        // NOTE(hbr): Limit the number of points displayed in the case
+        // curve has A LOT of them
+        u32 ShowCount = 100;
+        u32 ToIndex = ClampTop(Selected + ShowCount/2, PointCount);
+        u32 FromIndex = Selected - Min(Selected, ShowCount/2);
+        u32 LeftCount = ShowCount - (ToIndex - FromIndex);
+        ToIndex = ClampTop(ToIndex + LeftCount, PointCount);
+        FromIndex = FromIndex - Min(FromIndex, LeftCount);
+        
+        for (u32 PointIndex = FromIndex;
+             PointIndex < ToIndex;
+             ++PointIndex)
+        {
+         UI_Id(PointIndex)
+         {                              
+          WeightChanged |= UI_DragFloatF(&Weights[PointIndex], 0.0f, FLT_MAX, 0, "Point (%u)", PointIndex);
+          if (ResetCtxMenu(StrLit("WeightReset")))
+          {
+           Weights[PointIndex] = 1.0f;
+           WeightChanged = true;
+          }
          }
         }
+        
+        UI_EndTree();
        }
        
-       UI_EndTree();
+       if (WeightChanged)
+       {
+        MarkEntityModified(&EntityWitness);
+       }
       }
       
-      if (WeightChanged)
-      {
-       MarkEntityModified(&EntityWitness);
-      }
+      UI_EndTree();
      }
-     
-     UI_EndTree();
     }
     
     CurveParams.PolylineEnabled = UI_BeginTreeF("Polyline");
@@ -2756,12 +3002,18 @@ UpdateRenderSelectedEntityUI(editor *Editor)
  }
  
  EndEntityModify(EntityWitness);
+ 
+ if (DeleteEntity)
+ {
+  DeallocEntity(Editor, Entity);
+ }
 }
 
 internal void
-UpdateRenderMenuBarUI(editor *Editor,
-                      b32 *NewProject, b32 *OpenFileDialog, b32 *SaveProject,
-                      b32 *SaveProjectAs, b32 *QuitProject, b32 *AnimateCurves)
+UpdateAndRenderMenuBarUI(editor *Editor,
+                         b32 *NewProject, b32 *OpenFileDialog, b32 *SaveProject,
+                         b32 *SaveProjectAs, b32 *QuitProject, b32 *AnimateCurves,
+                         b32 *MergeCurves)
 {
  if (UI_BeginMainMenuBar())
  {
@@ -2778,6 +3030,7 @@ UpdateRenderMenuBarUI(editor *Editor,
   if (UI_BeginMenuF("Actions"))
   {
    *AnimateCurves = UI_MenuItemF(0, 0, "Animate Curves");
+   *MergeCurves = UI_MenuItemF(0, 0, "Merge Curves");
    UI_EndMenu();
   }
   
@@ -2833,7 +3086,7 @@ UpdateRenderMenuBarUI(editor *Editor,
 }
 
 internal void
-UpdateRenderEntityListUI(editor *Editor)
+UpdateAndRenderEntityListUI(editor *Editor)
 {
  if (Editor->EntityListWindow)
  {
@@ -2912,7 +3165,7 @@ UpdateRenderEntityListUI(editor *Editor)
 }
 
 internal void
-UpdateRenderDiagnosticsUI(editor *Editor, platform_input *Input)
+UpdateAndRenderDiagnosticsUI(editor *Editor, platform_input *Input)
 {
  //- render diagnostics UI
  if (Editor->DiagnosticsWindow)
@@ -3047,6 +3300,90 @@ UpdateAndRenderNotifications(editor *Editor, platform_input *Input, render_group
 }
 
 internal void
+Choose2CurvesUI(choose_2_curves_state *Choosing)
+{
+ // TODO(hbr): I think we need to introduce generational entity pointers
+ entity *Curve0 = Choosing->Curves[0];
+ entity *Curve1 = Choosing->Curves[1];
+ 
+ b32 ChoosingCurve = Choosing->WaitingForChoice;
+ 
+ b32 Disable0 = false;
+ string Button0 = {};
+ if (ChoosingCurve && Choosing->ChoosingCurveIndex == 0)
+ {
+  Disable0 = true;
+  Button0 = StrLit("Click on Curve to choose");
+ }
+ else
+ {
+  if (Curve0)
+  {
+   Button0 = Curve0->Name;
+  }
+  else
+  {
+   Button0 = StrLit("...");
+  }
+ }
+ 
+ UI_Id(0)
+ {
+  UI_TextF("Curve 0: ");
+  UI_SameRow();
+  if (UI_Button(Button0))
+  {
+   if (Disable0)
+   {
+    Choosing->WaitingForChoice = false;
+   }
+   else
+   {
+    Choosing->WaitingForChoice = true;
+    Choosing->ChoosingCurveIndex = 0;
+   }
+  }
+ }
+ 
+ string Button1 = {};
+ b32 Disable1 = false;
+ if (ChoosingCurve && Choosing->ChoosingCurveIndex == 1)
+ {
+  Disable1 = true;
+  Button1 = StrLit("Click on Curve to choose");
+ }
+ else
+ {
+  if (Curve1)
+  {
+   Button1 = Curve1->Name;
+  }
+  else
+  {
+   Button1 = StrLit("...");
+  }
+ }
+ 
+ UI_Id(1)
+ {
+  UI_TextF("Curve 1: ");
+  UI_SameRow();
+  if (UI_Button(Button1))
+  {
+   if (Disable1)
+   {
+    Choosing->WaitingForChoice = false;
+   }
+   else
+   {
+    Choosing->WaitingForChoice = true;
+    Choosing->ChoosingCurveIndex = 1;
+   }
+  }
+ }
+}
+
+internal void
 UpdateAndRenderAnimatingCurvesUI(editor *Editor)
 {
  animating_curves_state *Animation = &Editor->AnimatingCurves;
@@ -3057,87 +3394,10 @@ UpdateAndRenderAnimatingCurvesUI(editor *Editor)
   
   if (WindowOpen)
   {
-   // TODO(hbr): I think we need to introduce generational entity pointers
-   entity *Curve0 = Animation->Curves[0];
-   entity *Curve1 = Animation->Curves[1];
+   Choose2CurvesUI(&Animation->Choose2Curves);
    
-   b32 ChoosingCurve = (Animation->Flags & AnimatingCurves_ChoosingCurve);
-   
-   b32 Disable0 = false;
-   string Button0 = {};
-   if (ChoosingCurve && Animation->ChoosingCurveIndex == 0)
-   {
-    Disable0 = true;
-    Button0 = StrLit("Click on Curve to choose");
-   }
-   else
-   {
-    if (Curve0)
-    {
-     Button0 = Curve0->Name;
-    }
-    else
-    {
-     Button0 = StrLit("...");
-    }
-   }
-   
-   UI_Id(0)
-   {
-    UI_TextF("Curve 0: ");
-    UI_SameRow();
-    if (UI_Button(Button0))
-    {
-     if (Disable0)
-     {
-      Animation->Flags &= ~AnimatingCurves_ChoosingCurve;
-     }
-     else
-     {
-      Animation->Flags |= AnimatingCurves_ChoosingCurve;
-      Animation->ChoosingCurveIndex = 0;
-     }
-    }
-   }
-   
-   string Button1 = {};
-   b32 Disable1 = false;
-   if (ChoosingCurve && Animation->ChoosingCurveIndex == 1)
-   {
-    Disable1 = true;
-    Button1 = StrLit("Click on Curve to choose");
-   }
-   else
-   {
-    if (Curve1)
-    {
-     Button1 = Curve1->Name;
-    }
-    else
-    {
-     Button1 = StrLit("...");
-    }
-   }
-   
-   UI_Id(1)
-   {
-    UI_TextF("Curve 1: ");
-    UI_SameRow();
-    if (UI_Button(Button1))
-    {
-     if (Disable1)
-     {
-      Animation->Flags &= ~AnimatingCurves_ChoosingCurve;
-     }
-     else
-     {
-      Animation->Flags |= AnimatingCurves_ChoosingCurve;
-      Animation->ChoosingCurveIndex = 1;
-     }
-    }
-   }
-   
-   UI_SeparatorTextF("");
+   entity *Curve0 = Animation->Choose2Curves.Curves[0];
+   entity *Curve1 = Animation->Choose2Curves.Curves[1];
    
    if (UI_SliderFloatF(&Animation->Bouncing.T, 0.0f, 1.0f, "t"))
    {
@@ -3271,14 +3531,40 @@ UpdateCamera(editor *Editor, platform_input *Input)
 }
 
 internal void
+BeginMovingEntity(editor_left_click_state *LeftClick, entity *Target)
+{
+ LeftClick->Active = true;
+ LeftClick->Mode = EditorLeftClick_MovingEntity;
+ LeftClick->TargetEntity = Target;
+}
+
+internal void
+BeginMovingCurvePoint(editor_left_click_state *LeftClick, entity *Target, curve_point_index CurvePoint)
+{
+ LeftClick->Active = true;
+ LeftClick->Mode = EditorLeftClick_MovingCurvePoint;
+ LeftClick->TargetEntity = Target;
+ LeftClick->CurvePointIndex = CurvePoint;
+}
+
+internal void
+BeginMovingTrackingPoint(editor_left_click_state *LeftClick, entity *Target)
+{
+ LeftClick->Active = true;
+ LeftClick->Mode = EditorLeftClick_MovingTrackingPoint;
+ LeftClick->TargetEntity = Target;
+}
+
+internal void
 ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGroup,
                    b32 *NewProject, b32 *OpenFileDialog, b32 *SaveProject,
-                   b32 *SaveProjectAs, b32 *QuitProject, b32 *AnimateCurves)
+                   b32 *SaveProjectAs, b32 *QuitProject)
 {
  editor_left_click_state *LeftClick = &Editor->LeftClick;
  editor_right_click_state *RightClick = &Editor->RightClick;
  editor_middle_click_state *MiddleClick = &Editor->MiddleClick;
  animating_curves_state *Animation = &Editor->AnimatingCurves;
+ merging_curves_state *Merging = &Editor->MergingCurves;
  for (u32 EventIndex = 0;
       EventIndex < Input->EventCount;
       ++EventIndex)
@@ -3288,10 +3574,10 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
   v2 MouseP = Unproject(RenderGroup, Event->ClipSpaceMouseP);
   
   //- left click events processing
-  b32 AnimationWantsInput = ((Animation->Flags & AnimatingCurves_Active) &&
-                             (Animation->Flags & AnimatingCurves_ChoosingCurve));
+  b32 DoesAnimationWantInput = AnimationWantsInput(Animation);
+  b32 DoesMergingWantInput = MergingWantsInput(Merging);
   if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_LeftMouseButton &&
-      (!LeftClick->Active || AnimationWantsInput))
+      (!LeftClick->Active || DoesAnimationWantInput || DoesMergingWantInput))
   {
    collision Collision = {};
    if (Event->Flags & PlatformEventFlag_Alt)
@@ -3306,30 +3592,28 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
                                    RenderGroup->CollisionTolerance);
    }
    
-   if (AnimationWantsInput && Collision.Entity && Collision.Entity->Type == Entity_Curve)
+   if ((DoesAnimationWantInput || DoesMergingWantInput) &&
+       Collision.Entity && Collision.Entity->Type == Entity_Curve)
    {
     Eat = true;
     
-    Animation->Curves[Animation->ChoosingCurveIndex] = Collision.Entity;
-    if (Animation->Curves[0] == 0)
+    if (DoesAnimationWantInput)
     {
-     Animation->ChoosingCurveIndex = 0;
-    }
-    else if (Animation->Curves[1] == 0)
-    {
-     Animation->ChoosingCurveIndex = 1;
+     if (SupplyCurve(&Animation->Choose2Curves, Collision.Entity))
+     {
+      Animation->Flags |= AnimatingCurves_Animating;
+     }
     }
     else
     {
-     Animation->Flags &= ~AnimatingCurves_ChoosingCurve;
-     Animation->Flags |= AnimatingCurves_Animating;
+     Assert(DoesMergingWantInput);
+     SupplyCurve(&Merging->Choose2Curves, Collision.Entity);
     }
    }
    else
    {     
     Eat = true;
     
-    LeftClick->Active = true;
     LeftClick->OriginalVerticesCaptured = false;
     LeftClick->LastMouseP = MouseP;
     
@@ -3337,47 +3621,48 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
     curve *CollisionCurve = &Collision.Entity->Curve;
     curve_point_tracking_state *CollisionTracking = &CollisionCurve->PointTracking;
     
-    if (Collision.Entity && (Event->Flags & PlatformEventFlag_Ctrl))
+    if ((Collision.Entity || Editor->SelectedEntity) && (Event->Flags & PlatformEventFlag_Ctrl))
     {
+     entity *Entity = (Collision.Entity ? Collision.Entity : Editor->SelectedEntity);
      // NOTE(hbr): just move entity if ctrl is pressed
-     LeftClick->Mode = EditorLeftClick_MovingEntity;
-     LeftClick->TargetEntity = Collision.Entity;
+     BeginMovingEntity(LeftClick, Entity);
     }
     else if ((Collision.Flags & Collision_CurveLine) && CollisionTracking->Active)
     {
-     LeftClick->Mode = EditorLeftClick_MovingTrackingPoint;
-     LeftClick->TargetEntity = Collision.Entity;
+     BeginMovingTrackingPoint(LeftClick, Collision.Entity);
      
      f32 Fraction = SafeDiv0(Cast(f32)Collision.CurveLinePointIndex, (CollisionCurve->LinePointCount- 1));
      SetTrackingPointFraction(&CollisionEntityWitness, Fraction);
     }
     else if (Collision.Flags & Collision_CurvePoint)
     {
-     LeftClick->Mode = EditorLeftClick_MovingCurvePoint;
-     LeftClick->TargetEntity = Collision.Entity;
-     LeftClick->CurvePointIndex = Collision.CurvePointIndex;
+     BeginMovingCurvePoint(LeftClick, Collision.Entity, Collision.CurvePointIndex);
     }
     else if (Collision.Flags & Collision_CurveLine)
     {
-     control_point_index Index = CurveLinePointIndexToControlPointIndex(CollisionCurve, Collision.CurveLinePointIndex);
-     u32 InsertAt = Index.Index + 1;
-     InsertControlPoint(&CollisionEntityWitness, MouseP, InsertAt);
-     
-     LeftClick->Mode = EditorLeftClick_MovingCurvePoint;
-     LeftClick->TargetEntity = Collision.Entity;
-     LeftClick->CurvePointIndex = CurvePointIndexFromControlPointIndex(MakeControlPointIndex(InsertAt));
+     if (CanAddControlPoints(CollisionCurve))
+     {
+      control_point_index Index = CurveLinePointIndexToControlPointIndex(CollisionCurve, Collision.CurveLinePointIndex);
+      u32 InsertAt = Index.Index + 1;
+      InsertControlPoint(&CollisionEntityWitness, MouseP, InsertAt);
+      BeginMovingCurvePoint(LeftClick, Collision.Entity, CurvePointIndexFromControlPointIndex(MakeControlPointIndex(InsertAt)));
+     }
     }
     else if (Collision.Flags & Collision_TrackedPoint)
     {
      // NOTE(hbr): This shouldn't really happen, Collision_CurveLine should be set as well.
-     // But if it does, just backout.
-     LeftClick->Active = false;
+     // But if it does, just don't do anything.
     }
     else
     {
+     entity *TargetEntity = 0;
      if (Editor->SelectedEntity && Editor->SelectedEntity->Type == Entity_Curve)
      {
-      LeftClick->TargetEntity = Editor->SelectedEntity;
+      curve *SelectedCurve = SafeGetCurve(Editor->SelectedEntity);
+      if (CanAddControlPoints(SelectedCurve))
+      {
+       TargetEntity = Editor->SelectedEntity;
+      }
      }
      else
      {
@@ -3390,21 +3675,22 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
       InitEntity(Entity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
       InitCurve(&EntityWitness, Editor->CurveDefaultParams);
       
-      LeftClick->TargetEntity = Entity;
+      TargetEntity = Entity;
       
       EndEntityModify(EntityWitness);
       
       EndTemp(Temp);
      }
-     Assert(LeftClick->TargetEntity);
      
-     entity_with_modify_witness TargetEntityWitness = BeginEntityModify(LeftClick->TargetEntity);
-     
-     LeftClick->Mode = EditorLeftClick_MovingCurvePoint;
-     control_point_index Appended = AppendControlPoint(&TargetEntityWitness, MouseP);
-     LeftClick->CurvePointIndex = CurvePointIndexFromControlPointIndex(Appended);
-     
-     EndEntityModify(TargetEntityWitness);
+     if (TargetEntity)
+     {
+      entity_with_modify_witness TargetEntityWitness = BeginEntityModify(TargetEntity);
+      
+      control_point_index Appended = AppendControlPoint(&TargetEntityWitness, MouseP);
+      BeginMovingCurvePoint(LeftClick, TargetEntity, CurvePointIndexFromControlPointIndex(Appended));
+      
+      EndEntityModify(TargetEntityWitness);
+     }
     }
     
     SelectEntity(Editor, LeftClick->TargetEntity);
@@ -3706,92 +3992,190 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
  {
   MiddleClick->Active = false;
  }
- 
- //- render line shadow when moving
- {  
-  entity *Entity = LeftClick->TargetEntity;
-  if (LeftClick->Active && LeftClick->OriginalVerticesCaptured && !Entity->Curve.Params.LineDisabled)
-  {
-   v4 ShadowColor = Entity->Curve.Params.LineColor;
-   ShadowColor.A *= 0.15f;
-   
-   // TODO(hbr): This is a little janky we call this function everytime
-   // Either solve it somehow or remove this function and do it more manually
-   mat3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
-   SetTransform(RenderGroup, Model, Cast(f32)Entity->SortingLayer);
-   
-   PushVertexArray(RenderGroup,
-                   LeftClick->OriginalLineVertices.Vertices,
-                   LeftClick->OriginalLineVertices.VertexCount,
-                   LeftClick->OriginalLineVertices.Primitive,
-                   ShadowColor, GetCurvePartZOffset(CurvePart_LineShadow));
-  }
- }
- 
- //- render "remove" indicator
- if (RightClick->Active)
+}
+
+internal void
+MaybeReverseCurvePoints(entity *Entity)
+{
+ if (Entity->Flags & EntityFlag_CurveAppendFront)
  {
-  v4 Color = V4(0.5f, 0.5f, 0.5f, 0.3f);
-  // TODO(hbr): Again, zoffset of this thing is wrong
-  PushCircle(RenderGroup, RightClick->ClickP, Rotation2DZero(), V2(1, 1), RenderGroup->CollisionTolerance, Color, 0.0f);
- }
- 
- //- render rotation indicator
- if (MiddleClick->Active && MiddleClick->Rotate)
- {
-  camera *Camera = &Editor->Camera;
-  f32 Radius = RenderGroup->RotationRadius;
-  v4 Color = RGBA_Color(30, 56, 87, 80);
-  f32 OutlineThickness = 0.1f * Radius;
-  v4 OutlineColor = RGBA_Color(255, 255, 255, 24);
-  // TODO(hbr): ZOffset here is possibly wrong, it should be something on top of everything
-  // instead
-  PushCircle(RenderGroup,
-             Camera->P,
-             Rotation2DZero(),
-             V2(1, 1),
-             Radius - OutlineThickness,
-             Color, 0.0f,
-             OutlineThickness, OutlineColor);
+  curve *Curve = SafeGetCurve(Entity);
+  
+  ArrayReverse(Curve->ControlPoints,       Curve->ControlPointCount, v2);
+  ArrayReverse(Curve->ControlPointWeights, Curve->ControlPointCount, f32);
+  ArrayReverse(Curve->CubicBezierPoints,   Curve->ControlPointCount, cubic_bezier_point);
  }
 }
 
 internal void
-RenderParametricEquationUI(void)
+Merge2Curves(entity_with_modify_witness *MergeWitness, entity *Entity0, entity *Entity1, curve_merge_method Method)
 {
- if (UI_BeginWindowF(0, 0, "Parametric Equation"))
+ temp_arena Temp = TempArena(0);
+ 
+ curve *Curve0 = SafeGetCurve(Entity0);
+ curve *Curve1 = SafeGetCurve(Entity1);
+ 
+ entity *MergeEntity = MergeWitness->Entity;
+ curve *Merge = &MergeEntity->Curve;
+ 
+ string Name = StrF(Temp.Arena, "%S+%S", Entity0->Name, Entity1->Name);
+ InitEntity(MergeEntity, Entity0->P, Entity0->Scale, Entity0->Rotation, Name, Entity0->SortingLayer);
+ InitCurve(MergeWitness, Curve0->Params);
+ 
+ MaybeReverseCurvePoints(Entity0);
+ MaybeReverseCurvePoints(Entity1);
+ 
+ u32 PointCount0 = Curve0->ControlPointCount;
+ u32 PointCount1 = Curve1->ControlPointCount;
+ 
+ u32 PointCount = 0;
+ switch (Method)
  {
-  temp_arena Temp = TempArena(0);
+  case CurveMerge_Concat: {
+   PointCount = (PointCount0 + PointCount1);
+  }break;
   
-  local char ParametricEquationBuffer[1024];
-  string Equation = UI_InputTextF(ParametricEquationBuffer, ArrayCount(ParametricEquationBuffer), 0, "Parametric Equation").Input;
+  case CurveMerge_C0:
+  case CurveMerge_C1:
+  case CurveMerge_C2:
+  case CurveMerge_G1: {
+   NotImplemented;
+  }break;
   
-  parametric_equation_parse_result    OptimizedParse = ParametricEquationParse(Temp.Arena, Equation, 0, 0, 0, false);
-  parametric_equation_parse_result NotOptimizedParse = ParametricEquationParse(Temp.Arena, Equation, 0, 0, 0, true);
+  case CurveMerge_Count: InvalidPath;
+ }
+ 
+ v2 *Points = PushArrayNonZero(Temp.Arena, PointCount, v2);
+ f32 *Weights = PushArrayNonZero(Temp.Arena, PointCount, f32);
+ cubic_bezier_point *Beziers = PushArrayNonZero(Temp.Arena, PointCount, cubic_bezier_point);
+ 
+ ArrayCopy(Weights,               Curve0->ControlPointWeights, PointCount0);
+ ArrayCopy(Weights + PointCount0, Curve1->ControlPointWeights, PointCount1);
+ 
+ ArrayCopy(Points,                Curve0->ControlPoints,       PointCount0);
+ ArrayCopy(Beziers,               Curve0->CubicBezierPoints,   PointCount0);
+ 
+ for (u32 PointIndex1 = 0;
+      PointIndex1 < PointCount1;
+      ++PointIndex1)
+ {
+  v2 Point1 = Curve1->ControlPoints[PointIndex1];
+  Point1 = LocalEntityPositionToWorld(Entity1, Point1);
+  Point1 = WorldToLocalEntityPosition(Entity0, Point1);
+  Points[PointCount0 + PointIndex1] = Point1;
   
-  UI_TextF("optimized expr:");
-  UI_ParametricEquationExpr(OptimizedParse.ParsedExpr, StrLit("optimized expr"));
-  if (!OptimizedParse.Ok)
+  cubic_bezier_point Bezier1 = Curve1->CubicBezierPoints[PointIndex1];
+  Bezier1.P0 = LocalEntityPositionToWorld(Entity1, Bezier1.P0);
+  Bezier1.P0 = WorldToLocalEntityPosition(Entity0, Bezier1.P0);
+  
+  Bezier1.P1 = LocalEntityPositionToWorld(Entity1, Bezier1.P1);
+  Bezier1.P1 = WorldToLocalEntityPosition(Entity0, Bezier1.P1);
+  
+  Bezier1.P2 = LocalEntityPositionToWorld(Entity1, Bezier1.P2);
+  Bezier1.P2 = WorldToLocalEntityPosition(Entity0, Bezier1.P2);
+  
+  Beziers[PointCount0 + PointIndex1] = Bezier1;
+ }
+ 
+ SetCurveControlPoints(MergeWitness, PointCount, Points, Weights, Beziers);
+ 
+ MaybeReverseCurvePoints(MergeEntity);
+ MaybeReverseCurvePoints(Entity0);
+ MaybeReverseCurvePoints(Entity1);
+ 
+ EndTemp(Temp);
+}
+
+internal void
+UpdateAndRenderMergingCurvesUI(editor *Editor)
+{
+ merging_curves_state *Merging = &Editor->MergingCurves;
+ if (Merging->Active)
+ {
+  b32 WindowOpen = true;
+  UI_BeginWindow(&WindowOpen, 0, StrLit("Merging Curves"));
+  
+  if (WindowOpen)
   {
-   UI_ColoredText(RedColor)
+   Choose2CurvesUI(&Merging->Choose2Curves);
+   
+   UI_Combo(SafeCastToPtr(Merging->Method, u32), CurveMerge_Count, CurveMergeNames, StrLit("Merge Method"));
+   
+   entity *Entity0 = Merging->Choose2Curves.Curves[0];
+   entity *Entity1 = Merging->Choose2Curves.Curves[1];
+   
+   curve *Curve0 = ((Entity0 && Entity0->Type == Entity_Curve) ? &Entity0->Curve : 0);
+   curve *Curve1 = ((Entity1 && Entity1->Type == Entity_Curve) ? &Entity1->Curve : 0);
+   
+   curve_merge_compatibility Compatibility = {};
+   if (Curve0 && Curve1)
    {
-    UI_TextF("error: %S", OptimizedParse.ErrorMessage);
+    Compatibility = AreCurvesCompatibleForMerging(Curve0, Curve1, Merging->Method);
+   }
+   else
+   {
+    Compatibility.WhyIncompatible = StrLit("not all curves selected");
+   }
+   
+   entity_with_modify_witness MergeWitness = BeginEntityModify(&Merging->MergeEntity);
+   if (Compatibility.Compatible)
+   {
+    Merge2Curves(&MergeWitness, Entity0, Entity1, Merging->Method);
+   }
+   else
+   {
+    SetCurveControlPoints(&MergeWitness, 0, 0, 0, 0);
+   }
+   EndEntityModify(MergeWitness);
+   
+   UI_Disabled(!Compatibility.Compatible)
+   {
+    if (UI_ButtonF("Merge"))
+    {
+     EndMergingCurves(Editor, true);
+    }
+    if (!Compatibility.Compatible)
+    {
+     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+     {
+      ImGui::SetTooltip("%.*s",
+                        Cast(u32)Compatibility.WhyIncompatible.Count,
+                        Compatibility.WhyIncompatible.Data);
+     }
+    }
    }
   }
-  
-  UI_TextF("not-optimized expr:");
-  UI_ParametricEquationExpr(NotOptimizedParse.ParsedExpr, StrLit("non-optimized expr"));
-  if (!NotOptimizedParse.Ok)
+  else
   {
-   UI_ColoredText(RedColor)
-   {
-    UI_TextF("error: %S", NotOptimizedParse.ErrorMessage);
-   }
+   EndMergingCurves(Editor, false);
   }
-  
-  EndTemp(Temp);
   
   UI_EndWindow();
+ }
+}
+
+internal void
+RenderMergingCurves(editor *Editor, render_group *RenderGroup)
+{
+ merging_curves_state *Merging = &Editor->MergingCurves;
+ if (Merging->Active)
+ {
+  entity *Entity = &Merging->MergeEntity;
+  rendering_entity_handle RenderingHandle = BeginRenderingEntity(Entity, RenderGroup);
+  
+  entity_colors Colors = ExtractEntityColors(Entity);
+  entity_colors Fade = Colors;
+  for (u32 ColorIndex = 0;
+       ColorIndex < ArrayCount(Fade.AllColors);
+       ++ColorIndex)
+  {
+   Fade.AllColors[ColorIndex] = FadeColor(Fade.AllColors[ColorIndex], 0.15f);
+  }
+  ApplyColorsToEntity(Entity, Fade);
+  RenderEntity(RenderingHandle);
+  ApplyColorsToEntity(Entity, Colors);
+  
+  EndRenderingEntity(RenderingHandle);
  }
 }
 
@@ -3828,25 +4212,78 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
  b32 SaveProjectAs = false;
  b32 QuitProject = false;
  b32 AnimateCurves = false;
+ b32 MergeCurves = false;
  
  ProcessInputEvents(Editor, Input, RenderGroup,
                     &NewProject, &OpenFileDialog, &SaveProject,
-                    &SaveProjectAs, &QuitProject, &AnimateCurves);
+                    &SaveProjectAs, &QuitProject);
+ 
+ //- render line shadow when moving
+ {
+  editor_left_click_state *LeftClick = &Editor->LeftClick;
+  entity *Entity = LeftClick->TargetEntity;
+  if (LeftClick->Active && LeftClick->OriginalVerticesCaptured && !Entity->Curve.Params.LineDisabled)
+  {
+   v4 ShadowColor = FadeColor(Entity->Curve.Params.LineColor, 0.15f);
+   rendering_entity_handle RenderingHandle = BeginRenderingEntity(Entity, RenderGroup);
+   
+   PushVertexArray(RenderGroup,
+                   LeftClick->OriginalLineVertices.Vertices,
+                   LeftClick->OriginalLineVertices.VertexCount,
+                   LeftClick->OriginalLineVertices.Primitive,
+                   ShadowColor,
+                   GetCurvePartZOffset(CurvePart_LineShadow));
+   
+   EndRenderingEntity(RenderingHandle);
+  }
+ }
+ 
+ //- render "remove" indicator
+ {
+  editor_right_click_state *RightClick = &Editor->RightClick;
+  if (RightClick->Active)
+  {
+   v4 Color = V4(0.5f, 0.5f, 0.5f, 0.3f);
+   // TODO(hbr): Again, zoffset of this thing is wrong
+   PushCircle(RenderGroup, RightClick->ClickP, Rotation2DZero(), V2(1, 1), RenderGroup->CollisionTolerance, Color, 0.0f);
+  }
+ }
+ 
+ //- render rotation indicator
+ {
+  editor_middle_click_state *MiddleClick = &Editor->MiddleClick;
+  if (MiddleClick->Active && MiddleClick->Rotate)
+  {
+   camera *Camera = &Editor->Camera;
+   f32 Radius = RenderGroup->RotationRadius;
+   v4 Color = RGBA_Color(30, 56, 87, 80);
+   f32 OutlineThickness = 0.1f * Radius;
+   v4 OutlineColor = RGBA_Color(255, 255, 255, 24);
+   // TODO(hbr): ZOffset here is possibly wrong, it should be something on top of everything
+   // instead
+   PushCircle(RenderGroup,
+              Camera->P,
+              Rotation2DZero(),
+              V2(1, 1),
+              Radius - OutlineThickness,
+              Color, 0.0f,
+              OutlineThickness, OutlineColor);
+  }
+ }
  
  UpdateCamera(Editor, Input);
  UpdateFrameStats(Editor, Input);
  
  if (!Editor->HideUI)
  {
-  UpdateRenderSelectedEntityUI(Editor);
-  UpdateRenderMenuBarUI(Editor, &NewProject, &OpenFileDialog, &SaveProject, &SaveProjectAs, &QuitProject, &AnimateCurves);
-  UpdateRenderEntityListUI(Editor);
-  UpdateRenderDiagnosticsUI(Editor, Input);
+  UpdateAndRenderSelectedEntityUI(Editor);
+  UpdateAndRenderMenuBarUI(Editor, &NewProject, &OpenFileDialog, &SaveProject,
+                           &SaveProjectAs, &QuitProject, &AnimateCurves, &MergeCurves);
+  UpdateAndRenderEntityListUI(Editor);
+  UpdateAndRenderDiagnosticsUI(Editor, Input);
   UpdateAndRenderNotifications(Editor, Input, RenderGroup);
   UpdateAndRenderAnimatingCurvesUI(Editor);
-  
-  // TODO(hbr): temp
-  RenderParametricEquationUI();
+  UpdateAndRenderMergingCurvesUI(Editor);
   
 #if BUILD_DEBUG
   ImGui::ShowDemoWindow();
@@ -3872,8 +4309,14 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
   BeginAnimatingCurves(&Editor->AnimatingCurves);
  }
  
+ if (MergeCurves)
+ {
+  BeginMergingCurves(&Editor->MergingCurves);
+ }
+ 
  UpdateAndRenderEntities(Editor, RenderGroup);
  UpdateAndRenderAnimatingCurves(Editor, Input, RenderGroup);
+ RenderMergingCurves(Editor, RenderGroup);
  
 #if BUILD_DEBUG
  Input->RefreshRequested = true;

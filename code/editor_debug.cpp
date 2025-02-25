@@ -1,4 +1,3 @@
-
 internal void
 UI_ParametricEquationExpr(parametric_equation_expr *Expr, u32 *Id)
 {

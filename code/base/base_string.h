@@ -6,6 +6,7 @@ struct string
  char *Data;
  u64 Count;
 };
+read_only global string NilStr;
 
 struct string_list_node
 {

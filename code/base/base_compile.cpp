@@ -143,6 +143,7 @@ ComputeCompilationCommand(compiler_setup Setup, compilation_target Target)
     StrListPushF(Arena, Cmd, "-nologo");
     StrListPushF(Arena, Cmd, "-WX");
     StrListPushF(Arena, Cmd, "-W4");
+    StrListPushF(Arena, Cmd, "-w44062"); // enable incomplete switch warnings
     StrListPushF(Arena, Cmd, "-wd4201"); // nonstandard extension used: nameless struct/union
     StrListPushF(Arena, Cmd, "-wd4100"); // unreferenced local parameter
     StrListPushF(Arena, Cmd, "-wd4505"); // unreferenced functions

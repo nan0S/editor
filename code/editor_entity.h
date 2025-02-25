@@ -63,10 +63,6 @@ struct parametric_curve_params
  
  parametric_equation_expr *X_Equation;
  parametric_equation_expr *Y_Equation;
- 
- // TODO(hbr): Once we optimize the equation, we shouldn't need to store this
- // because everything in env is a number anyway so we can replace it when parsing
- parametric_equation_env EquationEnv;
 };
 
 struct curve_params
@@ -93,7 +89,8 @@ struct curve_params
  v4 ConvexHullColor;
  f32 ConvexHullWidth;
  
- u32 PointCountPerSegment;
+ u32 SamplesPerControlPoint;
+ u32 TotalSamples;
 };
 
 struct control_point_index
@@ -161,28 +158,41 @@ enum
 };
 
 #define MAX_EQUATION_BUFFER_LENGTH 64
-struct parametric_curve_additional_var
+struct parametric_curve_var
 {
  u32 Id;
+ 
+ b32 EquationMode;
+ f32 DragValue;
+ f32 EquationValue;
  
 #define MAX_VAR_NAME_BUFFER_LENGTH 16
  char VarNameBuffer[MAX_VAR_NAME_BUFFER_LENGTH];
  char VarEquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
+ 
+ b32 EquationFail;
+ string EquationErrorMessage;
 };
 struct parametric_curve_resources
 {
  arena *Arena;
+ b32 ShouldClearArena;
  
- // TODO(hbr): Make length of these things different
- char MinT_EquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
- char MaxT_EquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
+ parametric_curve_var MinT_Var;
+ parametric_curve_var MaxT_Var;
  
  char X_EquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
  char Y_EquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
  
+ b32 X_Fail;
+ string X_ErrorMessage;
+ 
+ b32 Y_Fail;
+ string Y_ErrorMessage;
+ 
 #define MAX_ADDITIONAL_VARS_COUNT 16
  u32 AdditionalVarCount;
- parametric_curve_additional_var AdditionalVars[MAX_ADDITIONAL_VARS_COUNT];
+ parametric_curve_var AdditionalVars[MAX_ADDITIONAL_VARS_COUNT];
 };
 
 internal b32
@@ -196,12 +206,18 @@ internal void
 ActivateNewAdditionalVar(parametric_curve_resources *Resources)
 {
  Assert(HasFreeAdditionalVar(Resources));
- parametric_curve_additional_var *Var = Resources->AdditionalVars + Resources->AdditionalVarCount;
+ 
+ parametric_curve_var *Var = Resources->AdditionalVars + Resources->AdditionalVarCount;
  ++Resources->AdditionalVarCount;
- if (Var->Id == 0)
+ 
+ u32 Id = Var->Id;
+ if (Id == 0)
  {
-  Var->Id = Resources->AdditionalVarCount;
+  Id = Resources->AdditionalVarCount;
  }
+ 
+ StructZero(Var);
+ Var->Id = Id;
 }
 
 internal void
@@ -209,14 +225,10 @@ DeactiveAdditionalVar(parametric_curve_resources *Resources, u32 VarIndex)
 {
  Assert(VarIndex < Resources->AdditionalVarCount);
  
- parametric_curve_additional_var *Remove = Resources->AdditionalVars + VarIndex;
- parametric_curve_additional_var *From = Resources->AdditionalVars + (Resources->AdditionalVarCount - 1);
+ parametric_curve_var *Remove = Resources->AdditionalVars + VarIndex;
+ parametric_curve_var *From = Resources->AdditionalVars + (Resources->AdditionalVarCount - 1);
  
- u32 RemoveId = Remove->Id;
  ArrayMove(Remove, Remove + 1, (Resources->AdditionalVarCount - 1) - VarIndex);
- 
- StructZero(From);
- From->Id = RemoveId;
  
  --Resources->AdditionalVarCount;
 }
@@ -299,6 +311,10 @@ struct entity_with_modify_witness
 global entity_with_modify_witness _NilEntityWitness;
 global entity_with_modify_witness *NilEntityWitness = &_NilEntityWitness;
 
+internal void MarkEntityModified(entity_with_modify_witness *Witness);
+internal entity_with_modify_witness BeginEntityModify(entity *Entity);
+internal void EndEntityModify(entity_with_modify_witness Witness);
+
 struct entity_array
 {
  u32 Count;
@@ -313,6 +329,7 @@ struct point_info
  v4 OutlineColor;
 };
 
+internal void InitAllocEntity(entity *Entity);
 internal void InitEntity(entity *Entity, v2 P, v2 Scale, v2 Rotation, string Name, i32 SortingLayer);
 internal void InitCurve(entity_with_modify_witness *Entity, curve_params Params);
 internal void InitImage(entity *Entity);
@@ -340,14 +357,54 @@ internal sorted_entries SortEntities(arena *Arena, entity_array Entities);
 internal void RotateEntityAround(entity *Entity, v2 Rotate, v2 Around);
 
 internal b32 IsEntityVisible(entity *Entity);
+internal void SwitchEntityVisibility(entity *Entity);
 internal b32 IsEntitySelected(entity *Entity);
 internal b32 IsControlPointSelected(curve *Curve);
 internal b32 AreLinePointsVisible(curve *Curve);
+internal b32 DoesCurveUseControlPoints(curve *Curve);
 internal point_info GetCurveControlPointInfo(entity *Curve, u32 PointIndex);
 internal f32 GetCurveTrackedPointRadius(curve *Curve);
 internal f32 GetCurveCubicBezierPointRadius(curve *Curve);
 internal visible_cubic_bezier_points GetVisibleCubicBezierPoints(entity *Entity);
 internal b32 IsCurveEligibleForPointTracking(curve *Curve);
+internal b32 CurveHasWeights(curve *Curve);
+internal b32 IsCurveTotalSamplesMode(curve *Curve);
+internal b32 CanAddControlPoints(curve *Curve);
+
+enum curve_merge_method : u32
+{
+ CurveMerge_Concat,
+ 
+ CurveMerge_C0,
+ CurveMerge_C1,
+ CurveMerge_G1,
+ CurveMerge_C2,
+ 
+ CurveMerge_Count,
+};
+global char const *CurveMergeNames[] = { "Concat", "C0", "C1", "C2", "G1" };
+StaticAssert(ArrayCount(CurveMergeNames) == CurveMerge_Count, CurveMergeNamesDefined);
+
+struct curve_merge_compatibility
+{
+ b32 Compatible;
+ string WhyIncompatible;
+};
+internal curve_merge_compatibility AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method Method);
+
+union entity_colors
+{
+ struct {
+  v4 CurveLineColor;
+  v4 CurvePointColor;
+  v4 CurvePolylineColor;
+  v4 CurveConvexHullColor;
+ };
+ v4 AllColors[4];
+};
+StaticAssert(SizeOf(MemberOf(entity_colors, AllColors)) == SizeOf(entity_colors), EntityColors_ArrayLengthMatchesDefinedColors);
+internal entity_colors ExtractEntityColors(entity *Entity);
+internal void ApplyColorsToEntity(entity *Entity, entity_colors Colors);
 
 inline internal curve_point_index
 CurvePointIndexFromControlPointIndex(control_point_index Index)
@@ -415,17 +472,14 @@ GetCenterPointFromCubicBezierPointIndex(curve *Curve, cubic_bezier_point_index I
 inline internal control_point_index
 CurveLinePointIndexToControlPointIndex(curve *Curve, u32 CurveLinePointIndex)
 {
- u32 Index = SafeDiv0(CurveLinePointIndex, Curve->Params.PointCountPerSegment);
+ Assert(!IsCurveTotalSamplesMode(Curve));
+ u32 Index = SafeDiv0(CurveLinePointIndex, Curve->Params.SamplesPerControlPoint);
  Assert(Index < Curve->ControlPointCount);
  control_point_index Result = {};
  Result.Index = ClampTop(Index, Curve->ControlPointCount - 1);
  
  return Result;
 }
-
-internal void MarkEntityModified(entity_with_modify_witness *Witness);
-internal entity_with_modify_witness BeginEntityModify(entity *Entity);
-internal void EndEntityModify(entity_with_modify_witness Witness);
 
 internal void SetCurvePoint(entity_with_modify_witness *Entity, curve_point_index Index, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
 internal void SetCurveControlPoint(entity_with_modify_witness *Entity, control_point_index Index, v2 P, f32 Weight); // this can be only control point thus we accept weight as well

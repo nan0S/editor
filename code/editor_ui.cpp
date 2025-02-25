@@ -419,7 +419,7 @@ UI_TextF(char const *Format, ...)
 }
 
 internal not_collapsed_b32
-UI_BeginWindow(b32 *IsOpen, string Label, window_flags Flags)
+UI_BeginWindow(b32 *IsOpen, window_flags Flags, string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
@@ -443,7 +443,7 @@ UI_BeginWindowF(b32 *IsOpen, window_flags Flags, char const *Format, ...)
  va_list Args;
  va_start(Args, Format);
  string Label = StrFV(Temp.Arena, Format, Args);
- b32 Result = UI_BeginWindow(IsOpen, Label, Flags);
+ b32 Result = UI_BeginWindow(IsOpen, Flags, Label);
  va_end(Args);
  EndTemp(Temp);
  

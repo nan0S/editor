@@ -40,7 +40,7 @@ internal void UI_PopAlpha(void);
 #define UI_ColoredText(Color)  DeferBlock(UI_PushTextColor(Color), UI_PopTextColor())
 #define UI_Alpha(Alpha)        DeferBlock(UI_PushAlpha(Alpha), UI_PopAlpha())
 
-internal not_collapsed_b32 UI_BeginWindow(b32 *IsOpen, string Label, window_flags Flags);
+internal not_collapsed_b32 UI_BeginWindow(b32 *IsOpen, window_flags Flags, string Label);
 internal not_collapsed_b32 UI_BeginWindowF(b32 *IsOpen, window_flags Flags, char const *Format, ...);
 internal void              UI_EndWindow(void);
 

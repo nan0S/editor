@@ -115,7 +115,7 @@ struct parametric_equation_application_expr
 
 enum parametric_equation_expr_type
 {
- ParametricEquationExpr_Number,
+ ParametricEquationExpr_Number, // also naturally serves as "None" expression
  ParametricEquationExpr_Unary,
  ParametricEquationExpr_Binary,
  ParametricEquationExpr_Application,
@@ -182,21 +182,21 @@ r*sin(my_var*x) + r*cos(my_var*y)
 
 struct parametric_equation_parse_result
 {
- b32 Ok;
+ b32 Fail;
  string ErrorMessage;
  parametric_equation_expr *ParsedExpr;
 };
 
 struct parametric_equation_eval_result
 {
- b32 Ok;
+ b32 Fail;
  string ErrorMessage;
  f32 Value;
 };
 
 struct parametric_equation_parse_statements_result
 {
- b32 Ok;
+ b32 Fail;
  string ErrorMessage;
  parametric_equation_env Env;
 };

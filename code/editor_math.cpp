@@ -29,6 +29,14 @@ DarkenColor(v4 Color, f32 DarkenByRatio)
  return Result;
 }
 
+inline internal v4
+FadeColor(v4 Color, f32 FadeByRatio)
+{
+ v4 Result = Color;
+ Result.A *= FadeByRatio;
+ return Result;
+}
+
 internal f32
 Norm(v2 V)
 {

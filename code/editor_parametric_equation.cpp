@@ -734,7 +734,7 @@ ParseLeafExpr(arena *Arena, parametric_equation_parser *Parser)
   }
   else
   {
-   SetErrorF(Parser->ErrorCapture, "unexpected token '%S'", Token.OriginalString);
+   SetErrorF(Parser->ErrorCapture, "unexpected '%S'", Token.OriginalString);
   }
  }
  
@@ -1035,7 +1035,7 @@ MakeEnv(u32 VarCount, string *VarNames, f32 *VarValues, parametric_equation_t_mo
 {
  parametric_equation_env Env = {};
  Env.T_Mode = T_Mode;
- Env.T_Value;
+ Env.T_Value = T_Value;
  Env.VarCount = VarCount;
  Env.VarNames = VarNames;
  Env.VarValues = VarValues;
@@ -1194,24 +1194,32 @@ ParseEquation(arena *Arena, string Equation, parametric_equation_env Env, b32 Do
  parametric_equation_token_array Tokens = TokenizeParametricEquation(Temp.Arena, Equation, &ErrorCapture);
  
  parametric_equation_parser Parser = BeginParsing(Tokens, &ErrorCapture);
- parametric_equation_expr *Parsed = ParseExpr(Arena, &Parser, 0);
+ 
+#if 0
+ parametric_equation_token Token = Parser.TokenAt[0];
+ Assert(Token.Type != ParametricEquationToken_None);
+ SetErrorF(&ErrorCapture, "unexpected token '%S', expected end of input", Token.OriginalString);
+#endif
+ 
+ parametric_equation_expr *Parsed = &NilExpr;
  if (!EatIfMatch(&Parser, ParametricEquationToken_None))
  {
-  parametric_equation_token Token = Parser.TokenAt[0];
-  Assert(Token.Type != ParametricEquationToken_None);
-  SetErrorF(&ErrorCapture, "unexpected token '%S', expected end of input", Token.OriginalString);
+  Parsed = ParseExpr(Arena, &Parser, 0);
  }
  
  TypeCheckExpr(Parsed, &Env, &ErrorCapture);
  
- if (!DontOptimize)
+ if (!IsError(&ErrorCapture))
  {
-  OptimizeExpr(Parsed, &Env);
+  if (!DontOptimize)
+  {
+   OptimizeExpr(Parsed, &Env);
+  }
  }
  
  parametric_equation_parse_result Result = {};
  Result.ParsedExpr = (IsError(&ErrorCapture) ? &NilExpr : Parsed);
- Result.Ok = (!IsError(&ErrorCapture));
+ Result.Fail = IsError(&ErrorCapture);
  Result.ErrorMessage = ErrorCapture.ErrorMessage;
  
  EndTemp(Temp);
@@ -1245,7 +1253,7 @@ EvalExpr(parametric_equation_expr *Expr,
   case ParametricEquationExpr_Binary: {
    f32 Left = EvalExpr(Expr->Binary.Left, Env);
    f32 Right = EvalExpr(Expr->Binary.Right, Env);
-   EvalBinaryExpr(Left, Expr->Binary.Operator, Right);
+   Result = EvalBinaryExpr(Left, Expr->Binary.Operator, Right);
   }break;
   
   case ParametricEquationExpr_Number: {
@@ -1264,7 +1272,7 @@ EvalExpr(parametric_equation_expr *Expr,
     ArgValues[ArgIndex] = EvalExpr(Arg, Env);
    }
    
-   EvalApplicationExpr(Application.Identifier, Env, Application.ArgCount, ArgValues);
+   Result = EvalApplicationExpr(Application.Identifier, Env, Application.ArgCount, ArgValues);
   }break;
  }
  
@@ -1289,7 +1297,7 @@ ParametricEquationEval(arena *Arena, string Equation,
  
  parametric_equation_eval_result Result = {};
  Result.Value = EvalExpr(Parse.ParsedExpr, &Env);
- Result.Ok = Parse.Ok;
+ Result.Fail = Parse.Fail;
  Result.ErrorMessage = Parse.ErrorMessage;
  
  return Result;

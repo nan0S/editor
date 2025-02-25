@@ -94,6 +94,7 @@ Bugs:
 - scaling is not implemented correctly - specifically lines vs control points are not in the same place in relation to each other when I scale the curve
 - dragging tracked point along curve is broken - specifically for "pętelka" ale może dla innych przypadków też
 - disabling control points is done globally currently - not per entity as it should be
+- watch out for hot-reaoading  - I use NilExpr in editor_parametric_equation.h and it is global - because of that hot-realoding might crash
 
 Stack:
  - add sorting to rendering - this then will allow to draw things out of order and will simplify the code a lot
@@ -118,6 +119,7 @@ Testing:
 
 */
 
+// TODO(hbr): I think it's fair to move out this struct (and associated functions) into it's own file
 struct camera
 {
  v2 P;
@@ -146,26 +148,12 @@ struct collision
  u32 CurveLinePointIndex;
 };
 
-enum curve_combination_type : u32
-{
- CurveCombination_None,
- CurveCombination_Merge,
- CurveCombination_C0,
- CurveCombination_C1,
- CurveCombination_C2,
- CurveCombination_G1,
- CurveCombination_Count,
-};
-global char const *CurveCombinationNames[] = { "None", "Merge", "C0", "C1", "C2", "G1" };
-StaticAssert(ArrayCount(CurveCombinationNames) == CurveCombination_Count, CurveCombinationNamesDefined);
-
 struct curve_combining_state
 {
  entity *SourceEntity;
  entity *WithEntity;
  b32 SourceCurveLastControlPoint;
  b32 WithCurveFirstControlPoint;
- curve_combination_type CombinationType;
 };
 
 enum notification_type
@@ -316,17 +304,29 @@ struct bouncing_parameter
 enum
 {
  AnimatingCurves_Active = (1<<0),
- AnimatingCurves_ChoosingCurve = (1<<1),
- AnimatingCurves_Animating = (1<<2),
+ AnimatingCurves_Animating = (1<<1),
 };
 typedef u32 animating_curves_flags;
+struct choose_2_curves_state
+{
+ b32 WaitingForChoice;
+ entity *Curves[2];
+ u32 ChoosingCurveIndex;
+};
 struct animating_curves_state
 {
  animating_curves_flags Flags;
- entity *Curves[2];
- u32 ChoosingCurveIndex;
+ choose_2_curves_state Choose2Curves;
  bouncing_parameter Bouncing;
  arena *Arena;
+};
+
+struct merging_curves_state
+{
+ b32 Active;
+ choose_2_curves_state Choose2Curves;
+ curve_merge_method Method;
+ entity MergeEntity;
 };
 
 struct editor
@@ -362,6 +362,7 @@ struct editor
  struct work_queue *HighPriorityQueue;
  
  animating_curves_state AnimatingCurves;
+ merging_curves_state MergingCurves;
  
  //////////////////////////////
  

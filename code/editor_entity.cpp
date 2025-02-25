@@ -1,7 +1,14 @@
 internal b32
 AreLinePointsVisible(curve *Curve)
 {
- b32 Result = (!Curve->Params.PointsDisabled);
+ b32 Result = (!Curve->Params.PointsDisabled && DoesCurveUseControlPoints(Curve));
+ return Result;
+}
+
+internal b32
+DoesCurveUseControlPoints(curve *Curve)
+{
+ b32 Result = (Curve->Params.Interpolation != Interpolation_Parametric);
  return Result;
 }
 
@@ -10,6 +17,19 @@ IsEntityVisible(entity *Entity)
 {
  b32 Result = !(Entity->Flags & EntityFlag_Hidden);
  return Result;
+}
+
+internal void
+SetEntityVisibility(entity *Entity, b32 Hidden)
+{
+ if (Hidden)
+ {
+  Entity->Flags |= EntityFlag_Hidden;
+ }
+ else
+ {
+  Entity->Flags &= ~EntityFlag_Hidden;
+ }
 }
 
 internal b32
@@ -104,6 +124,168 @@ IsCurveEligibleForPointTracking(curve *Curve)
  b32 Result = (Interpolation == Interpolation_Bezier && BezierVariant == Bezier_Regular);
  
  return Result;
+}
+
+internal b32
+CurveHasWeights(curve *Curve)
+{
+ b32 Result = (Curve->Params.Interpolation == Interpolation_Bezier &&
+               Curve->Params.Bezier == Bezier_Regular);
+ return Result;
+}
+
+internal b32
+IsCurveTotalSamplesMode(curve *Curve)
+{
+ b32 Result = false;
+ switch (Curve->Params.Interpolation)
+ {
+  case Interpolation_CubicSpline:
+  case Interpolation_Bezier:
+  case Interpolation_Polynomial: {}break;
+  
+  case Interpolation_Parametric: {
+   Result = true;
+  }break;
+  
+  case Interpolation_Count: InvalidPath;
+ }
+ 
+ return Result;
+}
+
+internal b32
+CanAddControlPoints(curve *Curve)
+{
+ b32 Result = false;
+ switch (Curve->Params.Interpolation)
+ {
+  case Interpolation_CubicSpline:
+  case Interpolation_Bezier:
+  case Interpolation_Polynomial: {Result = true;}break;
+  
+  case Interpolation_Parametric: {}break;
+  
+  case Interpolation_Count: InvalidPath;
+ }
+ 
+ return Result;
+}
+
+internal curve_merge_compatibility
+AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method Method)
+{
+ b32 Compatible = false;
+ string WhyIncompatible = NilStr;
+ 
+ curve_params *Params0 = &Curve0->Params;
+ curve_params *Params1 = &Curve1->Params;
+ 
+ string IncompatibleTypes = StrLit("cannot merge curves of different types");
+ 
+ if (Params0->Interpolation == Params1->Interpolation)
+ {
+  switch (Params0->Interpolation)
+  {
+   case Interpolation_Polynomial: {
+    if (Method == CurveMerge_Concat)
+    {
+     Compatible = true;
+    }
+    else
+    {
+     WhyIncompatible = StrLit("polynomial curves can only be concatenated");
+    }
+   }break;
+   
+   case Interpolation_CubicSpline: {
+    if (Params0->CubicSpline == Params1->CubicSpline)
+    {
+     if (Method == CurveMerge_Concat)
+     {
+      Compatible = true;
+     }
+     else
+     {
+      WhyIncompatible = StrLit("cubic spline curves can only be concatenated");
+     }
+    }
+    else
+    {
+     WhyIncompatible = IncompatibleTypes;
+    }
+   }break;
+   
+   case Interpolation_Bezier: {
+    if (Params0->Bezier == Params1->Bezier)
+    {
+     switch (Params0->Bezier)
+     {
+      case Bezier_Regular: {
+       Compatible = true;
+      }break;
+      
+      case Bezier_Cubic: {
+       if (Method == CurveMerge_Concat)
+       {
+        Compatible = true;
+       }
+       else
+       {
+        WhyIncompatible = StrLit("cubic bezier curves can only be concatenated");
+       }
+      }break;
+      
+      case Bezier_Count: InvalidPath;
+     }
+    }
+    else
+    {
+     WhyIncompatible = IncompatibleTypes;
+    }
+   }break;
+   
+   case Interpolation_Parametric: {
+    WhyIncompatible = IncompatibleTypes;
+   }break;
+   
+   case Interpolation_Count: InvalidPath;
+  }
+ }
+ else
+ {
+  WhyIncompatible = IncompatibleTypes;
+ }
+ 
+ curve_merge_compatibility Result = {};
+ Result.Compatible = Compatible;
+ Result.WhyIncompatible = WhyIncompatible;
+ 
+ return Result;
+}
+
+internal entity_colors
+ExtractEntityColors(entity *Entity)
+{
+ entity_colors Colors = {};
+ 
+ curve_params *Params = &Entity->Curve.Params;
+ Colors.CurveLineColor = Params->LineColor;
+ Colors.CurvePointColor = Params->PointColor;
+ Colors.CurvePolylineColor = Params->PolylineColor;
+ Colors.CurveConvexHullColor = Params->ConvexHullColor;
+ 
+ return Colors;
+}
+
+internal void
+ApplyColorsToEntity(entity *Entity, entity_colors Colors)
+{
+ curve_params *Params = &Entity->Curve.Params;
+ Params->LineColor = Colors.CurveLineColor;
+ Params->PointColor = Colors.CurvePointColor;
+ Params->PolylineColor = Colors.CurvePolylineColor;
+ Params->ConvexHullColor = Colors.CurveConvexHullColor;
 }
 
 internal point_info
@@ -377,6 +559,8 @@ InsertControlPoint(entity_with_modify_witness *EntityWitness, v2 Point, u32 At)
      Curve->ControlPointCount < MAX_CONTROL_POINT_COUNT &&
      At <= Curve->ControlPointCount)
  {
+  Assert(CanAddControlPoints(Curve));
+  
   u32 N = Curve->ControlPointCount;
   v2 *P = Curve->ControlPoints;
   f32 *W = Curve->ControlPointWeights;
@@ -456,6 +640,16 @@ InitImage(entity *Entity)
 {
  Entity->Type = Entity_Image;
  ClearArena(Entity->Arena);
+}
+
+internal void
+InitAllocEntity(entity *Entity)
+{
+ Entity->Arena = AllocArena();
+ Entity->Curve.DegreeLowering.Arena = AllocArena();
+ 
+ curve *Curve = &Entity->Curve;
+ Curve->ParametricResources.Arena = AllocArena();
 }
 
 internal void
@@ -883,7 +1077,6 @@ internal void
 CalcParametricCurveLinePoints(f32 MinT, f32 MaxT,
                               parametric_equation_expr *X_Equation,
                               parametric_equation_expr *Y_Equation,
-                              parametric_equation_env *EquationEnv,
                               u32 LinePointCount, v2 *LinePoints)
 {
  f32 T = MinT;
@@ -967,7 +1160,6 @@ EvaluateCurve(curve *Curve, u32 LinePointCount, v2 *LinePoints)
    parametric_curve_params *Parametric = &CurveParams->Parametric;
    CalcParametricCurveLinePoints(Parametric->MinT, Parametric->MaxT,
                                  Parametric->X_Equation, Parametric->Y_Equation,
-                                 &Parametric->EquationEnv,
                                  LinePointCount, LinePoints);
   }break;
   
@@ -985,10 +1177,18 @@ RecomputeCurve(entity *Entity)
  ClearArena(EntityArena);
  
  u32 LinePointCount = 0;
- if (Curve->ControlPointCount > 0)
+ if (IsCurveTotalSamplesMode(Curve))
  {
-  LinePointCount = (Curve->ControlPointCount - 1) * Curve->Params.PointCountPerSegment + 1;
+  LinePointCount = Curve->Params.TotalSamples;
  }
+ else
+ {
+  if (Curve->ControlPointCount > 0)
+  {
+   LinePointCount = (Curve->ControlPointCount - 1) * Curve->Params.SamplesPerControlPoint + 1;
+  }
+ }
+ 
  Curve->LinePointCount = LinePointCount;
  Curve->LinePoints = PushArrayNonZero(Entity->Arena, LinePointCount, v2);
  EvaluateCurve(Curve, Curve->LinePointCount, Curve->LinePoints);

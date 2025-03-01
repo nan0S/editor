@@ -387,8 +387,8 @@ internal visible_cubic_bezier_points GetVisibleCubicBezierPoints(entity *Entity)
 internal b32 IsCurveEligibleForPointTracking(curve *Curve);
 internal b32 CurveHasWeights(curve *Curve);
 internal b32 IsCurveTotalSamplesMode(curve *Curve);
-internal b32 CanAddControlPoints(curve *Curve);
 internal b32 IsCurveReversed(entity *Curve);
+internal b32 IsRegularBezierCurve(curve *Curve);
 
 enum curve_merge_method : u32
 {

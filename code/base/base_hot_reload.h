@@ -3,6 +3,8 @@
 
 struct hot_reload_library
 {
+ b32 IsValid;
+ 
  os_library_handle Library;
  timestamp64 LoadedModifyTime;
  

@@ -207,7 +207,7 @@ struct editor_left_click_state
 {
  b32 Active;
  
- entity *TargetEntity;
+ entity_id TargetEntity;
  editor_left_click_mode Mode;
  curve_point_index CurvePointIndex;
  v2 LastMouseP;
@@ -313,7 +313,8 @@ struct editor
  camera Camera;
  frame_stats FrameStats;
  
- entity *SelectedEntity;
+ entity_id SelectedEntityId;
+ 
 #define MAX_ENTITY_COUNT 1024
  entity Entities[MAX_ENTITY_COUNT];
  u64 EverIncreasingEntityCounter;
@@ -326,6 +327,7 @@ struct editor
  b32 EntityListWindow;
  b32 DiagnosticsWindow;
  b32 SelectedEntityWindow;
+ b32 HelpWindow;
  
  editor_left_click_state LeftClick;
  editor_right_click_state RightClick;

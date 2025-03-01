@@ -326,7 +326,7 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
 }
 
 internal entity *
-AllocEntityFromPool(editor *Editor)
+AllocEntity(editor *Editor)
 {
  entity *Entity = 0;
  
@@ -365,11 +365,6 @@ AllocEntityFromPool(editor *Editor)
 internal void
 DeallocEntity(editor *Editor, entity *Entity)
 {
- if (Editor->SelectedEntity == Entity)
- {
-  Editor->SelectedEntity = 0;
- }
- 
  if (Entity->Type == Entity_Image)
  {
   image *Image = &Entity->Image;
@@ -383,15 +378,16 @@ DeallocEntity(editor *Editor, entity *Entity)
 internal void
 SelectEntity(editor *Editor, entity *Entity)
 {
- if (Editor->SelectedEntity)
+ entity *SelectedEntity = EntityFromId(Editor->SelectedEntityId);
+ if (SelectedEntity)
  {
-  Editor->SelectedEntity->Flags &= ~EntityFlag_Selected;
+  SelectedEntity->Flags &= ~EntityFlag_Selected;
  }
  if (Entity)
  {
   Entity->Flags |= EntityFlag_Selected;
  }
- Editor->SelectedEntity = Entity;
+ Editor->SelectedEntityId = MakeEntityId(Entity);
 }
 
 internal void
@@ -442,7 +438,7 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  u32 ControlPointCount = Curve->ControlPointCount;
  
  entity *LeftEntity = Entity;
- entity *RightEntity = AllocEntityFromPool(Editor);
+ entity *RightEntity = AllocEntity(Editor);
  
  entity_with_modify_witness LeftWitness = BeginEntityModify(LeftEntity);
  entity_with_modify_witness RightWitness = BeginEntityModify(RightEntity);
@@ -481,7 +477,7 @@ DuplicateEntity(entity *Entity, editor *Editor)
 {
  temp_arena Temp = TempArena(0);
  
- entity *Copy = AllocEntityFromPool(Editor);
+ entity *Copy = AllocEntity(Editor);
  entity_with_modify_witness CopyWitness = BeginEntityModify(Copy);
  string CopyName = StrF(Temp.Arena, "%S(copy)", Entity->Name);
  
@@ -532,11 +528,12 @@ internal void
 LowerBezierCurveDegree(entity *Entity)
 {
  curve *Curve = SafeGetCurve(Entity);
+ Assert(IsRegularBezierCurve(Curve));
  curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
+ 
  u32 PointCount = Curve->ControlPointCount;
  if (PointCount > 0)
  {
-  Assert(Curve->Params.Type== Curve_Bezier);
   temp_arena Temp = TempArena(Lowering->Arena);
   
   v2 *LowerPoints = PushArrayNonZero(Temp.Arena, PointCount, v2);
@@ -582,7 +579,7 @@ internal void
 ElevateBezierCurveDegree(entity *Entity)
 {
  curve *Curve = SafeGetCurve(Entity);
- Assert(Curve->Params.Type == Curve_Bezier);
+ Assert(IsRegularBezierCurve(Curve));
  temp_arena Temp = TempArena(0);
  
  u32 ControlPointCount = Curve->ControlPointCount;
@@ -679,7 +676,7 @@ SplitCurveOnControlPoint(entity *Entity, editor *Editor)
   u32 TailPointCount = Curve->ControlPointCount - Curve->SelectedIndex.Index;
   
   entity *HeadEntity = Entity;
-  entity *TailEntity = AllocEntityFromPool(Editor);
+  entity *TailEntity = AllocEntity(Editor);
   
   entity_with_modify_witness HeadWitness = BeginEntityModify(HeadEntity);
   entity_with_modify_witness TailWitness = BeginEntityModify(TailEntity);
@@ -809,74 +806,80 @@ UpdateAndRenderDegreeLowering(rendering_entity_handle Handle)
  entity *Entity = Handle.Entity;
  render_group *RenderGroup = Handle.RenderGroup;
  
- curve *Curve = SafeGetCurve(Entity);
- curve_params *CurveParams = &Curve->Params;
- curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
- entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
- 
- if (Lowering->Active)
+ if (Entity->Type == Entity_Curve)
  {
-  Assert(CurveParams->Type == Curve_Bezier);
+  curve *Curve = SafeGetCurve(Entity);
+  curve_params *CurveParams = &Curve->Params;
+  curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
+  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
   
-  b32 IsDegreeLoweringWindowOpen = true;
-  b32 MixChanged = false;
-  if (UI_BeginWindowF(&IsDegreeLoweringWindowOpen, 0, "Degree Lowering"))
-  {          
-   // TODO(hbr): Add wrapping
-   UI_TextF("Degree lowering failed (curve has higher degree "
-            "than the one you are trying to fit). Tweak parameters"
-            "in order to fit curve manually or revert.");
-   MixChanged = UI_SliderFloatF(&Lowering->MixParameter, 0.0f, 1.0f, "Middle Point Mix");
-  }
-  UI_EndWindow();
-  
-  b32 Ok     = UI_ButtonF("OK"); UI_SameRow();
-  b32 Revert = UI_ButtonF("Revert");
-  
-  //-
-  Assert(Lowering->LowerDegree.MiddlePointIndex < Curve->ControlPointCount);
-  
-  if (MixChanged)
+  if (Lowering->Active)
   {
-   v2 NewControlPoint = Lerp(Lowering->LowerDegree.P_I, Lowering->LowerDegree.P_II, Lowering->MixParameter);
-   f32 NewControlPointWeight = Lerp(Lowering->LowerDegree.W_I, Lowering->LowerDegree.W_II, Lowering->MixParameter);
+   Assert(CurveParams->Type == Curve_Bezier);
    
-   control_point_index MiddlePointIndex = MakeControlPointIndex(Lowering->LowerDegree.MiddlePointIndex);
-   SetCurveControlPoint(&EntityWitness,
-                        MiddlePointIndex,
-                        NewControlPoint,
-                        NewControlPointWeight);
+   b32 IsDegreeLoweringWindowOpen = true;
+   b32 MixChanged = false;
+   b32 Ok = false;
+   b32 Revert = false;
+   
+   if (UI_BeginWindowF(&IsDegreeLoweringWindowOpen, 0, "Degree Lowering"))
+   {          
+    // TODO(hbr): Add that to ui library
+    ImGui::TextWrapped("Degree lowering failed. Tweak the middle point to fit the curve manually.");
+    UI_SeparatorText(NilStr);
+    MixChanged = UI_SliderFloatF(&Lowering->MixParameter, 0.0f, 1.0f, "Middle Point Mix");
+    
+    Ok = UI_ButtonF("OK");
+    UI_SameRow();
+    Revert = UI_ButtonF("Revert");
+   }
+   UI_EndWindow();
+   
+   //-
+   Assert(Lowering->LowerDegree.MiddlePointIndex < Curve->ControlPointCount);
+   
+   if (MixChanged)
+   {
+    v2 NewControlPoint = Lerp(Lowering->LowerDegree.P_I, Lowering->LowerDegree.P_II, Lowering->MixParameter);
+    f32 NewControlPointWeight = Lerp(Lowering->LowerDegree.W_I, Lowering->LowerDegree.W_II, Lowering->MixParameter);
+    
+    control_point_index MiddlePointIndex = MakeControlPointIndex(Lowering->LowerDegree.MiddlePointIndex);
+    SetCurveControlPoint(&EntityWitness,
+                         MiddlePointIndex,
+                         NewControlPoint,
+                         NewControlPointWeight);
+   }
+   
+   if (Revert)
+   {
+    SetCurveControlPoints(&EntityWitness,
+                          Curve->ControlPointCount + 1,
+                          Lowering->SavedControlPoints,
+                          Lowering->SavedControlPointWeights,
+                          Lowering->SavedCubicBezierPoints);
+   }
+   
+   if (Ok || Revert || !IsDegreeLoweringWindowOpen)
+   {
+    Lowering->Active = false;
+   }
   }
   
-  if (Revert)
+  if (Lowering->Active)
   {
-   SetCurveControlPoints(&EntityWitness,
-                         Curve->ControlPointCount + 1,
-                         Lowering->SavedControlPoints,
-                         Lowering->SavedControlPointWeights,
-                         Lowering->SavedCubicBezierPoints);
+   v4 Color = Curve->Params.LineColor;
+   Color.A *= 0.5f;
+   
+   PushVertexArray(RenderGroup,
+                   Lowering->SavedLineVertices.Vertices,
+                   Lowering->SavedLineVertices.VertexCount,
+                   Lowering->SavedLineVertices.Primitive,
+                   Color,
+                   GetCurvePartZOffset(CurvePart_LineShadow));
   }
   
-  if (Ok || Revert || !IsDegreeLoweringWindowOpen)
-  {
-   Lowering->Active = false;
-  }
+  EndEntityModify(EntityWitness);
  }
- 
- if (Lowering->Active)
- {
-  v4 Color = Curve->Params.LineColor;
-  Color.A *= 0.5f;
-  
-  PushVertexArray(RenderGroup,
-                  Lowering->SavedLineVertices.Vertices,
-                  Lowering->SavedLineVertices.VertexCount,
-                  Lowering->SavedLineVertices.Primitive,
-                  Color,
-                  GetCurvePartZOffset(CurvePart_LineShadow));
- }
- 
- EndEntityModify(EntityWitness);
 }
 
 internal task_with_memory *
@@ -1144,7 +1147,7 @@ EndMergingCurves(editor *Editor, b32 Merged)
  
  if (Merged)
  {
-  entity *Entity = AllocEntityFromPool(Editor);
+  entity *Entity = AllocEntity(Editor);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
   
   InitEntityFromEntity(&EntityWitness, &Merging->MergeEntity);
@@ -1214,7 +1217,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
  AllocEntityResources(&Editor->MergingCurves.MergeEntity);
  
  {
-  entity *Entity = AllocEntityFromPool(Editor);
+  entity *Entity = AllocEntity(Editor);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
   
   InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("special"), 0);
@@ -1571,7 +1574,7 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
 internal void
 UpdateAndRenderSelectedEntityUI(editor *Editor)
 {
- entity *Entity = Editor->SelectedEntity;
+ entity *Entity = EntityFromId(Editor->SelectedEntityId);
  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
  b32 DeleteEntity = false;
  
@@ -1639,13 +1642,6 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
     
     DeleteEntity = UI_Button(StrLit("Delete"));
     
-    // TODO(hbr): Most of those buttons shouldn't be here in case of Entity_Image.
-    // But they will not be buttons in the first place as well.
-    if (UI_Button(StrLit("Split on Control Point")))
-    {
-     SplitCurveOnControlPoint(Entity, Editor);
-    }
-    
     if (UI_Button(StrLit("Focus")))
     {
      FocusCameraOnEntity(Editor, Entity);
@@ -1656,16 +1652,32 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
      DuplicateEntity(Entity, Editor);
     }
     
-    if (UI_Button(StrLit("Elevate Degree")))
+    if (Curve)
     {
-     // TODO(hbr): Work on this function
-     ElevateBezierCurveDegree(Entity);
-    }
-    
-    if (UI_Button(StrLit("Lower Degree")))
-    {
-     // TODO(hbr): Work on this function
-     LowerBezierCurveDegree(Entity);
+     // TODO(hbr): Most of those buttons shouldn't be here in case of Entity_Image.
+     // But they will not be buttons in the first place as well.
+     UI_Disabled(!IsControlPointSelected(Curve))
+     {
+      if (UI_Button(StrLit("Split on Control Point")))
+      {
+       SplitCurveOnControlPoint(Entity, Editor);
+      }
+     }
+     
+     UI_Disabled(!IsRegularBezierCurve(Curve))
+     {
+      if (UI_Button(StrLit("Elevate Degree")))
+      {
+       // TODO(hbr): Work on this function
+       ElevateBezierCurveDegree(Entity);
+      }
+      
+      if (UI_Button(StrLit("Lower Degree")))
+      {
+       // TODO(hbr): Work on this function
+       LowerBezierCurveDegree(Entity);
+      }
+     }
     }
    }
    
@@ -2171,11 +2183,7 @@ UpdateAndRenderMenuBarUI(editor *Editor,
    UI_EndMenu();
   }
   
-  // TODO(hbr): Complete help menu
-  if (UI_BeginMenuF("Help"))
-  {
-   UI_EndMenu();
-  }
+  UI_MenuItemF(&Editor->HelpWindow, 0, "Help");
   
   UI_EndMainMenuBar();
  }
@@ -2274,6 +2282,25 @@ UpdateAndRenderDiagnosticsUI(editor *Editor, platform_input *Input)
    UI_TextF("%-20s %.2f ms", "Min frame time", 1000.0f * Stats->MinFrameTime);
    UI_TextF("%-20s %.2f ms", "Max frame time", 1000.0f * Stats->MaxFrameTime);
    UI_TextF("%-20s %.2f ms", "Average frame time", 1000.0f * Stats->AvgFrameTime);
+  }
+  UI_EndWindow();
+ }
+}
+
+internal void
+UpdateAndRenderHelpWindowUI(editor *Editor)
+{
+ if (Editor->HelpWindow)
+ {
+  if (UI_BeginWindow(&Editor->HelpWindow, 0, StrLit("Help")))
+  {
+   ImGui::TextWrapped("(very unstructured) Controls overview:\n\n"
+                      " - controls are made to be as intuitive as possible; read this, no need to understand everything, note which keys and mouse buttons might do something interesting and go experiment as soon as possible instead\n\n"
+                      " - use left mouse button to add/move/select control points\n\n"
+                      " - hold Left Ctrl key and use left mouse button to move/select entities themselves instead\n\n"
+                      " - clicking on curve's shape will insert control point in the middle of the curve's shape, hold Left Alt to append control point as the last point instead, regardless whether curve's shape was clicked\n\n"
+                      " - use right mouse button to delete/deselect entities; releasing button outside of the small circle that will appear will cancel that action\n\n"
+                      " - use middle mouse button to move the camera\n\n");
   }
   UI_EndWindow();
  }
@@ -2550,7 +2577,7 @@ ProcessAsyncEvents(editor *Editor)
    {
     if (Task->State == Image_Loaded)
     {
-     entity *Entity = AllocEntityFromPool(Editor);
+     entity *Entity = AllocEntity(Editor);
      if (Entity)
      {
       string FileName = PathLastPart(Task->ImageFilePath);
@@ -2604,28 +2631,64 @@ UpdateFrameStats(frame_stats *Stats, platform_input *Input)
 }
 
 internal void
-BeginMovingEntity(editor_left_click_state *LeftClick, entity *Target)
+BeginMovingEntity(editor_left_click_state *Left, entity_id Target)
 {
- LeftClick->Active = true;
- LeftClick->Mode = EditorLeftClick_MovingEntity;
- LeftClick->TargetEntity = Target;
+ Left->Active = true;
+ Left->Mode = EditorLeftClick_MovingEntity;
+ Left->TargetEntity = Target;
 }
 
 internal void
-BeginMovingCurvePoint(editor_left_click_state *LeftClick, entity *Target, curve_point_index CurvePoint)
+BeginMovingCurvePoint(editor_left_click_state *Left, entity_id Target, curve_point_index CurvePoint)
 {
- LeftClick->Active = true;
- LeftClick->Mode = EditorLeftClick_MovingCurvePoint;
- LeftClick->TargetEntity = Target;
- LeftClick->CurvePointIndex = CurvePoint;
+ Left->Active = true;
+ Left->Mode = EditorLeftClick_MovingCurvePoint;
+ Left->TargetEntity = Target;
+ Left->CurvePointIndex = CurvePoint;
 }
 
 internal void
-BeginMovingTrackingPoint(editor_left_click_state *LeftClick, entity *Target)
+BeginMovingTrackingPoint(editor_left_click_state *Left, entity_id Target)
 {
- LeftClick->Active = true;
- LeftClick->Mode = EditorLeftClick_MovingTrackingPoint;
- LeftClick->TargetEntity = Target;
+ Left->Active = true;
+ Left->Mode = EditorLeftClick_MovingTrackingPoint;
+ Left->TargetEntity = Target;
+}
+
+internal void
+EndLeftClick(editor_left_click_state *Left)
+{
+ arena *OriginalVerticesArena = Left->OriginalVerticesArena;
+ StructZero(Left);
+ Left->OriginalVerticesArena = OriginalVerticesArena;
+}
+
+internal void
+BeginMiddleClick(editor_middle_click_state *Middle, b32 Rotate, v2 ClipSpaceLastMouseP)
+{
+ Middle->Active = true;
+ Middle->Rotate = Rotate;
+ Middle->ClipSpaceLastMouseP = ClipSpaceLastMouseP;
+}
+
+internal void
+EndMiddleClick(editor_middle_click_state *Middle)
+{
+ StructZero(Middle);
+}
+
+internal void
+BeginRightClick(editor_right_click_state *Right, v2 ClickP, collision CollisionAtP)
+{
+ Right->Active = true;
+ Right->ClickP = ClickP;
+ Right->CollisionAtP = CollisionAtP;
+}
+
+internal void
+EndRightClick(editor_right_click_state *Right)
+{
+ StructZero(Right);
 }
 
 internal void
@@ -2694,31 +2757,38 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
     curve *CollisionCurve = &Collision.Entity->Curve;
     curve_point_tracking_state *CollisionTracking = &CollisionCurve->PointTracking;
     
-    if ((Collision.Entity || Editor->SelectedEntity) && (Event->Flags & PlatformEventFlag_Ctrl))
+    entity *SelectedEntity = EntityFromId(Editor->SelectedEntityId);
+    curve *SelectedCurve = &SelectedEntity->Curve;
+    
+    if ((Collision.Entity || SelectedEntity) && (Event->Flags & PlatformEventFlag_Ctrl))
     {
-     entity *Entity = (Collision.Entity ? Collision.Entity : Editor->SelectedEntity);
+     entity *Entity = (Collision.Entity ? Collision.Entity : SelectedEntity);
      // NOTE(hbr): just move entity if ctrl is pressed
-     BeginMovingEntity(LeftClick, Entity);
+     BeginMovingEntity(LeftClick, MakeEntityId(Entity));
     }
     else if ((Collision.Flags & Collision_CurveLine) && CollisionTracking->Active)
     {
-     BeginMovingTrackingPoint(LeftClick, Collision.Entity);
+     BeginMovingTrackingPoint(LeftClick, MakeEntityId(Collision.Entity));
      
      f32 Fraction = SafeDiv0(Cast(f32)Collision.CurveLinePointIndex, (CollisionCurve->LinePointCount- 1));
      SetTrackingPointFraction(&CollisionEntityWitness, Fraction);
     }
     else if (Collision.Flags & Collision_CurvePoint)
     {
-     BeginMovingCurvePoint(LeftClick, Collision.Entity, Collision.CurvePointIndex);
+     BeginMovingCurvePoint(LeftClick, MakeEntityId(Collision.Entity), Collision.CurvePointIndex);
     }
     else if (Collision.Flags & Collision_CurveLine)
     {
-     if (CanAddControlPoints(CollisionCurve))
+     if (UsesControlPoints(CollisionCurve))
      {
       control_point_index Index = CurveLinePointIndexToControlPointIndex(CollisionCurve, Collision.CurveLinePointIndex);
       u32 InsertAt = Index.Index + 1;
       InsertControlPoint(&CollisionEntityWitness, MouseP, InsertAt);
-      BeginMovingCurvePoint(LeftClick, Collision.Entity, CurvePointIndexFromControlPointIndex(MakeControlPointIndex(InsertAt)));
+      BeginMovingCurvePoint(LeftClick, MakeEntityId(Collision.Entity), CurvePointIndexFromControlPointIndex(MakeControlPointIndex(InsertAt)));
+     }
+     else
+     {
+      SelectEntity(Editor, Collision.Entity);
      }
     }
     else if (Collision.Flags & Collision_TrackedPoint)
@@ -2729,19 +2799,15 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
     else
     {
      entity *TargetEntity = 0;
-     if (Editor->SelectedEntity && Editor->SelectedEntity->Type == Entity_Curve)
+     if (SelectedEntity && SelectedEntity->Type == Entity_Curve && UsesControlPoints(SelectedCurve))
      {
-      curve *SelectedCurve = SafeGetCurve(Editor->SelectedEntity);
-      if (CanAddControlPoints(SelectedCurve))
-      {
-       TargetEntity = Editor->SelectedEntity;
-      }
+      TargetEntity = SelectedEntity;
      }
      else
      {
       temp_arena Temp = TempArena(0);
       
-      entity *Entity = AllocEntityFromPool(Editor);
+      entity *Entity = AllocEntity(Editor);
       entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
       
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
@@ -2754,23 +2820,24 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
       
       EndTemp(Temp);
      }
+     Assert(TargetEntity);
      
-     if (TargetEntity)
-     {
-      entity_with_modify_witness TargetEntityWitness = BeginEntityModify(TargetEntity);
-      
-      control_point_index Appended = AppendControlPoint(&TargetEntityWitness, MouseP);
-      BeginMovingCurvePoint(LeftClick, TargetEntity, CurvePointIndexFromControlPointIndex(Appended));
-      
-      EndEntityModify(TargetEntityWitness);
-     }
+     entity_with_modify_witness TargetEntityWitness = BeginEntityModify(TargetEntity);
+     control_point_index Appended = AppendControlPoint(&TargetEntityWitness, MouseP);
+     BeginMovingCurvePoint(LeftClick, MakeEntityId(TargetEntity), CurvePointIndexFromControlPointIndex(Appended));
+     EndEntityModify(TargetEntityWitness);
     }
     
-    SelectEntity(Editor, LeftClick->TargetEntity);
+    entity *TargetEntity = EntityFromId(LeftClick->TargetEntity);
+    if (TargetEntity)
+    {
+     SelectEntity(Editor, TargetEntity);
+    }
+    
     if (LeftClick->Mode == EditorLeftClick_MovingCurvePoint)
     {
-     SelectControlPointFromCurvePointIndex(SafeGetCurve(LeftClick->TargetEntity),
-                                           LeftClick->CurvePointIndex);
+     curve *TargetCurve = SafeGetCurve(TargetEntity);
+     SelectControlPointFromCurvePointIndex(TargetCurve, LeftClick->CurvePointIndex);
     }
     
     EndEntityModify(CollisionEntityWitness);
@@ -2780,64 +2847,66 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
   if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_LeftMouseButton && LeftClick->Active)
   {
    Eat = true;
-   LeftClick->Active = false;
+   EndLeftClick(LeftClick);
   }
   
   if (!Eat && Event->Type == PlatformEvent_MouseMove && LeftClick->Active)
   {
    // NOTE(hbr): don't eat mouse move event
    
-   entity *Entity = LeftClick->TargetEntity;
-   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
-   
-   v2 Translate = MouseP - LeftClick->LastMouseP;
-   v2 TranslateLocal = (WorldToLocalEntityPosition(Entity, MouseP) -
-                        WorldToLocalEntityPosition(Entity, LeftClick->LastMouseP));
-   
-   switch (LeftClick->Mode)
+   entity *Entity = EntityFromId(LeftClick->TargetEntity);
+   if (Entity)
    {
-    case EditorLeftClick_MovingTrackingPoint: {
-     curve *Curve = SafeGetCurve(Entity);
-     curve_point_tracking_state *Tracking = &Curve->PointTracking;
-     f32 Fraction = Tracking->Fraction;
-     
-     MovePointAlongCurve(Curve, &TranslateLocal, &Fraction, true);
-     MovePointAlongCurve(Curve, &TranslateLocal, &Fraction, false);
-     
-     SetTrackingPointFraction(&EntityWitness, Fraction);
-    }break;
+    entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
     
-    case EditorLeftClick_MovingCurvePoint: {
-     if (!LeftClick->OriginalVerticesCaptured)
-     {
+    v2 Translate = MouseP - LeftClick->LastMouseP;
+    v2 TranslateLocal = (WorldToLocalEntityPosition(Entity, MouseP) -
+                         WorldToLocalEntityPosition(Entity, LeftClick->LastMouseP));
+    
+    switch (LeftClick->Mode)
+    {
+     case EditorLeftClick_MovingTrackingPoint: {
       curve *Curve = SafeGetCurve(Entity);
-      arena *Arena = LeftClick->OriginalVerticesArena;
-      ClearArena(Arena);
-      LeftClick->OriginalLineVertices = CopyLineVertices(Arena, Curve->LineVertices);
-      LeftClick->OriginalVerticesCaptured = true;
-     }
+      curve_point_tracking_state *Tracking = &Curve->PointTracking;
+      f32 Fraction = Tracking->Fraction;
+      
+      MovePointAlongCurve(Curve, &TranslateLocal, &Fraction, true);
+      MovePointAlongCurve(Curve, &TranslateLocal, &Fraction, false);
+      
+      SetTrackingPointFraction(&EntityWitness, Fraction);
+     }break;
      
-     translate_curve_point_flags Flags = (TranslateCurvePoint_MatchBezierTwinDirection |
-                                          TranslateCurvePoint_MatchBezierTwinLength);
-     if (Event->Flags & PlatformEventFlag_Shift)
-     {
-      Flags &= ~TranslateCurvePoint_MatchBezierTwinDirection;
-     }
-     if (Event->Flags & PlatformEventFlag_Ctrl)
-     {
-      Flags &= ~TranslateCurvePoint_MatchBezierTwinLength;
-     }
-     SetCurvePoint(&EntityWitness, LeftClick->CurvePointIndex, MouseP, Flags);
-    }break;
+     case EditorLeftClick_MovingCurvePoint: {
+      if (!LeftClick->OriginalVerticesCaptured)
+      {
+       curve *Curve = SafeGetCurve(Entity);
+       arena *Arena = LeftClick->OriginalVerticesArena;
+       LeftClick->OriginalLineVertices = CopyLineVertices(Arena, Curve->LineVertices);
+       LeftClick->OriginalVerticesCaptured = true;
+      }
+      
+      translate_curve_point_flags Flags = (TranslateCurvePoint_MatchBezierTwinDirection |
+                                           TranslateCurvePoint_MatchBezierTwinLength);
+      if (Event->Flags & PlatformEventFlag_Shift)
+      {
+       Flags &= ~TranslateCurvePoint_MatchBezierTwinDirection;
+      }
+      if (Event->Flags & PlatformEventFlag_Ctrl)
+      {
+       Flags &= ~TranslateCurvePoint_MatchBezierTwinLength;
+      }
+      SetCurvePoint(&EntityWitness, LeftClick->CurvePointIndex, MouseP, Flags);
+     }break;
+     
+     case EditorLeftClick_MovingEntity: {
+      Entity->P += Translate;
+     }break;
+    }
     
-    case EditorLeftClick_MovingEntity: {
-     Entity->P += Translate;
-    }break;
+    LeftClick->LastMouseP = MouseP;
+    
+    EndEntityModify(EntityWitness);
    }
-   
-   LeftClick->LastMouseP = MouseP;
-   
-   EndEntityModify(EntityWitness);
   }
   
   //- right click events processing
@@ -2850,9 +2919,7 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
                                             MouseP,
                                             RenderGroup->CollisionTolerance);
    
-   RightClick->Active = true;
-   RightClick->ClickP = MouseP;
-   RightClick->CollisionAtP = Collision;
+   BeginRightClick(RightClick, MouseP, Collision);
    
    entity *Entity = Collision.Entity;
    if (Collision.Flags & Collision_CurvePoint)
@@ -2870,7 +2937,6 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
   if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_RightMouseButton && RightClick->Active)
   {
    Eat = true;
-   RightClick->Active = false;
    
    // NOTE(hbr): perform click action only if button was released roughly in the same place
    b32 ReleasedClose = (NormSquared(RightClick->ClickP - MouseP) <= Square(RenderGroup->CollisionTolerance));
@@ -2910,20 +2976,20 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
      SelectEntity(Editor, 0);
     }
    }
+   
+   EndRightClick(RightClick);
   }
   
   //- camera control events processing
   if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_MiddleMouseButton)
   {
    Eat = true;
-   MiddleClick->Active = true;
-   MiddleClick->Rotate = (Event->Flags & PlatformEventFlag_Ctrl);
-   MiddleClick->ClipSpaceLastMouseP = Event->ClipSpaceMouseP;
+   BeginMiddleClick(MiddleClick, Event->Flags & PlatformEventFlag_Ctrl, Event->ClipSpaceMouseP);
   }
   if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_MiddleMouseButton)
   {
    Eat = true;
-   MiddleClick->Active = false;
+   EndMiddleClick(MiddleClick);
   }
   if (!Eat && Event->Type == PlatformEvent_MouseMove && MiddleClick->Active)
   {
@@ -2995,7 +3061,7 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
   
   if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_Delete)
   {
-   entity *Entity = Editor->SelectedEntity;
+   entity *Entity = EntityFromId(Editor->SelectedEntityId);
    entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
    
    if (Entity)
@@ -3034,15 +3100,6 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
    TryLoadImages(Editor, Event->FileCount, Event->FilePaths, AtP);
   }
   
-  // TODO(hbr): remove this
-#if BUILD_DEBUG
-  if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_E)
-  {
-   Eat = true;
-   AddNotificationF(Editor, Notification_Success, "hello dasdasdsad as dsa d sad sa ds dsa d  d sa dsa sd a dsa d a dsa d sa dad sasda");
-  }
-#endif
-  
   //-
   if (Eat)
   {
@@ -3055,15 +3112,15 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
  // on some ImGui window
  if (!Input->Pressed[PlatformKey_LeftMouseButton])
  {
-  LeftClick->Active = false;
+  EndLeftClick(LeftClick);
  }
  if (!Input->Pressed[PlatformKey_RightMouseButton])
  {
-  RightClick->Active = false;
+  EndRightClick(RightClick);
  }
  if (!Input->Pressed[PlatformKey_MiddleMouseButton])
  {
-  MiddleClick->Active = false;
+  EndMiddleClick(MiddleClick);
  }
 }
 
@@ -3251,6 +3308,9 @@ RenderMergingCurves(merging_curves_state *Merging, render_group *RenderGroup)
  }
 }
 
+#include "base/base_os.h"
+#include "base/base_os.cpp"
+
 internal void
 EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct render_frame *Frame)
 {
@@ -3292,9 +3352,10 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
  
  //- render line shadow when moving
  {
+  // TODO(hbr): This looks like a mess, probably use functions that already exist
   editor_left_click_state *LeftClick = &Editor->LeftClick;
-  entity *Entity = LeftClick->TargetEntity;
-  if (LeftClick->Active && LeftClick->OriginalVerticesCaptured && !Entity->Curve.Params.LineDisabled)
+  entity *Entity = EntityFromId(LeftClick->TargetEntity);
+  if (LeftClick->Active && Entity && LeftClick->OriginalVerticesCaptured && !Entity->Curve.Params.LineDisabled)
   {
    v4 ShadowColor = FadeColor(Entity->Curve.Params.LineColor, 0.15f);
    rendering_entity_handle RenderingHandle = BeginRenderingEntity(Entity, RenderGroup);
@@ -3353,6 +3414,7 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
                            &SaveProjectAs, &QuitProject, &AnimateCurves, &MergeCurves);
   UpdateAndRenderEntityListUI(Editor);
   UpdateAndRenderDiagnosticsUI(Editor, Input);
+  UpdateAndRenderHelpWindowUI(Editor);
   UpdateAndRenderNotifications(Editor, Input, RenderGroup);
   UpdateAndRenderAnimatingCurvesUI(Editor);
   UpdateAndRenderMergingCurvesUI(Editor);
@@ -3390,9 +3452,10 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
  UpdateAndRenderAnimatingCurves(&Editor->AnimatingCurves, Input, RenderGroup);
  RenderMergingCurves(&Editor->MergingCurves, RenderGroup);
  
-#if BUILD_DEBUG
+ // TODO(hbr): Only in debug???
+ //#if BUILD_DEBUG
  Input->RefreshRequested = true;
-#endif
+ //#endif
 }
 
 DLL_EXPORT

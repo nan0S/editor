@@ -7,40 +7,29 @@
 #define EDITOR_DLL_FILE_NAME ConvertNameToString(EDITOR_DLL)
 #define EDITOR_RENDERER_DLL_FILE_NAME ConvertNameToString(EDITOR_RENDERER_DLL)
 
-internal platform_shared_work_queues
-Platform_MakeWorkQueues(void)
+internal void
+Platform_MakeWorkQueues(work_queue *LowPriorityQueue, work_queue *HighPriorityQueue)
 {
- work_queue LowPriorityQueue = {};
- work_queue HighPriorityQueue = {};
+ u32 ProcCount = OS_ProcCount();
  
- {
-  u32 ProcCount = OS_ProcCount();
-  
-  u32 LowPriorityThreadCount = ProcCount * 1/4;
-  u32 HighPriorityThreadCount = ProcCount * 3/4;
-  LowPriorityThreadCount = ClampBot(LowPriorityThreadCount, 1);
-  HighPriorityThreadCount = ClampBot(HighPriorityThreadCount, 1);
-  
-  WorkQueueInit(&LowPriorityQueue, LowPriorityThreadCount);
-  WorkQueueInit(&HighPriorityQueue, HighPriorityThreadCount);
- }
+ u32 LowPriorityThreadCount = ProcCount * 1/4;
+ u32 HighPriorityThreadCount = ProcCount * 3/4;
+ LowPriorityThreadCount = ClampBot(LowPriorityThreadCount, 1);
+ HighPriorityThreadCount = ClampBot(HighPriorityThreadCount, 1);
  
- platform_shared_work_queues Result = {};
- Result.LowPriorityQueue = LowPriorityQueue;
- Result.HighPriorityQueue = HighPriorityQueue;
- 
- return Result;
+ WorkQueueInit(LowPriorityQueue, LowPriorityThreadCount);
+ WorkQueueInit(HighPriorityQueue, HighPriorityThreadCount);
 }
 
 internal editor_memory
-Platform_MakeEditorMemory(arena *PermamentArena, renderer_memory RendererMemory,
+Platform_MakeEditorMemory(arena *PermamentArena, renderer_memory *RendererMemory,
                           work_queue *LowPriorityQueue, work_queue *HighPriorityQueue,
                           platform_api PlatformAPI)
 {
  editor_memory EditorMemory = {};
  EditorMemory.PermamentArena = PermamentArena;
- EditorMemory.MaxTextureCount = RendererMemory.Limits.MaxTextureCount;
- EditorMemory.RendererQueue = &RendererMemory.RendererQueue;
+ EditorMemory.MaxTextureCount = RendererMemory->Limits.MaxTextureCount;
+ EditorMemory.RendererQueue = &RendererMemory->RendererQueue;
  EditorMemory.LowPriorityQueue = LowPriorityQueue;
  EditorMemory.HighPriorityQueue = HighPriorityQueue;
  EditorMemory.PlatformAPI = PlatformAPI;

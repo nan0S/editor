@@ -34,7 +34,7 @@ HotReloadIfRecompiled(hot_reload_library *Code)
    os_library_handle NewLibrary = OS_LibraryLoad(Code->FreeTempLibraryPath);
    if (NewLibrary)
    {
-    b32 AllFunctionsLoaded = true;
+    b32 NewLibraryIsValid = true;
     for (u32 FunctionIndex = 0;
          FunctionIndex < Code->FunctionCount;
          ++FunctionIndex)
@@ -47,25 +47,29 @@ HotReloadIfRecompiled(hot_reload_library *Code)
      }
      else
      {
-      AllFunctionsLoaded = false;
+      NewLibraryIsValid = false;
       break;
      }
     }
     
-    if (AllFunctionsLoaded)
+    if (NewLibraryIsValid)
     {
-     if (Code->Library)
+     os_library_handle OldLibrary = Code->Library;
+     if (OldLibrary)
      {
-      OS_LibraryUnload(Code->Library);
+      OS_LibraryUnload(OldLibrary);
      }
      
-     ArrayCopy(Code->FunctionTable, Code->TempFunctionTable, Code->FunctionCount);
      Code->Library = NewLibrary;
+     Code->IsValid = true;
      Code->LoadedModifyTime = DLLAttrs.ModifyTime;
+     
+     ArrayCopy(Code->FunctionTable, Code->TempFunctionTable, Code->FunctionCount);
      Swap(Code->UsedTempLibraryPath, Code->FreeTempLibraryPath, string);
      
      // TODO(hbr): maybe remove this
      OS_PrintDebugF("%S reloaded\n", Code->LibraryPath);
+     
      Reloaded = true;
     }
     else

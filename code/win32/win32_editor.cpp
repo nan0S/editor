@@ -422,16 +422,14 @@ Win32HotReloadTask(void *UserData)
  Task->CodeReloaded = HotReloadIfRecompiled(Task->Code);
 }
 
-int
-WinMain(HINSTANCE Instance,
-        HINSTANCE PrevInstance,
-        LPSTR     lpCmdLine,
-        int       nShowCmd)
+internal void
+EntryPoint(void)
 {
  WIN32_BEGIN_DEBUG_BLOCK(FromBegin);
  
  int ArgCount = __argc;
  char **Args = __argv;
+ HINSTANCE Instance = GetModuleHandle(0);
  b32 InitSuccess = false;
  
  OS_Init(ArgCount, Args);
@@ -548,7 +546,7 @@ WinMain(HINSTANCE Instance,
                                 0, 0, Instance, 0);
   if (Window)
   {
-   ShowWindow(Window, nShowCmd);
+   ShowWindow(Window, SW_SHOWDEFAULT);
    InitSuccess = true;
    
    WIN32_END_DEBUG_BLOCK(Win32WindowInit);
@@ -561,33 +559,33 @@ WinMain(HINSTANCE Instance,
    
    renderer_memory RendererMemory = Platform_MakeRendererMemory(PermamentArena);
    
-   win32_renderer_function_table RendererFunctionTable = {};
-   win32_renderer_function_table TempRendererFunctionTable = {};
+   win32_renderer_function_table RendererFunctions = {};
+   win32_renderer_function_table TempRendererFunctions = {};
    string RendererDLL = OS_ExecutableRelativeToFullPath(PermamentArena, StrFromCStr(EDITOR_RENDERER_DLL_FILE_NAME));
    hot_reload_library RendererCode = MakeHotReloadableLibrary(PermamentArena,
                                                               RendererDLL,
                                                               Win32RendererFunctionTableNames,
-                                                              RendererFunctionTable.Functions,
-                                                              TempRendererFunctionTable.Functions,
-                                                              ArrayCount(RendererFunctionTable.Functions));
+                                                              RendererFunctions.Functions,
+                                                              TempRendererFunctions.Functions,
+                                                              ArrayCount(RendererFunctions.Functions));
    
-   platform_shared_work_queues Queues = Platform_MakeWorkQueues();
-   work_queue *LowPriorityQueue = &Queues.LowPriorityQueue;
-   work_queue *HighPriorityQueue = &Queues.HighPriorityQueue;
+   work_queue LowPriorityQueue = {};
+   work_queue HighPriorityQueue = {};
+   Platform_MakeWorkQueues(&LowPriorityQueue, &HighPriorityQueue);
    
    //- init editor stuff
-   editor_function_table EditorFunctionTable = {};
-   editor_function_table TempEditorFunctionTable = {};
+   editor_function_table EditorFunctions = {};
+   editor_function_table TempEditorFunctions = {};
    string EditorDLL = OS_ExecutableRelativeToFullPath(PermamentArena, StrFromCStr(EDITOR_DLL_FILE_NAME));
    hot_reload_library EditorCode = MakeHotReloadableLibrary(PermamentArena,
                                                             EditorDLL,
                                                             EditorFunctionTableNames,
-                                                            EditorFunctionTable.Functions,
-                                                            TempEditorFunctionTable.Functions,
-                                                            ArrayCount(EditorFunctionTable.Functions));
+                                                            EditorFunctions.Functions,
+                                                            TempEditorFunctions.Functions,
+                                                            ArrayCount(EditorFunctions.Functions));
    
-   editor_memory EditorMemory = Platform_MakeEditorMemory(PermamentArena, RendererMemory,
-                                                          LowPriorityQueue, HighPriorityQueue,
+   editor_memory EditorMemory = Platform_MakeEditorMemory(PermamentArena, &RendererMemory,
+                                                          &LowPriorityQueue, &HighPriorityQueue,
                                                           Platform);
    
    u64 LastTSC = OS_ReadCPUTimer();
@@ -615,7 +613,7 @@ WinMain(HINSTANCE Instance,
      win32_hot_reload_task EditorTask = {};
      EditorTask.Code = &EditorCode;
      
-#if 1
+#if 0
      // TODO(hbr): Unfortunately multithreaded path doesn't improve performance. It seems as
      // OS_LoadLibrary (LoadLibrary from Win32 API) grabs mutex or something, making the calls
      // serial in practice.
@@ -633,23 +631,36 @@ WinMain(HINSTANCE Instance,
     }
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(HotReload);}
     
-    WIN32_BEGIN_DEBUG_BLOCK(RendererInit);
-    if (RendererMemory.RendererCodeReloaded && !Renderer)
+    if (!RendererCode.IsValid)
     {
-     Renderer = RendererFunctionTable.Init(RendererArena, &RendererMemory, Window, WindowDC);
+     Win32DisplayErrorBox("Unable to load renderer");
+    }
+    if (!EditorCode.IsValid)
+    {
+     Win32DisplayErrorBox("Unable to load editor");
+    }
+    
+    WIN32_BEGIN_DEBUG_BLOCK(RendererInit);
+    if (RendererMemory.RendererCodeReloaded && !Renderer && RendererCode.IsValid)
+    {
+     Renderer = RendererFunctions.Init(RendererArena, &RendererMemory, Window, WindowDC);
     }
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererInit);}
     
     WIN32_BEGIN_DEBUG_BLOCK(ImGuiInit);
-    if (EditorMemory.EditorCodeReloaded)
+    if (EditorMemory.EditorCodeReloaded && EditorCode.IsValid)
     {
-     imgui_bindings Bindings = EditorFunctionTable.GetImGuiBindings();
+     OS_PrintDebugF("Getting ImGui Bindings\n");
+     imgui_bindings Bindings = EditorFunctions.GetImGuiBindings();
      GlobalImGuiBindings = Bindings;
      RendererMemory.ImGuiBindings = Bindings;
+     OS_PrintDebugF("Got ImGui Bindings\n");
      
      imgui_init_data Init = {};
      Init.Window = Window;
+     OS_PrintDebugF("Bindings Init\n");
      Bindings.Init(&Init);
+     OS_PrintDebugF("Bindings Init Finish\n");
     }
     if (FirstFrame) {WIN32_BEGIN_DEBUG_BLOCK(ImGuiInit);}
     
@@ -726,7 +737,11 @@ WinMain(HINSTANCE Instance,
     
     //- update and render
     WIN32_BEGIN_DEBUG_BLOCK(RendererBeginFrame);
-    render_frame *Frame = RendererFunctionTable.BeginFrame(Renderer, &RendererMemory, WindowDim);
+    render_frame *Frame = 0;
+    if (RendererCode.IsValid)
+    {
+     Frame = RendererFunctions.BeginFrame(Renderer, &RendererMemory, WindowDim);
+    }
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererBeginFrame);}
     
     {
@@ -736,12 +751,18 @@ WinMain(HINSTANCE Instance,
     }
     
     WIN32_BEGIN_DEBUG_BLOCK(EditorUpdateAndRender);
-    EditorFunctionTable.UpdateAndRender(&EditorMemory, &Input, Frame);
+    if (EditorCode.IsValid)
+    {
+     EditorFunctions.UpdateAndRender(&EditorMemory, &Input, Frame);
+    }
     RefreshRequested = Input.RefreshRequested;
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(EditorUpdateAndRender);}
     
     WIN32_BEGIN_DEBUG_BLOCK(RendererEndFrame);
-    RendererFunctionTable.EndFrame(Renderer, &RendererMemory, Frame);
+    if (RendererCode.IsValid)
+    {
+     RendererFunctions.EndFrame(Renderer, &RendererMemory, Frame);
+    }
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererEndFrame);}
     
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(FromBegin);}
@@ -761,6 +782,21 @@ WinMain(HINSTANCE Instance,
  {
   Win32DisplayErrorBox("Failed to initialize window");
  }
- 
+}
+
+#ifndef CONSOLE_APPLICATION
+# define CONSOLE_APPLICATION 0
+#endif
+int
+#if CONSOLE_APPLICATION
+main(int ArgCount, char **Argv)
+#else
+WinMain(HINSTANCE Instance,
+        HINSTANCE PrevInstance,
+        LPSTR     lpCmdLine,
+        int       nShowCmd)
+#endif
+{
+ EntryPoint();
  return 0;
 }

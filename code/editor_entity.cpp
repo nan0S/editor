@@ -97,7 +97,18 @@ AreCurvePointsVisible(curve *Curve)
 internal b32
 UsesControlPoints(curve *Curve)
 {
- b32 Result = (Curve->Params.Type != Curve_Parametric);
+ b32 Result = false;
+ switch (Curve->Params.Type)
+ {
+  case Curve_CubicSpline:
+  case Curve_Bezier:
+  case Curve_Polynomial: {Result = true;}break;
+  
+  case Curve_Parametric: {}break;
+  
+  case Curve_Count: InvalidPath;
+ }
+ 
  return Result;
 }
 
@@ -243,24 +254,6 @@ IsCurveTotalSamplesMode(curve *Curve)
  return Result;
 }
 
-internal b32
-CanAddControlPoints(curve *Curve)
-{
- b32 Result = false;
- switch (Curve->Params.Type)
- {
-  case Curve_CubicSpline:
-  case Curve_Bezier:
-  case Curve_Polynomial: {Result = true;}break;
-  
-  case Curve_Parametric: {}break;
-  
-  case Curve_Count: InvalidPath;
- }
- 
- return Result;
-}
-
 inline internal b32
 IsCurve(entity *Entity)
 {
@@ -273,6 +266,13 @@ IsCurveReversed(entity *Entity)
 {
  curve *Curve = SafeGetCurve(Entity);
  b32 Result = (UsesControlPoints(Curve) && (Entity->Flags & EntityFlag_CurveAppendFront_));
+ return Result;
+}
+
+internal b32
+IsRegularBezierCurve(curve *Curve)
+{
+ b32 Result = (Curve->Params.Type == Curve_Bezier && Curve->Params.Bezier == Bezier_Regular);
  return Result;
 }
 
@@ -663,7 +663,7 @@ InsertControlPoint(entity_with_modify_witness *EntityWitness, v2 Point, u32 At)
      Curve->ControlPointCount < MAX_CONTROL_POINT_COUNT &&
      At <= Curve->ControlPointCount)
  {
-  Assert(CanAddControlPoints(Curve));
+  Assert(UsesControlPoints(Curve));
   
   u32 N = Curve->ControlPointCount;
   v2 *P = Curve->ControlPoints;

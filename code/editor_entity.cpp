@@ -939,163 +939,6 @@ SplitPointsIntoComponents(arena *Arena, v2 *Points, u32 PointCount)
 }
 
 internal void
-CalcNewtonPolynomialLinePoints(v2 *ControlPoints,
-                               u32 ControlPointCount,
-                               f32 *Ti,
-                               u32 OutputLinePointCount,
-                               v2 *OutputLinePoints)
-{
- if (ControlPointCount > 0)
- {
-  temp_arena Temp = TempArena(0);
-  
-  points_soa SOA = SplitPointsIntoComponents(Temp.Arena,
-                                             ControlPoints,
-                                             ControlPointCount);
-  
-  f32 *Beta_X = PushArrayNonZero(Temp.Arena, ControlPointCount, f32);
-  f32 *Beta_Y = PushArrayNonZero(Temp.Arena, ControlPointCount, f32);
-  NewtonBetaFast(Beta_X, Ti, SOA.Xs, ControlPointCount);
-  NewtonBetaFast(Beta_Y, Ti, SOA.Ys, ControlPointCount);
-  
-  f32 Begin = Ti[0];
-  f32 End = Ti[ControlPointCount - 1];
-  f32 T = Begin;
-  f32 Delta = (End - Begin) / (OutputLinePointCount - 1);
-  
-  for (u32 OutputIndex = 0;
-       OutputIndex < OutputLinePointCount;
-       ++OutputIndex)
-  {
-   f32 X = NewtonEvaluate(T, Beta_X, Ti, ControlPointCount);
-   f32 Y = NewtonEvaluate(T, Beta_Y, Ti, ControlPointCount);
-   OutputLinePoints[OutputIndex] = V2(X, Y);
-   
-   T += Delta;
-  }
-  
-  EndTemp(Temp);
- }
-}
-
-internal void
-CalcBarycentricPolynomialLinePoints(v2 *ControlPoints,
-                                    u32 ControlPointCount,
-                                    point_spacing PointSpacing,
-                                    f32 *Ti,
-                                    u32 OutputLinePointCount,
-                                    v2 *OutputLinePoints)
-{
- if (ControlPointCount > 0)
- {
-  temp_arena Temp = TempArena(0);
-  
-  f32 *Omega = PushArrayNonZero(Temp.Arena, ControlPointCount, f32);
-  switch (PointSpacing)
-  {
-   case PointSpacing_Equidistant: {
-    // NOTE(hbr): Equidistant version doesn't seem to work properly (precision problems)
-    BarycentricOmega(Omega, Ti, ControlPointCount);
-   } break;
-   case PointSpacing_Chebychev: {
-    BarycentricOmegaChebychev(Omega, ControlPointCount);
-   } break;
-   
-   case PointSpacing_Count: InvalidPath;
-  }
-  
-  points_soa SOA = SplitPointsIntoComponents(Temp.Arena,
-                                             ControlPoints,
-                                             ControlPointCount);
-  
-  f32 Begin = Ti[0];
-  f32 End = Ti[ControlPointCount - 1];
-  f32 T = Begin;
-  f32 Delta = (End - Begin) / (OutputLinePointCount - 1);
-  
-  for (u32 OutputIndex = 0;
-       OutputIndex < OutputLinePointCount;
-       ++OutputIndex)
-  {
-   f32 X = BarycentricEvaluate(T, Omega, Ti, SOA.Xs, ControlPointCount);
-   f32 Y = BarycentricEvaluate(T, Omega, Ti, SOA.Ys, ControlPointCount);
-   OutputLinePoints[OutputIndex] = V2(X, Y);
-   
-   T += Delta;
-  }
-  
-  EndTemp(Temp);
- }
-}
-
-internal void
-CalcCubicSplineLinePoints(v2 *ControlPoints,
-                          u32 ControlPointCount,
-                          cubic_spline_type CubicSpline,
-                          u32 OutputLinePointCount,
-                          v2 *OutputLinePoints)
-{
- if (ControlPointCount > 0)
- {
-  temp_arena Temp = TempArena(0);
-  
-  if (CubicSpline == CubicSpline_Periodic)
-  {
-   v2 *OriginalControlPoints = ControlPoints;
-   
-   ControlPoints = PushArrayNonZero(Temp.Arena, ControlPointCount + 1, v2);
-   MemoryCopy(ControlPoints,
-              OriginalControlPoints,
-              ControlPointCount * SizeOf(ControlPoints[0]));
-   ControlPoints[ControlPointCount] = OriginalControlPoints[0];
-   
-   ControlPointCount += 1;
-  }
-  
-  f32 *Ti = PushArrayNonZero(Temp.Arena, ControlPointCount, f32);
-  EquidistantPoints(Ti, ControlPointCount);
-  
-  points_soa SOA = SplitPointsIntoComponents(Temp.Arena, ControlPoints, ControlPointCount);
-  
-  f32 *Mx = PushArrayNonZero(Temp.Arena, ControlPointCount, f32);
-  f32 *My = PushArrayNonZero(Temp.Arena, ControlPointCount, f32);
-  switch (CubicSpline)
-  {
-   case CubicSpline_Natural: {
-    CubicSplineNaturalM(Mx, Ti, SOA.Xs, ControlPointCount);
-    CubicSplineNaturalM(My, Ti, SOA.Ys, ControlPointCount);
-   } break;
-   
-   case CubicSpline_Periodic: {
-    CubicSplinePeriodicM(Mx, Ti, SOA.Xs, ControlPointCount);
-    CubicSplinePeriodicM(My, Ti, SOA.Ys, ControlPointCount);
-   } break;
-   
-   case CubicSpline_Count: InvalidPath;
-  }
-  
-  f32 Begin = Ti[0];
-  f32 End = Ti[ControlPointCount - 1];
-  f32 T = Begin;
-  f32 Delta = (End - Begin) / (OutputLinePointCount - 1);
-  
-  for (u32 OutputIndex = 0;
-       OutputIndex < OutputLinePointCount;
-       ++OutputIndex)
-  {
-   
-   f32 X = CubicSplineEvaluate(T, Mx, Ti, SOA.Xs, ControlPointCount);
-   f32 Y = CubicSplineEvaluate(T, My, Ti, SOA.Ys, ControlPointCount);
-   OutputLinePoints[OutputIndex] = V2(X, Y);
-   
-   T += Delta;
-  }
-  
-  EndTemp(Temp);
- }
-}
-
-internal void
 CalcNormalBezierLinePoints(v2 *ControlPoints,
                            u32 ControlPointCount,
                            u32 OutputLinePointCount,
@@ -1111,28 +954,6 @@ CalcNormalBezierLinePoints(v2 *ControlPoints,
   OutputLinePoints[OutputIndex] = BezierCurveEvaluate(T,
                                                       ControlPoints,
                                                       ControlPointCount);
-  
-  T += Delta;
- }
-}
-
-internal void
-CalcRegularBezierLinePoints(v2 *ControlPoints,
-                            f32 *ControlPointWeights,
-                            u32 ControlPointCount,
-                            u32 OutputLinePointCount,
-                            v2 *OutputLinePoints)
-{
- f32 T = 0.0f;
- f32 Delta = 1.0f / (OutputLinePointCount - 1);
- for (u32 OutputIndex = 0;
-      OutputIndex < OutputLinePointCount;
-      ++OutputIndex)
- {
-  OutputLinePoints[OutputIndex] = BezierCurveEvaluateWeighted(T,
-                                                              ControlPoints,
-                                                              ControlPointWeights,
-                                                              ControlPointCount);
   
   T += Delta;
  }
@@ -1154,62 +975,6 @@ GetCubicBezierCurveSegment(cubic_bezier_point *BezierPoints, u32 PointCount, u32
  }
  
  return Result;
-}
-
-internal void
-CalcCubicBezierLinePoints(cubic_bezier_point *CubicBezierPoints,
-                          u32 ControlPointCount,
-                          u32 OutputLinePointCount,
-                          v2 *OutputLinePoints)
-{
- if (ControlPointCount > 0)
- {
-  f32 T = 0.0f;
-  f32 Delta = 1.0f / (OutputLinePointCount - 1);
-  for (u32 OutputIndex = 0;
-       OutputIndex < OutputLinePointCount;
-       ++OutputIndex)
-  {
-   f32 Expanded_T = (ControlPointCount - 1) * T;
-   u32 SegmentIndex = Cast(u32)Expanded_T;
-   f32 Segment_T = Expanded_T - SegmentIndex;
-   
-   Assert(SegmentIndex < ControlPointCount);
-   Assert(0.0f <= Segment_T && Segment_T <= 1.0f);
-   
-   cubic_bezier_curve_segment Segment = GetCubicBezierCurveSegment(CubicBezierPoints, ControlPointCount, SegmentIndex);
-   OutputLinePoints[OutputIndex] = BezierCurveEvaluate(Segment_T,
-                                                       Segment.Points,
-                                                       Segment.PointCount);
-   
-   T += Delta;
-  }
- }
-}
-
-internal void
-CalcParametricCurveLinePoints(f32 MinT, f32 MaxT,
-                              parametric_equation_expr *X_Equation,
-                              parametric_equation_expr *Y_Equation,
-                              u32 LinePointCount, v2 *LinePoints)
-{
- f32 T = MinT;
- MaxT = Max(MinT, MaxT);
- Assert(MinT <= MaxT);
- f32 DeltaT = (MaxT - MinT) / (LinePointCount - 1);
- 
- for (u32 LinePointIndex = 0;
-      LinePointIndex	< LinePointCount;
-      ++LinePointIndex)
- {
-  f32 X = ParametricEquationEvalWithT(X_Equation, T);
-  f32 Y = ParametricEquationEvalWithT(Y_Equation, T);
-  
-  v2 Point = V2(X, Y);
-  LinePoints[LinePointIndex] = Point;
-  
-  T += DeltaT;
- }
 }
 
 // TODO(hbr): This can be ppb optimized to use only O(m) memory
@@ -1282,36 +1047,6 @@ GenerateBSplineKnots(arena *Arena, u32 PartitionSize, u32 Degree)
  return Knots;
 }
 
-internal void
-CalcBSplineLinePoints(v2 *ControlPoints, u32 ControlPointCount,
-                      u32 Degree,
-                      u32 LinePointCount, v2 *LinePoints)
-{
- temp_arena Temp = TempArena(0);
- 
- if (ControlPointCount >= Degree + 1)
- {
-  u32 PartitionSize = ControlPointCount - Degree + 1;
-  f32 *Knots = GenerateBSplineKnots(Temp.Arena, PartitionSize, Degree);
-  
-  f32 T = 0.0f;
-  f32 Delta_T = 1.0f / (LinePointCount - 1);
-  
-  for (u32 LinePointIndex = 0;
-       LinePointIndex < LinePointCount;
-       ++LinePointIndex)
-  {
-   // TODO(hbr): I don't want to either clamp or subtract eps from here
-   T = Clamp(T, 0.0f, 1.0f - F32_EPS);
-   v2 LinePoint = BSplineEvaluate(T, ControlPoints, Knots, PartitionSize, Degree);
-   LinePoints[LinePointIndex] = LinePoint;
-   T += Delta_T;
-  }
- }
- 
- EndTemp(Temp);
-}
-
 internal f32 *
 GenerateSpacedPoints(arena *Arena, u32 PointCount, point_spacing Spacing)
 {
@@ -1326,7 +1061,279 @@ GenerateSpacedPoints(arena *Arena, u32 PointCount, point_spacing Spacing)
 }
 
 internal void
-EvaluateCurve(curve *Curve, u32 LinePointCount, v2 *LinePoints)
+CalcBarycentricPolynomial(v2 *Controls,
+                          u32 PointCount,
+                          point_spacing PointSpacing,
+                          f32 *Ti,
+                          u32 EvalCount, v2 *OutputEvalPoints)
+{
+ if (PointCount > 0)
+ {
+  temp_arena Temp = TempArena(0);
+  
+  f32 *Omega = PushArrayNonZero(Temp.Arena, PointCount, f32);
+  switch (PointSpacing)
+  {
+   case PointSpacing_Equidistant: {
+    // NOTE(hbr): Equidistant version doesn't seem to work properly (precision problems)
+    BarycentricOmega(Omega, Ti, PointCount);
+   } break;
+   case PointSpacing_Chebychev: {
+    BarycentricOmegaChebychev(Omega, PointCount);
+   } break;
+   
+   case PointSpacing_Count: InvalidPath;
+  }
+  
+  points_soa SOA = SplitPointsIntoComponents(Temp.Arena, Controls, PointCount);
+  
+  f32 Begin = Ti[0];
+  f32 End = Ti[PointCount - 1];
+  f32 T = Begin;
+  f32 Delta = (End - Begin) / (EvalCount - 1);
+  
+  for (u32 OutputIndex = 0;
+       OutputIndex < EvalCount;
+       ++OutputIndex)
+  {
+   f32 X = BarycentricEvaluate(T, Omega, Ti, SOA.Xs, PointCount);
+   f32 Y = BarycentricEvaluate(T, Omega, Ti, SOA.Ys, PointCount);
+   OutputEvalPoints[OutputIndex] = V2(X, Y);
+   
+   T += Delta;
+  }
+  
+  EndTemp(Temp);
+ }
+}
+
+internal void
+CalcNewtonPolynomial(v2 *Controls,
+                     u32 PointCount,
+                     f32 *Ti,
+                     u32 EvalCount,
+                     v2 *OutputEvalPoints)
+{
+ if (PointCount > 0)
+ {
+  temp_arena Temp = TempArena(0);
+  
+  points_soa SOA = SplitPointsIntoComponents(Temp.Arena, Controls, PointCount);
+  
+  f32 *Beta_X = PushArrayNonZero(Temp.Arena, PointCount, f32);
+  f32 *Beta_Y = PushArrayNonZero(Temp.Arena, PointCount, f32);
+  NewtonBetaFast(Beta_X, Ti, SOA.Xs, PointCount);
+  NewtonBetaFast(Beta_Y, Ti, SOA.Ys, PointCount);
+  
+  f32 Begin = Ti[0];
+  f32 End = Ti[PointCount - 1];
+  f32 T = Begin;
+  f32 Delta = (End - Begin) / (EvalCount - 1);
+  
+  for (u32 OutputIndex = 0;
+       OutputIndex < EvalCount;
+       ++OutputIndex)
+  {
+   f32 X = NewtonEvaluate(T, Beta_X, Ti, PointCount);
+   f32 Y = NewtonEvaluate(T, Beta_Y, Ti, PointCount);
+   OutputEvalPoints[OutputIndex] = V2(X, Y);
+   
+   T += Delta;
+  }
+  
+  EndTemp(Temp);
+ }
+}
+
+internal void
+CalcPolynomial(v2 *Controls, u32 PointCount,
+               polynomial_interpolation_params Polynomial,
+               u32 SampleCount, v2 *OutSamples)
+{
+ temp_arena Temp = TempArena(0);
+ 
+ point_spacing PointSpacing = Polynomial.PointSpacing;
+ f32 *Ti = GenerateSpacedPoints(Temp.Arena, PointCount, PointSpacing);
+ 
+ switch (Polynomial.Type)
+ {
+  case PolynomialInterpolation_Barycentric: {CalcBarycentricPolynomial(Controls, PointCount, PointSpacing, Ti, SampleCount, OutSamples);}break;
+  case PolynomialInterpolation_Newton:      {CalcNewtonPolynomial(Controls, PointCount, Ti, SampleCount, OutSamples);}break;
+  case PolynomialInterpolation_Count: InvalidPath;
+ }
+ 
+ EndTemp(Temp);
+}
+
+internal void
+CalcCubicSpline(v2 *Controls, u32 PointCount,
+                cubic_spline_type Spline,
+                u32 SampleCount, v2 *OutSamples)
+{
+ if (PointCount > 0)
+ {
+  temp_arena Temp = TempArena(0);
+  
+  if (Spline == CubicSpline_Periodic)
+  {
+   v2 *OriginalControls = Controls;
+   
+   Controls = PushArrayNonZero(Temp.Arena, PointCount + 1, v2);
+   ArrayCopy(Controls, OriginalControls, PointCount);
+   Controls[PointCount] = OriginalControls[0];
+   
+   ++PointCount;
+  }
+  
+  f32 *Ti = PushArrayNonZero(Temp.Arena, PointCount, f32);
+  EquidistantPoints(Ti, PointCount);
+  
+  points_soa SOA = SplitPointsIntoComponents(Temp.Arena, Controls, PointCount);
+  
+  f32 *Mx = PushArrayNonZero(Temp.Arena, PointCount, f32);
+  f32 *My = PushArrayNonZero(Temp.Arena, PointCount, f32);
+  switch (Spline)
+  {
+   case CubicSpline_Natural: {
+    CubicSplineNaturalM(Mx, Ti, SOA.Xs, PointCount);
+    CubicSplineNaturalM(My, Ti, SOA.Ys, PointCount);
+   } break;
+   
+   case CubicSpline_Periodic: {
+    CubicSplinePeriodicM(Mx, Ti, SOA.Xs, PointCount);
+    CubicSplinePeriodicM(My, Ti, SOA.Ys, PointCount);
+   } break;
+   
+   case CubicSpline_Count: InvalidPath;
+  }
+  
+  f32 Begin = Ti[0];
+  f32 End = Ti[PointCount - 1];
+  f32 T = Begin;
+  f32 Delta = (End - Begin) / (SampleCount - 1);
+  
+  for (u32 OutputIndex = 0;
+       OutputIndex < SampleCount;
+       ++OutputIndex)
+  {
+   
+   f32 X = CubicSplineEvaluate(T, Mx, Ti, SOA.Xs, PointCount);
+   f32 Y = CubicSplineEvaluate(T, My, Ti, SOA.Ys, PointCount);
+   OutSamples[OutputIndex] = V2(X, Y);
+   
+   T += Delta;
+  }
+  
+  EndTemp(Temp);
+ }
+}
+
+internal void
+CalcRegularBezier(v2 *Controls, f32 *Weights, u32 PointCount,
+                  u32 SampleCount, v2 *OutSamples)
+{
+ f32 T = 0.0f;
+ f32 Delta_T = 1.0f / (SampleCount - 1);
+ 
+ for (u32 SampleIndex = 0;
+      SampleIndex < SampleCount;
+      ++SampleIndex)
+ {
+  OutSamples[SampleIndex] = BezierCurveEvaluateWeighted(T, Controls, Weights, PointCount);
+  T += Delta_T;
+ }
+}
+
+internal void
+CalcCubicBezier(cubic_bezier_point *Beziers, u32 PointCount,
+                u32 SampleCount, v2 *OutSamples)
+{
+ if (PointCount > 0)
+ {
+  f32 T = 0.0f;
+  f32 Delta_T = 1.0f / (SampleCount - 1);
+  
+  for (u32 SampleIndex = 0;
+       SampleIndex < SampleCount;
+       ++SampleIndex)
+  {
+   f32 Expanded_T = (PointCount - 1) * T;
+   u32 SegmentIndex = Cast(u32)Expanded_T;
+   f32 Segment_T = Expanded_T - SegmentIndex;
+   
+   Assert(SegmentIndex < PointCount);
+   Assert(0.0f <= Segment_T && Segment_T <= 1.0f);
+   
+   cubic_bezier_curve_segment Segment = GetCubicBezierCurveSegment(Beziers, PointCount, SegmentIndex);
+   OutSamples[SampleIndex] = BezierCurveEvaluate(Segment_T, Segment.Points, Segment.PointCount);
+   
+   T += Delta_T;
+  }
+ }
+}
+
+internal void
+CalcBSpline(v2 *Controls, u32 PointCount,
+            b_spline_params B_Spline,
+            u32 SampleCount, v2 *OutSamples)
+{
+ u32 Degree = B_Spline.Degree;
+ 
+ if (PointCount >= Degree + 1)
+ {
+  temp_arena Temp = TempArena(0);
+  
+  u32 PartitionSize = PointCount - Degree + 1;
+  f32 *Knots = GenerateBSplineKnots(Temp.Arena, PartitionSize, Degree);
+  
+  f32 T = 0.0f;
+  f32 Delta_T = 1.0f / (SampleCount - 1);
+  
+  for (u32 SampleIndex = 0;
+       SampleIndex < SampleCount;
+       ++SampleIndex)
+  {
+   // TODO(hbr): I don't want to either clamp or subtract eps from here
+   T = Clamp(T, 0.0f, 1.0f - F32_EPS);
+   OutSamples[SampleIndex] = BSplineEvaluate(T, Controls, Knots, PartitionSize, Degree);
+   T += Delta_T;
+  }
+  
+  EndTemp(Temp);
+ }
+}
+
+internal void
+CalcParametric(
+               parametric_curve_params Parametric,
+               u32 SampleCount, v2 *OutSamples)
+{
+ f32 MinT = Parametric.MinT;
+ f32 MaxT = Max(Parametric.MinT, Parametric.MaxT);
+ Assert(MinT <= MaxT);
+ 
+ parametric_equation_expr *X_Equation = Parametric.X_Equation;
+ parametric_equation_expr *Y_Equation = Parametric.Y_Equation;
+ 
+ f32 T = MinT;
+ f32 DeltaT = (MaxT - MinT) / (SampleCount - 1);
+ 
+ for (u32 SampleIndex = 0;
+      SampleIndex	< SampleCount;
+      ++SampleIndex)
+ {
+  f32 X = ParametricEquationEvalWithT(X_Equation, T);
+  f32 Y = ParametricEquationEvalWithT(Y_Equation, T);
+  
+  v2 Point = V2(X, Y);
+  OutSamples[SampleIndex] = Point;
+  
+  T += DeltaT;
+ }
+}
+
+internal void
+CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
 {
  temp_arena Temp = TempArena(0);
  
@@ -1334,59 +1341,24 @@ EvaluateCurve(curve *Curve, u32 LinePointCount, v2 *LinePoints)
  v2 *Controls = Curve->ControlPoints;
  f32 *Weights = Curve->ControlPointWeights;
  cubic_bezier_point *Beziers = Curve->CubicBezierPoints;
- 
  curve_params *Params = &Curve->Params;
  
  switch (Params->Type)
  {
-  case Curve_Polynomial: {
-   polynomial_interpolation_params *Polynomial = &Params->Polynomial;
-   point_spacing PointSpacing = Polynomial->PointSpacing;
-   f32 *Ti = GenerateSpacedPoints(Temp.Arena, PointCount, PointSpacing);
-   
-   switch (Polynomial->Type)
-   {
-    case PolynomialInterpolation_Barycentric: {CalcBarycentricPolynomialLinePoints(Controls, PointCount, PointSpacing, Ti, LinePointCount, LinePoints);}break;
-    case PolynomialInterpolation_Newton:      {CalcNewtonPolynomialLinePoints(Controls, PointCount, Ti, LinePointCount, LinePoints);}break;
-    case PolynomialInterpolation_Count: InvalidPath;
-   }
-  } break;
-  
-  case Curve_CubicSpline: {
-   CalcCubicSplineLinePoints(Controls, PointCount, Params->CubicSpline, LinePointCount, LinePoints);
-  } break;
+  case Curve_Polynomial: {CalcPolynomial(Controls, PointCount, Params->Polynomial, SampleCount, OutSamples);} break;
+  case Curve_CubicSpline: {CalcCubicSpline(Controls, PointCount, Params->CubicSpline, SampleCount, OutSamples);} break;
   
   case Curve_Bezier: {
    switch (Params->Bezier)
    {
-    case Bezier_Regular: {
-     CalcRegularBezierLinePoints(Curve->ControlPoints, Curve->ControlPointWeights,
-                                 Curve->ControlPointCount, LinePointCount, LinePoints);
-    } break;
-    
-    case Bezier_Cubic: {
-     CalcCubicBezierLinePoints(Curve->CubicBezierPoints, Curve->ControlPointCount,
-                               LinePointCount, LinePoints);
-    } break;
-    
+    case Bezier_Regular: {CalcRegularBezier(Controls, Weights, PointCount, SampleCount, OutSamples);}break;
+    case Bezier_Cubic: {CalcCubicBezier(Beziers, PointCount, SampleCount, OutSamples);}break;
     case Bezier_Count: InvalidPath;
    }
   } break;
   
-  case Curve_BSpline: {
-   b_spline_params *B_Spline = &Params->B_Spline;
-   CalcBSplineLinePoints(Curve->ControlPoints, Curve->ControlPointCount,
-                         B_Spline->Degree,
-                         LinePointCount, LinePoints);
-  }break;
-  
-  case Curve_Parametric: {
-   parametric_curve_params *Parametric = &Params->Parametric;
-   
-   CalcParametricCurveLinePoints(Parametric->MinT, Parametric->MaxT,
-                                 Parametric->X_Equation, Parametric->Y_Equation,
-                                 LinePointCount, LinePoints);
-  }break;
+  case Curve_BSpline: {CalcBSpline(Controls, PointCount, Params->B_Spline, SampleCount, OutSamples);}break;
+  case Curve_Parametric: {CalcParametric(Params->Parametric, SampleCount, OutSamples);}break;
   
   case Curve_Count: InvalidPath;
  }
@@ -1400,64 +1372,48 @@ RecomputeCurve(entity *Entity)
  curve *Curve = SafeGetCurve(Entity);
  curve_params *Params = &Curve->Params;
  arena *EntityArena = Entity->Arena;
+ u32 PointCount = Curve->ControlPointCount;
+ v2 *Controls = Curve->ControlPoints;
+ f32 *Weights = Curve->ControlPointWeights;
+ f32 LineWidth = Params->LineWidth;
  
  ClearArena(EntityArena);
  
- u32 LinePointCount = 0;
+ u32 SampleCount = 0;
  if (IsCurveTotalSamplesMode(Curve))
  {
-  LinePointCount = Curve->Params.TotalSamples;
+  SampleCount = Curve->Params.TotalSamples;
  }
  else
  {
   if (Curve->ControlPointCount > 0)
   {
-   LinePointCount = (Curve->ControlPointCount - 1) * Params->SamplesPerControlPoint + 1;
+   SampleCount = (Curve->ControlPointCount - 1) * Params->SamplesPerControlPoint + 1;
   }
  }
+ v2 *Samples = PushArrayNonZero(Entity->Arena, SampleCount, v2);
+ CalcCurve(Curve, SampleCount, Samples);
  
- Curve->LinePointCount = LinePointCount;
- Curve->LinePoints = PushArrayNonZero(Entity->Arena, LinePointCount, v2);
- EvaluateCurve(Curve, Curve->LinePointCount, Curve->LinePoints);
+ vertex_array CurveVertices = ComputeVerticesOfThickLine(EntityArena, SampleCount, Samples, LineWidth, IsCurveLooped(Curve));
  
- Curve->LineVertices = ComputeVerticesOfThickLine(EntityArena,
-                                                  Curve->LinePointCount,
-                                                  Curve->LinePoints,
-                                                  Params->LineWidth,
-                                                  IsCurveLooped(Curve));
- Curve->PolylineVertices = ComputeVerticesOfThickLine(EntityArena,
-                                                      Curve->ControlPointCount,
-                                                      Curve->ControlPoints,
-                                                      Params->PolylineWidth,
-                                                      false);
+ vertex_array PolylineVertices = ComputeVerticesOfThickLine(EntityArena, PointCount, Controls, Params->PolylineWidth, false);
  
- Curve->ConvexHullPoints = PushArrayNonZero(EntityArena, Curve->ControlPointCount, v2);
- Curve->ConvexHullCount = CalcConvexHull(Curve->ControlPointCount, Curve->ControlPoints, Curve->ConvexHullPoints);
- Curve->ConvexHullVertices = ComputeVerticesOfThickLine(EntityArena,
-                                                        Curve->ConvexHullCount,
-                                                        Curve->ConvexHullPoints,
-                                                        Params->ConvexHullWidth,
-                                                        true);
+ v2 *ConvexHullPoints = PushArrayNonZero(EntityArena, PointCount, v2);
+ u32 ConvexHullCount = CalcConvexHull(PointCount, Controls, ConvexHullPoints);
+ vertex_array ConvexHullVertices = ComputeVerticesOfThickLine(EntityArena, ConvexHullCount, ConvexHullPoints, Params->ConvexHullWidth, true);
  
  curve_point_tracking_state *Tracking = &Curve->PointTracking;
  if (IsCurveEligibleForPointTracking(Curve))
  {
-  Tracking->LocalSpaceTrackedPoint = BezierCurveEvaluateWeighted(Tracking->Fraction,
-                                                                 Curve->ControlPoints,
-                                                                 Curve->ControlPointWeights,
-                                                                 Curve->ControlPointCount);
+  f32 Fraction = Tracking->Fraction;
+  
+  v2 LocalSpaceTrackedPoint = BezierCurveEvaluateWeighted(Fraction, Controls, Weights, PointCount);
+  Tracking->LocalSpaceTrackedPoint = LocalSpaceTrackedPoint;
   
   if (!Tracking->IsSplitting)
   {
-   all_de_casteljau_intermediate_results Intermediate = DeCasteljauAlgorithm(EntityArena,
-                                                                             Tracking->Fraction,
-                                                                             Curve->ControlPoints,
-                                                                             Curve->ControlPointWeights,
-                                                                             Curve->ControlPointCount);
-   vertex_array *LineVerticesPerIteration = PushArray(EntityArena,
-                                                      Intermediate.IterationCount,
-                                                      vertex_array);
-   f32 LineWidth = Params->LineWidth;
+   all_de_casteljau_intermediate_results Intermediate = DeCasteljauAlgorithm(EntityArena, Fraction, Controls, Weights, PointCount);
+   vertex_array *LineVerticesPerIteration = PushArray(EntityArena, Intermediate.IterationCount, vertex_array);
    
    u32 IterationPointsOffset = 0;
    for (u32 Iteration = 0;
@@ -1465,12 +1421,11 @@ RecomputeCurve(entity *Entity)
         ++Iteration)
    {
     u32 CurrentIterationPointCount = Intermediate.IterationCount - Iteration;
-    LineVerticesPerIteration[Iteration] =
-     ComputeVerticesOfThickLine(EntityArena,
-                                CurrentIterationPointCount,
-                                Intermediate.P + IterationPointsOffset,
-                                LineWidth,
-                                false);
+    LineVerticesPerIteration[Iteration] = ComputeVerticesOfThickLine(EntityArena,
+                                                                     CurrentIterationPointCount,
+                                                                     Intermediate.P + IterationPointsOffset,
+                                                                     LineWidth,
+                                                                     false);
     IterationPointsOffset += CurrentIterationPointCount;
    }
    
@@ -1483,6 +1438,14 @@ RecomputeCurve(entity *Entity)
  {
   Tracking->Active = false;
  }
+ 
+ Curve->CurveSampleCount = SampleCount;
+ Curve->CurveSamples = Samples;
+ Curve->CurveVertices = CurveVertices;
+ Curve->PolylineVertices = PolylineVertices;
+ Curve->ConvexHullPoints = ConvexHullPoints;
+ Curve->ConvexHullCount = ConvexHullCount;
+ Curve->ConvexHullVertices = ConvexHullVertices;
 }
 
 internal void

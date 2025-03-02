@@ -225,13 +225,13 @@ struct curve
  
  control_point_index SelectedIndex;
  
- u32 LinePointCount;
- v2 *LinePoints;
+ u32 CurveSampleCount;
+ v2 *CurveSamples;
  
  u32 ConvexHullCount;
  v2 *ConvexHullPoints;
  
- vertex_array LineVertices;
+ vertex_array CurveVertices;
  vertex_array PolylineVertices;
  vertex_array ConvexHullVertices;
  

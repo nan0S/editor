@@ -23,13 +23,13 @@ MovePointAlongCurve(curve *Curve, v2 *TranslateInOut, f32 *PointFractionInOut, b
  v2 Translate = *TranslateInOut;
  f32 Fraction = *PointFractionInOut;
  
- u32 LinePointCount = Curve->LinePointCount;
- v2 *LinePoints = Curve->LinePoints;
- f32 DeltaFraction = 1.0f / (LinePointCount - 1);
+ u32 SampleCount = Curve->CurveSampleCount;
+ v2 *Samples = Curve->CurveSamples;
+ f32 DeltaFraction = 1.0f / (SampleCount - 1);
  
- f32 PointIndexFloat = Fraction * (LinePointCount - 1);
+ f32 PointIndexFloat = Fraction * (SampleCount - 1);
  u32 PointIndex = Cast(u32)(Forward ? FloorF32(PointIndexFloat) : CeilF32(PointIndexFloat));
- PointIndex = ClampTop(PointIndex, LinePointCount - 1);
+ PointIndex = ClampTop(PointIndex, SampleCount - 1);
  
  i32 DirSign = (Forward ? 1 : -1);
  
@@ -38,14 +38,14 @@ MovePointAlongCurve(curve *Curve, v2 *TranslateInOut, f32 *PointFractionInOut, b
  {
   u32 PrevPointIndex = PointIndex;
   PointIndex += DirSign;
-  if (PointIndex >= LinePointCount)
+  if (PointIndex >= SampleCount)
   {
    Moving = false;
   }
   
   if (Moving)
   {
-   v2 AlongCurve = LinePoints[PointIndex] - LinePoints[PrevPointIndex];
+   v2 AlongCurve = Samples[PointIndex] - Samples[PrevPointIndex];
    f32 AlongCurveLength = Norm(AlongCurve);
    f32 InvAlongCurveLength = 1.0f / AlongCurveLength;
    f32 Projection = Clamp01(Dot(AlongCurve, Translate) * InvAlongCurveLength * InvAlongCurveLength);
@@ -91,7 +91,7 @@ struct multiline_collision
  u32 PointIndex;
 };
 internal multiline_collision
-CheckCollisionWithMultiLine(v2 LocalAtP, v2 *LinePoints, u32 PointCount, f32 Width, f32 Tolerance)
+CheckCollisionWithMultiLine(v2 LocalAtP, v2 *CurveSamples, u32 PointCount, f32 Width, f32 Tolerance)
 {
  multiline_collision Result = {};
  
@@ -102,8 +102,8 @@ CheckCollisionWithMultiLine(v2 LocalAtP, v2 *LinePoints, u32 PointCount, f32 Wid
       PointIndex + 1 < PointCount;
       ++PointIndex)
  {
-  v2 P1 = LinePoints[PointIndex + 0];
-  v2 P2 = LinePoints[PointIndex + 1];
+  v2 P1 = CurveSamples[PointIndex + 0];
+  v2 P2 = CurveSamples[PointIndex + 1];
   
   f32 Distance = SegmentSignedDistance(LocalAtP, P1, P2, CheckWidth);
   if (Distance < MinDistance)
@@ -235,9 +235,9 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
             Iteration < IterationCount;
             ++Iteration)
        {
-        v2 *LinePoints = Points + PointIndex;
+        v2 *CurveSamples = Points + PointIndex;
         u32 PointCount = IterationCount - Iteration;
-        multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP, LinePoints, PointCount,
+        multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP, CurveSamples, PointCount,
                                                                Params->LineWidth, Tolerance);
         if (Line.Collided)
         {
@@ -263,7 +263,7 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
      if (!Curve->Params.LineDisabled)
      {
       multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP,
-                                                             Curve->LinePoints, Curve->LinePointCount,
+                                                             Curve->CurveSamples, Curve->CurveSampleCount,
                                                              Params->LineWidth, Tolerance);
       if (Line.Collided)
       {
@@ -556,7 +556,7 @@ LowerBezierCurveDegree(entity *Entity)
    ArrayCopy(Lowering->SavedControlPointWeights, Curve->ControlPointWeights, PointCount);
    ArrayCopy(Lowering->SavedCubicBezierPoints, Curve->CubicBezierPoints, PointCount);
    
-   Lowering->SavedLineVertices = CopyLineVertices(Lowering->Arena, Curve->LineVertices);
+   Lowering->SavedLineVertices = CopyLineVertices(Lowering->Arena, Curve->CurveVertices);
    
    f32 T = 0.5f;
    Lowering->LowerDegree = LowerDegree;
@@ -1308,37 +1308,37 @@ UpdateAndRenderAnimatingCurves(animating_curves_state *Animation, platform_input
   curve *Curve0 = SafeGetCurve(Entity0);
   curve *Curve1 = SafeGetCurve(Entity1);
   
-  v2 *LinePoints0 = Curve0->LinePoints;
-  v2 *LinePoints1 = Curve1->LinePoints;
+  v2 *CurveSamples0 = Curve0->CurveSamples;
+  v2 *CurveSamples1 = Curve1->CurveSamples;
   
-  u32 LinePointCount0 = Curve0->LinePointCount;
-  u32 LinePointCount1 = Curve1->LinePointCount;
+  u32 CurveSampleCount0 = Curve0->CurveSampleCount;
+  u32 CurveSampleCount1 = Curve1->CurveSampleCount;
   
   // TODO(hbr): Multithread this
   arena *Arena = Animation->Arena;
   ClearArena(Arena);
   
   // TODO(hbr): Use max instead
-  u32 LinePointCount = Min(Curve0->LinePointCount, Curve1->LinePointCount);
-  v2 *LinePoints = PushArrayNonZero(Arena, LinePointCount, v2);
+  u32 CurveSampleCount = Min(Curve0->CurveSampleCount, Curve1->CurveSampleCount);
+  v2 *CurveSamples = PushArrayNonZero(Arena, CurveSampleCount, v2);
   for (u32 LinePointIndex = 0;
-       LinePointIndex < LinePointCount;
+       LinePointIndex < CurveSampleCount;
        ++LinePointIndex)
   {
-   u32 LinePointIndex0 = ClampTop(LinePointCount0 * LinePointIndex / (LinePointCount - 1), LinePointCount0 - 1);
-   u32 LinePointIndex1 = ClampTop(LinePointCount1 * LinePointIndex / (LinePointCount - 1), LinePointCount1 - 1);
+   u32 LinePointIndex0 = ClampTop(CurveSampleCount0 * LinePointIndex / (CurveSampleCount - 1), CurveSampleCount0 - 1);
+   u32 LinePointIndex1 = ClampTop(CurveSampleCount1 * LinePointIndex / (CurveSampleCount - 1), CurveSampleCount1 - 1);
    
-   if (IsCurveReversed(Entity0)) LinePointIndex0 = (LinePointCount0-1 - LinePointIndex0);
-   if (IsCurveReversed(Entity1)) LinePointIndex1 = (LinePointCount1-1 - LinePointIndex1);
+   if (IsCurveReversed(Entity0)) LinePointIndex0 = (CurveSampleCount0-1 - LinePointIndex0);
+   if (IsCurveReversed(Entity1)) LinePointIndex1 = (CurveSampleCount1-1 - LinePointIndex1);
    
-   v2 PointLocal0 = Curve0->LinePoints[LinePointIndex0];
-   v2 PointLocal1 = Curve1->LinePoints[LinePointIndex1];
+   v2 PointLocal0 = Curve0->CurveSamples[LinePointIndex0];
+   v2 PointLocal1 = Curve1->CurveSamples[LinePointIndex1];
    
    v2 Point0 = LocalEntityPositionToWorld(Entity0, PointLocal0);
    v2 Point1 = LocalEntityPositionToWorld(Entity1, PointLocal1);
    
    v2 Point  = Lerp(Point0, Point1, MappedT);
-   LinePoints[LinePointIndex] = Point;
+   CurveSamples[LinePointIndex] = Point;
   }
   
   f32 LineWidth0 = Curve0->Params.LineWidth;
@@ -1353,7 +1353,7 @@ UpdateAndRenderAnimatingCurves(animating_curves_state *Animation, platform_input
   f32 ZOffset1 = Cast(f32)Entity1->SortingLayer;
   f32 ZOffset  = Lerp(ZOffset0, ZOffset1, MappedT);
   
-  vertex_array LineVertices = ComputeVerticesOfThickLine(Arena, LinePointCount, LinePoints, LineWidth, false);
+  vertex_array LineVertices = ComputeVerticesOfThickLine(Arena, CurveSampleCount, CurveSamples, LineWidth, false);
   PushVertexArray(RenderGroup,
                   LineVertices.Vertices, LineVertices.VertexCount, LineVertices.Primitive,
                   LineColor,
@@ -1376,9 +1376,9 @@ RenderEntity(rendering_entity_handle Handle)
    if (!CurveParams->LineDisabled)
    {
     PushVertexArray(RenderGroup,
-                    Curve->LineVertices.Vertices,
-                    Curve->LineVertices.VertexCount,
-                    Curve->LineVertices.Primitive,
+                    Curve->CurveVertices.Vertices,
+                    Curve->CurveVertices.VertexCount,
+                    Curve->CurveVertices.Primitive,
                     Curve->Params.LineColor,
                     GetCurvePartZOffset(CurvePart_CurveLine));
    }
@@ -2775,7 +2775,7 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
     {
      BeginMovingTrackingPoint(LeftClick, MakeEntityId(Collision.Entity));
      
-     f32 Fraction = SafeDiv0(Cast(f32)Collision.CurveLinePointIndex, (CollisionCurve->LinePointCount- 1));
+     f32 Fraction = SafeDiv0(Cast(f32)Collision.CurveLinePointIndex, (CollisionCurve->CurveSampleCount- 1));
      SetTrackingPointFraction(&CollisionEntityWitness, Fraction);
     }
     else if (Collision.Flags & Collision_CurvePoint)
@@ -2886,7 +2886,7 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
       {
        curve *Curve = SafeGetCurve(Entity);
        arena *Arena = LeftClick->OriginalVerticesArena;
-       LeftClick->OriginalLineVertices = CopyLineVertices(Arena, Curve->LineVertices);
+       LeftClick->OriginalCurveVertices = CopyLineVertices(Arena, Curve->CurveVertices);
        LeftClick->OriginalVerticesCaptured = true;
       }
       
@@ -3363,9 +3363,9 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
    rendering_entity_handle RenderingHandle = BeginRenderingEntity(Entity, RenderGroup);
    
    PushVertexArray(RenderGroup,
-                   LeftClick->OriginalLineVertices.Vertices,
-                   LeftClick->OriginalLineVertices.VertexCount,
-                   LeftClick->OriginalLineVertices.Primitive,
+                   LeftClick->OriginalCurveVertices.Vertices,
+                   LeftClick->OriginalCurveVertices.VertexCount,
+                   LeftClick->OriginalCurveVertices.Primitive,
                    ShadowColor,
                    GetCurvePartZOffset(CurvePart_LineShadow));
    

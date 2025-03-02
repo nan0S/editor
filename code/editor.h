@@ -214,7 +214,7 @@ struct editor_left_click_state
  
  arena *OriginalVerticesArena;
  b32 OriginalVerticesCaptured;
- vertex_array OriginalLineVertices;
+ vertex_array OriginalCurveVertices;
 };
 
 struct editor_right_click_state

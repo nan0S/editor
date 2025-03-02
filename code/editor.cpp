@@ -453,8 +453,8 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  InitEntityFromEntity(&RightWitness, LeftEntity);
  SetEntityName(RightEntity, RightName);
  
- curve_points LeftPoints = BeginModifyCurvePoints(&LeftWitness, ControlPointCount, ModifyCurvePointsWhichPoints_JustControlPoints);
- curve_points RightPoints = BeginModifyCurvePoints(&RightWitness, ControlPointCount, ModifyCurvePointsWhichPoints_JustControlPoints);
+ curve_points_modify_handle LeftPoints = BeginModifyCurvePoints(&LeftWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
+ curve_points_modify_handle RightPoints = BeginModifyCurvePoints(&RightWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
  Assert(LeftPoints.PointCount == ControlPointCount);
  Assert(RightPoints.PointCount == ControlPointCount);
  
@@ -463,8 +463,8 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
                   LeftPoints.ControlPoints, LeftPoints.Weights,
                   RightPoints.ControlPoints, RightPoints.Weights);
  
- EndModifyCurvePoints(RightCurve, &RightPoints);
- EndModifyCurvePoints(LeftCurve, &LeftPoints);
+ EndModifyCurvePoints(RightPoints);
+ EndModifyCurvePoints(LeftPoints);
  
  EndEntityModify(LeftWitness);
  EndEntityModify(RightWitness);
@@ -691,8 +691,8 @@ SplitCurveOnControlPoint(entity *Entity, editor *Editor)
   SetEntityName(HeadEntity, HeadName);
   SetEntityName(TailEntity, TailName);
   
-  curve_points HeadPoints = BeginModifyCurvePoints(&HeadWitness, HeadPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
-  curve_points TailPoints = BeginModifyCurvePoints(&TailWitness, TailPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
+  curve_points_modify_handle HeadPoints = BeginModifyCurvePoints(&HeadWitness, HeadPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
+  curve_points_modify_handle TailPoints = BeginModifyCurvePoints(&TailWitness, TailPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
   Assert(HeadPoints.PointCount == HeadPointCount);
   Assert(TailPoints.PointCount == TailPointCount);
   
@@ -701,8 +701,8 @@ SplitCurveOnControlPoint(entity *Entity, editor *Editor)
   ArrayCopy(TailPoints.Weights, Curve->ControlPointWeights + SplitAt, TailPoints.PointCount);
   ArrayCopy(TailCurve->CubicBezierPoints, Curve->CubicBezierPoints + SplitAt, TailPoints.PointCount);
   
-  EndModifyCurvePoints(HeadCurve, &HeadPoints);
-  EndModifyCurvePoints(TailCurve, &TailPoints);
+  EndModifyCurvePoints(HeadPoints);
+  EndModifyCurvePoints(TailPoints);
   
   EndEntityModify(HeadWitness);
   EndEntityModify(TailWitness);
@@ -1883,6 +1883,11 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
         
         UI_EndTree();
        }
+      }break;
+      
+      case Curve_BSpline: {
+       b_spline_params *B_Spline = &CurveParams.B_Spline;
+       UI_SliderIntegerF(SafeCastToPtr(B_Spline->Degree, i32), 1, Curve->ControlPointCount, "Degree");
       }break;
       
       case Curve_Count: InvalidPath;
@@ -3307,9 +3312,6 @@ RenderMergingCurves(merging_curves_state *Merging, render_group *RenderGroup)
   EndRenderingEntity(RenderingHandle);
  }
 }
-
-#include "base/base_os.h"
-#include "base/base_os.cpp"
 
 internal void
 EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct render_frame *Frame)

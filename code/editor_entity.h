@@ -1,15 +1,20 @@
 #ifndef EDITOR_ENTITY_H
 #define EDITOR_ENTITY_H
 
+// TODO(hbr): Consider flattening this struct - that is, the curves seem to be so distinct
+// between the types that there should be BezierRegular vs BezierCubicSpline separate types.
+// Or maybe if that's not a good idea, consider compressing this type even more - spline functions: cubic spline, bezier spline, B-spline,
+// interpolating functions: polynomial interpolation, parametric equation function.
 enum curve_type : u32
 {
  Curve_CubicSpline,
  Curve_Bezier,
  Curve_Polynomial,
  Curve_Parametric,
+ Curve_BSpline,
  Curve_Count
 };
-global char const *CurveTypeNames[] = { "Cubic Spline", "Bezier", "Polynomial", "Parametric" };
+global char const *CurveTypeNames[] = { "Cubic Spline", "Bezier", "Polynomial", "Parametric", "B-Spline" };
 StaticAssert(ArrayCount(CurveTypeNames) == Curve_Count, CurveTypeNamesDefined);
 
 enum polynomial_interpolation_type : u32
@@ -63,6 +68,19 @@ struct parametric_curve_params
  parametric_equation_expr *Y_Equation;
 };
 
+enum b_spline_partition_type
+{
+ BSplinePartition_Natural,
+ BSplinePartition_Periodic,
+ BSplinePartition_Custom,
+};
+
+struct b_spline_params
+{
+ b_spline_partition_type Partition;
+ u32 Degree;
+};
+
 struct curve_params
 {
  curve_type Type;
@@ -70,6 +88,7 @@ struct curve_params
  cubic_spline_type CubicSpline;
  bezier_type Bezier;
  parametric_curve_params Parametric;
+ b_spline_params B_Spline;
  
  b32 LineDisabled;
  v4 LineColor;
@@ -347,18 +366,22 @@ internal void UnselectControlPoint(curve *Curve);
 enum modify_curve_points_which_points
 {
  ModifyCurvePointsWhichPoints_JustControlPoints,
+ ModifyCurvePointsWhichPoints_ControlPointsWithWeights,
  ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers,
 };
-struct curve_points
+struct curve_points_modify_handle
 {
+ curve *Curve;
+ 
  u32 PointCount;
  v2 *ControlPoints;
  f32 *Weights;
  cubic_bezier_point *CubicBeziers;
+ 
  modify_curve_points_which_points Which;
 };
-internal curve_points BeginModifyCurvePoints(entity_with_modify_witness *Curve, u32 RequestedPointCount, modify_curve_points_which_points Which);
-internal void EndModifyCurvePoints(curve *Curve, curve_points *Handle);
+internal curve_points_modify_handle BeginModifyCurvePoints(entity_with_modify_witness *Curve, u32 RequestedPointCount, modify_curve_points_which_points Which);
+internal void EndModifyCurvePoints(curve_points_modify_handle Handle);
 
 union entity_colors
 {

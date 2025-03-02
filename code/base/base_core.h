@@ -232,6 +232,7 @@ inline void *_SafeCastToPtr(void *Expr, u64 SizeOf1, u64 SizeOf2) { Assert(SizeO
 #define GenericSort(Array, Count, Type, CmpFunc) qsort((Array), (Count), SizeOf(Type), Cast(int(*)(void const *, void const *))(CmpFunc))
 #define SafeDiv0(Num, Den) ((Den) == 0 ? 0 : (Num) / (Den))
 #define SafeDiv1(Num, Den) ((Den) == 0 ? 1 : (Num) / (Den))
+#define SafeDivDefault(Num, Den, Default) ((Den == 0) ? (Default) : (Num) / (Den))
 #define NoOp ((void)0)
 
 #define MemoryCopy(Dst, Src, Bytes) memcpy(Dst, Src, Bytes)

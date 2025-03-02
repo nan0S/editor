@@ -493,16 +493,16 @@ LerpColor(v4 From, v4 To, f32 T)
 }
 
 internal void
-EquidistantPoints(f32 *Ti, u32 N)
+EquidistantPoints(f32 *Ti, u32 N, f32 A, f32 B)
 {
  if (N > 1)
  {
-  f32 TDelta = 1.0f / (N-1);
-  f32 T = 0.0f;
+  f32 Delta_T = (B-A) / (N-1);
+  f32 T = A;
   for (u32 I = 0; I < N; ++I)
   {
    Ti[I] = T;
-   T += TDelta;
+   T += Delta_T;
   }
  }
 }
@@ -809,6 +809,53 @@ GaussianElimination(f32 *A, f32 *B, u32 Rows, u32 Cols)
  return Result;
 }
 
+internal b_spline_knots
+B_SplineBaseKnots(arena *Arena, u32 PartitionSize, u32 Degree)
+{
+ f32 *Knots = PushArrayNonZero(Arena, 2*Degree + PartitionSize, f32);
+ 
+ f32 A = 0.0f;
+ f32 B = 1.0f;
+ EquidistantPoints(Knots + Degree, PartitionSize, A, B);
+ 
+ b_spline_knots Result = {};
+ Result.Knots = Knots;
+ Result.PartitionSize = PartitionSize;
+ Result.Degree = Degree;
+ Result.A = A;
+ Result.B = B;
+ 
+ return Result;
+}
+
+internal void
+B_SplineKnotsNaturalExtension(b_spline_knots Knots)
+{
+ for (u32 I = 0; I < Knots.Degree; ++I)
+ {
+  Knots.Knots[I] = Knots.A;
+ }
+ for (u32 I = 0; I < Knots.Degree; ++I)
+ {
+  Knots.Knots[Knots.Degree + Knots.PartitionSize + I] = Knots.B;
+ }
+}
+
+internal void
+B_SplineKnotsPeriodicExtension(b_spline_knots Knots)
+{
+ f32 A = Knots.A;
+ f32 B = Knots.B;
+ f32 *t = Knots.Knots + Knots.Degree;
+ i32 n = Knots.PartitionSize - 1;
+ i32 m = Knots.Degree;
+ 
+ for (i32 i = 1; i <= m; ++i)
+ {
+  t[-i] = A - B + t[n - i];
+  t[n + i] = B - A + t[i];
+ }
+}
 
 // NOTE(hbr): Those should be local conveniance internal, but impossible in C.
 inline internal f32 Hi(f32 *Ti, u32 I) { return Ti[I+1] - Ti[I]; }

@@ -11,7 +11,7 @@ enum curve_type : u32
  Curve_Bezier,
  Curve_Polynomial,
  Curve_Parametric,
- Curve_BSpline,
+ Curve_B_Spline,
  Curve_Count
 };
 global char const *CurveTypeNames[] = { "Cubic Spline", "Bezier", "Polynomial", "Parametric", "B-Spline" };
@@ -68,12 +68,14 @@ struct parametric_curve_params
  parametric_equation_expr *Y_Equation;
 };
 
-enum b_spline_partition_type
+enum b_spline_partition_type : u32
 {
- BSplinePartition_Natural,
- BSplinePartition_Periodic,
- BSplinePartition_Custom,
+ B_SplinePartition_Natural,
+ B_SplinePartition_Periodic,
+ B_SplinePartition_Count,
 };
+global char const *B_SplinePartitionNames[] = { "Natural", "Periodic" };
+StaticAssert(ArrayCount(B_SplinePartitionNames) == B_SplinePartition_Count, B_SplinePartitionNamesDefined);
 
 struct b_spline_params
 {

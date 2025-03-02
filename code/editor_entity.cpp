@@ -103,7 +103,7 @@ UsesControlPoints(curve *Curve)
   case Curve_CubicSpline:
   case Curve_Bezier:
   case Curve_Polynomial:
-  case Curve_BSpline: {Result = true;}break;
+  case Curve_B_Spline: {Result = true;}break;
   
   case Curve_Parametric: {}break;
   
@@ -244,7 +244,7 @@ IsCurveTotalSamplesMode(curve *Curve)
   case Curve_CubicSpline:
   case Curve_Bezier:
   case Curve_Polynomial:
-  case Curve_BSpline: {}break;
+  case Curve_B_Spline: {}break;
   
   case Curve_Parametric: {
    Result = true;
@@ -351,7 +351,7 @@ AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method M
     }
    }break;
    
-   case Curve_BSpline: {
+   case Curve_B_Spline: {
     NotImplemented;
    }break;
    
@@ -979,7 +979,7 @@ GetCubicBezierCurveSegment(cubic_bezier_point *BezierPoints, u32 PointCount, u32
 
 // TODO(hbr): This can be ppb optimized to use only O(m) memory
 internal v2
-BSplineEvaluate(f32 T, v2 *ControlPoints, f32 *Knots, u32 PartitionSize, u32 Degree)
+BSplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knots Knots, u32 PartitionSize, u32 Degree)
 {
  temp_arena Temp = TempArena(0);
  
@@ -990,12 +990,11 @@ BSplineEvaluate(f32 T, v2 *ControlPoints, f32 *Knots, u32 PartitionSize, u32 Deg
 #define c(k, i) C[Index2D(k, i+m, Cols)]
  
  ControlPoints += Degree;
- Knots += Degree;
  
  i32 m = Degree;
  i32 n = PartitionSize - 1;
  
- f32 *t = Knots;
+ f32 *t = Knots.Knots + Knots.Degree;
  
  i32 j = -m;
  for (; j+1 <= n+m; ++j)
@@ -1029,35 +1028,6 @@ BSplineEvaluate(f32 T, v2 *ControlPoints, f32 *Knots, u32 PartitionSize, u32 Deg
 #undef c
  
  return Result;
-}
-
-internal f32 *
-GenerateBSplineKnots(arena *Arena, u32 PartitionSize, u32 Degree)
-{
- u32 KnotCount = PartitionSize + 2*Degree;
- f32 *Knots = PushArrayNonZero(Arena, KnotCount, f32);
- 
- ArrayZero(Knots, Degree);
- EquidistantPoints(Knots + Degree, PartitionSize);
- for (u32 I = 0; I < Degree; ++I)
- {
-  Knots[Degree + PartitionSize + I] = 1.0f;
- }
- 
- return Knots;
-}
-
-internal f32 *
-GenerateSpacedPoints(arena *Arena, u32 PointCount, point_spacing Spacing)
-{
- f32 *Ti = PushArrayNonZero(Arena, PointCount, f32);
- switch (Spacing)
- {
-  case PointSpacing_Equidistant: { EquidistantPoints(Ti, PointCount); } break;
-  case PointSpacing_Chebychev:   { ChebyshevPoints(Ti, PointCount);   } break;
-  case PointSpacing_Count: InvalidPath;
- }
- return Ti;
 }
 
 internal void
@@ -1153,7 +1123,14 @@ CalcPolynomial(v2 *Controls, u32 PointCount,
  temp_arena Temp = TempArena(0);
  
  point_spacing PointSpacing = Polynomial.PointSpacing;
- f32 *Ti = GenerateSpacedPoints(Temp.Arena, PointCount, PointSpacing);
+ 
+ f32 *Ti = PushArrayNonZero(Temp.Arena, PointCount, f32);
+ switch (PointSpacing)
+ {
+  case PointSpacing_Equidistant: { EquidistantPoints(Ti, PointCount, 0.0f, 1.0f); } break;
+  case PointSpacing_Chebychev:   { ChebyshevPoints(Ti, PointCount);   } break;
+  case PointSpacing_Count: InvalidPath;
+ }
  
  switch (Polynomial.Type)
  {
@@ -1186,7 +1163,7 @@ CalcCubicSpline(v2 *Controls, u32 PointCount,
   }
   
   f32 *Ti = PushArrayNonZero(Temp.Arena, PointCount, f32);
-  EquidistantPoints(Ti, PointCount);
+  EquidistantPoints(Ti, PointCount, 0.0f, 1.0f);
   
   points_soa SOA = SplitPointsIntoComponents(Temp.Arena, Controls, PointCount);
   
@@ -1278,13 +1255,19 @@ CalcBSpline(v2 *Controls, u32 PointCount,
             u32 SampleCount, v2 *OutSamples)
 {
  u32 Degree = B_Spline.Degree;
+ u32 PartitionSize = PointCount - Degree + 1;
  
- if (PointCount >= Degree + 1)
+ if (Cast(i32)PartitionSize > 1)
  {
   temp_arena Temp = TempArena(0);
   
-  u32 PartitionSize = PointCount - Degree + 1;
-  f32 *Knots = GenerateBSplineKnots(Temp.Arena, PartitionSize, Degree);
+  b_spline_knots Knots = B_SplineBaseKnots(Temp.Arena, PartitionSize, Degree);
+  switch (B_Spline.Partition)
+  {
+   case B_SplinePartition_Natural: {B_SplineKnotsNaturalExtension(Knots);}break;
+   case B_SplinePartition_Periodic: {B_SplineKnotsPeriodicExtension(Knots);}break;
+   case B_SplinePartition_Count: InvalidPath;
+  }
   
   f32 T = 0.0f;
   f32 Delta_T = 1.0f / (SampleCount - 1);
@@ -1357,7 +1340,7 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
    }
   } break;
   
-  case Curve_BSpline: {CalcBSpline(Controls, PointCount, Params->B_Spline, SampleCount, OutSamples);}break;
+  case Curve_B_Spline: {CalcBSpline(Controls, PointCount, Params->B_Spline, SampleCount, OutSamples);}break;
   case Curve_Parametric: {CalcParametric(Params->Parametric, SampleCount, OutSamples);}break;
   
   case Curve_Count: InvalidPath;

@@ -112,7 +112,7 @@ internal mat4 Transpose4x4(mat4 A);
 internal v4 Transform4x4(mat4 A, v4 P);
 
 //~ Interpolation
-internal void EquidistantPoints(f32 *Ti, u32 N);
+internal void EquidistantPoints(f32 *Ti, u32 N, f32 A, f32 B);
 internal void ChebychevPoints(f32 *Ti, u32 N);
 
 internal void BarycentricOmega(f32 *Omega, f32 *Ti, u32 N);
@@ -173,6 +173,18 @@ struct all_de_casteljau_intermediate_results
 internal all_de_casteljau_intermediate_results DeCasteljauAlgorithm(arena *Arena, f32 T, v2 *P, f32 *W, u32 N);
 
 internal i32 GaussianElimination(f32 *A, f32 *B, u32 Rows, u32 Cols); // returns number of free variables (or -1 if no solution)
+
+struct b_spline_knots
+{
+ f32 A;
+ f32 B;
+ u32 Degree;
+ u32 PartitionSize;
+ f32 *Knots;
+};
+internal b_spline_knots B_SplineBaseKnots(arena *Arena, u32 PartitionSize, u32 Degree);
+internal void B_SplineKnotsNaturalExtension(b_spline_knots Knots);
+internal void B_SplineKnotsPeriodicExtension(b_spline_knots Knots);
 
 //~ Collisions, intersections, geometry
 struct line_intersection

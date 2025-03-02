@@ -41,6 +41,7 @@ internal b32         CharIsAlpha(char C);
 
 internal string      MakeStr(char *Data, u64 Count);
 #define              StrLit(Lit) MakeStr(Cast(char *)Lit, ArrayCount(Lit) - 1)
+#define              StrLitComp(Lit) {Lit, ArrayCount(Lit)-1}
 internal string      StrCopy(arena *Arena, string Str);
 internal string      CStrCopy(arena *Arena, char const *Str);
 internal string      StrF(arena *Arena, char const *Format, ...);

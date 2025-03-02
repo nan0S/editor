@@ -1885,9 +1885,10 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
        }
       }break;
       
-      case Curve_BSpline: {
+      case Curve_B_Spline: {
        b_spline_params *B_Spline = &CurveParams.B_Spline;
        UI_SliderIntegerF(SafeCastToPtr(B_Spline->Degree, i32), 1, Curve->ControlPointCount, "Degree");
+       UI_Combo(SafeCastToPtr(B_Spline->Partition, u32), B_SplinePartition_Count, B_SplinePartitionNames, StrLit("Partition"));
       }break;
       
       case Curve_Count: InvalidPath;

@@ -183,8 +183,9 @@ struct b_spline_knots
  f32 *Knots;
 };
 internal b_spline_knots B_SplineBaseKnots(arena *Arena, u32 PartitionSize, u32 Degree);
-internal void B_SplineKnotsNaturalExtension(b_spline_knots Knots);
-internal void B_SplineKnotsPeriodicExtension(b_spline_knots Knots);
+internal void           B_SplineKnotsNaturalExtension(b_spline_knots Knots);
+internal void           B_SplineKnotsPeriodicExtension(b_spline_knots Knots);
+internal v2             B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knots Knots);
 
 //~ Collisions, intersections, geometry
 struct line_intersection

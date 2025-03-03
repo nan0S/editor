@@ -67,8 +67,8 @@ internal void              UI_EndTree(void);
 internal void              UI_NewRow(void);
 internal void              UI_SameRow(void);
 
-internal changed_b32       UI_Combo(u32 *Enum, u32 EnumCount, char const *EnumNames[], string Label);
-internal changed_b32       UI_ComboF(u32 *Enum, u32 EnumCount, char const *EnumNames[], char const *Format, ...);
+internal changed_b32       UI_Combo(u32 *Enum, u32 EnumCount, string EnumNames[], string Label);
+internal changed_b32       UI_ComboF(u32 *Enum, u32 EnumCount, string EnumNames[], char const *Format, ...);
 internal changed_b32       UI_Checkbox(b32 *Enabled, string Label);
 internal changed_b32       UI_CheckboxF(b32 *Enabled, char const *Format, ...);
 internal clicked_b32       UI_Button(string Label);
@@ -99,5 +99,7 @@ internal not_collapsed_b32 UI_CollapsingHeader(string Label);
 internal not_collapsed_b32 UI_CollapsingHeaderF(char const *Format, ...);
 internal clicked_b32       UI_SelectableItem(b32 Selected, string Label);
 internal clicked_b32       UI_SelectableItemF(b32 Selected, char const *Format, ...);
+internal void              UI_Tooltip(string Contents);
+internal void              UI_TooltipF(char const *Format, ...);
 
 #endif //EDITOR_UI_H

@@ -14,7 +14,7 @@ enum curve_type : u32
  Curve_B_Spline,
  Curve_Count
 };
-global char const *CurveTypeNames[] = { "Cubic Spline", "Bezier", "Polynomial", "Parametric", "B-Spline" };
+global read_only string CurveTypeNames[] = { StrLitComp("Cubic Spline"), StrLitComp("Bezier"), StrLitComp("Polynomial"), StrLitComp("Parametric"), StrLitComp("B-Spline") };
 StaticAssert(ArrayCount(CurveTypeNames) == Curve_Count, CurveTypeNamesDefined);
 
 enum polynomial_interpolation_type : u32
@@ -23,7 +23,7 @@ enum polynomial_interpolation_type : u32
  PolynomialInterpolation_Newton,
  PolynomialInterpolation_Count,
 };
-global char const *PolynomialInterpolationTypeNames[] = { "Barycentric", "Newton" };
+global read_only string PolynomialInterpolationTypeNames[] = { StrLitComp("Barycentric"), StrLitComp("Newton") };
 StaticAssert(ArrayCount(PolynomialInterpolationTypeNames) == PolynomialInterpolation_Count, PolynomialInterpolationTypeNamesDefined);
 
 enum point_spacing : u32
@@ -32,7 +32,7 @@ enum point_spacing : u32
  PointSpacing_Equidistant,
  PointSpacing_Count,
 };
-global char const *PointSpacingNames[] = { "Chebychev", "Equidistant" };
+global read_only string PointSpacingNames[] = { StrLitComp("Chebychev"), StrLitComp("Equidistant") };
 StaticAssert(ArrayCount(PointSpacingNames) == PointSpacing_Count, PointSpacingNamesDefined);
 
 struct polynomial_interpolation_params
@@ -47,7 +47,7 @@ enum cubic_spline_type : u32
  CubicSpline_Periodic,
  CubicSpline_Count,
 };
-global char const *CubicSplineNames[] = { "Natural", "Periodic" };
+global read_only string CubicSplineNames[] = { StrLitComp("Natural"), StrLitComp("Periodic") };
 StaticAssert(ArrayCount(CubicSplineNames) == CubicSpline_Count, CubicSplineNamesDefined);
 
 enum bezier_type : u32
@@ -56,7 +56,7 @@ enum bezier_type : u32
  Bezier_Cubic,
  Bezier_Count,
 };
-global char const *BezierNames[] = { "Regular", "Cubic" };
+global read_only string BezierNames[] = { StrLitComp("Regular"), StrLitComp("Cubic") };
 StaticAssert(ArrayCount(BezierNames) == Bezier_Count, BezierNamesDefined);
 
 struct parametric_curve_params
@@ -74,13 +74,17 @@ enum b_spline_partition_type : u32
  B_SplinePartition_Periodic,
  B_SplinePartition_Count,
 };
-global char const *B_SplinePartitionNames[] = { "Natural", "Periodic" };
+global read_only string B_SplinePartitionNames[] = { StrLitComp("Natural"), StrLitComp("Periodic") };
 StaticAssert(ArrayCount(B_SplinePartitionNames) == B_SplinePartition_Count, B_SplinePartitionNamesDefined);
 
 struct b_spline_params
 {
  b_spline_partition_type Partition;
  u32 Degree;
+ 
+ b32 ShowPartitionKnotPoints;
+ f32 KnotPointRadius;
+ v4 KnotPointColor;
 };
 
 struct curve_params
@@ -236,6 +240,9 @@ struct curve
  vertex_array CurveVertices;
  vertex_array PolylineVertices;
  vertex_array ConvexHullVertices;
+ 
+ b_spline_knots B_SplineKnots;
+ v2 *B_SplinePartitionKnotPoints;
  
  curve_point_tracking_state PointTracking;
  curve_degree_lowering_state DegreeLowering;
@@ -406,6 +413,7 @@ internal b32 IsControlPointSelected(curve *Curve);
 internal b32 AreCurvePointsVisible(curve *Curve);
 internal b32 UsesControlPoints(curve *Curve);
 internal point_info GetCurveControlPointInfo(entity *Curve, u32 PointIndex);
+internal point_info Get_B_SplineKnotPointInfo(entity *Entity);
 internal f32 GetCurveTrackedPointRadius(curve *Curve);
 internal f32 GetCurveCubicBezierPointRadius(curve *Curve);
 internal visible_cubic_bezier_points GetVisibleCubicBezierPoints(entity *Entity);
@@ -414,6 +422,7 @@ internal b32 CurveHasWeights(curve *Curve);
 internal b32 IsCurveTotalSamplesMode(curve *Curve);
 internal b32 IsCurveReversed(entity *Curve);
 internal b32 IsRegularBezierCurve(curve *Curve);
+internal b32 Are_B_SplineKnotsVisible(curve *Curve);
 
 enum curve_merge_method : u32
 {
@@ -426,7 +435,7 @@ enum curve_merge_method : u32
  
  CurveMerge_Count,
 };
-global char const *CurveMergeNames[] = { "Concat", "C0", "C1", "C2", "G1" };
+global read_only string CurveMergeNames[] = { StrLitComp("Concat"), StrLitComp("C0"), StrLitComp("C1"), StrLitComp("C2"), StrLitComp("G1") };
 StaticAssert(ArrayCount(CurveMergeNames) == CurveMerge_Count, CurveMergeNamesDefined);
 
 struct curve_merge_compatibility
@@ -435,5 +444,12 @@ struct curve_merge_compatibility
  string WhyIncompatible;
 };
 internal curve_merge_compatibility AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method Method);
+
+struct b_spline_degree_bounds
+{
+ u32 MinDegree;
+ u32 MaxDegree;
+};
+internal b_spline_degree_bounds B_SplineDegreeBounds(u32 ControlPointCount);
 
 #endif //EDITOR_ENTITY_H

@@ -426,10 +426,11 @@ CopyLineVertices(arena *Arena, vertex_array Vertices)
 }
 
 internal void
-PerformBezierCurveSplit(editor *Editor, entity *Entity)
+PerformBezierCurveSplit(entity_with_modify_witness *EntityWitness, editor *Editor)
 {
  temp_arena Temp = TempArena(0);
  
+ entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
  curve_point_tracking_state *Tracking = &Curve->PointTracking;
  Assert(Tracking->Active);
@@ -525,8 +526,9 @@ ResetCtxMenu(string Label)
 // and then go back to tweaking the Middle_T value to tweak the middle point when fixing "failed lowering", the point that we tweak might no longer be
 // the point that was originally there. In other words, saved control point index got invalidated.
 internal void
-LowerBezierCurveDegree(entity *Entity)
+LowerBezierCurveDegree(entity_with_modify_witness *EntityWitness)
 {
+ entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
  Assert(IsRegularBezierCurve(Curve));
  curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
@@ -565,19 +567,18 @@ LowerBezierCurveDegree(entity *Entity)
    LowerWeights[LowerDegree.MiddlePointIndex] = Lerp(LowerDegree.W_I, LowerDegree.W_II, T);
   }
   
-  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
   // TODO(hbr): refactor this, it only has to be here because we still modify control points above
   BezierCubicCalculateAllControlPoints(PointCount - 1, LowerPoints, LowerBeziers);
-  SetCurveControlPoints(&EntityWitness, PointCount - 1, LowerPoints, LowerWeights, LowerBeziers);
-  EndEntityModify(EntityWitness);
+  SetCurveControlPoints(EntityWitness, PointCount - 1, LowerPoints, LowerWeights, LowerBeziers);
   
   EndTemp(Temp);
  }
 }
 
 internal void
-ElevateBezierCurveDegree(entity *Entity)
+ElevateBezierCurveDegree(entity_with_modify_witness *EntityWitness)
 {
+ entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
  Assert(IsRegularBezierCurve(Curve));
  temp_arena Temp = TempArena(0);
@@ -607,13 +608,11 @@ ElevateBezierCurveDegree(entity *Entity)
                                       ElevatedControlPoints,
                                       ElevatedCubicBezierPoints);
  
- entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
- SetCurveControlPoints(&EntityWitness,
+ SetCurveControlPoints(EntityWitness,
                        ControlPointCount + 1,
                        ElevatedControlPoints,
                        ElevatedControlPointWeights,
                        ElevatedCubicBezierPoints);
- EndEntityModify(EntityWitness);
  
  EndTemp(Temp);
 }
@@ -665,9 +664,11 @@ FocusCameraOnEntity(editor *Editor, entity *Entity)
 }
 
 internal void
-SplitCurveOnControlPoint(entity *Entity, editor *Editor)
+SplitCurveOnControlPoint(entity_with_modify_witness *EntityWitness, editor *Editor)
 {
+ entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
+ 
  if (IsControlPointSelected(Curve))
  {
   temp_arena Temp = TempArena(0);
@@ -678,7 +679,7 @@ SplitCurveOnControlPoint(entity *Entity, editor *Editor)
   entity *HeadEntity = Entity;
   entity *TailEntity = AllocEntity(Editor);
   
-  entity_with_modify_witness HeadWitness = BeginEntityModify(HeadEntity);
+  entity_with_modify_witness *HeadWitness = EntityWitness;
   entity_with_modify_witness TailWitness = BeginEntityModify(TailEntity);
   
   InitEntityFromEntity(&TailWitness, HeadEntity);
@@ -691,7 +692,7 @@ SplitCurveOnControlPoint(entity *Entity, editor *Editor)
   SetEntityName(HeadEntity, HeadName);
   SetEntityName(TailEntity, TailName);
   
-  curve_points_modify_handle HeadPoints = BeginModifyCurvePoints(&HeadWitness, HeadPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
+  curve_points_modify_handle HeadPoints = BeginModifyCurvePoints(HeadWitness, HeadPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
   curve_points_modify_handle TailPoints = BeginModifyCurvePoints(&TailWitness, TailPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
   Assert(HeadPoints.PointCount == HeadPointCount);
   Assert(TailPoints.PointCount == TailPointCount);
@@ -704,7 +705,6 @@ SplitCurveOnControlPoint(entity *Entity, editor *Editor)
   EndModifyCurvePoints(HeadPoints);
   EndModifyCurvePoints(TailPoints);
   
-  EndEntityModify(HeadWitness);
   EndEntityModify(TailWitness);
   
   EndTemp(Temp);
@@ -1187,6 +1187,8 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->CurveDefaultParams.Parametric.MaxT = 1.0f;
  Editor->CurveDefaultParams.Parametric.X_Equation = &NilExpr;
  Editor->CurveDefaultParams.Parametric.Y_Equation = &NilExpr;
+ Editor->CurveDefaultParams.B_Spline.KnotPointRadius = 0.010f;
+ Editor->CurveDefaultParams.B_Spline.KnotPointColor = RGBA_Color(138, 0, 0, 148);
  
  Editor->Camera.P = V2(0.0f, 0.0f);
  Editor->Camera.Rotation = Rotation2DZero();
@@ -1449,6 +1451,31 @@ RenderEntity(rendering_entity_handle Handle)
                 PointInfo.OutlineColor);
     }
    }
+   
+   if (Are_B_SplineKnotsVisible(Curve))
+   {
+    b_spline_knots Knots = Curve->B_SplineKnots;
+    v2 *PartitionKnotPoints = Curve->B_SplinePartitionKnotPoints;
+    b_spline_params B_Spline = CurveParams->B_Spline;
+    point_info KnotPointInfo = Get_B_SplineKnotPointInfo(Entity);
+    
+    for (u32 KnotIndex = 0;
+         KnotIndex < Knots.PartitionSize;
+         ++KnotIndex)
+    {
+     v2 Knot = PartitionKnotPoints[KnotIndex];
+     PushCircle(RenderGroup,
+                Entity->P + Knot,
+                Entity->Rotation,
+                Entity->Scale,
+                KnotPointInfo.Radius,
+                KnotPointInfo.Color,
+                GetCurvePartZOffset(CurvePart_B_SplineKnot),
+                KnotPointInfo.OutlineThickness,
+                KnotPointInfo.OutlineColor);
+    }
+   }
+   
   } break;
   
   case Entity_Image: {
@@ -1577,6 +1604,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
  entity *Entity = EntityFromId(Editor->SelectedEntityId);
  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
  b32 DeleteEntity = false;
+ b32 CrucialEntityParamChanged = false;
  
  if (Editor->SelectedEntityWindow && Entity)
  {
@@ -1660,7 +1688,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
      {
       if (UI_Button(StrLit("Split on Control Point")))
       {
-       SplitCurveOnControlPoint(Entity, Editor);
+       SplitCurveOnControlPoint(&EntityWitness, Editor);
       }
      }
      
@@ -1669,13 +1697,13 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
       if (UI_Button(StrLit("Elevate Degree")))
       {
        // TODO(hbr): Work on this function
-       ElevateBezierCurveDegree(Entity);
+       ElevateBezierCurveDegree(&EntityWitness);
       }
       
       if (UI_Button(StrLit("Lower Degree")))
       {
        // TODO(hbr): Work on this function
-       LowerBezierCurveDegree(Entity);
+       LowerBezierCurveDegree(&EntityWitness);
       }
      }
     }
@@ -1683,49 +1711,54 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
    
    if (Curve)
    {
-    curve_params CurveParams = Curve->Params;
+    curve_params *CurveParams = &Curve->Params;
     curve_params *DefaultParams = &Editor->CurveDefaultParams;
     
     UI_SeparatorTextF("Curve");
     UI_LabelF("Curve")
-    {       
-     UI_ComboF(SafeCastToPtr(CurveParams.Type, u32), Curve_Count, CurveTypeNames, "Interpolation");
+    {
+     CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(CurveParams->Type, u32), Curve_Count, CurveTypeNames, "Interpolation");
      if (ResetCtxMenu(StrLit("InterpolationReset")))
      {
-      CurveParams.Type = DefaultParams->Type;
+      CurveParams->Type = DefaultParams->Type;
+      CrucialEntityParamChanged = true;
      }
      
-     switch (CurveParams.Type)
+     switch (CurveParams->Type)
      {
       case Curve_Polynomial: {
-       polynomial_interpolation_params *Polynomial = &CurveParams.Polynomial;
+       polynomial_interpolation_params *Polynomial = &CurveParams->Polynomial;
        
-       UI_ComboF(SafeCastToPtr(Polynomial->Type, u32), PolynomialInterpolation_Count, PolynomialInterpolationTypeNames, "Variant");
+       CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(Polynomial->Type, u32), PolynomialInterpolation_Count, PolynomialInterpolationTypeNames, "Variant");
        if (ResetCtxMenu(StrLit("PolynomialReset")))
        {
         Polynomial->Type = DefaultParams->Polynomial.Type;
+        CrucialEntityParamChanged = true;
        }
        
-       UI_ComboF(SafeCastToPtr(Polynomial->PointSpacing, u32), PointSpacing_Count, PointSpacingNames, "Point Spacing");
+       CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(Polynomial->PointSpacing, u32), PointSpacing_Count, PointSpacingNames, "Point Spacing");
        if (ResetCtxMenu(StrLit("PointSpacingReset")))
        {
         Polynomial->PointSpacing = DefaultParams->Polynomial.PointSpacing;
+        CrucialEntityParamChanged = true;
        }
       }break;
       
       case Curve_CubicSpline: {
-       UI_ComboF(SafeCastToPtr(CurveParams.CubicSpline, u32), CubicSpline_Count, CubicSplineNames, "Variant");
+       CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(CurveParams->CubicSpline, u32), CubicSpline_Count, CubicSplineNames, "Variant");
        if (ResetCtxMenu(StrLit("SplineReset")))
        {
-        CurveParams.CubicSpline = DefaultParams->CubicSpline;
+        CurveParams->CubicSpline = DefaultParams->CubicSpline;
+        CrucialEntityParamChanged = true;
        }
       }break;
       
       case Curve_Bezier: {
-       UI_ComboF(SafeCastToPtr(CurveParams.Bezier, u32), Bezier_Count, BezierNames, "Variant");
+       CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(CurveParams->Bezier, u32), Bezier_Count, BezierNames, "Variant");
        if (ResetCtxMenu(StrLit("BezierReset")))
        {
-        CurveParams.Bezier = DefaultParams->Bezier;
+        CurveParams->Bezier = DefaultParams->Bezier;
+        CrucialEntityParamChanged = true;
        }
       }break;
       
@@ -1733,7 +1766,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
        if (UI_BeginTreeF("Equation"))
        {
-        parametric_curve_params *Parametric = &CurveParams.Parametric;
+        parametric_curve_params *Parametric = &CurveParams->Parametric;
         parametric_curve_resources *Resources = &Curve->ParametricResources;
         arena *EquationArena = Resources->Arena;
         temp_arena Temp = TempArena(EquationArena);
@@ -1871,7 +1904,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
         
         if (EquationChanged)
         {
-         MarkEntityModified(&EntityWitness);
+         CrucialEntityParamChanged = true;
         }
         
         if (EquationChanged && !ArenaCleared)
@@ -1886,9 +1919,32 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
       }break;
       
       case Curve_B_Spline: {
-       b_spline_params *B_Spline = &CurveParams.B_Spline;
-       UI_SliderIntegerF(SafeCastToPtr(B_Spline->Degree, i32), 1, Curve->ControlPointCount, "Degree");
-       UI_Combo(SafeCastToPtr(B_Spline->Partition, u32), B_SplinePartition_Count, B_SplinePartitionNames, StrLit("Partition"));
+       b_spline_params *B_Spline = &CurveParams->B_Spline;
+       b_spline_degree_bounds Bounds = B_SplineDegreeBounds(Curve->ControlPointCount);
+       
+       CrucialEntityParamChanged |= UI_SliderIntegerF(SafeCastToPtr(B_Spline->Degree, i32), Bounds.MinDegree, Bounds.MaxDegree, "Degree");
+       if (ResetCtxMenu(StrLit("Degree")))
+       {
+        B_Spline->Degree = DefaultParams->B_Spline.Degree;
+        CrucialEntityParamChanged = true;
+       }
+       
+       CrucialEntityParamChanged |= UI_Combo(SafeCastToPtr(B_Spline->Partition, u32), B_SplinePartition_Count, B_SplinePartitionNames, StrLit("Partition"));
+       if (ResetCtxMenu(StrLit("Partition")))
+       {
+        B_Spline->Partition = DefaultParams->B_Spline.Partition;
+        CrucialEntityParamChanged = true;
+       }
+       
+       if (UI_BeginTreeF("Knots"))
+       {
+        UI_Checkbox(&B_Spline->ShowPartitionKnotPoints, StrLit("Show Partition Knots"));
+        UI_DragFloat(&B_Spline->KnotPointRadius, 0.0f, FLT_MAX, 0, StrLit("Radius"));
+        UI_ColorPicker(&B_Spline->KnotPointColor, StrLit("Color"));
+        
+        // TODO(hbr): Add way to customize knots directly
+        UI_EndTree();
+       }
       }break;
       
       case Curve_Count: InvalidPath;
@@ -1896,35 +1952,38 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
     }
     
     ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-    CurveParams.LineDisabled = !UI_BeginTreeF("Line");
-    if (!CurveParams.LineDisabled)
+    CurveParams->LineDisabled = !UI_BeginTreeF("Line");
+    if (!CurveParams->LineDisabled)
     {
-     UI_ColorPickerF(&CurveParams.LineColor, "Color");
+     UI_ColorPickerF(&CurveParams->LineColor, "Color");
      if (ResetCtxMenu(StrLit("ColorReset")))
      {
-      CurveParams.LineColor = DefaultParams->LineColor;
+      CurveParams->LineColor = DefaultParams->LineColor;
      }
      
-     UI_DragFloatF(&CurveParams.LineWidth, 0.0f, FLT_MAX, 0, "Width");
+     CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->LineWidth, 0.0f, FLT_MAX, 0, "Width");
      if (ResetCtxMenu(StrLit("WidthReset")))
      {
-      CurveParams.LineWidth = DefaultParams->LineWidth;
+      CurveParams->LineWidth = DefaultParams->LineWidth;
+      CrucialEntityParamChanged = true;
      }
      
      if (IsCurveTotalSamplesMode(Curve))
      {
-      UI_SliderIntegerF(SafeCastToPtr(CurveParams.TotalSamples, i32), 1, 5000, "Total Samples");
+      CrucialEntityParamChanged |= UI_SliderIntegerF(SafeCastToPtr(CurveParams->TotalSamples, i32), 1, 5000, "Total Samples");
       if (ResetCtxMenu(StrLit("Samples")))
       {
-       CurveParams.TotalSamples = DefaultParams->TotalSamples;
+       CurveParams->TotalSamples = DefaultParams->TotalSamples;
+       CrucialEntityParamChanged = true;
       }
      }
      else
      {
-      UI_SliderIntegerF(SafeCastToPtr(CurveParams.SamplesPerControlPoint, i32), 1, 500, "Samples per Control Point");
+      CrucialEntityParamChanged |= UI_SliderIntegerF(SafeCastToPtr(CurveParams->SamplesPerControlPoint, i32), 1, 500, "Samples per Control Point");
       if (ResetCtxMenu(StrLit("Samples")))
       {
-       CurveParams.SamplesPerControlPoint = DefaultParams->SamplesPerControlPoint;
+       CurveParams->SamplesPerControlPoint = DefaultParams->SamplesPerControlPoint;
+       CrucialEntityParamChanged = true;
       }
      }
      
@@ -1934,19 +1993,19 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
     if (UsesControlPoints(Curve))
     {
      ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-     CurveParams.PointsDisabled = !UI_BeginTreeF("Control Points");
-     if (!CurveParams.PointsDisabled)
+     CurveParams->PointsDisabled = !UI_BeginTreeF("Control Points");
+     if (!CurveParams->PointsDisabled)
      {
-      UI_ColorPickerF(&CurveParams.PointColor, "Color");
+      UI_ColorPickerF(&CurveParams->PointColor, "Color");
       if (ResetCtxMenu(StrLit("PointColorReset")))
       {
-       CurveParams.PointColor = DefaultParams->PointColor;
+       CurveParams->PointColor = DefaultParams->PointColor;
       }
       
-      UI_DragFloatF(&CurveParams.PointRadius, 0.0f, FLT_MAX, 0, "Radius");
+      UI_DragFloatF(&CurveParams->PointRadius, 0.0f, FLT_MAX, 0, "Radius");
       if (ResetCtxMenu(StrLit("PointRadiusReset")))
       {
-       CurveParams.PointRadius = DefaultParams->PointRadius;
+       CurveParams->PointRadius = DefaultParams->PointRadius;
       }
       
       if (CurveHasWeights(Curve))
@@ -1999,7 +2058,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
        
        if (WeightChanged)
        {
-        MarkEntityModified(&EntityWitness);
+        CrucialEntityParamChanged = true;
        }
       }
       
@@ -2007,36 +2066,40 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
      }
     }
     
-    CurveParams.PolylineEnabled = UI_BeginTreeF("Polyline");
-    if (CurveParams.PolylineEnabled)
+    CurveParams->PolylineEnabled = UI_BeginTreeF("Polyline");
+    if (CurveParams->PolylineEnabled)
     {
-     UI_ColorPickerF(&CurveParams.PolylineColor, "Color");
+     UI_ColorPickerF(&CurveParams->PolylineColor, "Color");
      if (ResetCtxMenu(StrLit("PolylineColorReset")))
      {
-      CurveParams.PolylineColor = DefaultParams->PolylineColor;
+      CurveParams->PolylineColor = DefaultParams->PolylineColor;
      }
      
-     UI_DragFloatF(&CurveParams.PolylineWidth, 0.0f, FLT_MAX, 0, "Width");
+     // TODO(hbr): This isn't really crucial in a sense that we have to recompute everything.
+     // Consider distinguishing between that.
+     CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->PolylineWidth, 0.0f, FLT_MAX, 0, "Width");
      if (ResetCtxMenu(StrLit("PolylineWidthReset")))
      {
-      CurveParams.PolylineWidth = DefaultParams->PolylineWidth;
+      CurveParams->PolylineWidth = DefaultParams->PolylineWidth;
+      CrucialEntityParamChanged = true;
      }
      UI_EndTree();
     }
     
-    CurveParams.ConvexHullEnabled = UI_BeginTreeF("Convex Hull");
-    if (CurveParams.ConvexHullEnabled)
+    CurveParams->ConvexHullEnabled = UI_BeginTreeF("Convex Hull");
+    if (CurveParams->ConvexHullEnabled)
     {
-     UI_ColorPickerF(&CurveParams.ConvexHullColor, "Color");
+     UI_ColorPickerF(&CurveParams->ConvexHullColor, "Color");
      if (ResetCtxMenu(StrLit("ConvexHullColorReset")))
      {
-      CurveParams.ConvexHullColor = DefaultParams->ConvexHullColor;
+      CurveParams->ConvexHullColor = DefaultParams->ConvexHullColor;
      }
      
-     UI_DragFloatF(&CurveParams.ConvexHullWidth, 0.0f, FLT_MAX, 0, "Width");
+     CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->ConvexHullWidth, 0.0f, FLT_MAX, 0, "Width");
      if (ResetCtxMenu(StrLit("ConvexHullWidthReset")))
      {
-      CurveParams.ConvexHullWidth = DefaultParams->ConvexHullWidth;
+      CurveParams->ConvexHullWidth = DefaultParams->ConvexHullWidth;
+      CrucialEntityParamChanged = true;
      }
      
      UI_EndTree();
@@ -2091,7 +2154,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
         UI_SameRow();
         if (UI_ButtonF("Split!"))
         {
-         PerformBezierCurveSplit(Editor, Entity);
+         PerformBezierCurveSplit(&EntityWitness, Editor);
         }
        }
        
@@ -2103,10 +2166,8 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
      }
     }
     
-    // TODO(hbr): This is wrong now with SourceCode stored as string
-    if (!StructsEqual(Curve->Params, CurveParams))
+    if (CrucialEntityParamChanged)
     {
-     Curve->Params = CurveParams;
      MarkEntityModified(&EntityWitness);
     }
    }
@@ -2441,7 +2502,7 @@ Choose2CurvesUI(choose_2_curves_state *Choosing)
  if (ChoosingCurve && Choosing->ChoosingCurveIndex == 0)
  {
   Disable0 = true;
-  Button0 = StrLit("Click on Curve to choose");
+  Button0 = StrLit("Click on curve!");
  }
  else
  {
@@ -2478,7 +2539,7 @@ Choose2CurvesUI(choose_2_curves_state *Choosing)
  if (ChoosingCurve && Choosing->ChoosingCurveIndex == 1)
  {
   Disable1 = true;
-  Button1 = StrLit("Click on Curve to choose");
+  Button1 = StrLit("Click on curve");
  }
  else
  {
@@ -2950,22 +3011,21 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
    {
     collision *Collision = &RightClick->CollisionAtP;
     entity *Entity = Collision->Entity;
+    entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
     curve *Curve = &Entity->Curve;
     
     if (Collision->Flags & Collision_TrackedPoint)
     {
      if (Curve->PointTracking.IsSplitting)
      {
-      PerformBezierCurveSplit(Editor, Entity);
+      PerformBezierCurveSplit(&EntityWitness, Editor);
      }
     }
     else if (Collision->Flags & Collision_CurvePoint)
     {
      if (Collision->CurvePointIndex.Type == CurvePoint_ControlPoint)
      {
-      entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
       RemoveControlPoint(&EntityWitness, Collision->CurvePointIndex.ControlPoint);
-      EndEntityModify(EntityWitness);
      }
      else
      {
@@ -2981,6 +3041,8 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
     {
      SelectEntity(Editor, 0);
     }
+    
+    EndEntityModify(EntityWitness);
    }
    
    EndRightClick(RightClick);
@@ -3272,12 +3334,7 @@ UpdateAndRenderMergingCurvesUI(editor *Editor)
     }
     if (!Compatibility.Compatible)
     {
-     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-     {
-      ImGui::SetTooltip("%.*s",
-                        Cast(u32)Compatibility.WhyIncompatible.Count,
-                        Compatibility.WhyIncompatible.Data);
-     }
+     UI_Tooltip(Compatibility.WhyIncompatible);
     }
    }
   }

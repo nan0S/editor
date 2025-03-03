@@ -857,6 +857,127 @@ B_SplineKnotsPeriodicExtension(b_spline_knots Knots)
  }
 }
 
+#if 0
+
+// NOTE(hbr): Reference implementation
+internal v2
+B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knots Knots)
+{
+ temp_arena Temp = TempArena(0);
+ 
+ T = Clamp(T, Knots.A, Knots.B - F32_EPS);
+ 
+ u32 Degree = Knots.Degree;
+ u32 PartitionSize = Knots.PartitionSize;
+ 
+ u32 Rows = Degree;
+ u32 Cols = Degree;
+ v2 *C = PushArray2DNonZero(Temp.Arena, Rows, Cols, v2);
+ 
+#define c(k, i) C[Index2D(k, i+m, Cols)]
+ 
+ ControlPoints += Degree;
+ 
+ i32 m = Degree;
+ i32 n = PartitionSize - 1;
+ 
+ f32 *t = Knots.Knots + Knots.Degree;
+ 
+ i32 j = -m;
+ for (; j+1 < n+m; ++j)
+ {
+  if (t[j] <= T && T < t[j + 1])
+  {
+   break;
+  }
+ }
+ 
+ for (i32 i = j-m; i <= j; ++i)
+ {
+  c(0, i) = ControlPoints[i];
+ }
+ 
+ for (i32 k = 1; k <= m; ++k)
+ {
+  for (i32 i = j-m+k; i <= j; ++i)
+  {
+   v2 Num = (T - t[i]) * c(k-1, i) + (t[m+i+1-k] - T) * c(k-1, i-1);
+   f32 Den = t[m+i+1-k] - t[i];
+   c(k, i) = Num / Den;
+  }
+ }
+ 
+ v2 Result = c(m, j);
+ 
+ EndTemp(Temp);
+ 
+#undef c
+ 
+ return Result;
+}
+
+#else
+
+// TODO(hbr): This can be ppb optimized to use only O(m) memory
+internal v2
+B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knots Knots)
+{
+ temp_arena Temp = TempArena(0);
+ 
+ // NOTE(hbr): This is unfortunately necessary. Otherwise it freaks out on tail.
+ T = Clamp(T, Knots.A, Knots.B - F32_EPS);
+ 
+ u32 Degree = Knots.Degree;
+ u32 PartitionSize = Knots.PartitionSize;
+ 
+ u32 Rows = Degree;
+ u32 Cols = Degree;
+ v2 *C = PushArray2DNonZero(Temp.Arena, Rows, Cols, v2);
+ 
+#define c(k, i) C[Index2D(k, i+m, Cols)]
+ 
+ ControlPoints += Degree;
+ 
+ i32 m = Degree;
+ i32 n = PartitionSize - 1;
+ 
+ f32 *t = Knots.Knots + Knots.Degree;
+ 
+ i32 j = -m;
+ for (; j+1 < n+m; ++j)
+ {
+  if (t[j] <= T && T < t[j + 1])
+  {
+   break;
+  }
+ }
+ 
+ for (i32 i = j-m; i <= j; ++i)
+ {
+  c(0, i) = ControlPoints[i];
+ }
+ 
+ for (i32 k = 1; k <= m; ++k)
+ {
+  for (i32 i = j-m+k; i <= j; ++i)
+  {
+   v2 Num = (T - t[i]) * c(k-1, i) + (t[m+i+1-k] - T) * c(k-1, i-1);
+   f32 Den = t[m+i+1-k] - t[i];
+   c(k, i) = Num / Den;
+  }
+ }
+ 
+ v2 Result = c(m, j);
+ 
+ EndTemp(Temp);
+ 
+#undef c
+ 
+ return Result;
+}
+
+#endif
+
 // NOTE(hbr): Those should be local conveniance internal, but impossible in C.
 inline internal f32 Hi(f32 *Ti, u32 I) { return Ti[I+1] - Ti[I]; }
 inline internal f32 Bi(f32 *Ti, f32 *Y, u32 I) { return 1.0f / Hi(Ti, I) * (Y[I+1] - Y[I]); }

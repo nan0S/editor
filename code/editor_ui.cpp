@@ -1,10 +1,17 @@
 internal b32
-UI_Combo(u32 *Enum, u32 EnumCount, char const *EnumNames[], string Label)
+UI_Combo(u32 *Enum, u32 EnumCount, string EnumNames[], string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
  int Enum_ = *Enum;
- b32 Result = Cast(b32)ImGui::Combo(CLabel.Data, &Enum_, EnumNames, EnumCount);
+ char **CEnumNames = PushArrayNonZero(Temp.Arena, EnumCount, char *);
+ for (u32 EnumIndex = 0;
+      EnumIndex < EnumCount;
+      ++EnumIndex)
+ {
+  CEnumNames[EnumIndex] = CStrFromStr(Temp.Arena, EnumNames[EnumIndex]).Data;
+ }
+ b32 Result = Cast(b32)ImGui::Combo(CLabel.Data, &Enum_, CEnumNames, EnumCount);
  *Enum = Enum_;
  EndTemp(Temp);
  
@@ -12,7 +19,7 @@ UI_Combo(u32 *Enum, u32 EnumCount, char const *EnumNames[], string Label)
 }
 
 internal b32
-UI_ComboF(u32 *Enum, u32 EnumCount, char const *EnumNames[], char const *Format, ...)
+UI_ComboF(u32 *Enum, u32 EnumCount, string EnumNames[], char const *Format, ...)
 {
  temp_arena Temp = TempArena(0);
  va_list  Args;
@@ -500,6 +507,28 @@ UI_SelectableItemF(b32 Selected, char const *Format, ...)
  EndTemp(Temp);
  
  return Result;
+}
+
+internal void
+UI_Tooltip(string Contents)
+{
+ if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+ {
+  u32 Count = SafeCastU32(Contents.Count);
+  ImGui::SetTooltip("%.*s", Count, Contents.Data);
+ }
+}
+
+internal void
+UI_TooltipF(char const *Format, ...)
+{
+ temp_arena Temp = TempArena(0);
+ va_list Args;
+ va_start(Args, Format);
+ string Contents = StrFV(Temp.Arena, Format, Args);
+ UI_Tooltip(Contents);
+ va_end(Args);
+ EndTemp(Temp);
 }
 
 internal void

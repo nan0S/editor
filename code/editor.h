@@ -169,8 +169,10 @@ enum curve_part
  CurvePart_DeCasteljauAlgorithmLines,
  CurvePart_DeCasteljauAlgorithmPoints,
  
- // this is at the very top
  CurvePart_BezierSplitPoint,
+ 
+ CurvePart_B_SplineKnot,
+ // this is at the very top
  
  CurvePart_Count,
 };

@@ -267,7 +267,7 @@ enum
  EntityFlag_Active   = (1<<0),
  EntityFlag_Hidden   = (1<<1),
  EntityFlag_Selected = (1<<2),
- EntityFlag_CurveAppendFront_ = (1<<3),
+ EntityFlag_CurveAppendFront = (1<<3),
 };
 typedef u32 entity_flags;
 
@@ -286,7 +286,8 @@ struct entity
  entity_flags Flags;
  
  // NOTE(hbr): I don't think this needs to be bigger than u32
- u32 Generation;
+ u32 Generation; // increments every time entity is allocated
+ u32 Version; // increments every time entity is "recomputed" (see CurveRecompute)
  
  entity_type Type;
  curve Curve;
@@ -319,7 +320,6 @@ MakeEntityId(entity *Entity)
   Id.Entity = Entity;
   Id.Generation = Entity->Generation;
  }
- 
  return Id;
 }
 
@@ -334,18 +334,55 @@ EntityFromId(entity_id Id)
  return Result;
 }
 
+struct entity_snapshot_for_merging
+{
+ entity *Entity;
+ 
+ v2 P;
+ v2 Scale;
+ v2 Rotation;
+ 
+ entity_flags Flags;
+ 
+ u32 Version;
+};
+
+inline internal entity_snapshot_for_merging
+MakeEntitySnapshotForMerging(entity *Entity)
+{
+ entity_snapshot_for_merging Result = {};
+ Result.Entity = Entity;
+ if (Entity)
+ {
+  Result.P = Entity->P;
+  Result.Scale = Entity->Scale;
+  Result.Rotation = Entity->Rotation;
+  Result.Flags = Entity->Flags;
+  Result.Version = Entity->Version;
+ }
+ return Result;
+}
+
+inline internal b32
+EntityModified(entity_snapshot_for_merging Versioned, entity *Entity)
+{
+ b32 Result = false;
+ if (Versioned.Entity != Entity ||
+     (Entity && (!StructsEqual(Entity->P, Versioned.P) ||
+                 !StructsEqual(Entity->Scale, Versioned.Scale) ||
+                 !StructsEqual(Entity->Rotation, Versioned.Rotation) ||
+                 !StructsEqual(Entity->Flags, Versioned.Flags) ||
+                 !StructsEqual(Entity->Version, Versioned.Version))))
+ {
+  Result = true;
+ }
+ return Result;
+}
+
 struct entity_array
 {
  u32 Count;
  entity *Entities;
-};
-
-struct point_info
-{
- f32 Radius;
- v4 Color;
- f32 OutlineThickness;
- v4 OutlineColor;
 };
 
 internal void AllocEntityResources(entity *Entity);
@@ -406,6 +443,14 @@ StaticAssert(SizeOf(MemberOf(entity_colors, AllColors)) == SizeOf(entity_colors)
 internal entity_colors ExtractEntityColors(entity *Entity);
 internal void ApplyColorsToEntity(entity *Entity, entity_colors Colors);
 
+struct point_info
+{
+ f32 Radius;
+ v4 Color;
+ f32 OutlineThickness;
+ v4 OutlineColor;
+};
+
 internal b32 IsEntityVisible(entity *Entity);
 internal void SwitchEntityVisibility(entity *Entity);
 internal b32 IsEntitySelected(entity *Entity);
@@ -427,11 +472,10 @@ internal b32 Are_B_SplineKnotsVisible(curve *Curve);
 enum curve_merge_method : u32
 {
  CurveMerge_Concat,
- 
  CurveMerge_C0,
  CurveMerge_C1,
- CurveMerge_G1,
  CurveMerge_C2,
+ CurveMerge_G1,
  
  CurveMerge_Count,
 };

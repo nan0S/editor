@@ -2111,7 +2111,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
      UI_SeparatorTextF("Misc");
      if (UI_ButtonF("Swap Append Side"))
      {
-      Entity->Flags ^= EntityFlag_CurveAppendFront_;
+      Entity->Flags ^= EntityFlag_CurveAppendFront;
      }
      
      if (IsCurveEligibleForPointTracking(Curve))
@@ -2490,7 +2490,7 @@ UpdateAndRenderNotifications(editor *Editor, platform_input *Input, render_group
 }
 
 internal void
-Choose2CurvesUI(choose_2_curves_state *Choosing)
+UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing)
 {
  entity *Curve0 = EntityFromId(Choosing->Curves[0]);
  entity *Curve1 = EntityFromId(Choosing->Curves[1]);
@@ -2583,7 +2583,7 @@ UpdateAndRenderAnimatingCurvesUI(editor *Editor)
   
   if (WindowOpen)
   {
-   Choose2CurvesUI(&Animation->Choose2Curves);
+   UpdateAndRenderChoose2CurvesUI(&Animation->Choose2Curves);
    
    entity *Curve0 = EntityFromId(Animation->Choose2Curves.Curves[0]);
    entity *Curve1 = EntityFromId(Animation->Choose2Curves.Curves[1]);
@@ -3226,53 +3226,144 @@ Merge2Curves(entity_with_modify_witness *MergeWitness, entity *Entity0, entity *
  u32 PointCount0 = Curve0->ControlPointCount;
  u32 PointCount1 = Curve1->ControlPointCount;
  
- u32 PointCount = 0;
+ v2 *Points0 = Curve0->ControlPoints;
+ v2 *Points1 = Curve1->ControlPoints;
+ 
+ f32 *Weights0 = Curve0->ControlPointWeights;
+ f32 *Weights1 = Curve1->ControlPointWeights;
+ 
+ cubic_bezier_point *Beziers0 = Curve0->CubicBezierPoints;
+ cubic_bezier_point *Beziers1 = Curve1->CubicBezierPoints;
+ 
+ u32 DropCount1 = 0;
+ v2 Translate1 = {};
  switch (Method)
  {
-  case CurveMerge_Concat: {
-   PointCount = (PointCount0 + PointCount1);
-  }break;
+  case CurveMerge_Concat: {}break;
   
   case CurveMerge_C0:
   case CurveMerge_C1:
   case CurveMerge_C2:
   case CurveMerge_G1: {
-   NotImplemented;
+   DropCount1 = 1;
+   
+   if (PointCount0 > 0 && PointCount1 > 0)
+   {
+    v2 P0 = Points0[PointCount0 - 1];
+    
+    v2 P1 = LocalEntityPositionToWorld(Entity1, Points1[0]);
+    P1 = WorldToLocalEntityPosition(Entity0, P1);
+    
+    Translate1 = (P0 - P1);
+   }
   }break;
   
   case CurveMerge_Count: InvalidPath;
+ }
+ u32 PointCount = (PointCount0 + PointCount1);
+ if (DropCount1 <= PointCount1)
+ {
+  PointCount -= DropCount1;
  }
  
  v2 *Points = PushArrayNonZero(Temp.Arena, PointCount, v2);
  f32 *Weights = PushArrayNonZero(Temp.Arena, PointCount, f32);
  cubic_bezier_point *Beziers = PushArrayNonZero(Temp.Arena, PointCount, cubic_bezier_point);
  
- ArrayCopy(Weights,               Curve0->ControlPointWeights, PointCount0);
- ArrayCopy(Weights + PointCount0, Curve1->ControlPointWeights, PointCount1);
+ ArrayCopy(Weights,               Weights0,              PointCount0);
+ ArrayCopy(Weights + PointCount0, Weights1 + DropCount1, PointCount1);
  
- ArrayCopy(Points,                Curve0->ControlPoints,       PointCount0);
- ArrayCopy(Beziers,               Curve0->CubicBezierPoints,   PointCount0);
+ ArrayCopy(Points,                Points0,               PointCount0);
+ ArrayCopy(Beziers,               Beziers0,              PointCount0);
  
- for (u32 PointIndex1 = 0;
+ u32 PointIndex = PointCount0;
+ for (u32 PointIndex1 = DropCount1;
       PointIndex1 < PointCount1;
       ++PointIndex1)
  {
-  v2 Point1 = Curve1->ControlPoints[PointIndex1];
+  v2 Point1 = Points1[PointIndex1];
   Point1 = LocalEntityPositionToWorld(Entity1, Point1);
   Point1 = WorldToLocalEntityPosition(Entity0, Point1);
-  Points[PointCount0 + PointIndex1] = Point1;
+  Point1 = Point1 + Translate1;
+  Points[PointIndex] = Point1;
   
-  cubic_bezier_point Bezier1 = Curve1->CubicBezierPoints[PointIndex1];
+  cubic_bezier_point Bezier1 = Beziers1[PointIndex1];
   Bezier1.P0 = LocalEntityPositionToWorld(Entity1, Bezier1.P0);
   Bezier1.P0 = WorldToLocalEntityPosition(Entity0, Bezier1.P0);
+  Bezier1.P0 = Bezier1.P0 + Translate1;
   
   Bezier1.P1 = LocalEntityPositionToWorld(Entity1, Bezier1.P1);
   Bezier1.P1 = WorldToLocalEntityPosition(Entity0, Bezier1.P1);
+  Bezier1.P1 = Bezier1.P1 + Translate1;
   
   Bezier1.P2 = LocalEntityPositionToWorld(Entity1, Bezier1.P2);
   Bezier1.P2 = WorldToLocalEntityPosition(Entity0, Bezier1.P2);
+  Bezier1.P2 = Bezier1.P2 + Translate1;
   
-  Beziers[PointCount0 + PointIndex1] = Bezier1;
+  Beziers[PointIndex] = Bezier1;
+  
+  ++PointIndex;
+ }
+ 
+ // Fix points on the merge border
+ switch (Method)
+ {
+  case CurveMerge_Concat: 
+  case CurveMerge_C0: {
+   // Nothing to do
+  }break;
+  
+  case CurveMerge_C1: {
+   if (SignedCmp(PointCount0 - 2, >=, 0) && (PointCount0 - 0 < PointCount))
+   {
+    v2 P = Points[PointCount0 - 2];
+    v2 Q = Points[PointCount0 - 1];
+    v2 R = Points[PointCount0 - 0];
+    
+    // NOTE(hbr): C1 merge:
+    // - n/(b-a) * (Q-P) = m/(c-b) * (R-Q)
+    // - assuming (b-a) = (c-b) = 1
+    // - which gives us: n * (Q-P) = m * (R-Q)
+    // - solving for R: R = n/m * (Q-P) + Q
+    v2 R_ = Cast(f32)PointCount0/PointCount1 * (Q-P) + Q;
+    v2 Translate = R_ - R;
+    
+    Points[PointCount0 - 0] += Translate;
+    Beziers[PointCount0 - 0].P0 += Translate;
+    Beziers[PointCount0 - 0].P1 += Translate;
+    Beziers[PointCount0 - 0].P2 += Translate;
+   }
+  }break;
+  
+  case CurveMerge_C2: {
+   
+   
+   
+  }break;
+  
+  case CurveMerge_G1: {
+   if (SignedCmp(PointCount0 - 2, >=, 0) && (PointCount0 - 0 < PointCount))
+   {
+    v2 P = Points[PointCount0 - 2];
+    v2 Q = Points[PointCount0 - 1];
+    v2 R = Points[PointCount0 - 0];
+    
+    // NOTE(hbr): G1 merge:
+    // - P,Q,R should be colinear
+    // - fix R, but maintain ||R-Q|| length
+    f32 PreserveLength = Norm(R - Q);
+    v2 Direction = Normalized(Q - P);
+    v2 R_ = Q + Direction * PreserveLength;
+    v2 Translate = R_ - R;
+    
+    Points[PointCount0 - 0] += Translate;
+    Beziers[PointCount0 - 0].P0 += Translate;
+    Beziers[PointCount0 - 0].P1 += Translate;
+    Beziers[PointCount0 - 0].P2 += Translate;
+   }
+  }break;
+  
+  case CurveMerge_Count: InvalidPath;
  }
  
  SetCurveControlPoints(MergeWitness, PointCount, Points, Weights, Beziers);
@@ -3295,9 +3386,9 @@ UpdateAndRenderMergingCurvesUI(editor *Editor)
   
   if (WindowOpen)
   {
-   Choose2CurvesUI(&Merging->Choose2Curves);
+   UpdateAndRenderChoose2CurvesUI(&Merging->Choose2Curves);
    
-   UI_Combo(SafeCastToPtr(Merging->Method, u32), CurveMerge_Count, CurveMergeNames, StrLit("Merge Method"));
+   b32 MergeMethodChanged = UI_Combo(SafeCastToPtr(Merging->Method, u32), CurveMerge_Count, CurveMergeNames, StrLit("Merge Method"));
    
    entity *Entity0 = EntityFromId(Merging->Choose2Curves.Curves[0]);
    entity *Entity1 = EntityFromId(Merging->Choose2Curves.Curves[1]);
@@ -3315,16 +3406,25 @@ UpdateAndRenderMergingCurvesUI(editor *Editor)
     Compatibility.WhyIncompatible = StrLit("not all curves selected");
    }
    
-   entity_with_modify_witness MergeWitness = BeginEntityModify(&Merging->MergeEntity);
-   if (Compatibility.Compatible)
+   b32 Changed0 = EntityModified(Merging->EntityVersioned[0], Entity0);
+   b32 Changed1 = EntityModified(Merging->EntityVersioned[1], Entity1);
+   
+   if (Changed0 || Changed1 || MergeMethodChanged)
    {
-    Merge2Curves(&MergeWitness, Entity0, Entity1, Merging->Method);
+    entity_with_modify_witness MergeWitness = BeginEntityModify(&Merging->MergeEntity);
+    if (Compatibility.Compatible)
+    {
+     Merge2Curves(&MergeWitness, Entity0, Entity1, Merging->Method);
+    }
+    else
+    {
+     SetCurveControlPoints(&MergeWitness, 0, 0, 0, 0);
+    }
+    EndEntityModify(MergeWitness);
+    
+    Merging->EntityVersioned[0] = MakeEntitySnapshotForMerging(Entity0);
+    Merging->EntityVersioned[1] = MakeEntitySnapshotForMerging(Entity1);
    }
-   else
-   {
-    SetCurveControlPoints(&MergeWitness, 0, 0, 0, 0);
-   }
-   EndEntityModify(MergeWitness);
    
    UI_Disabled(!Compatibility.Compatible)
    {

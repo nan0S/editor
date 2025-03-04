@@ -72,6 +72,7 @@ internal f32 Norm(v2 V);
 internal f32 NormSquared(v2 V);
 internal i32 NormSquared(v2i V);
 internal void Normalize(v2 *V);
+internal v2 Normalized(v2 V);
 internal f32 Dot(v2 U, v2 V);
 internal f32 Cross(v2 U, v2 V);
 internal v2 Hadamard(v2 A, v2 B);

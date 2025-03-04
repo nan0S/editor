@@ -267,7 +267,7 @@ internal b32
 IsCurveReversed(entity *Entity)
 {
  curve *Curve = SafeGetCurve(Entity);
- b32 Result = (UsesControlPoints(Curve) && (Entity->Flags & EntityFlag_CurveAppendFront_));
+ b32 Result = (UsesControlPoints(Curve) && (Entity->Flags & EntityFlag_CurveAppendFront));
  return Result;
 }
 
@@ -296,32 +296,28 @@ AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method M
  
  string IncompatibleTypes = StrLit("cannot merge curves of different types");
  
+#define Concat_C0_G1_Str " can only be merged using [Concat], [C0] or [G1] methods"
+#define Concat_Str       " can only be merged using [Concat] method"
+ 
+ b32 Concat_C0_G1 = (Method == CurveMerge_Concat ||
+                     Method == CurveMerge_C0 ||
+                     Method == CurveMerge_G1);
+ b32 Concat = (Method == CurveMerge_Concat);
+ 
  if (Params0->Type == Params1->Type)
  {
   switch (Params0->Type)
   {
    case Curve_Polynomial: {
-    if (Method == CurveMerge_Concat)
-    {
-     Compatible = true;
-    }
-    else
-    {
-     WhyIncompatible = StrLit("polynomial curves can only be concatenated");
-    }
+    if (Concat_C0_G1) Compatible = true;
+    else WhyIncompatible = StrLit("polynomial curves" Concat_C0_G1_Str);
    }break;
    
    case Curve_CubicSpline: {
     if (Params0->CubicSpline == Params1->CubicSpline)
     {
-     if (Method == CurveMerge_Concat)
-     {
-      Compatible = true;
-     }
-     else
-     {
-      WhyIncompatible = StrLit("cubic spline curves can only be concatenated");
-     }
+     if (Concat_C0_G1) Compatible = true;
+     else WhyIncompatible = StrLit("cubic spline curves" Concat_C0_G1_Str);
     }
     else
     {
@@ -334,21 +330,11 @@ AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method M
     {
      switch (Params0->Bezier)
      {
-      case Bezier_Regular: {
-       Compatible = true;
-      }break;
-      
+      case Bezier_Regular: {Compatible = true;}break;
       case Bezier_Cubic: {
-       if (Method == CurveMerge_Concat)
-       {
-        Compatible = true;
-       }
-       else
-       {
-        WhyIncompatible = StrLit("cubic bezier curves can only be concatenated");
-       }
+       if (Concat_C0_G1) Compatible = true;
+       else WhyIncompatible = StrLit("cubic bezier curves" Concat_C0_G1_Str);
       }break;
-      
       case Bezier_Count: InvalidPath;
      }
     }
@@ -359,12 +345,11 @@ AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method M
    }break;
    
    case Curve_B_Spline: {
-    NotImplemented;
+    if (Concat) Compatible = true;
+    else WhyIncompatible = StrLit("B-spline curves" Concat_Str);
    }break;
    
-   case Curve_Parametric: {
-    WhyIncompatible = StrLit("parametric curves cannot be merged");
-   }break;
+   case Curve_Parametric: {WhyIncompatible = StrLit("parametric curves cannot be merged");}break;
    
    case Curve_Count: InvalidPath;
   }
@@ -433,8 +418,8 @@ GetCurveControlPointInfo(entity *Entity, u32 PointIndex)
  
  point_info Result = GetEntityPointInfo(Entity, Params->PointRadius, Params->PointColor);
  
- if (( (Entity->Flags & EntityFlag_CurveAppendFront_) && PointIndex == 0) ||
-     (!(Entity->Flags & EntityFlag_CurveAppendFront_) && PointIndex == Curve->ControlPointCount-1))
+ if (( (Entity->Flags & EntityFlag_CurveAppendFront) && PointIndex == 0) ||
+     (!(Entity->Flags & EntityFlag_CurveAppendFront) && PointIndex == Curve->ControlPointCount-1))
  {
   Result.Radius *= 1.5f;
  }
@@ -674,7 +659,7 @@ AppendControlPoint(entity_with_modify_witness *EntityWitness, v2 Point)
  control_point_index Result = {};
  
  entity *Entity = EntityWitness->Entity;
- if (Entity->Flags & EntityFlag_CurveAppendFront_)
+ if (Entity->Flags & EntityFlag_CurveAppendFront)
  {
   Result.Index = 0;
  }
@@ -941,7 +926,7 @@ internal b32
 IsCurveLooped(curve *Curve)
 {
  b32 IsLooped = (Curve->Params.Type == Curve_CubicSpline &&
-                 Curve->Params.CubicSpline   == CubicSpline_Periodic);
+                 Curve->Params.CubicSpline == CubicSpline_Periodic);
  return IsLooped;
 }
 
@@ -1460,6 +1445,8 @@ EndEntityModify(entity_with_modify_witness Witness)
    case Entity_Image: {}break;
    case Entity_Count: InvalidPath;
   }
+  
+  ++Entity->Version;
  }
 }
 

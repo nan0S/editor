@@ -68,6 +68,13 @@ Normalize(v2 *V)
  }
 }
 
+internal v2
+Normalized(v2 V)
+{
+ Normalize(&V);
+ return V;
+}
+
 internal f32
 Dot(v2 U, v2 V)
 {

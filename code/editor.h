@@ -308,6 +308,7 @@ struct merging_curves_state
  choose_2_curves_state Choose2Curves;
  curve_merge_method Method;
  entity MergeEntity;
+ entity_snapshot_for_merging EntityVersioned[2];
 };
 
 struct editor

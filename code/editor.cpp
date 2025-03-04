@@ -2664,7 +2664,7 @@ ProcessAsyncEvents(editor *Editor)
     else
     {
      Assert(Task->State == Image_Failed);
-     AddNotificationF(Editor, Notification_Error, "Image loading failed");
+     AddNotificationF(Editor, Notification_Error, "failed to load image from %S", Task->ImageFilePath);
     }
     
     DeallocateAsyncTask(Editor, Task);
@@ -3271,7 +3271,7 @@ Merge2Curves(entity_with_modify_witness *MergeWitness, entity *Entity0, entity *
  cubic_bezier_point *Beziers = PushArrayNonZero(Temp.Arena, PointCount, cubic_bezier_point);
  
  ArrayCopy(Weights,               Weights0,              PointCount0);
- ArrayCopy(Weights + PointCount0, Weights1 + DropCount1, PointCount1);
+ ArrayCopy(Weights + PointCount0, Weights1 + DropCount1, PointCount1 - DropCount1);
  
  ArrayCopy(Points,                Points0,               PointCount0);
  ArrayCopy(Beziers,               Beziers0,              PointCount0);
@@ -3305,102 +3305,81 @@ Merge2Curves(entity_with_modify_witness *MergeWitness, entity *Entity0, entity *
   ++PointIndex;
  }
  
- u32 MergeRank = 0;
+ b32 S_Exists = (SignedCmp(PointCount0 - 3, >=, 0) && SignedCmp(PointCount0 - 3, <, PointCount));
+ b32 Q_Exists = (SignedCmp(PointCount0 - 2, >=, 0) && SignedCmp(PointCount0 - 2, <, PointCount));
+ b32 P_Exists = (SignedCmp(PointCount0 - 1, >=, 0) && SignedCmp(PointCount0 - 1, <, PointCount));
+ b32 R_Exists = (SignedCmp(PointCount0 - 0, >=, 0) && SignedCmp(PointCount0 - 0, <, PointCount));
+ b32 T_Exists = (SignedCmp(PointCount0 + 1, >=, 0) && SignedCmp(PointCount0 + 1, <, PointCount));
+ 
+ v2 S = (S_Exists ? Points[PointCount0 - 3] : V2(0,0));
+ v2 Q = (Q_Exists ? Points[PointCount0 - 2] : V2(0,0));
+ v2 P = (P_Exists ? Points[PointCount0 - 1] : V2(0,0));
+ v2 R = (R_Exists ? Points[PointCount0 - 0] : V2(0,0));
+ v2 T = (T_Exists ? Points[PointCount0 + 1] : V2(0,0));
+ 
+ v2 R_ = R;
+ v2 T_ = T;
+ 
+ f32 n = Cast(f32)PointCount0;
+ f32 m = Cast(f32)PointCount1;
+ 
  switch (Method)
  {
-  case CurveMerge_Concat: 
-  case CurveMerge_C0: {MergeRank = 0;}break;
-  case CurveMerge_C1:
-  case CurveMerge_G1: {MergeRank = 1;}break;
-  case CurveMerge_C2: {MergeRank = 2;}break;
- }
- 
- 
- 
- // Fix points on the merge border
- switch (Method)
- {
-  case CurveMerge_Concat: 
-  case CurveMerge_C0: {
-   // Nothing to do
+  case CurveMerge_G1: {
+   // NOTE(hbr): G1 merge:
+   // - C0 and
+   // - Q,P,R should be colinear
+   // - fix R, but maintain ||R-P|| length
+   v2 U = P - Q;
+   v2 V = R - P;
+   v2 Projected = ProjectOnto(V, U);
+   R_ = P + Projected;
   }break;
   
   case CurveMerge_C1:
   case CurveMerge_C2: {
-   if ((Method == CurveMerge_C1 || Method == CurveMerge_C2) &&
-       (SignedCmp(PointCount0 - 2, >=, 0) && (PointCount0 - 0 < PointCount)))
+   // NOTE(hbr): C1 merge:
+   // - C0 and
+   // - n/(b-a) * (P-Q) = m/(c-b) * (R-P)
+   // - assuming (b-a) = (c-b) = 1
+   // - which gives us: n * (P-Q) = m * (R-P)
+   // - solving for R: R = n/m * (P-Q) + P
+   R_ = n/m * (P-Q) + P;
+   
+   if (Method == CurveMerge_C2)
    {
-    v2 Q = Points[PointCount0 - 2];
-    v2 P = Points[PointCount0 - 1];
-    v2 R = Points[PointCount0 - 0];
-    
-    f32 n = Cast(f32)PointCount0;
-    f32 m = Cast(f32)PointCount1;
-    
-    // NOTE(hbr): C1 merge:
-    // - C0 and
-    // - n/(b-a) * (P-Q) = m/(c-b) * (R-P)
+    // NOTE(hbr): C2 merge:
+    // - C0 and C1 and
+    // - n*(n-1)/(b-a)^2 * (P-2Q+S) = m*(m-1)/(c-b)^2 * (T-2R+P)
     // - assuming (b-a) = (c-b) = 1
-    // - which gives us: n * (P-Q) = m * (R-P)
-    // - solving for R: R = n/m * (P-Q) + P
-    v2 R_ = n/m * (P-Q) + P;
-    v2 Fix_R = R_ - R;
-    
-    Points[PointCount0 - 0] += Fix_R;
-    Beziers[PointCount0 - 0].P0 += Fix_R;
-    Beziers[PointCount0 - 0].P1 += Fix_R;
-    Beziers[PointCount0 - 0].P2 += Fix_R;
-    
-    if ((Method == CurveMerge_C2) &&
-        (SignedCmp(PointCount0 - 3, >=, 0) && (PointCount0 + 1 < PointCount)))
-    {
-     v2 S = Points[PointCount0 - 3];
-     //v2 Q = Points[PointCount0 - 2];
-     //v2 P = Points[PointCount0 - 1];
-     //v2 R = Points[PointCount0 - 0];
-     v2 T = Points[PointCount0 + 1];
-     
-     // NOTE(hbr): C2 merge:
-     // - C0 and C1 and
-     // - n*(n-1)/(b-a)^2 * (P-2Q+S) = m*(m-1)/(c-b)^2 * (T-2R+P)
-     // - assuming (b-a) = (c-b) = 1
-     // - which gives us: n*(n-1) * (P-2Q+S) = m*(m-1) * (T-2R+P)
-     // - solving for T: T = (n*(n-1))/(m*(m-1)) * (P-2Q+S) + (2R-P)
-     v2 T_ = (n*(n-1))/(m*(m-1)) * (P-2*Q+S) + (2*R_-P);
-     v2 Fix_T = T_ - T;
-     
-     Points[PointCount0 + 1] += Fix_T;
-     Beziers[PointCount0 + 1].P0 += Fix_T;
-     Beziers[PointCount0 + 1].P1 += Fix_T;
-     Beziers[PointCount0 + 1].P2 += Fix_T;
-    }
+    // - which gives us: n*(n-1) * (P-2Q+S) = m*(m-1) * (T-2R+P)
+    // - solving for T: T = (n*(n-1))/(m*(m-1)) * (P-2Q+S) + (2R-P)
+    T_ = (n*(n-1))/(m*(m-1)) * (P-2*Q+S) + (2*R_-P);
    }
   }break;
   
-  case CurveMerge_G1: {
-   if (SignedCmp(PointCount0 - 2, >=, 0) && (PointCount0 - 0 < PointCount))
-   {
-    v2 Q = Points[PointCount0 - 2];
-    v2 P = Points[PointCount0 - 1];
-    v2 R = Points[PointCount0 - 0];
-    
-    // NOTE(hbr): G1 merge:
-    // - C0 and
-    // - P,Q,R should be colinear
-    // - fix R, but maintain ||R-Q|| length
-    f32 PreserveLength = Norm(R - P);
-    v2 Direction = Normalized(P - Q);
-    v2 R_ = P + Direction * PreserveLength;
-    v2 Fix_R = R_ - R;
-    
-    Points[PointCount0 - 0] += Fix_R;
-    Beziers[PointCount0 - 0].P0 += Fix_R;
-    Beziers[PointCount0 - 0].P1 += Fix_R;
-    Beziers[PointCount0 - 0].P2 += Fix_R;
-   }
-  }break;
+  case CurveMerge_C0:
+  case CurveMerge_Concat: {}break;
   
   case CurveMerge_Count: InvalidPath;
+ }
+ 
+ if (Q_Exists && R_Exists)
+ {
+  v2 Fix_R = R_ - R;
+  Points[PointCount0 - 0] += Fix_R;
+  Beziers[PointCount0 - 0].P0 += Fix_R;
+  Beziers[PointCount0 - 0].P1 += Fix_R;
+  Beziers[PointCount0 - 0].P2 += Fix_R;
+ }
+ 
+ if (S_Exists && T_Exists)
+ {
+  v2 Fix_T = T_ - T;
+  Points[PointCount0 + 1] += Fix_T;
+  Beziers[PointCount0 + 1].P0 += Fix_T;
+  Beziers[PointCount0 + 1].P1 += Fix_T;
+  Beziers[PointCount0 + 1].P2 += Fix_T;
  }
  
  SetCurveControlPoints(MergeWitness, PointCount, Points, Weights, Beziers);

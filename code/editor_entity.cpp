@@ -1376,33 +1376,36 @@ RecomputeCurve(entity *Entity)
  curve_point_tracking_state *Tracking = &Curve->PointTracking;
  if (IsCurveEligibleForPointTracking(Curve))
  {
-  f32 Fraction = Tracking->Fraction;
-  
-  v2 LocalSpaceTrackedPoint = BezierCurveEvaluateWeighted(Fraction, Controls, Weights, PointCount);
-  Tracking->LocalSpaceTrackedPoint = LocalSpaceTrackedPoint;
-  
-  if (!Tracking->IsSplitting)
+  if (Tracking->Active)
   {
-   all_de_casteljau_intermediate_results Intermediate = DeCasteljauAlgorithm(EntityArena, Fraction, Controls, Weights, PointCount);
-   vertex_array *LineVerticesPerIteration = PushArray(EntityArena, Intermediate.IterationCount, vertex_array);
+   f32 Fraction = Tracking->Fraction;
    
-   u32 IterationPointsOffset = 0;
-   for (u32 Iteration = 0;
-        Iteration < Intermediate.IterationCount;
-        ++Iteration)
+   v2 LocalSpaceTrackedPoint = BezierCurveEvaluateWeighted(Fraction, Controls, Weights, PointCount);
+   Tracking->LocalSpaceTrackedPoint = LocalSpaceTrackedPoint;
+   
+   if (!Tracking->IsSplitting)
    {
-    u32 CurrentIterationPointCount = Intermediate.IterationCount - Iteration;
-    LineVerticesPerIteration[Iteration] = ComputeVerticesOfThickLine(EntityArena,
-                                                                     CurrentIterationPointCount,
-                                                                     Intermediate.P + IterationPointsOffset,
-                                                                     LineWidth,
-                                                                     false);
-    IterationPointsOffset += CurrentIterationPointCount;
+    all_de_casteljau_intermediate_results Intermediate = DeCasteljauAlgorithm(EntityArena, Fraction, Controls, Weights, PointCount);
+    vertex_array *LineVerticesPerIteration = PushArray(EntityArena, Intermediate.IterationCount, vertex_array);
+    
+    u32 IterationPointsOffset = 0;
+    for (u32 Iteration = 0;
+         Iteration < Intermediate.IterationCount;
+         ++Iteration)
+    {
+     u32 CurrentIterationPointCount = Intermediate.IterationCount - Iteration;
+     LineVerticesPerIteration[Iteration] = ComputeVerticesOfThickLine(EntityArena,
+                                                                      CurrentIterationPointCount,
+                                                                      Intermediate.P + IterationPointsOffset,
+                                                                      LineWidth,
+                                                                      false);
+     IterationPointsOffset += CurrentIterationPointCount;
+    }
+    
+    Tracking->Intermediate = Intermediate;
+    Tracking->LineVerticesPerIteration = LineVerticesPerIteration;
+    Tracking->LocalSpaceTrackedPoint = Intermediate.P[Intermediate.TotalPointCount - 1];
    }
-   
-   Tracking->Intermediate = Intermediate;
-   Tracking->LineVerticesPerIteration = LineVerticesPerIteration;
-   Tracking->LocalSpaceTrackedPoint = Intermediate.P[Intermediate.TotalPointCount - 1];
   }
  }
  else

@@ -234,7 +234,7 @@ inline void *_SafeCastToPtr(void *Expr, u64 SizeOf1, u64 SizeOf2) { Assert(SizeO
 #define SafeDiv1(Num, Den) ((Den) == 0 ? 1 : (Num) / (Den))
 #define SafeDivDefault(Num, Den, Default) ((Den == 0) ? (Default) : (Num) / (Den))
 #define NoOp ((void)0)
-#define SignedCmp(Left, Operator, Right) (Cast(i64)(Left) Operator (Right))
+#define SignedCmp(Left, Operator, Right) (Cast(i64)(Left) Operator (Cast(i64)(Right)))
 
 #define MemoryCopy(Dst, Src, Bytes) memcpy(Dst, Src, Bytes)
 #define MemoryMove(Dst, Src, Bytes) memmove(Dst, Src, Bytes)

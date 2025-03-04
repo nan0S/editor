@@ -100,6 +100,13 @@ Hadamard(v2 A, v2 B)
 }
 
 internal v2
+ProjectOnto(v2 U, v2 Onto)
+{
+ v2 Result = (Dot(U, Onto) / Dot(Onto, Onto)) * Onto;
+ return Result;
+}
+
+internal v2
 Rotation2D(f32 X, f32 Y)
 {
  v2 Rotation = {};

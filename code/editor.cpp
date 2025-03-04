@@ -3236,7 +3236,7 @@ Merge2Curves(entity_with_modify_witness *MergeWitness, entity *Entity0, entity *
  cubic_bezier_point *Beziers1 = Curve1->CubicBezierPoints;
  
  u32 DropCount1 = 0;
- v2 Translate1 = {};
+ v2 Fix1 = {};
  switch (Method)
  {
   case CurveMerge_Concat: {}break;
@@ -3254,7 +3254,7 @@ Merge2Curves(entity_with_modify_witness *MergeWitness, entity *Entity0, entity *
     v2 P1 = LocalEntityPositionToWorld(Entity1, Points1[0]);
     P1 = WorldToLocalEntityPosition(Entity0, P1);
     
-    Translate1 = (P0 - P1);
+    Fix1 = (P0 - P1);
    }
   }break;
   
@@ -3284,26 +3284,38 @@ Merge2Curves(entity_with_modify_witness *MergeWitness, entity *Entity0, entity *
   v2 Point1 = Points1[PointIndex1];
   Point1 = LocalEntityPositionToWorld(Entity1, Point1);
   Point1 = WorldToLocalEntityPosition(Entity0, Point1);
-  Point1 = Point1 + Translate1;
+  Point1 = Point1 + Fix1;
   Points[PointIndex] = Point1;
   
   cubic_bezier_point Bezier1 = Beziers1[PointIndex1];
   Bezier1.P0 = LocalEntityPositionToWorld(Entity1, Bezier1.P0);
   Bezier1.P0 = WorldToLocalEntityPosition(Entity0, Bezier1.P0);
-  Bezier1.P0 = Bezier1.P0 + Translate1;
+  Bezier1.P0 = Bezier1.P0 + Fix1;
   
   Bezier1.P1 = LocalEntityPositionToWorld(Entity1, Bezier1.P1);
   Bezier1.P1 = WorldToLocalEntityPosition(Entity0, Bezier1.P1);
-  Bezier1.P1 = Bezier1.P1 + Translate1;
+  Bezier1.P1 = Bezier1.P1 + Fix1;
   
   Bezier1.P2 = LocalEntityPositionToWorld(Entity1, Bezier1.P2);
   Bezier1.P2 = WorldToLocalEntityPosition(Entity0, Bezier1.P2);
-  Bezier1.P2 = Bezier1.P2 + Translate1;
+  Bezier1.P2 = Bezier1.P2 + Fix1;
   
   Beziers[PointIndex] = Bezier1;
   
   ++PointIndex;
  }
+ 
+ u32 MergeRank = 0;
+ switch (Method)
+ {
+  case CurveMerge_Concat: 
+  case CurveMerge_C0: {MergeRank = 0;}break;
+  case CurveMerge_C1:
+  case CurveMerge_G1: {MergeRank = 1;}break;
+  case CurveMerge_C2: {MergeRank = 2;}break;
+ }
+ 
+ 
  
  // Fix points on the merge border
  switch (Method)
@@ -3313,53 +3325,78 @@ Merge2Curves(entity_with_modify_witness *MergeWitness, entity *Entity0, entity *
    // Nothing to do
   }break;
   
-  case CurveMerge_C1: {
-   if (SignedCmp(PointCount0 - 2, >=, 0) && (PointCount0 - 0 < PointCount))
+  case CurveMerge_C1:
+  case CurveMerge_C2: {
+   if ((Method == CurveMerge_C1 || Method == CurveMerge_C2) &&
+       (SignedCmp(PointCount0 - 2, >=, 0) && (PointCount0 - 0 < PointCount)))
    {
-    v2 P = Points[PointCount0 - 2];
-    v2 Q = Points[PointCount0 - 1];
+    v2 Q = Points[PointCount0 - 2];
+    v2 P = Points[PointCount0 - 1];
     v2 R = Points[PointCount0 - 0];
     
-    // NOTE(hbr): C1 merge:
-    // - n/(b-a) * (Q-P) = m/(c-b) * (R-Q)
-    // - assuming (b-a) = (c-b) = 1
-    // - which gives us: n * (Q-P) = m * (R-Q)
-    // - solving for R: R = n/m * (Q-P) + Q
-    v2 R_ = Cast(f32)PointCount0/PointCount1 * (Q-P) + Q;
-    v2 Translate = R_ - R;
+    f32 n = Cast(f32)PointCount0;
+    f32 m = Cast(f32)PointCount1;
     
-    Points[PointCount0 - 0] += Translate;
-    Beziers[PointCount0 - 0].P0 += Translate;
-    Beziers[PointCount0 - 0].P1 += Translate;
-    Beziers[PointCount0 - 0].P2 += Translate;
+    // NOTE(hbr): C1 merge:
+    // - C0 and
+    // - n/(b-a) * (P-Q) = m/(c-b) * (R-P)
+    // - assuming (b-a) = (c-b) = 1
+    // - which gives us: n * (P-Q) = m * (R-P)
+    // - solving for R: R = n/m * (P-Q) + P
+    v2 R_ = n/m * (P-Q) + P;
+    v2 Fix_R = R_ - R;
+    
+    Points[PointCount0 - 0] += Fix_R;
+    Beziers[PointCount0 - 0].P0 += Fix_R;
+    Beziers[PointCount0 - 0].P1 += Fix_R;
+    Beziers[PointCount0 - 0].P2 += Fix_R;
+    
+    if ((Method == CurveMerge_C2) &&
+        (SignedCmp(PointCount0 - 3, >=, 0) && (PointCount0 + 1 < PointCount)))
+    {
+     v2 S = Points[PointCount0 - 3];
+     //v2 Q = Points[PointCount0 - 2];
+     //v2 P = Points[PointCount0 - 1];
+     //v2 R = Points[PointCount0 - 0];
+     v2 T = Points[PointCount0 + 1];
+     
+     // NOTE(hbr): C2 merge:
+     // - C0 and C1 and
+     // - n*(n-1)/(b-a)^2 * (P-2Q+S) = m*(m-1)/(c-b)^2 * (T-2R+P)
+     // - assuming (b-a) = (c-b) = 1
+     // - which gives us: n*(n-1) * (P-2Q+S) = m*(m-1) * (T-2R+P)
+     // - solving for T: T = (n*(n-1))/(m*(m-1)) * (P-2Q+S) + (2R-P)
+     v2 T_ = (n*(n-1))/(m*(m-1)) * (P-2*Q+S) + (2*R_-P);
+     v2 Fix_T = T_ - T;
+     
+     Points[PointCount0 + 1] += Fix_T;
+     Beziers[PointCount0 + 1].P0 += Fix_T;
+     Beziers[PointCount0 + 1].P1 += Fix_T;
+     Beziers[PointCount0 + 1].P2 += Fix_T;
+    }
    }
-  }break;
-  
-  case CurveMerge_C2: {
-   
-   
-   
   }break;
   
   case CurveMerge_G1: {
    if (SignedCmp(PointCount0 - 2, >=, 0) && (PointCount0 - 0 < PointCount))
    {
-    v2 P = Points[PointCount0 - 2];
-    v2 Q = Points[PointCount0 - 1];
+    v2 Q = Points[PointCount0 - 2];
+    v2 P = Points[PointCount0 - 1];
     v2 R = Points[PointCount0 - 0];
     
     // NOTE(hbr): G1 merge:
+    // - C0 and
     // - P,Q,R should be colinear
     // - fix R, but maintain ||R-Q|| length
-    f32 PreserveLength = Norm(R - Q);
-    v2 Direction = Normalized(Q - P);
-    v2 R_ = Q + Direction * PreserveLength;
-    v2 Translate = R_ - R;
+    f32 PreserveLength = Norm(R - P);
+    v2 Direction = Normalized(P - Q);
+    v2 R_ = P + Direction * PreserveLength;
+    v2 Fix_R = R_ - R;
     
-    Points[PointCount0 - 0] += Translate;
-    Beziers[PointCount0 - 0].P0 += Translate;
-    Beziers[PointCount0 - 0].P1 += Translate;
-    Beziers[PointCount0 - 0].P2 += Translate;
+    Points[PointCount0 - 0] += Fix_R;
+    Beziers[PointCount0 - 0].P0 += Fix_R;
+    Beziers[PointCount0 - 0].P1 += Fix_R;
+    Beziers[PointCount0 - 0].P2 += Fix_R;
    }
   }break;
   

@@ -2490,7 +2490,7 @@ UpdateAndRenderNotifications(editor *Editor, platform_input *Input, render_group
 }
 
 internal void
-UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing)
+UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing, editor *Editor)
 {
  entity *Curve0 = EntityFromId(Choosing->Curves[0]);
  entity *Curve1 = EntityFromId(Choosing->Curves[1]);
@@ -2519,7 +2519,9 @@ UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing)
  UI_Id(0)
  {
   UI_TextF("Curve 0: ");
+  
   UI_SameRow();
+  
   if (UI_Button(Button0))
   {
    if (Disable0)
@@ -2530,6 +2532,17 @@ UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing)
    {
     Choosing->WaitingForChoice = true;
     Choosing->ChoosingCurveIndex = 0;
+   }
+  }
+  
+  UI_SameRow();
+  
+  UI_Disabled(Curve0 == 0)
+  {
+   if (UI_Button(StrLit("Select")))
+   {
+    Assert(Curve0);
+    SelectEntity(Editor, Curve0);
    }
   }
  }
@@ -2556,7 +2569,9 @@ UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing)
  UI_Id(1)
  {
   UI_TextF("Curve 1: ");
+  
   UI_SameRow();
+  
   if (UI_Button(Button1))
   {
    if (Disable1)
@@ -2568,6 +2583,34 @@ UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing)
     Choosing->WaitingForChoice = true;
     Choosing->ChoosingCurveIndex = 1;
    }
+  }
+  
+  UI_SameRow();
+  
+  UI_Disabled(Curve1 == 0)
+  {
+   if (UI_Button(StrLit("Select")))
+   {
+    Assert(Curve1);
+    SelectEntity(Editor, Curve1);
+   }
+  }
+ }
+ 
+ UI_Disabled((Curve0 == 0) || (Curve1 == 0))
+ {
+  b32 Hidden = false;
+  if (Curve0 && Curve1)
+  {
+   Hidden = (!IsEntityVisible(Curve0) && !IsEntityVisible(Curve1));
+  }
+  
+  if (UI_Checkbox(&Hidden, StrLit("Hide Curves")))
+  {
+   Assert(Curve0);
+   Assert(Curve1);
+   SetEntityVisibility(Curve0, Hidden);
+   SetEntityVisibility(Curve1, Hidden);
   }
  }
 }
@@ -2583,7 +2626,7 @@ UpdateAndRenderAnimatingCurvesUI(editor *Editor)
   
   if (WindowOpen)
   {
-   UpdateAndRenderChoose2CurvesUI(&Animation->Choose2Curves);
+   UpdateAndRenderChoose2CurvesUI(&Animation->Choose2Curves, Editor);
    
    entity *Curve0 = EntityFromId(Animation->Choose2Curves.Curves[0]);
    entity *Curve1 = EntityFromId(Animation->Choose2Curves.Curves[1]);
@@ -3402,7 +3445,7 @@ UpdateAndRenderMergingCurvesUI(editor *Editor)
   
   if (WindowOpen)
   {
-   UpdateAndRenderChoose2CurvesUI(&Merging->Choose2Curves);
+   UpdateAndRenderChoose2CurvesUI(&Merging->Choose2Curves, Editor);
    
    b32 MergeMethodChanged = UI_Combo(SafeCastToPtr(Merging->Method, u32), CurveMerge_Count, CurveMergeNames, StrLit("Merge Method"));
    

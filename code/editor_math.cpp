@@ -1627,30 +1627,30 @@ LineIntersection(v2 A, v2 B, v2 C, v2 D)
  return Result;
 }
 
-internal rectangle2
+internal rect2
 EmptyAABB(void)
 {
- rectangle2 Result = {};
- Result.Mini = V2(F32_INF, F32_INF);
- Result.Maxi = V2(-F32_INF, -F32_INF);
+ rect2 Result = {};
+ Result.Min = V2(F32_INF, F32_INF);
+ Result.Max = V2(-F32_INF, -F32_INF);
  
  return Result;
 }
 
 internal void
-AddPointAABB(rectangle2 *AABB, v2 P)
+AddPointAABB(rect2 *AABB, v2 P)
 {
- if (P.X < AABB->Mini.X) AABB->Mini.X = P.X;
- if (P.X > AABB->Maxi.X) AABB->Maxi.X = P.X;
- if (P.Y < AABB->Mini.Y) AABB->Mini.Y = P.Y;
- if (P.Y > AABB->Maxi.Y) AABB->Maxi.Y = P.Y;
+ if (P.X < AABB->Min.X) AABB->Min.X = P.X;
+ if (P.X > AABB->Max.X) AABB->Max.X = P.X;
+ if (P.Y < AABB->Min.Y) AABB->Min.Y = P.Y;
+ if (P.Y > AABB->Max.Y) AABB->Max.Y = P.Y;
 }
 
 internal b32
-IsNonEmpty(rectangle2 *Rect)
+IsNonEmpty(rect2 *Rect)
 {
- b32 Result = ((Rect->Mini.X <= Rect->Maxi.X) &&
-               (Rect->Mini.Y <= Rect->Maxi.Y));
+ b32 Result = ((Rect->Min.X <= Rect->Max.X) &&
+               (Rect->Min.Y <= Rect->Max.Y));
  return Result;
 }
 

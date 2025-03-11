@@ -608,11 +608,10 @@ IsControlPointSelected(curve *Curve)
  return Result;
 }
 
-internal sorted_entries
+internal sort_entry_array
 SortEntities(arena *Arena, entity_array Entities)
 {
- sort_entry *Entries = PushArrayNonZero(Arena, Entities.Count, sort_entry);
- u32 EntryCount = 0;
+ sort_entry_array SortArray = AllocSortEntryArray(Arena, Entities.Count);
  for (u32 EntityIndex = 0;
       EntityIndex < Entities.Count;
       ++EntityIndex)
@@ -620,8 +619,6 @@ SortEntities(arena *Arena, entity_array Entities)
   entity *Entity = Entities.Entities + EntityIndex;
   if (Entity->Flags & EntityFlag_Active)
   {
-   sort_entry *Entry = Entries + EntryCount;
-   
    // NOTE(hbr): Equal sorting layer images should be below curves
    f32 Offset = 0.0f;
    switch (Entity->Type)
@@ -631,26 +628,13 @@ SortEntities(arena *Arena, entity_array Entities)
     case Entity_Count: InvalidPath; break;
    }
    
-   Entry->SortKey = -Entity->SortingLayer - Offset;
-   Entry->Index = EntityIndex;
-   ++EntryCount;
+   AddSortEntry(&SortArray, -Entity->SortingLayer - Offset, EntityIndex);
   }
  }
  
- temp_arena Temp = TempArena(Arena);
- sort_entry *TempMemory = PushArrayNonZero(Temp.Arena, EntryCount, sort_entry);
- sort_entry *Sorted = MergeSortStable(Entries, EntryCount, TempMemory);
- if (Sorted != Entries)
- {
-  ArrayCopy(Entries, Sorted, EntryCount);
- }
- EndTemp(Temp);
+ SortStable(SortArray);
  
- sorted_entries Result = {};
- Result.Count = EntryCount;
- Result.Entries = Entries;
- 
- return Result;
+ return SortArray;
 }
 
 internal control_point_index
@@ -1341,6 +1325,8 @@ CalcCurve(arena *EntityArena, curve *Curve, u32 SampleCount, v2 *OutSamples)
 internal void
 RecomputeCurve(entity *Entity)
 {
+ ProfileFunctionBegin();
+ 
  curve *Curve = SafeGetCurve(Entity);
  curve_params *Params = &Curve->Params;
  arena *EntityArena = Entity->Arena;
@@ -1420,6 +1406,8 @@ RecomputeCurve(entity *Entity)
  Curve->ConvexHullPoints = ConvexHullPoints;
  Curve->ConvexHullCount = ConvexHullCount;
  Curve->ConvexHullVertices = ConvexHullVertices;
+ 
+ ProfileEnd();
 }
 
 internal void

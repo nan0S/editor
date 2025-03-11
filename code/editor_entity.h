@@ -395,7 +395,7 @@ internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
 internal v2 LocalEntityPositionToWorld(entity *Entity, v2 P);
 
 internal void SetEntityName(entity *Entity, string Name);
-internal sorted_entries SortEntities(arena *Arena, entity_array Entities);
+internal sort_entry_array SortEntities(arena *Arena, entity_array Entities);
 internal void RotateEntityAround(entity *Entity, v2 Rotate, v2 Around);
 
 internal void SetCurvePoint(entity_with_modify_witness *Entity, curve_point_index Index, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier

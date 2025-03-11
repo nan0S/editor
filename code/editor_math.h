@@ -52,17 +52,17 @@ internal v4 BrightenColor(v4 Color, f32 BrightenByRatio);
 internal v4 DarkenColor(v4 Color, f32 DarkenByRatio);
 internal v4 FadeColor(v4 Color, f32 FadeByRatio);
 
-global v4 BlackColor       = V4(0.0f, 0.0f, 0.0f, 1.0f);
-global v4 WhiteColor       = V4(1.0f, 1.0f, 1.0f, 1.0f);
-global v4 GreenColor       = V4(0.0f, 1.0f, 0.0f, 1.0f);
-global v4 RedColor         = V4(1.0f, 0.0f, 0.0f, 1.0f);
-global v4 BlueColor        = V4(0.0f, 0.0f, 1.0f, 1.0f);
-global v4 YellowColor      = V4(1.0f, 1.0f, 0.0f, 1.0f);
-global v4 TransparentColor = V4(0.0f, 0.0f, 0.0f, 0.0f);
+read_only global v4 BlackColor       = V4(0.0f, 0.0f, 0.0f, 1.0f);
+read_only global v4 WhiteColor       = V4(1.0f, 1.0f, 1.0f, 1.0f);
+read_only global v4 GreenColor       = V4(0.0f, 1.0f, 0.0f, 1.0f);
+read_only global v4 RedColor         = V4(1.0f, 0.0f, 0.0f, 1.0f);
+read_only global v4 BlueColor        = V4(0.0f, 0.0f, 1.0f, 1.0f);
+read_only global v4 YellowColor      = V4(1.0f, 1.0f, 0.0f, 1.0f);
+read_only global v4 TransparentColor = V4(0.0f, 0.0f, 0.0f, 0.0f);
 
-internal rectangle2 EmptyAABB(void);
-internal void AddPointAABB(rectangle2 *AABB, v2 P);
-internal b32 IsNonEmpty(rectangle2 *Rect);
+internal rect2 EmptyAABB(void);
+internal void AddPointAABB(rect2 *AABB, v2 P);
+internal b32 IsNonEmpty(rect2 *Rect);
 
 //~ Calculations, linear algebra
 inline internal f32 Cube(f32 X) { return X * X * X; }

@@ -6,13 +6,13 @@ TranslateCamera(camera *Camera, v2 Translate)
 }
 
 internal void
-SetCameraTarget(camera *Camera, rectangle2 AABB)
+SetCameraTarget(camera *Camera, rect2 AABB)
 {
  if (IsNonEmpty(&AABB))
  {
-  v2 TargetP = 0.5f * (AABB.Mini + AABB.Maxi);
+  v2 TargetP = 0.5f * (AABB.Min + AABB.Max);
   Camera->TargetP = TargetP;
-  v2 Extents = AABB.Maxi - TargetP;
+  v2 Extents = AABB.Max - TargetP;
   Camera->TargetZoom = Min(SafeDiv1(1.0f, Extents.X), SafeDiv1(1.0f, Extents.Y));
   Camera->ReachingTarget = true;
  }

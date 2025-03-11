@@ -95,10 +95,10 @@ union v4
  struct { v3 XYZ; f32 _W; };
 };
 
-struct rectangle2
+struct rect2
 {
- v2 Mini;
- v2 Maxi;
+ v2 Min;
+ v2 Max;
 };
 
 union mat3
@@ -214,9 +214,9 @@ inline void *_SafeCastToPtr(void *Expr, u64 SizeOf1, u64 SizeOf2) { Assert(SizeO
 #define Max(A, B) ((A) < (B) ? (B) : (A))
 #define Min(A, B) ((A) < (B) ? (A) : (B))
 #define Abs(X) ((X) < 0 ? -(X) : (X))
-#define ClampTop(X, Maxi) Min(X, Maxi)
-#define ClampBot(X, Mini) Max(X, Mini)
-#define Clamp(X, Mini, Maxi) ClampTop(ClampBot(X, Mini), Maxi)
+#define ClampTop(X, Max) Min(X, Max)
+#define ClampBot(X, Min) Max(X, Min)
+#define Clamp(X, Min, Max) ClampTop(ClampBot(X, Min), Max)
 #define Clamp01(X) Clamp(X, 0, 1)
 #define Index2D(Row, Col, ColCount) ((Row)*(ColCount) + (Col))
 #define ApproxEq32(X, Y) (Abs(X - Y) <= F32_EPS)
@@ -297,6 +297,8 @@ inline internal v3  V3(f32 X, f32 Y, f32 Z) { return {X,Y,Z}; }
 inline internal v3  V3(v2 XY, f32 Z) { return {XY.X,XY.Y,Z}; }
 inline internal v4  V4(f32 X, f32 Y, f32 Z, f32 W) { return {X,Y,Z,W}; }
 inline internal v4  V4(v3 XYZ, f32 W) { return {XYZ.X,XYZ.Y,XYZ.Z,W}; }
+
+inline internal rect2 Rect2(v2 Min, v2 Max) { return {Min,Max}; }
 
 //- time
 typedef u64 timestamp64;

@@ -191,6 +191,12 @@ FmtFloat(out_buf *Out, f64 F, char const *Inf, char const *Nan, u64 Precision,
  }
 }
 
+internal void
+FmtFloatUnderspecified(out_buf *Out, f64 F)
+{
+ FmtFloat(Out, F, "inf", "nan", 2, false, false);
+}
+
 internal u64
 FmtV(char *Buf, u64 BufSize, char const *Format, va_list Args)
 {
@@ -276,7 +282,10 @@ FmtV(char *Buf, u64 BufSize, char const *Format, va_list Args)
    out_buf SavedOut = Out;
    switch (At[0])
    {
-    case '%': { OutC(&Out, '%'); } break;
+    case '%': {
+     OutC(&Out, '%');
+     ++At;
+    } break;
     
     case 'b':
     case 'd':
@@ -310,6 +319,8 @@ FmtV(char *Buf, u64 BufSize, char const *Format, va_list Args)
               (Signed ? Cast(i64)va_arg(Args, i32) : va_arg(Args, u32)));
      
      FmtNumber(&Out, N, Base, Digits, BasePrefix, Signed, PrecedeWithBasePrefix, ForceSign, SpaceAsSign);
+     
+     ++At;
     } break;
     
     case 'f':
@@ -326,25 +337,78 @@ FmtV(char *Buf, u64 BufSize, char const *Format, va_list Args)
      // NOTE(hbr): float gets automatically promoted to double by the compiler
      f64 F = (LongDouble ? Cast(f64)va_arg(Args, long double) : va_arg(Args, f64));
      FmtFloat(&Out, F, Inf, Nan, Precision, ForceSign, SpaceAsSign);
+     
+     ++At;
     } break;
     
     case 's': {
      char *Str = va_arg(Args, char *);
      OutStrC(&Out, Str);
+     ++At;
     } break;
     case 'S': {
      string Str = va_arg(Args, string);
      OutStr(&Out, Str);
+     ++At;
     } break;
     case 'c': {
      int C = va_arg(Args, int);
      OutC(&Out, Cast(char)C);
+     ++At;
     } break;
     
     case 'n': {
      u32 *WrittenSoFar = va_arg(Args, u32 *);
      *WrittenSoFar = Cast(u32)(BufSize - Out.Count);
+     ++At;
     } break;
+    
+    case 'v': {
+     if (0) {}
+     else if (At[1] == '2')
+     {
+      v2 Vec2 = va_arg(Args, v2);
+      OutC(&Out, '(');
+      FmtFloatUnderspecified(&Out, Vec2.X);
+      OutC(&Out, ',');
+      FmtFloatUnderspecified(&Out, Vec2.Y);
+      OutC(&Out, ')');
+      
+      At += 2;
+     }
+     else if (At[1] == '3')
+     {
+      v3 Vec3 = va_arg(Args, v3);
+      OutC(&Out, '(');
+      FmtFloatUnderspecified(&Out, Vec3.X);
+      OutC(&Out, ',');
+      FmtFloatUnderspecified(&Out, Vec3.Y);
+      OutC(&Out, ',');
+      FmtFloatUnderspecified(&Out, Vec3.Z);
+      OutC(&Out, ')');
+      
+      At += 2;
+     }
+     else if (At[1] == '4')
+     {
+      v4 Vec4 = va_arg(Args, v4);
+      OutC(&Out, '(');
+      FmtFloatUnderspecified(&Out, Vec4.X);
+      OutC(&Out, ',');
+      FmtFloatUnderspecified(&Out, Vec4.Y);
+      OutC(&Out, ',');
+      FmtFloatUnderspecified(&Out, Vec4.Z);
+      OutC(&Out, ',');
+      FmtFloatUnderspecified(&Out, Vec4.W);
+      OutC(&Out, ')');
+      
+      At += 2;
+     }
+     else
+     {
+      Assert(!"Invalid specifier");
+     }
+    }break;
     
     case 'g':
     case 'G':
@@ -384,8 +448,8 @@ FmtV(char *Buf, u64 BufSize, char const *Format, va_list Args)
   else
   {
    OutC(&Out, At[0]);
+   ++At;
   }
-  ++At;
  }
  u64 Written = BufSize - Out.Count;
  // NOTE(hbr): End with 0 byte, but don't include in return count

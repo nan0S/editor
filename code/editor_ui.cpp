@@ -1,3 +1,28 @@
+#define UI_PushColorHandleVar  NameConcat(__PushColorHandle, __LINE__)
+
+internal b32
+UI_IsItemHovered(void)
+{
+ b32 Result = (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled));
+ return Result;
+}
+
+global v2 UI_GlobalNextItemSize;
+global b32 UI_GlobalNextItemSizeSet;
+internal void
+UI_SetNextItemSize(v2 Size)
+{
+ UI_GlobalNextItemSizeSet = true;
+ UI_GlobalNextItemSize = Size;
+}
+
+internal void
+UI_SetNextItemPos(v2 Pos)
+{
+ ImVec2 ImPos(Pos.X, Pos.Y);
+ ImGui::SetCursorPos(ImPos);
+}
+
 internal b32
 UI_Combo(u32 *Enum, u32 EnumCount, string EnumNames[], string Label)
 {
@@ -89,7 +114,13 @@ UI_Button(string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
- b32 Result = Cast(b32)ImGui::Button(CLabel.Data);
+ ImVec2 Size = ImVec2(0, 0);
+ if (UI_GlobalNextItemSizeSet)
+ {
+  Size = ImVec2(UI_GlobalNextItemSize.X, UI_GlobalNextItemSize.Y);
+  UI_GlobalNextItemSizeSet = false;
+ }
+ b32 Result = Cast(b32)ImGui::Button(CLabel.Data, Size);
  EndTemp(Temp);
  
  return Result;
@@ -236,14 +267,58 @@ internal void UI_PopLabel(void) { UI_PopId(); }
 internal void UI_BeginDisabled(b32 Disabled) { ImGui::BeginDisabled(Cast(bool)Disabled); }
 internal void UI_EndDisabled(void) { ImGui::EndDisabled(); }
 
-internal void
-UI_PushTextColor(v4 Color)
+internal ImVec4
+V4ToImColor(v4 Color)
 {
- ImVec4 ImColor = ImVec4(Color.R, Color.G, Color.B, Color.A);
- ImGui::PushStyleColor(ImGuiCol_Text, ImColor);
+ ImVec4 Result = ImVec4(Color.R, Color.G, Color.B, Color.A);
+ return Result;
 }
 
-internal void UI_PopTextColor(void) { ImGui::PopStyleColor(1); }
+internal ui_push_color_handle
+UI_PushColor(ui_color_apply Apply, v4 Color)
+{
+ ui_push_color_handle Result = {};
+ 
+ ImGuiCol ImCols[3] = {};
+ v4 Colors[3] = {};
+ StaticAssert(ArrayCount(Colors) == ArrayCount(ImCols), ArrayLengthsMatch);
+ u32 ColCount = 0;
+ switch (Apply)
+ {
+  case UI_Color_Text: {
+   ImCols[0] = ImGuiCol_Text;
+   ColCount = 1;
+  }break;
+  
+  case UI_Color_Item: {
+   ImCols[0] = ImGuiCol_Button;
+   Colors[0] = Color;
+   ImCols[1] = ImGuiCol_ButtonHovered;
+   Colors[1] = BrightenColor(Color, 0.5f);
+   ImCols[2] = ImGuiCol_ButtonActive;
+   Colors[2] = Color;
+   ColCount = 3;
+  }break;
+ }
+ Assert(ColCount <= ArrayCount(ImCols));
+ 
+ for (u32 ColIndex = 0;
+      ColIndex < ColCount;
+      ++ColIndex)
+ {
+  ImGui::PushStyleColor(ImCols[ColIndex], V4ToImColor(Colors[ColIndex]));
+ }
+ 
+ Result.PushColorCount = ColCount;
+ 
+ return Result;
+}
+
+internal void
+UI_PopColor(ui_push_color_handle Handle)
+{
+ ImGui::PopStyleColor(Handle.PushColorCount);
+}
 
 internal void
 UI_PushAlpha(f32 Alpha)
@@ -512,11 +587,8 @@ UI_SelectableItemF(b32 Selected, char const *Format, ...)
 internal void
 UI_Tooltip(string Contents)
 {
- if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
- {
-  u32 Count = SafeCastU32(Contents.Count);
-  ImGui::SetTooltip("%.*s", Count, Contents.Data);
- }
+ u32 Count = SafeCastU32(Contents.Count);
+ ImGui::SetTooltip("%.*s", Count, Contents.Data);
 }
 
 internal void
@@ -529,6 +601,17 @@ UI_TooltipF(char const *Format, ...)
  UI_Tooltip(Contents);
  va_end(Args);
  EndTemp(Temp);
+}
+
+internal b32
+UI_Rect(u32 Id)
+{
+ b32 Clicked = false;
+ UI_Id(Id)
+ {
+  Clicked = UI_Button(NilStr);
+ }
+ return Clicked;
 }
 
 internal void
@@ -683,3 +766,31 @@ UI_BeginTreeF(char const *Format, ...)
 }
 
 internal void UI_EndTree(void) { ImGui::TreePop(); }
+
+internal v2 UI_GetWindowSize(void)
+{
+ ImVec2 Size = ImGui::GetWindowSize();
+ v2 Result = V2(Size.x, Size.y);
+ return Result;
+}
+
+internal v2
+V2FromImVec2(ImVec2 Vec2)
+{
+ v2 Result = V2(Vec2.x, Vec2.y);
+ return Result;
+}
+
+internal rect2
+UI_GetDrawableRegionBounds(void)
+{
+ ImVec2 ImCursor = ImGui::GetCursorPos();
+ ImVec2 ImSize = ImGui::GetWindowContentRegionMax();
+ 
+ v2 Cursor = V2FromImVec2(ImCursor);
+ v2 Size = V2FromImVec2(ImSize);
+ 
+ rect2 Result = Rect2(Cursor, Cursor + Size);
+ 
+ return Result;
+}

@@ -1,91 +1,63 @@
 #ifndef EDITOR_PROFILER_H
 #define EDITOR_PROFILER_H
 
-// TODO(hbr): Revise this whole module
-
-#if !defined(EDITOR_PROFILER)
-# define EDITOR_PROFILER 0
-#endif
-
-#if EDITOR_PROFILER
-
+struct label_index
+{
+ u16 Index;
+};
+struct anchor_index
+{
+ u16 Index;
+};
 struct profile_anchor
 {
  u64 TotalTSC;
  u64 TotalSelfTSC;
- u64 HitCount;
+ u32 HitCount;
+ anchor_index Parent;
  char const *Label;
- // TODO(hbr): Maybe make it smaller than u64, maybe get rid of it entirely
- u64 ParentAnchorIndex;
+};
+
+struct profile_block
+{
+ u64 OldTotalTSC;
+ anchor_index AnchorIndex;
+ anchor_index ParentIndex;
+ char const *Label;
+ u64 StartTSC;
+};
+
+struct profiler_frame
+{
+#define MAX_PROFILER_ANCHOR_COUNT 1024
+ profile_anchor Anchors[MAX_PROFILER_ANCHOR_COUNT];
+ u64 TotalTSC;
 };
 
 struct profiler
 {
- profile_anchor Anchors[1024];
- u64 CPUFrequency;
- u64 StartTSC;
- u64 EndTSC;
-};
-global profiler GlobalProfiler;
-global u32 GlobalAnchorParentIndex;
-
-struct profile_block
-{
- profile_block(u32 AnchorIndex_, char const *Label_)
- {
-  profile_anchor *Anchor = GlobalProfiler.Anchors + AnchorIndex_;
-  
-  AnchorIndex = AnchorIndex_;
-  Label = Label_;
-  ParentAnchorIndex = GlobalAnchorParentIndex;
-  OldTotalTSC = Anchor->TotalTSC;
-  GlobalAnchorParentIndex = AnchorIndex_;
-  
-  StartTSC = ReadCPUTimer();
- }
+ anchor_index AnchorParentIndex;
  
- ~profile_block()
- {
-  u64 ElapsedTSC = ReadCPUTimer() - StartTSC;
-  
-  profile_anchor *Anchor = GlobalProfiler.Anchors + AnchorIndex;
-  profile_anchor *Parent = GlobalProfiler.Anchors + ParentAnchorIndex;
-  
-  Anchor->TotalTSC = OldTotalTSC + ElapsedTSC;
-  Anchor->TotalSelfTSC += ElapsedTSC;
-  Anchor->HitCount += 1;
-  Anchor->Label = Label;
-  Anchor->ParentAnchorIndex = ParentAnchorIndex;
-  Parent->TotalSelfTSC -= ElapsedTSC;
-  
-  GlobalAnchorParentIndex = ParentAnchorIndex;
- }
+ u32 FrameIndex;
+#define MAX_PROFILER_FRAME_COUNT 512
+ profiler_frame Frames[MAX_PROFILER_FRAME_COUNT];
  
- u32 AnchorIndex;
- u32 ParentAnchorIndex;
- char const *Label;
- u64 StartTSC;
- u64 OldTotalTSC;
+ u16 UsedBlockCount;
+ profile_block Blocks[MAX_PROFILER_ANCHOR_COUNT];
+ 
+ f32 Inv_CPU_Freq;
 };
+StaticAssert(ArrayCount(MemberOf(profiler_frame, Anchors)) <= ((1 << (SizeOf(anchor_index)*8)) - 1), ProfileAnchorArrayIsBigEnough);
 
-internal void InitProfiler(void);
-internal void EndProfiling(void);
-internal void PrintProfiler(void);
+internal void            ProfilerInit(profiler *Profiler);
+internal void            ProfilerEquip(profiler *Profiler);
+internal void            ProfilerBeginFrame(profiler *Profiler);
+internal void            ProfilerEndFrame(profiler *Profiler);
+internal profiler_frame *ProfilerCurrentFrame(profiler *Profiler);
 
-internal void FrameProfilePoint(b32 *ViewProfilerWindow);
-
-#define TimeBlock(Label) profile_block NameConcat(ProfileBlock, __LINE__)(__COUNTER__ + 1, Label)
-
-#else
-
-#define InitProfiler(...)
-#define EndProfiling(...)
-#define PrintProfiler(...)
-#define FrameProfilePoint(...)
-#define TimeBlock(...)
-
-#endif
-
-#define TimeFunction TimeBlock(__func__)
+#define ProfileBegin(Label) __ProfileBegin(Label, __COUNTER__ + 1)
+#define ProfileEnd() __ProfileEnd()
+#define ProfileFunctionBegin() ProfileBegin(__func__)
+#define ProfileBlock(Label) DeferBlock(ProfileBegin(Label), ProfileEnd())
 
 #endif //EDITOR_PROFILER_H

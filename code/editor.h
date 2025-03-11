@@ -5,6 +5,7 @@
 #include "base/base_core.h"
 #include "base/base_string.h"
 
+#include "editor_profiler.h"
 #include "editor_memory.h"
 #include "editor_third_party_inc.h"
 #include "editor_imgui_bindings.h"
@@ -311,6 +312,25 @@ struct merging_curves_state
  entity_snapshot_for_merging EntityVersioned[2];
 };
 
+enum visual_profiler_mode
+{
+ VisualProfiler_AllFrames,
+ VisualProfiler_SingleFrame,
+};
+struct visual_profiler
+{
+ profiler Profiler;
+ 
+ b32 Stopped;
+ 
+ visual_profiler_mode Mode;
+ 
+ f32 ReferenceMs;
+ 
+ u32 FrameIndex;
+ profiler_frame FrameSnapshot;
+};
+
 struct editor
 {
  camera Camera;
@@ -331,6 +351,7 @@ struct editor
  b32 DiagnosticsWindow;
  b32 SelectedEntityWindow;
  b32 HelpWindow;
+ b32 ProfilerWindow;
  
  editor_left_click_state LeftClick;
  editor_right_click_state RightClick;
@@ -347,6 +368,7 @@ struct editor
  
  animating_curves_state AnimatingCurves;
  merging_curves_state MergingCurves;
+ visual_profiler Profiler;
  
  //////////////////////////////
  

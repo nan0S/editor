@@ -361,12 +361,15 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
    }break;
    
    case WM_MOUSEWHEEL: {
-    platform_event *Event = Win32PushPlatformEvent(PlatformEvent_Scroll);
-    if (Event)
+    if (!ImGuiResult.ImGuiWantCaptureMouse)
     {
-     i32 MouseDelta = Cast(i16)HIWORD(wParam);
-     Event->ScrollDelta = Cast(f32)(MouseDelta / WHEEL_DELTA);
-     Event->ClipSpaceMouseP = Win32ClipSpaceMousePFromLParam(Window, lParam);
+     platform_event *Event = Win32PushPlatformEvent(PlatformEvent_Scroll);
+     if (Event)
+     {
+      i32 MouseDelta = Cast(i16)HIWORD(wParam);
+      Event->ScrollDelta = Cast(f32)(MouseDelta / WHEEL_DELTA);
+      Event->ClipSpaceMouseP = Win32ClipSpaceMousePFromLParam(Window, lParam);
+     }
     }
    }break;
    

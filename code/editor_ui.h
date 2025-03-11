@@ -21,24 +21,35 @@ struct ui_input_result
  b32 Changed;
 };
 
-internal void UI_PushLabel(string Label);
-internal void UI_PushLabelF(char const *Format, ...);
-internal void UI_PushId(u32 Id);
-internal void UI_PopLabel(void);
-internal void UI_PopId(void);
-internal void UI_BeginDisabled(b32 Disabled);
-internal void UI_EndDisabled(void);
-internal void UI_PushTextColor(v4 Color);
-internal void UI_PopTextColor(void);
-internal void UI_PushAlpha(f32 Alpha);
-internal void UI_PopAlpha(void);
+enum ui_color_apply
+{
+ UI_Color_Text,
+ UI_Color_Item,
+};
 
-#define UI_Label(Label)        DeferBlock(UI_PushLabel(Label), UI_PopLabel())
-#define UI_LabelF(...)         DeferBlock(UI_PushLabelF(__VA_ARGS__), UI_PopLabel())
-#define UI_Id(Id)              DeferBlock(UI_PushId(Id), UI_PopId())
-#define UI_Disabled(Disabled)  DeferBlock(UI_BeginDisabled(Disabled), UI_EndDisabled())
-#define UI_ColoredText(Color)  DeferBlock(UI_PushTextColor(Color), UI_PopTextColor())
-#define UI_Alpha(Alpha)        DeferBlock(UI_PushAlpha(Alpha), UI_PopAlpha())
+struct ui_push_color_handle
+{
+ u32 PushColorCount;
+};
+
+internal void                 UI_PushLabel(string Label);
+internal void                 UI_PushLabelF(char const *Format, ...);
+internal void                 UI_PushId(u32 Id);
+internal void                 UI_PopLabel(void);
+internal void                 UI_PopId(void);
+internal void                 UI_BeginDisabled(b32 Disabled);
+internal void                 UI_EndDisabled(void);
+internal ui_push_color_handle UI_PushColor(ui_color_apply Apply, v4 Color);
+internal void                 UI_PopColor(ui_push_color_handle Handle);
+internal void                 UI_PushAlpha(f32 Alpha);
+internal void                 UI_PopAlpha(void);
+
+#define UI_Label(Label)           DeferBlock(UI_PushLabel(Label), UI_PopLabel())
+#define UI_LabelF(...)            DeferBlock(UI_PushLabelF(__VA_ARGS__), UI_PopLabel())
+#define UI_Id(Id)                 DeferBlock(UI_PushId(Id), UI_PopId())
+#define UI_Disabled(Disabled)     DeferBlock(UI_BeginDisabled(Disabled), UI_EndDisabled())
+#define UI_Colored(Apply, Color)  ui_push_color_handle UI_PushColorHandleVar = UI_PushColor(Apply, Color); DeferBlock(NoOp, UI_PopColor(UI_PushColorHandleVar))
+#define UI_Alpha(Alpha)           DeferBlock(UI_PushAlpha(Alpha), UI_PopAlpha())
 
 internal not_collapsed_b32 UI_BeginWindow(b32 *IsOpen, window_flags Flags, string Label);
 internal not_collapsed_b32 UI_BeginWindowF(b32 *IsOpen, window_flags Flags, char const *Format, ...);
@@ -66,6 +77,12 @@ internal void              UI_EndTree(void);
 
 internal void              UI_NewRow(void);
 internal void              UI_SameRow(void);
+
+internal b32               UI_IsItemHovered(void);
+internal void              UI_SetNextItemSize(v2 Size);
+internal void              UI_SetNextItemPos(v2 Pos); // top-left corner
+internal v2                UI_GetWindowSize(void);
+internal rect2             UI_GetDrawableRegionBounds(void); // window has title bar, scroll bar, get drawable part
 
 internal changed_b32       UI_Combo(u32 *Enum, u32 EnumCount, string EnumNames[], string Label);
 internal changed_b32       UI_ComboF(u32 *Enum, u32 EnumCount, string EnumNames[], char const *Format, ...);
@@ -101,5 +118,6 @@ internal clicked_b32       UI_SelectableItem(b32 Selected, string Label);
 internal clicked_b32       UI_SelectableItemF(b32 Selected, char const *Format, ...);
 internal void              UI_Tooltip(string Contents);
 internal void              UI_TooltipF(char const *Format, ...);
+internal clicked_b32       UI_Rect(u32 Id);
 
 #endif //EDITOR_UI_H

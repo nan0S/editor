@@ -3,6 +3,11 @@
 #include "base/base_core.cpp"
 #include "base/base_string.cpp"
 
+// TODO(hbr): remove dependecey on the os
+#include "base/base_os.h"
+#include "base/base_os.cpp"
+
+#include "editor_profiler.cpp"
 #include "editor_memory.cpp"
 #include "editor_math.cpp"
 #include "editor_renderer.cpp"
@@ -12,6 +17,7 @@
 #include "editor_stb.cpp"
 #include "editor_debug.cpp"
 #include "editor_camera.cpp"
+#include "editor_sort.cpp"
 
 platform_api Platform;
 
@@ -131,7 +137,8 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
  entity_array EntityArray = {};
  EntityArray.Count = EntityCount;
  EntityArray.Entities = Entities;
- sorted_entries Sorted = SortEntities(Temp.Arena, EntityArray);
+ 
+ sort_entry_array Sorted = SortEntities(Temp.Arena, EntityArray);
  
  for (u64 SortedIndex = 0;
       SortedIndex < Sorted.Count;
@@ -621,7 +628,7 @@ ElevateBezierCurveDegree(entity_with_modify_witness *EntityWitness)
 internal void
 FocusCameraOnEntity(editor *Editor, entity *Entity)
 {
- rectangle2 AABB = EmptyAABB();
+ rect2 AABB = EmptyAABB();
  switch (Entity->Type)
  {
   case Entity_Curve: {
@@ -1222,7 +1229,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
   entity *Entity = AllocEntity(Editor);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
   
-  InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("special"), 0);
+  InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("de-casteljau"), 0);
   curve_params Params = Editor->CurveDefaultParams;
   Params.Type = Curve_Bezier;
   InitCurve(&EntityWitness, Params);
@@ -1237,6 +1244,29 @@ InitEditor(editor *Editor, editor_memory *Memory)
   SetTrackingPointFraction(&EntityWitness, 0.5f);
   
   EndEntityModify(EntityWitness);
+ }
+ 
+ {
+  entity *Entity = AllocEntity(Editor);
+  entity_with_modify_witness Witness = BeginEntityModify(Entity);
+  
+  InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("b-spline"), 0);
+  curve_params Params = Editor->CurveDefaultParams;
+  Params.Type = Curve_B_Spline;
+  InitCurve(&Witness, Params);
+  
+  u32 PointCount = 30;
+  curve_points_modify_handle Handle = BeginModifyCurvePoints(&Witness, PointCount, ModifyCurvePointsWhichPoints_JustControlPoints);
+  for (u32 PointIndex = 0;
+       PointIndex < PointCount;
+       ++PointIndex)
+  {
+   v2 Point = V2(1.0f * PointIndex / PointCount, 1.0f * PointIndex / PointCount);
+   Handle.ControlPoints[PointIndex] = Point;
+  }
+  EndModifyCurvePoints(Handle);
+  
+  EndEntityModify(Witness);
  }
  
  editor_assets *Assets = &Editor->Assets;
@@ -1283,6 +1313,9 @@ InitEditor(editor *Editor, editor_memory *Memory)
  }
  
  Editor->AnimatingCurves.Arena = AllocArena();
+ 
+ Editor->ProfilerWindow = true;
+ Editor->Profiler.ReferenceMs = 2.0f;
 }
 
 internal void
@@ -1572,7 +1605,7 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
  
  if (Var->EquationMode && Var->EquationFail)
  {
-  UI_ColoredText(RedColor)
+  UI_Colored(UI_Color_Text, RedColor)
   {
    UI_SameRow();
    UI_Text(Var->EquationErrorMessage);
@@ -1875,7 +1908,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
         if (Resources->X_Fail)
         {
          UI_SameRow();
-         UI_ColoredText(RedColor)
+         UI_Colored(UI_Color_Text, RedColor)
          {
           UI_Text(Resources->X_ErrorMessage);
          }
@@ -1896,7 +1929,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
         if (Resources->Y_Fail)
         {
          UI_SameRow();
-         UI_ColoredText(RedColor)
+         UI_Colored(UI_Color_Text, RedColor)
          {
           UI_Text(Resources->Y_ErrorMessage);
          }
@@ -2166,6 +2199,17 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
      }
     }
     
+    if (Curve)
+    {
+     // TODO(hbr): Move this into tab
+     UI_Label(StrLit("Info"))
+     {
+      UI_SeparatorTextF("Info");
+      UI_TextF("Number of control points: %u", Curve->ControlPointCount);
+      UI_TextF("Number of samples:        %u", Curve->CurveSampleCount);
+     }
+    }
+    
     if (CrucialEntityParamChanged)
     {
      MarkEntityModified(&EntityWitness);
@@ -2213,6 +2257,7 @@ UpdateAndRenderMenuBarUI(editor *Editor,
   {
    UI_MenuItemF(&Editor->EntityListWindow, 0, "Entity List");
    UI_MenuItemF(&Editor->SelectedEntityWindow, 0, "Selected Entity");
+   UI_MenuItemF(&Editor->ProfilerWindow, 0, "Profiler");
    UI_EndMenu();
   }
   
@@ -2465,7 +2510,7 @@ UpdateAndRenderNotifications(editor *Editor, platform_input *Input, render_group
        case Notification_None: InvalidPath; break;
       }
       
-      UI_ColoredText(TitleColor)
+      UI_Colored(UI_Color_Text, TitleColor)
       {
        UI_Text(Title);
       }
@@ -3260,6 +3305,7 @@ Merge2Curves(entity_with_modify_witness *MergeWitness, entity *Entity0, entity *
  curve *Merge = &MergeEntity->Curve;
  
  string Name = StrF(Temp.Arena, "%S+%S", Entity0->Name, Entity1->Name);
+ 
  InitEntity(MergeEntity, Entity0->P, Entity0->Scale, Entity0->Rotation, Name, Entity0->SortingLayer);
  InitCurve(MergeWitness, Curve0->Params);
  
@@ -3491,7 +3537,7 @@ UpdateAndRenderMergingCurvesUI(editor *Editor)
     {
      EndMergingCurves(Editor, true);
     }
-    if (!Compatibility.Compatible)
+    if (!Compatibility.Compatible && UI_IsItemHovered())
     {
      UI_Tooltip(Compatibility.WhyIncompatible);
     }
@@ -3531,16 +3577,267 @@ RenderMergingCurves(merging_curves_state *Merging, render_group *RenderGroup)
 }
 
 internal void
+ActiveWait(u64 MicroSeconds)
+{
+ u64 Begin = OS_ReadCPUTimer();
+ u64 CPU_Freq = OS_CPUTimerFreq();
+ u64 Threshold = MicroSeconds * CPU_Freq / 1000000;
+ while (OS_ReadCPUTimer() - Begin < Threshold);
+}
+internal void
+ProfiledFunctions(void)
+{
+ ProfileFunctionBegin();
+ 
+ ProfileBlock("Profiled Block 1")
+ {
+  ActiveWait(100);
+ }
+ 
+ ProfileBlock("Profiled Block 2")
+ {
+  ActiveWait(200);
+  
+  ProfileBlock("Profiled Block 2.1")
+  {
+   ActiveWait(100);
+  }
+ }
+ 
+ ProfileBegin("Profiled Block 3");
+ ActiveWait(500);
+ ProfileEnd();
+ 
+ ProfileEnd();
+}
+
+internal void
+ProfilerInspectAllFrames(visual_profiler *Visual)
+{
+ Visual->Mode = VisualProfiler_AllFrames;
+}
+
+internal void
+ProfilerInspectSingleFrame(visual_profiler *Visual, u32 FrameIndex)
+{
+ profiler *Profiler = &Visual->Profiler;
+ Visual->Mode = VisualProfiler_SingleFrame;
+ Assert(FrameIndex < MAX_PROFILER_FRAME_COUNT);
+ Visual->FrameIndex = FrameIndex;
+ Visual->FrameSnapshot = Profiler->Frames[FrameIndex];
+}
+
+internal void
+RenderProfilerSingleFrameUI(editor *Editor)
+{
+ temp_arena Temp = TempArena(0);
+ 
+ visual_profiler *Visual = &Editor->Profiler;
+ profiler *Profiler = &Visual->Profiler;
+ profiler_frame *Frame = &Visual->FrameSnapshot;
+ 
+ if (Editor->ProfilerWindow)
+ {
+  if (UI_BeginWindowF(&Editor->ProfilerWindow, 0, "Frame %u###Profiler", Visual->FrameIndex))
+  {
+   if (UI_Button(StrLit("Back")))
+   {
+    ProfilerInspectAllFrames(Visual);
+   }
+   
+   sort_entry_array SortAnchors = AllocSortEntryArray(Temp.Arena, MAX_PROFILER_ANCHOR_COUNT);
+   for (u32 AnchorIndex = 0;
+        AnchorIndex < MAX_PROFILER_ANCHOR_COUNT;
+        ++AnchorIndex)
+   {
+    profile_anchor *Anchor = Frame->Anchors + AnchorIndex;
+    if (Anchor->HitCount)
+    {
+     sort_key_f32 SortKey = -Cast(sort_key_f32)Anchor->TotalSelfTSC;
+     AddSortEntry(&SortAnchors, SortKey, AnchorIndex);
+    }
+   }
+   SortStable(SortAnchors);
+   
+   v2 WindowSize = UI_GetWindowSize();
+   local v4 ProfileColors[] = {
+    V4(0.8f, 0.1f, 0.1f, 1.0f),
+    V4(0.1f, 0.8f, 0.1f, 1.0f),
+    V4(0.1f, 0.1f, 0.8f, 1.0f),
+    V4(0.8f, 0.8f, 0.1f, 1.0f),
+    V4(0.8f, 0.1f, 0.8f, 1.0f),
+    V4(0.1f, 0.8f, 0.8f, 1.0f),
+   };
+   
+   f32 AnchorTSC_Sum = 0;
+   for (u32 EntryIndex = 0;
+        EntryIndex <= SortAnchors.Count;
+        ++EntryIndex)
+   {
+    f32 TotalSelfTSC = 0;
+    v4 Color = {};
+    u32 Id = 0;
+    char const *Label = 0;
+    
+    if (EntryIndex < SortAnchors.Count)
+    {
+     u32 AnchorIndex = SortAnchors.Entries[EntryIndex].Index;
+     profile_anchor Anchor = Frame->Anchors[AnchorIndex];
+     Assert(Anchor.HitCount);
+     
+     AnchorTSC_Sum += Anchor.TotalSelfTSC;
+     TotalSelfTSC = Cast(f32)Anchor.TotalSelfTSC;
+     Color = ProfileColors[AnchorIndex % ArrayCount(ProfileColors)];
+     Id = AnchorIndex;
+     Label = Anchor.Label;
+    }
+    else
+    {
+     TotalSelfTSC = Frame->TotalTSC - AnchorTSC_Sum;
+     Color = V4(0.5f, 0.1f, 0.1f, 1.0f);
+     Id = MAX_PROFILER_ANCHOR_COUNT;
+     Label = "NOT PROFILED";
+    }
+    
+    f32 Fraction =  TotalSelfTSC / Frame->TotalTSC;
+    f32 ElapsedMs  = 1000 * TotalSelfTSC * Profiler->Inv_CPU_Freq;
+    f32 Width = Fraction * WindowSize.X;
+    v2 Size = V2(Width, 10);
+    
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+    
+    UI_SetNextItemSize(Size);
+    if (EntryIndex > 0) UI_SameRow();
+    UI_Colored(UI_Color_Item, Color)
+    {
+     UI_Rect(Id);
+    }
+    
+    if (UI_IsItemHovered())
+    {
+     UI_TooltipF("[%.2fms] %s", ElapsedMs, Label);
+    }
+    
+    ImGui::PopStyleVar();
+    
+    OS_PrintDebugF("%s: %f\n", Label, ElapsedMs);
+   }
+  }
+  UI_EndWindow();
+ }
+ 
+ EndTemp(Temp);
+}
+
+internal void
+RenderProfilerAllFramesUI(editor *Editor)
+{
+ visual_profiler *Visual = &Editor->Profiler;
+ profiler *Profiler = &Visual->Profiler;
+ 
+ if (Editor->ProfilerWindow)
+ {
+  if (UI_BeginWindow(&Editor->ProfilerWindow, 0, StrLit("Profiler###Profiler")))
+  {
+   rect2 DrawRegion = UI_GetDrawableRegionBounds();
+   f32 DrawWidth = (DrawRegion.Max.X - DrawRegion.Min.X);
+   f32 DrawHeight = (DrawRegion.Max.Y - DrawRegion.Min.Y);
+   
+   UI_CheckboxF(&Visual->Stopped, "Stop");
+   
+   u32 FrameCount = MAX_PROFILER_FRAME_COUNT;
+   f32 DeltaX = DrawWidth / FrameCount;
+   UI_SliderFloat(&Visual->ReferenceMs, 0.0f, 32.0f, StrLit("Reference Ms"));
+   
+   for (u32 FrameIndex = 0;
+        FrameIndex < FrameCount;
+        ++FrameIndex)
+   {
+    profiler_frame *Frame = Profiler->Frames + FrameIndex;
+    f32 ElapsedMs = 1000 * Frame->TotalTSC * Profiler->Inv_CPU_Freq;
+    
+    f32 Width = DeltaX;
+    f32 Height = DrawHeight * ElapsedMs / Visual->ReferenceMs;
+    v2 Size = V2(Width, Height);
+    
+    f32 OffsetX = FrameIndex * DeltaX;
+    f32 OffsetY = Size.Y + 50;
+    
+    f32 PosX = DrawRegion.Min.X + OffsetX;
+    f32 PosY = DrawRegion.Max.Y - OffsetY;
+    
+    v2 Pos = V2(PosX, PosY);
+    
+    if (FrameIndex > 0) UI_SameRow();
+    
+    UI_SetNextItemSize(Size);
+    UI_SetNextItemPos(Pos);
+    
+    ui_push_color_handle PushColorHandle = {};
+    if (FrameIndex == Profiler->FrameIndex)
+    {
+     v4 SpecialColor = V4(0.5f, 0.1f, 0.1f, 1.0f);
+     PushColorHandle = UI_PushColor(UI_Color_Item, SpecialColor);
+    }
+    
+    if (UI_Rect(FrameIndex))
+    {
+     ProfilerInspectSingleFrame(Visual, FrameIndex);
+    }
+    
+    if (UI_IsItemHovered())
+    {
+     UI_TooltipF("[%.2fms] Frame %u", ElapsedMs, FrameIndex);
+    }
+    
+    if (FrameIndex == Profiler->FrameIndex)
+    {
+     UI_PopColor(PushColorHandle);
+    }
+   }
+  }
+  UI_EndWindow();
+ }
+}
+
+internal void
+RenderProfilerWindow(editor *Editor)
+{
+ visual_profiler *Visual = &Editor->Profiler;
+ switch (Visual->Mode)
+ {
+  case VisualProfiler_AllFrames: {RenderProfilerAllFramesUI(Editor);}break;
+  case VisualProfiler_SingleFrame: {RenderProfilerSingleFrameUI(Editor);}break;
+ }
+}
+
+internal void
 EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct render_frame *Frame)
 {
  Platform = Memory->PlatformAPI;
  
  editor *Editor = Memory->Editor;
+ b32 DoInitEditor = false;
  if (!Editor)
  {
   Editor = Memory->Editor = PushStruct(Memory->PermamentArena, editor);
+  ProfilerInit(&Editor->Profiler.Profiler);
+  DoInitEditor = true;
+ }
+ 
+ profiler *Profiler = &Editor->Profiler.Profiler;
+ ProfilerEquip(Profiler);
+ if (!Editor->Profiler.Stopped)
+ {
+  ProfilerBeginFrame(Profiler);
+ }
+ 
+ if (DoInitEditor)
+ {
   InitEditor(Editor, Memory);
  }
+ 
+ ProfiledFunctions();
  
  render_group RenderGroup_ = {};
  render_group *RenderGroup = &RenderGroup_;
@@ -3675,6 +3972,13 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
  //#if BUILD_DEBUG
  Input->RefreshRequested = true;
  //#endif
+ 
+ if (!Editor->Profiler.Stopped)
+ {
+  ProfilerEndFrame(Profiler);
+ }
+ 
+ RenderProfilerWindow(Editor);
 }
 
 DLL_EXPORT

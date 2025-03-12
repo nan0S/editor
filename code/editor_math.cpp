@@ -721,6 +721,30 @@ NewtonEvaluate(f32 T, f32 *Beta, f32 *Ti, u32 N)
  return Result;
 }
 
+internal f32
+NewtonEvaluateUnrolled4x(f32 T, f32 *Beta, f32 *Ti, u32 N)
+{
+ f32 Result = 0.0f;
+ 
+ u32 I = N;
+ while (I >= 4)
+ {
+  Result = fmaf(Result, (T - Ti[I-1]), Beta[I-1]);
+  Result = fmaf(Result, (T - Ti[I-2]), Beta[I-2]);
+  Result = fmaf(Result, (T - Ti[I-3]), Beta[I-3]);
+  Result = fmaf(Result, (T - Ti[I-4]), Beta[I-4]);
+  I -= 4;
+ }
+ 
+ while (I >= 1)
+ {
+  Result = fmaf(Result, (T - Ti[I-1]), Beta[I-1]);
+  --I;
+ }
+ 
+ return Result;
+}
+
 internal i32
 GaussianElimination(f32 *A, f32 *B, u32 Rows, u32 Cols)
 {

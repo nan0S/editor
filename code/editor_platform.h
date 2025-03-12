@@ -162,11 +162,11 @@ struct platform_input
  
  // NOTE(hbr): Set by application
  b32 QuitRequested;
- 
  // NOTE(hbr): If set, then platform event processing will be non-blocking. Otherwise it
  // will be blocking thus EditorUpdateAndRender will be called only after the first user
  // event (MouseMove, KeyPressed, ...) has been received.
- b32 RefreshRequested; 
+ b32 RefreshRequested;
+ b32 ProflingStopped;
 };
 
 struct platform_file_dialog_result
@@ -228,6 +228,8 @@ struct editor_memory
  
  struct work_queue *LowPriorityQueue;
  struct work_queue *HighPriorityQueue;
+ 
+ struct profiler *Profiler;
 };
 
 #define EDITOR_UPDATE_AND_RENDER(Name) void Name(editor_memory *Memory, platform_input *Input, struct render_frame *Frame)

@@ -319,9 +319,8 @@ enum visual_profiler_mode
 };
 struct visual_profiler
 {
- profiler Profiler;
- 
  b32 Stopped;
+ profiler *Profiler;
  
  visual_profiler_mode Mode;
  

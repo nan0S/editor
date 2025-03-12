@@ -24,7 +24,7 @@ Platform_MakeWorkQueues(work_queue *LowPriorityQueue, work_queue *HighPriorityQu
 internal editor_memory
 Platform_MakeEditorMemory(arena *PermamentArena, renderer_memory *RendererMemory,
                           work_queue *LowPriorityQueue, work_queue *HighPriorityQueue,
-                          platform_api PlatformAPI)
+                          platform_api PlatformAPI, profiler *Profiler)
 {
  editor_memory EditorMemory = {};
  EditorMemory.PermamentArena = PermamentArena;
@@ -33,6 +33,7 @@ Platform_MakeEditorMemory(arena *PermamentArena, renderer_memory *RendererMemory
  EditorMemory.LowPriorityQueue = LowPriorityQueue;
  EditorMemory.HighPriorityQueue = HighPriorityQueue;
  EditorMemory.PlatformAPI = PlatformAPI;
+ EditorMemory.Profiler = Profiler;
  
  return EditorMemory;
 }

@@ -1316,6 +1316,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
  
  Editor->ProfilerWindow = true;
  Editor->Profiler.ReferenceMs = 2.0f;
+ Editor->Profiler.Profiler = Memory->Profiler;
 }
 
 internal void
@@ -3577,41 +3578,6 @@ RenderMergingCurves(merging_curves_state *Merging, render_group *RenderGroup)
 }
 
 internal void
-ActiveWait(u64 MicroSeconds)
-{
- u64 Begin = OS_ReadCPUTimer();
- u64 CPU_Freq = OS_CPUTimerFreq();
- u64 Threshold = MicroSeconds * CPU_Freq / 1000000;
- while (OS_ReadCPUTimer() - Begin < Threshold);
-}
-internal void
-ProfiledFunctions(void)
-{
- ProfileFunctionBegin();
- 
- ProfileBlock("Profiled Block 1")
- {
-  ActiveWait(100);
- }
- 
- ProfileBlock("Profiled Block 2")
- {
-  ActiveWait(200);
-  
-  ProfileBlock("Profiled Block 2.1")
-  {
-   ActiveWait(100);
-  }
- }
- 
- ProfileBegin("Profiled Block 3");
- ActiveWait(500);
- ProfileEnd();
- 
- ProfileEnd();
-}
-
-internal void
 ProfilerInspectAllFrames(visual_profiler *Visual)
 {
  Visual->Mode = VisualProfiler_AllFrames;
@@ -3620,7 +3586,7 @@ ProfilerInspectAllFrames(visual_profiler *Visual)
 internal void
 ProfilerInspectSingleFrame(visual_profiler *Visual, u32 FrameIndex)
 {
- profiler *Profiler = &Visual->Profiler;
+ profiler *Profiler = Visual->Profiler;
  Visual->Mode = VisualProfiler_SingleFrame;
  Assert(FrameIndex < MAX_PROFILER_FRAME_COUNT);
  Visual->FrameIndex = FrameIndex;
@@ -3633,7 +3599,7 @@ RenderProfilerSingleFrameUI(editor *Editor)
  temp_arena Temp = TempArena(0);
  
  visual_profiler *Visual = &Editor->Profiler;
- profiler *Profiler = &Visual->Profiler;
+ profiler *Profiler = Visual->Profiler;
  profiler_frame *Frame = &Visual->FrameSnapshot;
  
  if (Editor->ProfilerWindow)
@@ -3730,10 +3696,10 @@ RenderProfilerSingleFrameUI(editor *Editor)
 }
 
 internal void
-RenderProfilerAllFramesUI(editor *Editor)
+RenderProfilerAllFramesUI(editor *Editor, platform_input *Input)
 {
  visual_profiler *Visual = &Editor->Profiler;
- profiler *Profiler = &Visual->Profiler;
+ profiler *Profiler = Visual->Profiler;
  
  if (Editor->ProfilerWindow)
  {
@@ -3744,6 +3710,7 @@ RenderProfilerAllFramesUI(editor *Editor)
    f32 DrawHeight = (DrawRegion.Max.Y - DrawRegion.Min.Y);
    
    UI_CheckboxF(&Visual->Stopped, "Stop");
+   Input->ProflingStopped = Visual->Stopped;
    
    u32 FrameCount = MAX_PROFILER_FRAME_COUNT;
    f32 DeltaX = DrawWidth / FrameCount;
@@ -3801,12 +3768,12 @@ RenderProfilerAllFramesUI(editor *Editor)
 }
 
 internal void
-RenderProfilerWindow(editor *Editor)
+RenderProfilerWindow(editor *Editor, platform_input *Input)
 {
  visual_profiler *Visual = &Editor->Profiler;
  switch (Visual->Mode)
  {
-  case VisualProfiler_AllFrames: {RenderProfilerAllFramesUI(Editor);}break;
+  case VisualProfiler_AllFrames: {RenderProfilerAllFramesUI(Editor, Input);}break;
   case VisualProfiler_SingleFrame: {RenderProfilerSingleFrameUI(Editor);}break;
  }
 }
@@ -3814,30 +3781,18 @@ RenderProfilerWindow(editor *Editor)
 internal void
 EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct render_frame *Frame)
 {
+ profiler *Profiler = Memory->Profiler;
+ ProfilerEquip(Profiler);
+ ProfileFunctionBegin();
+ 
  Platform = Memory->PlatformAPI;
  
  editor *Editor = Memory->Editor;
- b32 DoInitEditor = false;
  if (!Editor)
  {
   Editor = Memory->Editor = PushStruct(Memory->PermamentArena, editor);
-  ProfilerInit(&Editor->Profiler.Profiler);
-  DoInitEditor = true;
- }
- 
- profiler *Profiler = &Editor->Profiler.Profiler;
- ProfilerEquip(Profiler);
- if (!Editor->Profiler.Stopped)
- {
-  ProfilerBeginFrame(Profiler);
- }
- 
- if (DoInitEditor)
- {
   InitEditor(Editor, Memory);
  }
- 
- ProfiledFunctions();
  
  render_group RenderGroup_ = {};
  render_group *RenderGroup = &RenderGroup_;
@@ -3973,12 +3928,9 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
  Input->RefreshRequested = true;
  //#endif
  
- if (!Editor->Profiler.Stopped)
- {
-  ProfilerEndFrame(Profiler);
- }
+ RenderProfilerWindow(Editor, Input);
  
- RenderProfilerWindow(Editor);
+ ProfileEnd();
 }
 
 DLL_EXPORT

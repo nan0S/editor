@@ -224,7 +224,7 @@ Win32OpenGLInit(arena *Arena, renderer_memory *Memory, HWND Window, HDC WindowDC
   if (Win32OpenGL->wglSwapIntervalEXT)
   {
    // NOTE(hbr): disable VSync
-   Win32OpenGL->wglSwapIntervalEXT(1);
+   Win32OpenGL->wglSwapIntervalEXT(0);
   }
   
   OpenGLInit(OpenGL, Arena, Memory);

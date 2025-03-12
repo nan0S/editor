@@ -974,11 +974,9 @@ GetCubicBezierCurveSegment(cubic_bezier_point *BezierPoints, u32 PointCount, u32
 }
 
 internal void
-CalcBarycentricPolynomial(v2 *Controls,
-                          u32 PointCount,
-                          point_spacing PointSpacing,
-                          f32 *Ti,
-                          u32 EvalCount, v2 *OutputEvalPoints)
+CalcBarycentricPolynomial(v2 *Controls, u32 PointCount, point_spacing PointSpacing, f32 *Ti,
+                          u32 SampleCount, v2 *OutSamples,
+                          f32 Min_T, f32 Max_T)
 {
  if (PointCount > 0)
  {
@@ -1000,20 +998,18 @@ CalcBarycentricPolynomial(v2 *Controls,
   
   points_soa SOA = SplitPointsIntoComponents(Temp.Arena, Controls, PointCount);
   
-  f32 Begin = Ti[0];
-  f32 End = Ti[PointCount - 1];
-  f32 T = Begin;
-  f32 Delta = (End - Begin) / (EvalCount - 1);
+  f32 T = Min_T;
+  f32 Delta_T = (Max_T - Min_T) / (SampleCount - 1);
   
-  for (u32 OutputIndex = 0;
-       OutputIndex < EvalCount;
-       ++OutputIndex)
+  for (u32 SampleIndex = 0;
+       SampleIndex < SampleCount;
+       ++SampleIndex)
   {
    f32 X = BarycentricEvaluate(T, Omega, Ti, SOA.Xs, PointCount);
    f32 Y = BarycentricEvaluate(T, Omega, Ti, SOA.Ys, PointCount);
-   OutputEvalPoints[OutputIndex] = V2(X, Y);
+   OutSamples[SampleIndex] = V2(X, Y);
    
-   T += Delta;
+   T += Delta_T;
   }
   
   EndTemp(Temp);
@@ -1021,11 +1017,9 @@ CalcBarycentricPolynomial(v2 *Controls,
 }
 
 internal void
-CalcNewtonPolynomial(v2 *Controls,
-                     u32 PointCount,
-                     f32 *Ti,
-                     u32 EvalCount,
-                     v2 *OutputEvalPoints)
+CalcNewtonPolynomial(v2 *Controls, u32 PointCount, f32 *Ti,
+                     u32 SampleCount, v2 *OutSamples,
+                     f32 Min_T, f32 Max_T)
 {
  if (PointCount > 0)
  {
@@ -1038,20 +1032,18 @@ CalcNewtonPolynomial(v2 *Controls,
   NewtonBetaFast(Beta_X, Ti, SOA.Xs, PointCount);
   NewtonBetaFast(Beta_Y, Ti, SOA.Ys, PointCount);
   
-  f32 Begin = Ti[0];
-  f32 End = Ti[PointCount - 1];
-  f32 T = Begin;
-  f32 Delta = (End - Begin) / (EvalCount - 1);
+  f32 T = Min_T;
+  f32 Delta_T = (Max_T - Min_T) / (SampleCount - 1);
   
-  for (u32 OutputIndex = 0;
-       OutputIndex < EvalCount;
-       ++OutputIndex)
+  for (u32 SampleIndex = 0;
+       SampleIndex < SampleCount;
+       ++SampleIndex)
   {
    f32 X = NewtonEvaluate(T, Beta_X, Ti, PointCount);
    f32 Y = NewtonEvaluate(T, Beta_Y, Ti, PointCount);
-   OutputEvalPoints[OutputIndex] = V2(X, Y);
+   OutSamples[SampleIndex] = V2(X, Y);
    
-   T += Delta;
+   T += Delta_T;
   }
   
   EndTemp(Temp);
@@ -1075,10 +1067,18 @@ CalcPolynomial(v2 *Controls, u32 PointCount,
   case PointSpacing_Count: InvalidPath;
  }
  
+ f32 Min_T = 0;
+ f32 Max_T = 0;
+ if (PointCount > 0)
+ {
+  Min_T = Ti[0];
+  Max_T = Ti[PointCount - 1];
+ }
+ 
  switch (Polynomial.Type)
  {
-  case PolynomialInterpolation_Barycentric: {CalcBarycentricPolynomial(Controls, PointCount, PointSpacing, Ti, SampleCount, OutSamples);}break;
-  case PolynomialInterpolation_Newton:      {CalcNewtonPolynomial(Controls, PointCount, Ti, SampleCount, OutSamples);}break;
+  case PolynomialInterpolation_Barycentric: {CalcBarycentricPolynomial(Controls, PointCount, PointSpacing, Ti, SampleCount, OutSamples, Min_T, Max_T);}break;
+  case PolynomialInterpolation_Newton:      {CalcNewtonPolynomial(Controls, PointCount, Ti, SampleCount, OutSamples, Min_T, Max_T);}break;
   case PolynomialInterpolation_Count: InvalidPath;
  }
  

@@ -12,6 +12,7 @@
 #include "editor_platform.h"
 #include "editor_renderer.h"
 #include "editor_work_queue.h"
+#include "editor_profiler.h"
 
 #include "win32/win32_editor.h"
 #include "win32/win32_editor_renderer.h"
@@ -26,6 +27,7 @@
 
 #include "editor_memory.cpp"
 #include "editor_work_queue.cpp"
+#include "editor_profiler.cpp"
 
 #include "platform_shared.h"
 #include "platform_shared.cpp"
@@ -587,9 +589,12 @@ EntryPoint(void)
                                                             TempEditorFunctions.Functions,
                                                             ArrayCount(EditorFunctions.Functions));
    
+   profiler *Profiler = PushStruct(PermamentArena, profiler);
+   ProfilerInit(Profiler);
+   
    editor_memory EditorMemory = Platform_MakeEditorMemory(PermamentArena, &RendererMemory,
                                                           &LowPriorityQueue, &HighPriorityQueue,
-                                                          Platform);
+                                                          Platform, Profiler);
    
    u64 LastTSC = OS_ReadCPUTimer();
    
@@ -605,6 +610,8 @@ EntryPoint(void)
    // TODO(hbr): Temporary
    b32 FirstFrame = true;
    u64 FrameCount = 0;
+   b32 ProfilingStopped = false;
+   
    while (Running)
    {
     //- hot reload
@@ -739,6 +746,11 @@ EntryPoint(void)
     if (FirstFrame) {WIN32_END_DEBUG_BLOCK(InputHandling);}
     
     //- update and render
+    if (!ProfilingStopped)
+    {
+     ProfilerBeginFrame(Profiler);
+    }
+    
     WIN32_BEGIN_DEBUG_BLOCK(RendererBeginFrame);
     render_frame *Frame = 0;
     if (RendererCode.IsValid)
@@ -777,6 +789,13 @@ EntryPoint(void)
     }
     
     ++FrameCount;
+    
+    if (!ProfilingStopped)
+    {
+     ProfilerEndFrame(Profiler);
+    }
+    
+    ProfilingStopped = Input.ProflingStopped;
    }
   }
  }

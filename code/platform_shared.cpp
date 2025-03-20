@@ -39,39 +39,39 @@ Platform_MakeEditorMemory(arena *PermamentArena, renderer_memory *RendererMemory
 }
 
 internal renderer_memory
-Platform_MakeRendererMemory(arena *PermamentArena)
+Platform_MakeRendererMemory(arena *PermamentArena, profiler *Profiler)
 {
  renderer_memory RendererMemory = {};
- {
-  RendererMemory.PlatformAPI = Platform;
-  
-  platform_renderer_limits *Limits = &RendererMemory.Limits;
-  // TODO(hbr): Revise those limits
-  Limits->MaxTextureCount = 256;
-  Limits->MaxBufferCount = 1024;
-  
-  renderer_transfer_queue *Queue = &RendererMemory.RendererQueue;
-  Queue->TransferMemorySize = Megabytes(100);
-  // TODO(hbr): use this value to test when memory renderer queue doesnt have space for an image
-  //Queue->TransferMemorySize = 7680000 + 667152 - 1;
-  Queue->TransferMemory = PushArrayNonZero(PermamentArena, Queue->TransferMemorySize, char);
-  
-  // TODO(hbr): Tweak these parameters
-  RendererMemory.MaxLineCount = 1024;
-  RendererMemory.LineBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxLineCount, render_line);
-  
-  // TODO(hbr): Tweak these parameters
-  RendererMemory.MaxCircleCount = 4096;
-  RendererMemory.CircleBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxCircleCount, render_circle);
-  
-  // TODO(hbr): Tweak these parameters
-  RendererMemory.MaxImageCount = Limits->MaxTextureCount;
-  RendererMemory.ImageBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxImageCount, render_image);
-  
-  // TODO(hbr): Tweak these parameters
-  RendererMemory.MaxVertexCount = 8 * 1024;
-  RendererMemory.VertexBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxVertexCount, render_vertex);
- }
+ RendererMemory.PlatformAPI = Platform;
+ 
+ platform_renderer_limits *Limits = &RendererMemory.Limits;
+ // TODO(hbr): Revise those limits
+ Limits->MaxTextureCount = 256;
+ Limits->MaxBufferCount = 1024;
+ 
+ renderer_transfer_queue *Queue = &RendererMemory.RendererQueue;
+ Queue->TransferMemorySize = Megabytes(100);
+ // TODO(hbr): use this value to test when memory renderer queue doesnt have space for an image
+ //Queue->TransferMemorySize = 7680000 + 667152 - 1;
+ Queue->TransferMemory = PushArrayNonZero(PermamentArena, Queue->TransferMemorySize, char);
+ 
+ // TODO(hbr): Tweak these parameters
+ RendererMemory.MaxLineCount = 1024;
+ RendererMemory.LineBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxLineCount, render_line);
+ 
+ // TODO(hbr): Tweak these parameters
+ RendererMemory.MaxCircleCount = 4096;
+ RendererMemory.CircleBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxCircleCount, render_circle);
+ 
+ // TODO(hbr): Tweak these parameters
+ RendererMemory.MaxImageCount = Limits->MaxTextureCount;
+ RendererMemory.ImageBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxImageCount, render_image);
+ 
+ // TODO(hbr): Tweak these parameters
+ RendererMemory.MaxVertexCount = 8 * 1024;
+ RendererMemory.VertexBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxVertexCount, render_vertex);
+ 
+ RendererMemory.Profiler = Profiler;
  
  return RendererMemory;
 }

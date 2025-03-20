@@ -4,6 +4,7 @@
 #include "base/base_core.h"
 #include "base/base_string.h"
 #include "base/base_os.h"
+#include "editor_profiler.h"
 #include "editor_memory.h"
 #include "base/base_thread_ctx.h"
 #include "base/base_hot_reload.h"
@@ -12,12 +13,10 @@
 #include "editor_platform.h"
 #include "editor_renderer.h"
 #include "editor_work_queue.h"
-#include "editor_profiler.h"
 
 #include "win32/win32_editor.h"
 #include "win32/win32_editor_renderer.h"
 #include "win32/win32_editor_imgui_bindings.h"
-#include "win32/win32_shared.h"
 
 #include "base/base_core.cpp"
 #include "base/base_string.cpp"
@@ -260,12 +259,12 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
 {
  LRESULT Result = 0;
  
- imgui_maybe_capture_input_data ImGuiData = {};
+ win32_imgui_maybe_capture_input_data ImGuiData = {};
  ImGuiData.Window = Window;
  ImGuiData.Msg = Msg;
  ImGuiData.wParam = wParam;
  ImGuiData.lParam = lParam;
- imgui_maybe_capture_input_result ImGuiResult = GlobalImGuiBindings.MaybeCaptureInput(&ImGuiData);
+ imgui_maybe_capture_input_result ImGuiResult = GlobalImGuiBindings.MaybeCaptureInput(Cast(imgui_maybe_capture_input_data *)&ImGuiData);
  
  if (ImGuiResult.CapturedInput)
  {
@@ -430,8 +429,6 @@ Win32HotReloadTask(void *UserData)
 internal void
 EntryPoint(void)
 {
- WIN32_BEGIN_DEBUG_BLOCK(FromBegin);
- 
  int ArgCount = __argc;
  char **Args = __argv;
  HINSTANCE Instance = GetModuleHandle(0);
@@ -447,6 +444,10 @@ EntryPoint(void)
   Arenas[ArenaIndex] = AllocArena();
  }
  ThreadCtxEquip(Arenas, ArrayCount(Arenas));
+ 
+ profiler *Profiler = Cast(profiler *)OS_Reserve(SizeOf(profiler), true);
+ ProfilerInit(Profiler);
+ ProfilerEquip(Profiler);
  
  arena *PermamentArena = AllocArena();
  
@@ -507,7 +508,6 @@ EntryPoint(void)
  }
  
  //- create window
- WIN32_BEGIN_DEBUG_BLOCK(Win32WindowInit);
  WNDCLASSEXA WindowClass = {};
  { 
   WindowClass.cbSize = SizeOf(WindowClass);
@@ -554,15 +554,12 @@ EntryPoint(void)
    ShowWindow(Window, SW_SHOWDEFAULT);
    InitSuccess = true;
    
-   WIN32_END_DEBUG_BLOCK(Win32WindowInit);
-   WIN32_BEGIN_DEBUG_BLOCK(LoopInit);
-   
    //- init renderer stuff
    renderer *Renderer = 0;
    HDC WindowDC = GetDC(Window);
    arena *RendererArena = AllocArena();
    
-   renderer_memory RendererMemory = Platform_MakeRendererMemory(PermamentArena);
+   renderer_memory RendererMemory = Platform_MakeRendererMemory(PermamentArena, Profiler);
    
    win32_renderer_function_table RendererFunctions = {};
    win32_renderer_function_table TempRendererFunctions = {};
@@ -589,93 +586,74 @@ EntryPoint(void)
                                                             TempEditorFunctions.Functions,
                                                             ArrayCount(EditorFunctions.Functions));
    
-   profiler *Profiler = PushStruct(PermamentArena, profiler);
-   ProfilerInit(Profiler);
-   
    editor_memory EditorMemory = Platform_MakeEditorMemory(PermamentArena, &RendererMemory,
                                                           &LowPriorityQueue, &HighPriorityQueue,
                                                           Platform, Profiler);
    
    u64 LastTSC = OS_ReadCPUTimer();
+   u64 CPU_TimerFreq = OS_CPUTimerFreq();
    
    platform_input Input = {};
    GlobalInput = &Input;
    InputArena = AllocArena();
    
-   WIN32_END_DEBUG_BLOCK(LoopInit);
-   
    //- main loop
    b32 Running = true;
    b32 RefreshRequested = true;
    // TODO(hbr): Temporary
-   b32 FirstFrame = true;
    u64 FrameCount = 0;
    b32 ProfilingStopped = false;
    
    while (Running)
    {
     //- hot reload
-    WIN32_BEGIN_DEBUG_BLOCK(HotReload);
+    b32 EditorCodeReloaded = false;
+    b32 RendererCodeReloaded = false;
     {
-     win32_hot_reload_task RendererTask = {};
-     RendererTask.Code = &RendererCode;
+     win32_hot_reload_task EditorHotReload = {};
+     win32_hot_reload_task RendererHotReload = {};
      
-     win32_hot_reload_task EditorTask = {};
-     EditorTask.Code = &EditorCode;
-     
+     EditorHotReload.Code = &EditorCode;
+     RendererHotReload.Code = &RendererCode;
 #if 0
      // TODO(hbr): Unfortunately multithreaded path doesn't improve performance. It seems as
      // OS_LoadLibrary (LoadLibrary from Win32 API) grabs mutex or something, making the calls
      // serial in practice.
-     WorkQueueAddEntry(HighPriorityQueue, Win32HotReloadTask, &RendererTask);
-     WorkQueueAddEntry(HighPriorityQueue, Win32HotReloadTask, &EditorTask);
+     WorkQueueAddEntry(HighPriorityQueue, Win32HotReloadTask, &EditorHotReload);
+     WorkQueueAddEntry(HighPriorityQueue, Win32HotReloadTask, &RendererHotReload);
      
      WorkQueueCompleteAllWork(HighPriorityQueue);
 #else
-     Win32HotReloadTask(&RendererTask);
-     Win32HotReloadTask(&EditorTask);
+     Win32HotReloadTask(&EditorHotReload);
+     Win32HotReloadTask(&RendererHotReload);
 #endif
      
-     RendererMemory.RendererCodeReloaded = RendererTask.CodeReloaded;
-     EditorMemory.EditorCodeReloaded = EditorTask.CodeReloaded;
-    }
-    if (FirstFrame) {WIN32_END_DEBUG_BLOCK(HotReload);}
-    
-    if (!RendererCode.IsValid)
-    {
-     Win32DisplayErrorBox("Unable to load renderer");
-    }
-    if (!EditorCode.IsValid)
-    {
-     Win32DisplayErrorBox("Unable to load editor");
+     EditorCodeReloaded = EditorHotReload.CodeReloaded;
+     RendererCodeReloaded = RendererHotReload.CodeReloaded;
     }
     
-    WIN32_BEGIN_DEBUG_BLOCK(RendererInit);
-    if (RendererMemory.RendererCodeReloaded && !Renderer && RendererCode.IsValid)
+    if (RendererCodeReloaded && RendererCode.IsValid)
+    {
+     RendererFunctions.OnCodeReload(&RendererMemory);
+    }
+    
+    if (!Renderer && RendererCode.IsValid)
     {
      Renderer = RendererFunctions.Init(RendererArena, &RendererMemory, Window, WindowDC);
     }
-    if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererInit);}
     
-    WIN32_BEGIN_DEBUG_BLOCK(ImGuiInit);
-    if (EditorMemory.EditorCodeReloaded && EditorCode.IsValid)
+    if (EditorCodeReloaded && EditorCode.IsValid)
     {
-     OS_PrintDebugF("Getting ImGui Bindings\n");
-     imgui_bindings Bindings = EditorFunctions.GetImGuiBindings();
+     imgui_bindings Bindings = EditorFunctions.OnCodeReload(&EditorMemory);
      GlobalImGuiBindings = Bindings;
      RendererMemory.ImGuiBindings = Bindings;
-     OS_PrintDebugF("Got ImGui Bindings\n");
      
-     imgui_init_data Init = {};
+     win32_imgui_init_data Init = {};
      Init.Window = Window;
-     OS_PrintDebugF("Bindings Init\n");
-     Bindings.Init(&Init);
-     OS_PrintDebugF("Bindings Init Finish\n");
+     Bindings.Init(Cast(imgui_init_data *)&Init);
     }
-    if (FirstFrame) {WIN32_BEGIN_DEBUG_BLOCK(ImGuiInit);}
     
     //- process input events
-    WIN32_BEGIN_DEBUG_BLOCK(InputHandling);
     v2u WindowDim = {};
     {
      GlobalWin32Input = {};
@@ -743,7 +721,6 @@ EntryPoint(void)
      }
 #endif
     }
-    if (FirstFrame) {WIN32_END_DEBUG_BLOCK(InputHandling);}
     
     //- update and render
     if (!ProfilingStopped)
@@ -751,51 +728,41 @@ EntryPoint(void)
      ProfilerBeginFrame(Profiler);
     }
     
-    WIN32_BEGIN_DEBUG_BLOCK(RendererBeginFrame);
     render_frame *Frame = 0;
     if (RendererCode.IsValid)
     {
      Frame = RendererFunctions.BeginFrame(Renderer, &RendererMemory, WindowDim);
     }
-    if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererBeginFrame);}
     
     {
      u64 NowTSC = OS_ReadCPUTimer();
-     Input.dtForFrame = Win32SecondsElapsed(LastTSC, NowTSC);
+     Input.dtForFrame = Cast(f32)(NowTSC - LastTSC) / CPU_TimerFreq;
      LastTSC = NowTSC;
     }
     
-    WIN32_BEGIN_DEBUG_BLOCK(EditorUpdateAndRender);
     if (EditorCode.IsValid)
     {
      EditorFunctions.UpdateAndRender(&EditorMemory, &Input, Frame);
     }
     RefreshRequested = Input.RefreshRequested;
-    if (FirstFrame) {WIN32_END_DEBUG_BLOCK(EditorUpdateAndRender);}
+    ProfilingStopped = Input.ProflingStopped;
     
-    WIN32_BEGIN_DEBUG_BLOCK(RendererEndFrame);
     if (RendererCode.IsValid)
     {
      RendererFunctions.EndFrame(Renderer, &RendererMemory, Frame);
     }
-    if (FirstFrame) {WIN32_END_DEBUG_BLOCK(RendererEndFrame);}
-    
-    if (FirstFrame) {WIN32_END_DEBUG_BLOCK(FromBegin);}
-    FirstFrame = false;
     
     if (Input.QuitRequested)
     {
      Running = false;
     }
     
-    ++FrameCount;
-    
     if (!ProfilingStopped)
     {
      ProfilerEndFrame(Profiler);
     }
     
-    ProfilingStopped = Input.ProflingStopped;
+    ++FrameCount;
    }
   }
  }

@@ -222,8 +222,6 @@ struct editor_memory
  u32 MaxBufferCount;
  struct renderer_transfer_queue *RendererQueue;
  
- b32 EditorCodeReloaded;
- 
  platform_api PlatformAPI;
  
  struct work_queue *LowPriorityQueue;
@@ -235,22 +233,26 @@ struct editor_memory
 #define EDITOR_UPDATE_AND_RENDER(Name) void Name(editor_memory *Memory, platform_input *Input, struct render_frame *Frame)
 typedef EDITOR_UPDATE_AND_RENDER(editor_update_and_render);
 
-#define EDITOR_GET_IMGUI_BINDINGS(Name) imgui_bindings Name(void)
-typedef EDITOR_GET_IMGUI_BINDINGS(editor_get_imgui_bindings);
+#define EDITOR_ON_CODE_RELOAD(Name) imgui_bindings Name(editor_memory *Memory)
+typedef EDITOR_ON_CODE_RELOAD(editor_on_code_reload);
 
 union editor_function_table
 {
  struct {
   editor_update_and_render *UpdateAndRender;
-  editor_get_imgui_bindings *GetImGuiBindings;
+  editor_on_code_reload *OnCodeReload;
  };
  void *Functions[2];
 };
 global char const *EditorFunctionTableNames[] = {
  "EditorUpdateAndRender",
- "EditorGetImGuiBindings",
+ "EditorOnCodeReload",
 };
-StaticAssert(SizeOf(editor_function_table) == SizeOf(editor_function_table::Functions), EditorFunctionTableLayoutIsCorrect);
-StaticAssert(ArrayCount(editor_function_table::Functions) == ArrayCount(EditorFunctionTableNames), EditorFunctionTableNamesDefined);
+StaticAssert(SizeOf(MemberOf(editor_function_table, Functions)) ==
+             SizeOf(editor_function_table),
+             EditorFunctionTableLayoutIsCorrect);
+StaticAssert(ArrayCount(MemberOf(editor_function_table, Functions)) ==
+             ArrayCount(EditorFunctionTableNames),
+             EditorFunctionTableNamesDefined);
 
 #endif //EDITOR_PLATFORM_H

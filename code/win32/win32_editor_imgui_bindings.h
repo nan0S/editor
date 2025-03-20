@@ -1,12 +1,12 @@
 #ifndef WIN32_EDITOR_IMGUI_BINDINGS_H
 #define WIN32_EDITOR_IMGUI_BINDINGS_H
 
-struct imgui_init_data
+struct win32_imgui_init_data
 {
  HWND Window;
 };
 
-struct imgui_maybe_capture_input_data
+struct win32_imgui_maybe_capture_input_data
 {
  HWND Window;
  UINT Msg;

@@ -167,11 +167,11 @@ struct renderer_memory
  render_vertex *VertexBuffer;
  u32 MaxVertexCount;
  
- b32 RendererCodeReloaded;
- 
  imgui_bindings ImGuiBindings;
  
  platform_api PlatformAPI;
+ 
+ profiler *Profiler;
 };
 
 #define RENDERER_BEGIN_FRAME(Name) render_frame *Name(renderer *Renderer, renderer_memory *Memory, v2u WindowDim)
@@ -179,5 +179,8 @@ typedef RENDERER_BEGIN_FRAME(renderer_begin_frame);
 
 #define RENDERER_END_FRAME(Name) void Name(renderer *Renderer, renderer_memory *Memory, render_frame *Frame)
 typedef RENDERER_END_FRAME(renderer_end_frame);
+
+#define RENDERER_ON_CODE_RELOAD(Name) void Name(renderer_memory *Memory)
+typedef RENDERER_ON_CODE_RELOAD(renderer_on_code_reload);
 
 #endif //EDITOR_RENDERER_H

@@ -6,6 +6,7 @@
 #include "base/base_string.h"
 #include "base/base_os.h"
 
+#include "editor_profiler.h"
 #include "editor_memory.h"
 #include "editor_math.h"
 #include "editor_imgui_bindings.h"
@@ -15,24 +16,24 @@
 
 #include "win32/win32_editor_renderer.h"
 #include "win32/win32_editor_renderer_opengl.h"
-#include "win32/win32_shared.h"
 #include "editor_renderer_opengl.h"
 
 #include "base/base_core.cpp"
 #include "base/base_string.cpp"
 #include "base/base_os.cpp"
 
+#include "editor_profiler.cpp"
 #include "editor_memory.cpp"
 #include "editor_math.cpp"
-#include "editor_renderer_opengl.cpp"
 
+global b32 GlobalRendererCodeReloaded;
 platform_api Platform;
+
+#include "editor_renderer_opengl.cpp"
 
 internal void
 Win32SetPixelFormat(win32_opengl_renderer *Win32OpenGL, HDC WindowDC)
 {
- WIN32_BEGIN_DEBUG_BLOCK(SetPixelFormat);
- 
  int SuggestedPixelFormatIndex = 0;
  UINT ExtendedPicked = 0;
  
@@ -81,8 +82,6 @@ Win32SetPixelFormat(win32_opengl_renderer *Win32OpenGL, HDC WindowDC)
  PIXELFORMATDESCRIPTOR SuggestedPixelFormat;
  DescribePixelFormat(WindowDC, SuggestedPixelFormatIndex, SizeOf(SuggestedPixelFormat), &SuggestedPixelFormat);
  SetPixelFormat(WindowDC, SuggestedPixelFormatIndex, &SuggestedPixelFormat);
- 
- WIN32_END_DEBUG_BLOCK(SetPixelFormat);
 }
 
 #define OpenGLFunction(Name) OpenGL->Name = Cast(func_##Name *)wglGetProcAddress(#Name);
@@ -235,6 +234,14 @@ Win32OpenGLInit(arena *Arena, renderer_memory *Memory, HWND Window, HDC WindowDC
 
 #undef OpenGLFunction
 #undef Win32OpenGLFunction
+
+DLL_EXPORT
+RENDERER_ON_CODE_RELOAD(Win32RendererOnCodeReload)
+{
+ Platform = Memory->PlatformAPI;
+ ProfilerEquip(Memory->Profiler);
+ GlobalRendererCodeReloaded = true;
+}
 
 DLL_EXPORT
 WIN32_RENDERER_INIT(Win32RendererInit)

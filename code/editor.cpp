@@ -131,6 +131,8 @@ CheckCollisionWithMultiLine(v2 LocalAtP, v2 *CurveSamples, u32 PointCount, f32 W
 internal collision
 CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
 {
+ ProfileFunctionBegin();
+ 
  collision Result = {};
  temp_arena Temp = TempArena(0);
  
@@ -328,6 +330,8 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
  }
  
  EndTemp(Temp);
+ 
+ ProfileEnd();
  
  return Result;
 }
@@ -2852,6 +2856,8 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
                    b32 *NewProject, b32 *OpenFileDialog, b32 *SaveProject,
                    b32 *SaveProjectAs, b32 *QuitProject)
 {
+ ProfileFunctionBegin();
+ 
  editor_left_click_state *LeftClick = &Editor->LeftClick;
  editor_right_click_state *RightClick = &Editor->RightClick;
  editor_middle_click_state *MiddleClick = &Editor->MiddleClick;
@@ -3279,6 +3285,8 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
  {
   EndMiddleClick(MiddleClick);
  }
+ 
+ ProfileEnd();
 }
 
 internal void
@@ -3670,8 +3678,6 @@ RenderProfilerSingleFrameUI(editor *Editor)
     f32 Width = Fraction * WindowSize.X;
     v2 Size = V2(Width, 10);
     
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
-    
     UI_SetNextItemSize(Size);
     if (EntryIndex > 0) UI_SameRow();
     UI_Colored(UI_Color_Item, Color)
@@ -3683,10 +3689,6 @@ RenderProfilerSingleFrameUI(editor *Editor)
     {
      UI_TooltipF("[%.2fms] %s", ElapsedMs, Label);
     }
-    
-    ImGui::PopStyleVar();
-    
-    OS_PrintDebugF("%s: %f\n", Label, ElapsedMs);
    }
   }
   UI_EndWindow();
@@ -3698,8 +3700,11 @@ RenderProfilerSingleFrameUI(editor *Editor)
 internal void
 RenderProfilerAllFramesUI(editor *Editor, platform_input *Input)
 {
+ ProfileFunctionBegin();
+ 
  visual_profiler *Visual = &Editor->Profiler;
  profiler *Profiler = Visual->Profiler;
+ temp_arena Temp = TempArena(0);
  
  if (Editor->ProfilerWindow)
  {
@@ -3713,62 +3718,137 @@ RenderProfilerAllFramesUI(editor *Editor, platform_input *Input)
    Input->ProflingStopped = Visual->Stopped;
    
    u32 FrameCount = MAX_PROFILER_FRAME_COUNT;
-   f32 DeltaX = DrawWidth / FrameCount;
-   UI_SliderFloat(&Visual->ReferenceMs, 0.0f, 32.0f, StrLit("Reference Ms"));
+   f32 FrameBarWidth = DrawWidth / FrameCount;
+   UI_SliderFloat(&Visual->ReferenceMs, 0.0f, 128.0f, StrLit("Reference Ms"));
+   
+   
+   if (UI_Button(StrLit("Button1")))
+   {
+    OS_PrintDebugF("Button1 clicked");
+   }
+   
+   if (UI_Button(StrLit("Button2")))
+   {
+    OS_PrintDebugF("Button2 clicked");
+   }
+   
+   if (UI_Rect(12313))
+   {
+    OS_PrintDebugF("Rect clicked");
+   }
+   
+   
+   sort_entry_array SortAnchors = AllocSortEntryArray(Temp.Arena, MAX_PROFILER_ANCHOR_COUNT);
+   
+   f32 FramePosX = DrawRegion.Min.X;
    
    for (u32 FrameIndex = 0;
         FrameIndex < FrameCount;
         ++FrameIndex)
    {
     profiler_frame *Frame = Profiler->Frames + FrameIndex;
-    f32 ElapsedMs = 1000 * Frame->TotalTSC * Profiler->Inv_CPU_Freq;
     
-    f32 Width = DeltaX;
-    f32 Height = DrawHeight * ElapsedMs / Visual->ReferenceMs;
-    v2 Size = V2(Width, Height);
+    ProfileBegin("Sorting");
     
-    f32 OffsetX = FrameIndex * DeltaX;
-    f32 OffsetY = Size.Y + 50;
-    
-    f32 PosX = DrawRegion.Min.X + OffsetX;
-    f32 PosY = DrawRegion.Max.Y - OffsetY;
-    
-    v2 Pos = V2(PosX, PosY);
-    
-    if (FrameIndex > 0) UI_SameRow();
-    
-    UI_SetNextItemSize(Size);
-    UI_SetNextItemPos(Pos);
-    
-    ui_push_color_handle PushColorHandle = {};
-    if (FrameIndex == Profiler->FrameIndex)
+    ClearSortEntryArray(&SortAnchors);
+    for (u32 AnchorIndex = 0;
+         AnchorIndex < MAX_PROFILER_ANCHOR_COUNT;
+         ++AnchorIndex)
     {
-     v4 SpecialColor = V4(0.5f, 0.1f, 0.1f, 1.0f);
-     PushColorHandle = UI_PushColor(UI_Color_Item, SpecialColor);
+     profile_anchor *Anchor = Frame->Anchors + AnchorIndex;
+     if (Anchor->HitCount)
+     {
+      sort_key_f32 SortKey = -Cast(sort_key_f32)Anchor->TotalSelfTSC;
+      AddSortEntry(&SortAnchors, SortKey, AnchorIndex);
+     }
+    }
+    SortStable(SortAnchors);
+    
+    ProfileEnd();
+    
+    ProfileBegin("Drawing");
+    
+    local v4 ProfileColors[] = {
+     V4(0.8f, 0.1f, 0.1f, 1.0f),
+     V4(0.1f, 0.8f, 0.1f, 1.0f),
+     V4(0.1f, 0.1f, 0.8f, 1.0f),
+     V4(0.8f, 0.8f, 0.1f, 1.0f),
+     V4(0.8f, 0.1f, 0.8f, 1.0f),
+     V4(0.1f, 0.8f, 0.8f, 1.0f),
+    };
+    
+    f32 AnchorPosY = DrawRegion.Max.Y - 50;
+    f32 AllAnchorsTSC_Sum = 0;
+    
+    for (u32 EntryIndex = 0;
+         EntryIndex <= SortAnchors.Count;
+         ++EntryIndex)
+    {
+     f32 AnchorTotalSelfTSC = 0;
+     v4 Color = {};
+     u32 Id = 0;
+     char const *Label = 0;
+     
+     if (EntryIndex < SortAnchors.Count)
+     {
+      u32 AnchorIndex = SortAnchors.Entries[EntryIndex].Index;
+      profile_anchor Anchor = Frame->Anchors[AnchorIndex];
+      Assert(Anchor.HitCount);
+      
+      AllAnchorsTSC_Sum += Anchor.TotalSelfTSC;
+      AnchorTotalSelfTSC = Cast(f32)Anchor.TotalSelfTSC;
+      Color = ProfileColors[AnchorIndex % ArrayCount(ProfileColors)];
+      Id = AnchorIndex;
+      Label = Anchor.Label;
+     }
+     else
+     {
+      AnchorTotalSelfTSC = Frame->TotalTSC - AllAnchorsTSC_Sum;
+      Color = V4(0.5f, 0.1f, 0.1f, 1.0f);
+      Id = MAX_PROFILER_ANCHOR_COUNT;
+      Label = "NOT PROFILED";
+     }
+     
+     f32 AnchorMs = 1000 * AnchorTotalSelfTSC * Profiler->Inv_CPU_Freq;
+     f32 AnchorHeight = DrawHeight * AnchorMs / Visual->ReferenceMs;
+     v2 Size = V2(FrameBarWidth, AnchorHeight);
+     
+     AnchorPosY -= Size.Y;
+     v2 Pos = V2(FramePosX, AnchorPosY);
+     
+     UI_SetNextItemPos(Pos);
+     UI_SetNextItemSize(Size);
+     
+     UI_Colored(UI_Color_Item, Color)
+     {
+      if (UI_Rect(Id))
+      {
+       ProfilerInspectSingleFrame(Visual, FrameIndex);
+      }
+     }
+     
+     if (UI_IsItemHovered())
+     {
+      UI_TooltipF("[%.2fms] %s", AnchorMs, Label);
+     }
     }
     
-    if (UI_Rect(FrameIndex))
-    {
-     ProfilerInspectSingleFrame(Visual, FrameIndex);
-    }
+    FramePosX += FrameBarWidth;
     
-    if (UI_IsItemHovered())
-    {
-     UI_TooltipF("[%.2fms] Frame %u", ElapsedMs, FrameIndex);
-    }
-    
-    if (FrameIndex == Profiler->FrameIndex)
-    {
-     UI_PopColor(PushColorHandle);
-    }
+    ProfileEnd();
    }
   }
+  
   UI_EndWindow();
  }
+ 
+ EndTemp(Temp);
+ 
+ ProfileEnd();
 }
 
 internal void
-RenderProfilerWindow(editor *Editor, platform_input *Input)
+RenderProfilerWindowUI(editor *Editor, platform_input *Input)
 {
  visual_profiler *Visual = &Editor->Profiler;
  switch (Visual->Mode)
@@ -3781,11 +3861,7 @@ RenderProfilerWindow(editor *Editor, platform_input *Input)
 internal void
 EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct render_frame *Frame)
 {
- profiler *Profiler = Memory->Profiler;
- ProfilerEquip(Profiler);
  ProfileFunctionBegin();
- 
- Platform = Memory->PlatformAPI;
  
  editor *Editor = Memory->Editor;
  if (!Editor)
@@ -3880,6 +3956,8 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
  
  if (!Editor->HideUI)
  {
+  ProfileBegin("UI Update");
+  
   UpdateAndRenderSelectedEntityUI(Editor);
   UpdateAndRenderMenuBarUI(Editor, &NewProject, &OpenFileDialog, &SaveProject,
                            &SaveProjectAs, &QuitProject, &AnimateCurves, &MergeCurves);
@@ -3889,10 +3967,13 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
   UpdateAndRenderNotifications(Editor, Input, RenderGroup);
   UpdateAndRenderAnimatingCurvesUI(Editor);
   UpdateAndRenderMergingCurvesUI(Editor);
+  RenderProfilerWindowUI(Editor, Input);
   
 #if BUILD_DEBUG
   ImGui::ShowDemoWindow();
 #endif
+  
+  ProfileEnd();
  }
  
  if (OpenFileDialog)
@@ -3928,9 +4009,27 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
  Input->RefreshRequested = true;
  //#endif
  
- RenderProfilerWindow(Editor, Input);
- 
  ProfileEnd();
+}
+
+IMGUI_INIT_FUNC();
+IMGUI_NEW_FRAME_FUNC();
+IMGUI_RENDER_FUNC();
+IMGUI_MAYBE_CAPTURE_INPUT_FUNC();
+
+internal imgui_bindings
+EditorOnCodeReload_(editor_memory *Memory)
+{
+ ProfilerEquip(Memory->Profiler);
+ Platform = Memory->PlatformAPI;
+ 
+ imgui_bindings Bindings = {};
+ Bindings.Init = ImGuiInit;
+ Bindings.NewFrame = ImGuiNewFrame;
+ Bindings.Render = ImGuiRender;
+ Bindings.MaybeCaptureInput = ImGuiMaybeCaptureInput;
+ 
+ return Bindings;
 }
 
 DLL_EXPORT
@@ -3939,19 +4038,9 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
  EditorUpdateAndRender_(Memory, Input, Frame);
 }
 
-IMGUI_INIT_FUNC();
-IMGUI_NEW_FRAME_FUNC();
-IMGUI_RENDER_FUNC();
-IMGUI_MAYBE_CAPTURE_INPUT_FUNC();
-
 DLL_EXPORT
-EDITOR_GET_IMGUI_BINDINGS(EditorGetImGuiBindings)
+EDITOR_ON_CODE_RELOAD(EditorOnCodeReload)
 {
- imgui_bindings Bindings = {};
- Bindings.Init = ImGuiInit;
- Bindings.NewFrame = ImGuiNewFrame;
- Bindings.Render = ImGuiRender;
- Bindings.MaybeCaptureInput = ImGuiMaybeCaptureInput;
- 
- return Bindings;
+ imgui_bindings Result = EditorOnCodeReload_(Memory);
+ return Result;
 }

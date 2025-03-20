@@ -836,9 +836,7 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
 internal render_frame *
 OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
 {
- Platform = Memory->PlatformAPI;
- 
- if (Memory->RendererCodeReloaded)
+ if (GlobalRendererCodeReloaded)
  {
   //- fix error handling function pointer
   if (OpenGL->glDebugMessageCallback)

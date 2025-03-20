@@ -55,6 +55,9 @@ internal void            ProfilerBeginFrame(profiler *Profiler);
 internal void            ProfilerEndFrame(profiler *Profiler);
 internal profiler_frame *ProfilerCurrentFrame(profiler *Profiler);
 
+internal void __ProfileBegin(char const *Label, u16 AnchorIndex);
+internal void __ProfileEnd();
+
 #define ProfileBegin(Label) __ProfileBegin(Label, __COUNTER__ + 1)
 #define ProfileEnd() __ProfileEnd()
 #define ProfileFunctionBegin() ProfileBegin(__func__)

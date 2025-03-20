@@ -18,6 +18,12 @@ AddSortEntry(sort_entry_array *Array, sort_key_f32 SortKey, u32 Index)
  Entry->Index = Index;
 }
 
+internal void
+ClearSortEntryArray(sort_entry_array *Array)
+{
+ Array->Count = 0;
+}
+
 inline internal int
 SortEntryCmp(sort_entry *A, sort_entry *B)
 {

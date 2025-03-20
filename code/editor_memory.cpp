@@ -35,6 +35,7 @@ PushSizeNonZero(arena *Arena, u64 Size)
 {
  void *Result = 0;
  arena *Last = 0;
+ u64 Times = 0;
  for (arena *Cur = Arena->Cur; Cur; Cur = Cur->Next)
  {
   umm Mem = Cast(umm)Cur->Memory;
@@ -48,6 +49,7 @@ PushSizeNonZero(arena *Arena, u64 Size)
   }
   
   Last = Cur;
+  ++Times;
  }
  
  if (!Result)
@@ -110,6 +112,6 @@ BeginTemp(arena *Arena)
 internal void
 EndTemp(temp_arena Temp)
 {
- Temp.Arena->Cur = Temp.SavedCur;
- Temp.SavedCur->Used = Temp.SavedUsed;
+ ClearArena(Temp.Arena);
+ Temp.Arena->Used = Temp.SavedUsed;
 }

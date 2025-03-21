@@ -15,8 +15,14 @@
 #include "base/base_os.cpp"
 #include "base/base_nobuild.cpp"
 
+enum build_platform
+{
+ BuildPlatform_Native,
+ BuildPlatform_GLFW,
+};
+
 internal compilation_command
-Win32_OpenGL_Renderer_Compilation(arena *Arena, compiler_setup Setup)
+Renderer_Compilation(arena *Arena, compiler_setup Setup, build_platform Platform)
 {
  compilation_target Target = MakeTarget(Lib, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/win32/win32_editor_renderer_opengl.cpp")), 0);
  LinkLibrary(&Target, StrLit("User32.lib")); // RegisterClassA,...
@@ -28,41 +34,50 @@ Win32_OpenGL_Renderer_Compilation(arena *Arena, compiler_setup Setup)
 }
 
 internal compilation_command
-Win32_PlatformExe_Compilation(arena *Arena, compiler_setup Setup, compilation_command Editor, compilation_command Renderer)
+PlatformExe_Compilation(arena *Arena, compiler_setup Setup, compilation_command Editor, compilation_command Renderer,
+                        build_platform Platform)
 {
- compilation_target Target = MakeTarget(Exe, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/win32/win32_editor.cpp")), 0);
- LinkLibrary(&Target, StrLit("User32.lib")); // CreateWindowExA,...
- LinkLibrary(&Target, StrLit("Comdlg32.lib")); // GetOpenFileName,...
- LinkLibrary(&Target, StrLit("Shell32.lib")); // DragQueryFileA,...
+ operating_system OS = DetectOS();
+ string PlatformExePath = {};
+ switch (OS)
+ {
+  case OS_Win32: {
+   switch (Platform)
+   {
+    case BuildPlatform_Native: {
+     PlatformExePath = StrLit("../code/win32/win32_editor.cpp");
+    }break;
+    case BuildPlatform_GLFW: {
+     PlatformExePath = StrLit("../code/glfw/glfw_editor.cpp");
+    }break;
+   }
+  }break;
+  
+  case OS_Linux: {
+   AssertMsg(Platform == BuildPlatform_Native, "Only native platform supported on Linux");
+   PlatformExePath = StrLit("../code/x11/x11_editor.cpp");
+  }break;
+ }
+ 
+ compilation_target Target = MakeTarget(Exe, OS_ExecutableRelativeToFullPath(Arena, PlatformExePath), 0);
+ 
+ switch (OS)
+ {
+  case OS_Win32: {
+   LinkLibrary(&Target, StrLit("User32.lib")); // CreateWindowExA,...
+   LinkLibrary(&Target, StrLit("Comdlg32.lib")); // GetOpenFileName,...
+   LinkLibrary(&Target, StrLit("Shell32.lib")); // DragQueryFileA,...
+  }break;
+  
+  case OS_Linux: {
+   LinkLibrary(&Target, StrLit("pthread"));
+   LinkLibrary(&Target, StrLit("X11"));
+   LinkLibrary(&Target, StrLit("GL"));
+  }break;
+ }
+ 
  DefineMacro(&Target, StrLit("EDITOR_DLL"), Editor.OutputTarget);
  DefineMacro(&Target, StrLit("EDITOR_RENDERER_DLL"), Renderer.OutputTarget);
- 
- compilation_command PlatformExe = ComputeCompilationCommand(Setup, Target);
- return PlatformExe;
-}
-
-internal compilation_command
-X11_OpenGL_Renderer_Compilation(arena *Arena, compiler_setup Setup)
-{
-#if 0
- compilation_target Target = MakeTarget(Lib, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/x11/x11_editor_renderer_opengl.cpp")), 0);
- LinkLibrary(&Target, StrLit("User32.lib")); // RegisterClassA,...
- LinkLibrary(&Target, StrLit("Opengl32.lib")); // wgl,glEnable,...
- LinkLibrary(&Target, StrLit("Gdi32.lib")); // SwapBuffers,SetPixelFormat,...
- 
- compilation_command Renderer = ComputeCompilationCommand(Setup, Target);
- return Renderer;
-#endif
- return {};
-}
-
-internal compilation_command
-X11_PlatformExe_Compilation(arena *Arena, compiler_setup Setup)
-{
- compilation_target Target = MakeTarget(Exe, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/x11/x11_editor.cpp")), 0);
- LinkLibrary(&Target, StrLit("pthread"));
- LinkLibrary(&Target, StrLit("X11"));
- LinkLibrary(&Target, StrLit("GL"));
  
  compilation_command PlatformExe = ComputeCompilationCommand(Setup, Target);
  return PlatformExe;
@@ -96,15 +111,10 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
  }
  
  //- compile renderer into library and platform layer into executable
-#if OS_WINDOWS
- compilation_command Renderer = Win32_OpenGL_Renderer_Compilation(Temp.Arena, Setup);
- compilation_command PlatformExe = Win32_PlatformExe_Compilation(Temp.Arena, Setup, Editor, Renderer);
-#elif OS_LINUX
- compilation_command Renderer = X11_OpenGL_Renderer_Compilation(Temp.Arena, Setup);
- compilation_command PlatformExe = X11_PlatformExe_Compilation(Temp.Arena, Setup);
-#else
-# error compilation on this OS is not supported
-#endif
+ build_platform Platform = (DetectOS() == OS_Win32 ? BuildPlatform_Native : BuildPlatform_Native);
+ 
+ compilation_command Renderer = Renderer_Compilation(Temp.Arena, Setup, Platform);
+ compilation_command PlatformExe = PlatformExe_Compilation(Temp.Arena, Setup, Editor, Renderer, Platform);
  
  // NOTE(hbr): Start up renderer and Win32 compilation processes first because they don't depend on anything.
  // Do them in background when waiting for ThirdParty to compile. Editor on the other hand depends on ThirdParty

@@ -24,8 +24,9 @@
 
 IMGUI_INIT_FUNC()
 {
+ win32_imgui_init_data *Win32Init = Cast(win32_imgui_init_data *)Init;
  ImGui::CreateContext();
- ImGui_ImplWin32_Init(Init->Window);
+ ImGui_ImplWin32_Init(Win32Init->Window);
  ImGui_ImplOpenGL3_Init();
 }
 
@@ -45,7 +46,9 @@ IMGUI_RENDER_FUNC()
 IMGUI_MAYBE_CAPTURE_INPUT_FUNC()
 {
  imgui_maybe_capture_input_result Result = {};
- Result.CapturedInput = Cast(b32)ImGui_ImplWin32_WndProcHandler(Input->Window, Input->Msg, Input->wParam, Input->lParam);
+ win32_imgui_maybe_capture_input_data *Win32Input = Cast(win32_imgui_maybe_capture_input_data *)Input;
+ 
+ Result.CapturedInput = Cast(b32)ImGui_ImplWin32_WndProcHandler(Win32Input->Window, Win32Input->Msg, Win32Input->wParam, Win32Input->lParam);
  Result.ImGuiWantCaptureKeyboard = Cast(b32)ImGui::GetIO().WantCaptureKeyboard;
  Result.ImGuiWantCaptureMouse = Cast(b32)ImGui::GetIO().WantCaptureMouse;
  

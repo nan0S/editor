@@ -1,12 +1,3 @@
-#ifndef EDITOR_DLL
-# error EDITOR_DLL with path to editor DLL code is not defined
-#endif
-#ifndef EDITOR_RENDERER_DLL
-# error EDITOR_RENDERER_DLL with path to editor renderer DLL code is not defined
-#endif
-#define EDITOR_DLL_FILE_NAME ConvertNameToString(EDITOR_DLL)
-#define EDITOR_RENDERER_DLL_FILE_NAME ConvertNameToString(EDITOR_RENDERER_DLL)
-
 internal void
 Platform_MakeWorkQueues(work_queue *LowPriorityQueue, work_queue *HighPriorityQueue)
 {

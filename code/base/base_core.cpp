@@ -39,3 +39,15 @@ DateTimeToTimestamp(date_time Dt)
  
  return Ts;
 }
+
+inline internal operating_system
+DetectOS(void)
+{
+#if OS_WINDOWS
+ operating_system OS = OS_Win32;
+#endif
+#if OS_LINUX
+ operating_system OS = OS_Linux;
+#endif
+ return OS;
+}

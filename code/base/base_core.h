@@ -182,6 +182,7 @@ union mat4
 #define ArrayCount(Arr) (SizeOf(Arr)/SizeOf((Arr)[0]))
 #define AssertAlways(Expr) do { if (!(Expr)) { Trap; } } while (0)
 #define StaticAssert(Expr, Label) typedef int Static_Assert_Failed_##Label[(Expr) ? 1 : -1]
+#define AssertMsg(Expr, Msg) Assert(Expr)
 #define MarkUnused(Var) (void)Var
 #define Cast(Type) (Type)
 // this is done in this weird way because I cannot write multiple statements ended with expression
@@ -314,5 +315,13 @@ struct date_time
 };
 internal date_time   TimestampToDateTime(timestamp64 Ts);
 internal timestamp64 DateTimeToTimestamp(date_time Dt);
+
+//- misc
+enum operating_system
+{
+ OS_Win32,
+ OS_Linux,
+};
+internal operating_system DetectOS(void);
 
 #endif //BASE_CORE_H

@@ -3821,7 +3821,7 @@ RenderProfilerAllFramesUI(editor *Editor, platform_input *Input)
      
      UI_Colored(UI_Color_Item, Color)
      {
-      if (UI_Rect(Id))
+      if (UI_Rect(Id)) 
       {
        ProfilerInspectSingleFrame(Visual, FrameIndex);
       }

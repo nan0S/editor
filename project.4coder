@@ -26,6 +26,7 @@ paths =
  { .path = "code/base", .recursive = false,  .relative = true, },
  { .path = "code/win32", .recursive = false,  .relative = true, },
  { .path = "code/linux", .recursive = false,  .relative = true, },
+ { .path = "code/glfw", .recursive = false,  .relative = true, },
 };
 
 load_paths =

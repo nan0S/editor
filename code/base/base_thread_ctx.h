@@ -1,11 +1,12 @@
 #ifndef BASE_THREAD_CTX_H
 #define BASE_THREAD_CTX_H
 
-internal void ThreadCtxEquip(arena **Arenas, u32 ArenaCount);
-internal temp_arena ThreadCtxGetScratch(arena *Conflict);
+struct thread_ctx
+{
+ arena *Arenas[2];
+};
 
-#ifndef TempArena
-# define TempArena ThreadCtxGetScratch
-#endif
+internal void ThreadCtxInit(void);
+internal temp_arena ThreadCtxGetScratch(arena *Conflict);
 
 #endif //BASE_THREAD_CTX_H

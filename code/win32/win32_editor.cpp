@@ -1,14 +1,13 @@
 #include <windows.h>
 
-#include "base/base_ctx_crack.h"
 #include "base/base_core.h"
 #include "base/base_string.h"
 #include "base/base_os.h"
-#include "editor_profiler.h"
-#include "editor_memory.h"
+#include "base/base_arena.h"
 #include "base/base_thread_ctx.h"
 #include "base/base_hot_reload.h"
 
+#include "editor_profiler.h"
 #include "editor_imgui_bindings.h"
 #include "editor_platform.h"
 #include "editor_renderer.h"
@@ -21,10 +20,10 @@
 #include "base/base_core.cpp"
 #include "base/base_string.cpp"
 #include "base/base_os.cpp"
+#include "base/base_arena.cpp"
 #include "base/base_thread_ctx.cpp"
 #include "base/base_hot_reload.cpp"
 
-#include "editor_memory.cpp"
 #include "editor_work_queue.cpp"
 #include "editor_profiler.cpp"
 
@@ -61,6 +60,12 @@ internal void
 Win32DeallocMemory(void *Memory, u64 Size)
 {
  OS_Release(Memory, Size);
+}
+
+internal void
+Win32CommitMemory(void *Memory, u64 Size)
+{
+ OS_Commit(Memory, Size);
 }
 
 internal temp_arena
@@ -181,6 +186,7 @@ Win32ReadEntireFile(arena *Arena, string FilePath)
 platform_api Platform = {
  Win32AllocMemory,
  Win32DeallocMemory,
+ Win32CommitMemory,
  Win32GetScratchArena,
  Win32OpenFileDialog,
  Win32ReadEntireFile,
@@ -435,21 +441,13 @@ EntryPoint(void)
  b32 InitSuccess = false;
  
  OS_Init(ArgCount, Args);
- 
- arena *Arenas[2] = {};
- for (u32 ArenaIndex = 0;
-      ArenaIndex < ArrayCount(Arenas);
-      ++ArenaIndex)
- {
-  Arenas[ArenaIndex] = AllocArena();
- }
- ThreadCtxEquip(Arenas, ArrayCount(Arenas));
+ ThreadCtxInit();
  
  profiler *Profiler = Cast(profiler *)OS_Reserve(SizeOf(profiler), true);
  ProfilerInit(Profiler);
  ProfilerEquip(Profiler);
  
- arena *PermamentArena = AllocArena();
+ arena *PermamentArena = AllocArena(Gigabytes(64));
  
  //- key mappings
  {
@@ -557,7 +555,6 @@ EntryPoint(void)
    //- init renderer stuff
    renderer *Renderer = 0;
    HDC WindowDC = GetDC(Window);
-   arena *RendererArena = AllocArena();
    
    renderer_memory RendererMemory = Platform_MakeRendererMemory(PermamentArena, Profiler);
    
@@ -595,7 +592,7 @@ EntryPoint(void)
    
    platform_input Input = {};
    GlobalInput = &Input;
-   InputArena = AllocArena();
+   InputArena = AllocArena(Gigabytes(1));
    
    //- main loop
    b32 Running = true;
@@ -609,6 +606,7 @@ EntryPoint(void)
     //- hot reload
     b32 EditorCodeReloaded = false;
     b32 RendererCodeReloaded = false;
+    ProfileBlock("Hot Reload")
     {
      win32_hot_reload_task EditorHotReload = {};
      win32_hot_reload_task RendererHotReload = {};
@@ -639,7 +637,7 @@ EntryPoint(void)
     
     if (!Renderer && RendererCode.IsValid)
     {
-     Renderer = RendererFunctions.Init(RendererArena, &RendererMemory, Window, WindowDC);
+     Renderer = RendererFunctions.Init(PermamentArena, &RendererMemory, Window, WindowDC);
     }
     
     if (EditorCodeReloaded && EditorCode.IsValid)
@@ -655,6 +653,7 @@ EntryPoint(void)
     
     //- process input events
     v2u WindowDim = {};
+    ProfileBlock("Profile Input Events")
     {
      GlobalWin32Input = {};
      Input = {};

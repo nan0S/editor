@@ -2,13 +2,10 @@
 
 #include "base/base_core.cpp"
 #include "base/base_string.cpp"
-
-// TODO(hbr): remove dependecey on the os
-#include "base/base_os.h"
 #include "base/base_os.cpp"
+#include "base/base_arena.cpp"
 
 #include "editor_profiler.cpp"
-#include "editor_memory.cpp"
 #include "editor_math.cpp"
 #include "editor_renderer.cpp"
 #include "editor_parametric_equation.cpp"
@@ -907,7 +904,7 @@ BeginTaskWithMemory(editor *Editor)
    Task->Allocated = true;
    if (!Task->Arena)
    {
-    Task->Arena = AllocArena();
+    Task->Arena = AllocArena(Megabytes(1));
    }
    Result = Task;
    break;
@@ -978,7 +975,7 @@ AllocateAsyncTask(editor *Editor)
    Task->Active = true;
    if (!Task->Arena)
    {
-    Task->Arena = AllocArena();
+    Task->Arena = AllocArena(Megabytes(1));
    }
    Task->State = Image_Loading;
    break;
@@ -1210,7 +1207,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->FrameStats.Calculation.MinFrameTime = +F32_INF;
  Editor->FrameStats.Calculation.MaxFrameTime = -F32_INF;
  
- Editor->MovingPointArena = AllocArena();
+ Editor->MovingPointArena = AllocArena(Megabytes(32));
  
  for (u32 EntityIndex = 0;
       EntityIndex < MAX_ENTITY_COUNT;
@@ -1225,7 +1222,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->DiagnosticsWindow = true;
  Editor->SelectedEntityWindow = true;
  
- Editor->LeftClick.OriginalVerticesArena = AllocArena();
+ Editor->LeftClick.OriginalVerticesArena = AllocArena(Megabytes(128));
  
  AllocEntityResources(&Editor->MergingCurves.MergeEntity);
  
@@ -1306,17 +1303,17 @@ InitEditor(editor *Editor, editor_memory *Memory)
       ++TaskIndex)
  {
   task_with_memory *Task = Editor->Tasks + TaskIndex;
-  Task->Arena = AllocArena();
+  Task->Arena = AllocArena(Megabytes(1));
  }
  for (u32 TaskIndex = 0;
       TaskIndex < Min(MAX_TASK_COUNT, 4);
       ++TaskIndex)
  {
   async_task *Task = Editor->AsyncTasks + TaskIndex;
-  Task->Arena = AllocArena();
+  Task->Arena = AllocArena(Megabytes(1));
  }
  
- Editor->AnimatingCurves.Arena = AllocArena();
+ Editor->AnimatingCurves.Arena = AllocArena(Megabytes(32));
  
  Editor->ProfilerWindow = true;
  Editor->Profiler.ReferenceMs = 2.0f;

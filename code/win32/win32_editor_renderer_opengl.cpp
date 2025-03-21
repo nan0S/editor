@@ -1,13 +1,12 @@
 #include <windows.h>
 #include <gl/gl.h>
 
-#include "base/base_ctx_crack.h"
 #include "base/base_core.h"
+#include "base/base_arena.h"
 #include "base/base_string.h"
 #include "base/base_os.h"
 
 #include "editor_profiler.h"
-#include "editor_memory.h"
 #include "editor_math.h"
 #include "editor_imgui_bindings.h"
 #include "editor_platform.h"
@@ -19,11 +18,11 @@
 #include "editor_renderer_opengl.h"
 
 #include "base/base_core.cpp"
+#include "base/base_arena.cpp"
 #include "base/base_string.cpp"
 #include "base/base_os.cpp"
 
 #include "editor_profiler.cpp"
-#include "editor_memory.cpp"
 #include "editor_math.cpp"
 
 global b32 GlobalRendererCodeReloaded;
@@ -90,6 +89,8 @@ Win32SetPixelFormat(win32_opengl_renderer *Win32OpenGL, HDC WindowDC)
 internal opengl *
 Win32OpenGLInit(arena *Arena, renderer_memory *Memory, HWND Window, HDC WindowDC)
 {
+ ProfileFunctionBegin();
+ 
  Platform = Memory->PlatformAPI;
  
  opengl *OpenGL = PushStruct(Arena, opengl);
@@ -228,6 +229,8 @@ Win32OpenGLInit(arena *Arena, renderer_memory *Memory, HWND Window, HDC WindowDC
   
   OpenGLInit(OpenGL, Arena, Memory);
  }
+ 
+ ProfileEnd();
  
  return OpenGL;
 }

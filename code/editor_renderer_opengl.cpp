@@ -836,6 +836,8 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
 internal render_frame *
 OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
 {
+ ProfileFunctionBegin();
+ 
  if (GlobalRendererCodeReloaded)
  {
   //- fix error handling function pointer
@@ -876,6 +878,8 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
  RenderFrame->WindowDim = WindowDim;
  
  Memory->ImGuiBindings.NewFrame();
+ 
+ ProfileEnd();
  
  return RenderFrame;
 }
@@ -936,6 +940,8 @@ OpenGLManageTransferQueue(opengl *OpenGL, renderer_transfer_queue *Queue)
 internal void
 OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
 {
+ ProfileFunctionBegin();
+ 
  renderer_transfer_queue *Queue = &Memory->RendererQueue;
  GLuint *Textures = OpenGL->Textures;
  mat3 Projection = Frame->Proj;
@@ -1086,4 +1092,6 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
  }
  
  Memory->ImGuiBindings.Render();
+ 
+ ProfileEnd();
 }

@@ -1,4 +1,3 @@
-#include "base/base_ctx_crack.h"
 #include "base/base_core.h"
 #include "base/base_arena.h"
 #include "base/base_string.h"
@@ -139,18 +138,9 @@ int main(int ArgCount, char *Args[])
  u64 BeginTSC = OS_ReadCPUTimer();
  int ExitCode = 0;
  
- arena *Arenas[2] = {};
- for (u32 ArenaIndex = 0;
-      ArenaIndex < ArrayCount(Arenas);
-      ++ArenaIndex)
- {
-  Arenas[ArenaIndex] = AllocArena(Gigabytes(64));
- }
- ThreadCtxEquip(Arenas, ArrayCount(Arenas));
- 
+ ThreadCtxInit();
  OS_Init(ArgCount, Args);
- 
- arena *Arena = Arenas[0];
+ arena *Arena = TempArena(0).Arena;
  EquipBuild(Arena);
  
  recompilation_result Recompilation = RecompileYourselfIfNecessary(ArgCount, Args);

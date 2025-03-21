@@ -12,7 +12,6 @@
 #include "third_party/imgui/imgui_widgets.cpp"
 
 //- editor imgui bindings
-#include "base/base_ctx_crack.h"
 #include "base/base_core.h"
 #include "editor_imgui_bindings.h"
 

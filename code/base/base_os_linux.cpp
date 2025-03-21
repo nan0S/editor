@@ -51,12 +51,12 @@ internal u64
 OS_FileOperation(linux_file_op_func *Op, os_file_handle File, char *Buf, u64 Target, u64 Offset)
 {
  u64 Processed = 0;
-
+ 
  if (Offset != U64_MAX)
  {
   lseek(File, Offset, SEEK_SET);
  }
-
+ 
  u64 Left = Target;
  char *At = Buf;
  u64 OffsetAt = Offset;
@@ -64,17 +64,17 @@ OS_FileOperation(linux_file_op_func *Op, os_file_handle File, char *Buf, u64 Tar
  {
   u32 ToProcess = Left;
   ssize_t ActuallyProcessed = Op(File, At, ToProcess);
-
+  
   if (ActuallyProcessed > 0)
   { 
-    Left -= ActuallyProcessed;
-    At += ActuallyProcessed;
-    OffsetAt += ActuallyProcessed;
-    Processed += ActuallyProcessed;
+   Left -= ActuallyProcessed;
+   At += ActuallyProcessed;
+   OffsetAt += ActuallyProcessed;
+   Processed += ActuallyProcessed;
   }
   else
   {
-    break;
+   break;
   }
   
   if (ActuallyProcessed != ToProcess)
@@ -96,8 +96,8 @@ OS_FileRead(os_file_handle File, char *Buf, u64 Read, u64 Offset)
 internal u64
 OS_FileWrite(os_file_handle File, char *Buf, u64 Write, u64 Offset)
 {
-  u64 Written = OS_FileOperation(Cast(linux_file_op_func *)write, File, Buf, Write, Offset);
-  return Written;
+ u64 Written = OS_FileOperation(Cast(linux_file_op_func *)write, File, Buf, Write, Offset);
+ return Written;
 }
 
 internal u64
@@ -123,10 +123,10 @@ LinuxFileTimeToTimestamp(time_t FileTime)
   Date.Day = SafeCastU8(Time->tm_mday - 1);
   Date.Month = SafeCastU8(Time->tm_mon);
   Date.Year = 1900 + Time->tm_year;
-
+  
   Result = DateTimeToTimestamp(Date);
  }
-
+ 
  return Result;
 }
 
@@ -136,17 +136,17 @@ OS_FileAttributes(string Path)
  file_attrs Result = {};
  temp_arena Temp = TempArena(0);
  string CPath = CStrFromStr(Temp.Arena, Path);
-
+ 
  struct stat Stat = {};
  stat(CPath.Data, &Stat);
-
+ 
  Result.CreateTime = 0; // NOTE(hbr): creation time on Linux is not available
  Result.ModifyTime = LinuxFileTimeToTimestamp(Stat.st_mtime);
  Result.FileSize = Stat.st_size;
  Result.Dir = false;
-
+ 
  EndTemp(Temp);
-
+ 
  return Result;
 }
 
@@ -198,10 +198,10 @@ OS_FileCopy(string Src, string Dst)
  
  int Ret = sendfile(DstFile, SrcFile, 0, SrcFileSize);
  b32 Success = (Ret == 0);
-
+ 
  OS_FileClose(DstFile);
  OS_FileClose(SrcFile);
-
+ 
  return Success;
 }
 
@@ -254,7 +254,7 @@ OS_CurrentDir(arena *Arena)
 {
  string Result = {};
  temp_arena Temp = BeginTemp(Arena);
-
+ 
  u32 Count = PATH_MAX;
  b32 Extracting = true;
  do
@@ -279,7 +279,7 @@ OS_CurrentDir(arena *Arena)
    Extracting = false;
   }
  } while (Extracting);
-
+ 
  return Result;
 }
 
@@ -328,11 +328,11 @@ OS_ProcessLaunch(string_list CmdList)
 {
  os_process_handle Result = 0;
  temp_arena Temp = TempArena(0);
-
+ 
  if (CmdList.NodeCount > 0)
  {
   string ExePath = CStrFromStr(Temp.Arena, CmdList.Head->Str);
-
+  
   char **Argv = PushArray(Temp.Arena, CmdList.NodeCount + 1, char *);
   string_list_node *Node = CmdList.Head;
   for (u32 ArgIndex = 0;
@@ -344,7 +344,7 @@ OS_ProcessLaunch(string_list CmdList)
    Argv[ArgIndex] = CArg.Data;
    Node = Node->Next;
   }
-
+  
   pid_t Pid = fork();
   if (Pid >= 0)
   {
@@ -363,9 +363,9 @@ OS_ProcessLaunch(string_list CmdList)
    }
   }
  }
-
+ 
  EndTemp(Temp);
-
+ 
  return Result;
 }
 
@@ -536,8 +536,8 @@ OS_ReadCPUTimer(void)
 internal inline u64
 OS_CPUTimerFreq(void)
 {
- local u64 TSCFreq = 0;
- if (!TSCFreq)
+ local u64 TSC_Freq = 0;
+ if (!TSC_Freq)
  {
   //- Fast path: Load kernel-mapped memory page
   struct perf_event_attr PE = {0};
@@ -561,7 +561,7 @@ OS_CPUTimerFreq(void)
      // docs say nanoseconds = (tsc * time_mult) >> time_shift
      //      set nanoseconds = 1000000000 = 1 second in nanoseconds, solve for tsc
      //       =>         tsc = 1000000000 / (time_mult >> time_shift)
-     TSCFreq = (1000000000ull << (Page->time_shift / 2)) / (Page->time_mult >> (Page->time_shift - Page->time_shift / 2));
+     TSC_Freq = (1000000000ull << (Page->time_shift / 2)) / (Page->time_mult >> (Page->time_shift - Page->time_shift / 2));
      // If your build configuration supports 128 bit arithmetic, do this:
      // tsc_freq = ((__uint128_t)1000000000ull << (__uint128_t)pc->time_shift) / pc->time_mult;
     }
@@ -571,33 +571,33 @@ OS_CPUTimerFreq(void)
   }
   
   //- Slow path
-  if (!TSCFreq)
+  if (!TSC_Freq)
   {
    u64 OSFreq = OS_OSTimerFreq();
    u64 WaitMilliseconds = 10;
    u64 OSTargetDuration = OSFreq * WaitMilliseconds / 1000;
-
+   
    u64 OSEnd = 0, OSElapsed = 0;
    u64 OSBegin = OS_ReadOSTimer();
    u64 OSTargetEnd = OSBegin + OSTargetDuration;
    u64 TSCBegin = OS_ReadCPUTimer();
-
+   
    do {
     OSEnd = OS_ReadOSTimer();
    } while (OSEnd < OSTargetEnd);   
    u64 TSCEnd = OS_ReadCPUTimer();
-
-   TSCFreq = (TSCEnd - TSCBegin) * OSFreq / (OSEnd - OSBegin);
+   
+   TSC_Freq = (TSCEnd - TSCBegin) * OSFreq / (OSEnd - OSBegin);
   }
   
   //- Failure case
-  if (!TSCFreq)
+  if (!TSC_Freq)
   {
-   TSCFreq = 1000000000;
+   TSC_Freq = 1000000000;
   }
  }
-
- return TSCFreq;
+ 
+ return TSC_Fre;
 }
 
 internal inline u64

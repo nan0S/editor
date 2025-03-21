@@ -181,6 +181,9 @@ typedef PLATFORM_ALLOC_VIRTUAL_MEMORY(platform_alloc_virtual_memory);
 #define PLATFORM_DEALLOC_VIRTUAL_MEMORY(Name) void Name(void *Memory, u64 Size)
 typedef PLATFORM_DEALLOC_VIRTUAL_MEMORY(platform_dealloc_virtual_memory);
 
+#define PLATFORM_COMMIT_VIRTUAL_MEMORY(Name) void Name(void *Memory, u64 Size)
+typedef PLATFORM_COMMIT_VIRTUAL_MEMORY(platform_commit_virtual_memory);
+
 #define PLATFORM_GET_SCRATCH_ARENA(Name) temp_arena Name(arena *Conflict)
 typedef PLATFORM_GET_SCRATCH_ARENA(platform_get_scratch_arena);
 
@@ -201,6 +204,8 @@ struct platform_api
 {
  platform_alloc_virtual_memory *AllocVirtualMemory;
  platform_dealloc_virtual_memory *DeallocVirtualMemory;
+ platform_commit_virtual_memory *CommitVirtualMemory;
+ 
  platform_get_scratch_arena *GetScratchArena;
  
  platform_open_file_dialog *OpenFileDialog;
@@ -211,6 +216,10 @@ struct platform_api
  platform_work_queue_complete_all_work *WorkQueueCompleteAllWork;
 };
 extern platform_api Platform;
+#define TempArena Platform.GetScratchArena
+#define AllocVirtualMemory Platform.AllocVirtualMemory
+#define DeallocVirtualMemory Platform.DeallocVirtualMemory
+#define CommitVirtualMemory Platform.CommitVirtualMemory
 
 struct editor_memory
 {

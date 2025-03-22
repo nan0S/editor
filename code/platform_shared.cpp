@@ -1,3 +1,13 @@
+#include "base/base_core.cpp"
+#include "base/base_string.cpp"
+#include "base/base_os.cpp"
+#include "base/base_arena.cpp"
+#include "base/base_thread_ctx.cpp"
+#include "base/base_hot_reload.cpp"
+
+#include "editor_work_queue.cpp"
+#include "editor_profiler.cpp"
+
 internal void
 Platform_MakeWorkQueues(work_queue *LowPriorityQueue, work_queue *HighPriorityQueue)
 {

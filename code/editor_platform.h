@@ -221,22 +221,28 @@ extern platform_api Platform;
 #define DeallocVirtualMemory Platform.DeallocVirtualMemory
 #define CommitVirtualMemory Platform.CommitVirtualMemory
 
+struct arena;
+struct editor;
+struct renderer_transfer_queue;
+struct work_queue;
+struct profiler;
+
 struct editor_memory
 {
- struct arena *PermamentArena;
+ arena *PermamentArena;
  
- struct editor *Editor;
+ editor *Editor;
  
  u32 MaxTextureCount;
  u32 MaxBufferCount;
- struct renderer_transfer_queue *RendererQueue;
+ renderer_transfer_queue *RendererQueue;
  
  platform_api PlatformAPI;
  
- struct work_queue *LowPriorityQueue;
- struct work_queue *HighPriorityQueue;
+ work_queue *LowPriorityQueue;
+ work_queue *HighPriorityQueue;
  
- struct profiler *Profiler;
+ profiler *Profiler;
 };
 
 #define EDITOR_UPDATE_AND_RENDER(Name) void Name(editor_memory *Memory, platform_input *Input, struct render_frame *Frame)

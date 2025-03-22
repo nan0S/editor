@@ -1,6 +1,19 @@
 #ifndef PLATFORM_SHARED_H
 #define PLATFORM_SHARED_H
 
+#include "base/base_core.h"
+#include "base/base_string.h"
+#include "base/base_os.h"
+#include "base/base_arena.h"
+#include "base/base_thread_ctx.h"
+#include "base/base_hot_reload.h"
+
+#include "editor_imgui_bindings.h"
+#include "editor_platform.h"
+#include "editor_work_queue.h"
+#include "editor_renderer.h"
+#include "editor_profiler.h"
+
 #ifndef EDITOR_DLL
 # error EDITOR_DLL with path to editor DLL code is not defined
 #endif
@@ -9,5 +22,30 @@
 #endif
 #define EDITOR_DLL_FILE_NAME ConvertNameToString(EDITOR_DLL)
 #define EDITOR_RENDERER_DLL_FILE_NAME ConvertNameToString(EDITOR_RENDERER_DLL)
+
+IMGUI_INIT(Platform_ImGuiInitStub) {}
+IMGUI_NEW_FRAME(Platform_ImGuiNewFrameStub) {}
+IMGUI_RENDER(Platform_ImGuiRenderStub) {}
+IMGUI_MAYBE_CAPTURE_INPUT(Platform_ImGuiMaybeCaptureInputStub) { return {}; }
+
+global imgui_bindings GlobalImGuiBindings = {
+ Platform_ImGuiInitStub,
+ Platform_ImGuiNewFrameStub,
+ Platform_ImGuiRenderStub,
+ Platform_ImGuiMaybeCaptureInputStub,
+};
+
+internal platform_file_dialog_result OpenFileDialogStub(arena *Arena) {return {};}
+
+platform_api Platform = {
+ OS_Reserve,
+ OS_Release,
+ OS_Commit,
+ ThreadCtxGetScratch,
+ OpenFileDialogStub,
+ OS_ReadEntireFile,
+ WorkQueueAddEntry,
+ WorkQueueCompleteAllWork,
+};
 
 #endif //PLATFORM_SHARED_H

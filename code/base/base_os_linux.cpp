@@ -59,7 +59,6 @@ OS_FileOperation(linux_file_op_func *Op, os_file_handle File, char *Buf, u64 Tar
  
  u64 Left = Target;
  char *At = Buf;
- u64 OffsetAt = Offset;
  while (Left)
  {
   u32 ToProcess = Left;
@@ -69,7 +68,6 @@ OS_FileOperation(linux_file_op_func *Op, os_file_handle File, char *Buf, u64 Tar
   { 
    Left -= ActuallyProcessed;
    At += ActuallyProcessed;
-   OffsetAt += ActuallyProcessed;
    Processed += ActuallyProcessed;
   }
   else

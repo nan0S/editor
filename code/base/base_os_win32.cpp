@@ -153,29 +153,31 @@ OS_FileOperation(win32_file_op_func *Op, os_file_handle File, char *Buf, u64 Tar
 {
  u64 Processed = 0;
  
+ OVERLAPPED Overlapped_ = {};
+ Overlapped_.Offset = Cast(u32)(Offset >> 0);
+ Overlapped_.OffsetHigh = Cast(u32)(Offset >> 32);
+ 
+ OVERLAPPED *Overlapped = (Offset == U64_MAX ? 0 : &Overlapped_);
+ 
  u64 Left = Target;
  char *At = Buf;
- u64 OffsetAt = Offset;
  while (Left)
  {
   u32 ToProcess = SafeCastU32(ClampTop(Left, U32_MAX));
   
-  OVERLAPPED Overlapped = {};
-  Overlapped.Offset = Cast(u32)OffsetAt;
-  Overlapped.OffsetHigh = OffsetAt >> 32;
-  
   DWORD ActuallyProcessed = 0;
-  Op(File, At, ToProcess, &ActuallyProcessed, &Overlapped);
+  Op(File, At, ToProcess, &ActuallyProcessed, Overlapped);
   
   Left -= ActuallyProcessed;
   At += ActuallyProcessed;
-  OffsetAt += ActuallyProcessed;
   Processed += ActuallyProcessed;
   
   if (ActuallyProcessed != ToProcess)
   {
    break;
   }
+  
+  Overlapped = 0;
  }
  
  return Processed;

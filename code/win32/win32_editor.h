@@ -14,4 +14,12 @@ struct win32_hot_reload_task
  b32 CodeReloaded;
 };
 
+struct win32_state
+{
+ win32_platform_input Win32Input;
+ arena *InputArena;
+#define WIN32_KEY_COUNT 0xFF
+ platform_key Win32ToPlatformKeyTable[WIN32_KEY_COUNT];
+};
+
 #endif //WIN32_EDITOR_H

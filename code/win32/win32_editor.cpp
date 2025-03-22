@@ -1,79 +1,14 @@
 #include <windows.h>
 
-#include "base/base_core.h"
-#include "base/base_string.h"
-#include "base/base_os.h"
-#include "base/base_arena.h"
-#include "base/base_thread_ctx.h"
-#include "base/base_hot_reload.h"
-
-#include "editor_profiler.h"
-#include "editor_imgui_bindings.h"
-#include "editor_platform.h"
-#include "editor_renderer.h"
-#include "editor_work_queue.h"
+#include "platform_shared.h"
 
 #include "win32/win32_editor.h"
 #include "win32/win32_editor_renderer.h"
 #include "win32/win32_editor_imgui_bindings.h"
 
-#include "base/base_core.cpp"
-#include "base/base_string.cpp"
-#include "base/base_os.cpp"
-#include "base/base_arena.cpp"
-#include "base/base_thread_ctx.cpp"
-#include "base/base_hot_reload.cpp"
-
-#include "editor_work_queue.cpp"
-#include "editor_profiler.cpp"
-
-#include "platform_shared.h"
 #include "platform_shared.cpp"
 
-global win32_platform_input GlobalWin32Input;
-global platform_input *GlobalInput;
-global arena *InputArena;
-
-#define WIN32_KEY_COUNT 0xFF
-global platform_key Win32KeyTable[WIN32_KEY_COUNT];
-
-IMGUI_INIT(Win32ImGuiInitStub) {}
-IMGUI_NEW_FRAME(Win32ImGuiNewFrameStub) {}
-IMGUI_RENDER(Win32ImGuiRenderStub) {}
-IMGUI_MAYBE_CAPTURE_INPUT(Win32ImGuiMaybeCaptureInputStub) { return {}; }
-
-global imgui_bindings GlobalImGuiBindings = {
- Win32ImGuiInitStub,
- Win32ImGuiNewFrameStub,
- Win32ImGuiRenderStub,
- Win32ImGuiMaybeCaptureInputStub,
-};
-
-internal void *
-Win32AllocMemory(u64 Size, b32 Commit)
-{
- void *Memory = OS_Reserve(Size, Commit);
- return Memory;
-}
-
-internal void
-Win32DeallocMemory(void *Memory, u64 Size)
-{
- OS_Release(Memory, Size);
-}
-
-internal void
-Win32CommitMemory(void *Memory, u64 Size)
-{
- OS_Commit(Memory, Size);
-}
-
-internal temp_arena
-Win32GetScratchArena(arena *Conflict)
-{
- temp_arena Result = ThreadCtxGetScratch(Conflict);
- return Result;
-}
+global win32_state GlobalWin32State;
 
 internal platform_file_dialog_result
 Win32OpenFileDialog(arena *Arena)
@@ -136,64 +71,6 @@ Win32OpenFileDialog(arena *Arena)
  return Result;
 }
 
-internal string
-Win32ReadEntireFile(arena *Arena, string FilePath)
-{
- // TODO(hbr): probably just use OS_ReadEntireFile
- temp_arena Temp = TempArena(Arena);
- 
- string CFilePath = CStrFromStr(Temp.Arena, FilePath);
- 
- DWORD DesiredAccess = GENERIC_READ;
- DWORD CreationDisposition = OPEN_EXISTING;
- HANDLE File = CreateFileA(CFilePath.Data, DesiredAccess, FILE_SHARE_READ, 0,
-                           CreationDisposition, FILE_ATTRIBUTE_NORMAL, 0);
- 
- u64 FileSize = 0;
- {
-  LARGE_INTEGER Win32FileSize = {};
-  if (GetFileSizeEx(File, &Win32FileSize))
-  {
-   FileSize = Win32FileSize.QuadPart;
-  }
- }
- 
- char *Buffer = PushArrayNonZero(Arena, FileSize, char);
- 
- char *At = Buffer;
- u64 Left = FileSize;
- while (Left > 0)
- {
-  DWORD ToRead = Cast(DWORD)Min(U32_MAX, Left);
-  DWORD Read = 0;
-  ReadFile(File, Buffer, ToRead, &Read, 0);
-  
-  Left -= Read;
-  At += Read;
-  
-  if (Read != ToRead)
-  {
-   break;
-  }
- }
- string Result = MakeStr(Buffer, FileSize - Left);
- 
- EndTemp(Temp);
- 
- return Result;
-}
-
-platform_api Platform = {
- Win32AllocMemory,
- Win32DeallocMemory,
- Win32CommitMemory,
- Win32GetScratchArena,
- Win32OpenFileDialog,
- Win32ReadEntireFile,
- WorkQueueAddEntry,
- WorkQueueCompleteAllWork,
-};
-
 internal platform_event_flags
 Win32GetEventFlags(void)
 {
@@ -217,10 +94,12 @@ Win32GetEventFlags(void)
 internal platform_event *
 Win32PushPlatformEvent(platform_event_type Type)
 {
+ win32_state *State = &GlobalWin32State;
  platform_event *Result = 0;
- if (GlobalWin32Input.EventCount < WIN32_MAX_EVENT_COUNT)
+ 
+ if (State->Win32Input.EventCount < WIN32_MAX_EVENT_COUNT)
  {
-  Result = GlobalWin32Input.Events + GlobalWin32Input.EventCount++;
+  Result = State->Win32Input.Events + State->Win32Input.EventCount++;
   Result->Type = Type;
   Result->Flags = Win32GetEventFlags();
  }
@@ -346,7 +225,7 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
      if (WasDown != IsDown)
      {
       b32 Pressed = (Msg == WM_KEYDOWN);
-      platform_key Key = Win32KeyTable[wParam];
+      platform_key Key = GlobalWin32State.Win32ToPlatformKeyTable[wParam];
       platform_event *Event = Win32PushPlatformEvent(Pressed ? PlatformEvent_Press : PlatformEvent_Release);
       if (Event)
       {
@@ -393,13 +272,13 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
      
      // NOTE(hbr): 0xFFFFFFFF queries file count
      UINT FileCount = DragQueryFileA(DropHandle, 0xFFFFFFFF, 0, 0);
-     string *Files = PushArray(InputArena, FileCount, string);
+     string *Files = PushArray(GlobalWin32State.InputArena, FileCount, string);
      for (UINT FileIndex = 0;
           FileIndex < FileCount;
           ++FileIndex)
      {
       UINT RequiredCount = DragQueryFileA(DropHandle, FileIndex, 0, 0);
-      string File = PushString(InputArena, RequiredCount + 1);
+      string File = PushString(GlobalWin32State.InputArena, RequiredCount + 1);
       UINT CopiedCount = DragQueryFileA(DropHandle, FileIndex, File.Data, Cast(UINT)File.Count);
       Assert(RequiredCount == CopiedCount);
       Files[FileIndex] = File;
@@ -449,61 +328,67 @@ EntryPoint(void)
  
  arena *PermamentArena = AllocArena(Gigabytes(64));
  
+ Platform.OpenFileDialog = Win32OpenFileDialog;
+ 
  //- key mappings
  {
-  Win32KeyTable[VK_F1] = PlatformKey_F1;
-  Win32KeyTable[VK_F2] = PlatformKey_F2;
-  Win32KeyTable[VK_F3] = PlatformKey_F3;
-  Win32KeyTable[VK_F4] = PlatformKey_F4;
-  Win32KeyTable[VK_F5] = PlatformKey_F5;
-  Win32KeyTable[VK_F6] = PlatformKey_F6;
-  Win32KeyTable[VK_F7] = PlatformKey_F7;
-  Win32KeyTable[VK_F8] = PlatformKey_F8;
-  Win32KeyTable[VK_F9] = PlatformKey_F9;
-  Win32KeyTable[VK_F10] = PlatformKey_F10;
-  Win32KeyTable[VK_F11] = PlatformKey_F11;
-  Win32KeyTable[VK_F12] = PlatformKey_F12;
+  platform_key *Table = GlobalWin32State.Win32ToPlatformKeyTable;
   
-  Win32KeyTable['A'] = PlatformKey_A;
-  Win32KeyTable['B'] = PlatformKey_B;
-  Win32KeyTable['C'] = PlatformKey_C;
-  Win32KeyTable['D'] = PlatformKey_D;
-  Win32KeyTable['E'] = PlatformKey_E;
-  Win32KeyTable['F'] = PlatformKey_F;
-  Win32KeyTable['G'] = PlatformKey_G;
-  Win32KeyTable['H'] = PlatformKey_H;
-  Win32KeyTable['I'] = PlatformKey_I;
-  Win32KeyTable['J'] = PlatformKey_J;
-  Win32KeyTable['K'] = PlatformKey_K;
-  Win32KeyTable['L'] = PlatformKey_L;
-  Win32KeyTable['M'] = PlatformKey_M;
-  Win32KeyTable['N'] = PlatformKey_N;
-  Win32KeyTable['O'] = PlatformKey_O;
-  Win32KeyTable['P'] = PlatformKey_P;
-  Win32KeyTable['Q'] = PlatformKey_Q;
-  Win32KeyTable['R'] = PlatformKey_R;
-  Win32KeyTable['S'] = PlatformKey_S;
-  Win32KeyTable['T'] = PlatformKey_T;
-  Win32KeyTable['U'] = PlatformKey_U;
-  Win32KeyTable['V'] = PlatformKey_V;
-  Win32KeyTable['W'] = PlatformKey_W;
-  Win32KeyTable['X'] = PlatformKey_X;
-  Win32KeyTable['Y'] = PlatformKey_Y;
-  Win32KeyTable['Z'] = PlatformKey_Z;
+  Table[VK_F1] = PlatformKey_F1;
+  Table[VK_F2] = PlatformKey_F2;
+  Table[VK_F3] = PlatformKey_F3;
+  Table[VK_F4] = PlatformKey_F4;
+  Table[VK_F5] = PlatformKey_F5;
+  Table[VK_F6] = PlatformKey_F6;
+  Table[VK_F7] = PlatformKey_F7;
+  Table[VK_F8] = PlatformKey_F8;
+  Table[VK_F9] = PlatformKey_F9;
+  Table[VK_F10] = PlatformKey_F10;
+  Table[VK_F11] = PlatformKey_F11;
+  Table[VK_F12] = PlatformKey_F12;
   
-  Win32KeyTable[VK_ESCAPE] = PlatformKey_Escape;
+  Table['A'] = PlatformKey_A;
+  Table['B'] = PlatformKey_B;
+  Table['C'] = PlatformKey_C;
+  Table['D'] = PlatformKey_D;
+  Table['E'] = PlatformKey_E;
+  Table['F'] = PlatformKey_F;
+  Table['G'] = PlatformKey_G;
+  Table['H'] = PlatformKey_H;
+  Table['I'] = PlatformKey_I;
+  Table['J'] = PlatformKey_J;
+  Table['K'] = PlatformKey_K;
+  Table['L'] = PlatformKey_L;
+  Table['M'] = PlatformKey_M;
+  Table['N'] = PlatformKey_N;
+  Table['O'] = PlatformKey_O;
+  Table['P'] = PlatformKey_P;
+  Table['Q'] = PlatformKey_Q;
+  Table['R'] = PlatformKey_R;
+  Table['S'] = PlatformKey_S;
+  Table['T'] = PlatformKey_T;
+  Table['U'] = PlatformKey_U;
+  Table['V'] = PlatformKey_V;
+  Table['W'] = PlatformKey_W;
+  Table['X'] = PlatformKey_X;
+  Table['Y'] = PlatformKey_Y;
+  Table['Z'] = PlatformKey_Z;
   
-  Win32KeyTable[VK_SHIFT] = PlatformKey_Shift;
-  Win32KeyTable[VK_CONTROL] = PlatformKey_Ctrl;
-  Win32KeyTable[VK_MENU] = PlatformKey_Alt;
-  Win32KeyTable[VK_SPACE] = PlatformKey_Space;
-  Win32KeyTable[VK_TAB] = PlatformKey_Tab;
-  Win32KeyTable[VK_DELETE] = PlatformKey_Delete;
+  Table[VK_ESCAPE] = PlatformKey_Escape;
   
-  Win32KeyTable[VK_LBUTTON] = PlatformKey_LeftMouseButton;
-  Win32KeyTable[VK_RBUTTON] = PlatformKey_RightMouseButton;
-  Win32KeyTable[VK_MBUTTON] = PlatformKey_MiddleMouseButton;
+  Table[VK_SHIFT] = PlatformKey_Shift;
+  Table[VK_CONTROL] = PlatformKey_Ctrl;
+  Table[VK_MENU] = PlatformKey_Alt;
+  Table[VK_SPACE] = PlatformKey_Space;
+  Table[VK_TAB] = PlatformKey_Tab;
+  Table[VK_DELETE] = PlatformKey_Delete;
+  
+  Table[VK_LBUTTON] = PlatformKey_LeftMouseButton;
+  Table[VK_RBUTTON] = PlatformKey_RightMouseButton;
+  Table[VK_MBUTTON] = PlatformKey_MiddleMouseButton;
  }
+ 
+ GlobalWin32State.InputArena = AllocArena(Gigabytes(1));
  
  //- create window
  WNDCLASSEXA WindowClass = {};
@@ -587,22 +472,23 @@ EntryPoint(void)
                                                           &LowPriorityQueue, &HighPriorityQueue,
                                                           Platform, Profiler);
    
+   
+   //- misc
    u64 LastTSC = OS_ReadCPUTimer();
    u64 CPU_TimerFreq = OS_CPUTimerFreq();
    
-   platform_input Input = {};
-   GlobalInput = &Input;
-   InputArena = AllocArena(Gigabytes(1));
-   
-   //- main loop
    b32 Running = true;
    b32 RefreshRequested = true;
-   // TODO(hbr): Temporary
-   u64 FrameCount = 0;
    b32 ProfilingStopped = false;
    
+   //- main loop
    while (Running)
    {
+    if (!ProfilingStopped)
+    {
+     ProfilerBeginFrame(Profiler);
+    }
+    
     //- hot reload
     b32 EditorCodeReloaded = false;
     b32 RendererCodeReloaded = false;
@@ -652,12 +538,12 @@ EntryPoint(void)
     }
     
     //- process input events
+    platform_input Input = {};
     v2u WindowDim = {};
     ProfileBlock("Profile Input Events")
     {
-     GlobalWin32Input = {};
-     Input = {};
-     ClearArena(InputArena);
+     StructZero(&GlobalWin32State.Win32Input);
+     ClearArena(GlobalWin32State.InputArena);
      
      MSG Msg;
      BOOL MsgReceived = 0;
@@ -682,7 +568,7 @@ EntryPoint(void)
           KeyIndex < WIN32_KEY_COUNT;
           ++KeyIndex)
      {
-      platform_key Key = Win32KeyTable[KeyIndex];
+      platform_key Key = GlobalWin32State.Win32ToPlatformKeyTable[KeyIndex];
       if (Key)
       {
        // NOTE(hbr): I tried to use GetAsyncKeyState but run into issues -
@@ -694,8 +580,8 @@ EntryPoint(void)
       }
      }
      
-     Input.EventCount = GlobalWin32Input.EventCount;
-     Input.Events = GlobalWin32Input.Events;
+     Input.EventCount = GlobalWin32State.Win32Input.EventCount;
+     Input.Events = GlobalWin32State.Win32Input.Events;
      
      // NOTE(hbr): get window dim after processing events
      WindowDim = Win32GetWindowDim(Window);
@@ -715,18 +601,13 @@ EntryPoint(void)
       char const *KeyName = PlatformKeyNames[Event->Key];
       if (Event->Type != PlatformEvent_MouseMove)
       {
-       OS_PrintDebugF("[%lu] %s %s\n", FrameCount, Name, KeyName);
+       OS_PrintDebugF("[%lu] %s %s\n", Name, KeyName);
       }
      }
 #endif
     }
     
     //- update and render
-    if (!ProfilingStopped)
-    {
-     ProfilerBeginFrame(Profiler);
-    }
-    
     render_frame *Frame = 0;
     if (RendererCode.IsValid)
     {
@@ -743,8 +624,6 @@ EntryPoint(void)
     {
      EditorFunctions.UpdateAndRender(&EditorMemory, &Input, Frame);
     }
-    RefreshRequested = Input.RefreshRequested;
-    ProfilingStopped = Input.ProflingStopped;
     
     if (RendererCode.IsValid)
     {
@@ -761,7 +640,8 @@ EntryPoint(void)
      ProfilerEndFrame(Profiler);
     }
     
-    ++FrameCount;
+    RefreshRequested = Input.RefreshRequested;
+    ProfilingStopped = Input.ProflingStopped;
    }
   }
  }

@@ -10,10 +10,59 @@
 
 global win32_state GlobalWin32State;
 
+internal string
+Win32FileDialogFiltersToWin32Filter(arena *Arena, platform_file_dialog_filters Filters)
+{
+ string_list FilterList = {};
+ 
+ if (Filters.AnyFileFilter)
+ {
+  StrListPush(Arena, &FilterList, StrLit("All Files (*.*)"));
+  StrListPush(Arena, &FilterList, StrLit("*.*"));
+ }
+ 
+ for (u32 FilterIndex = 0;
+      FilterIndex < Filters.FilterCount;
+      ++FilterIndex)
+ {
+  platform_file_dialog_filter Filter = Filters.Filters[FilterIndex];
+  
+  string_list ExtensionRegexes = {};
+  for (u32 ExtensionIndex = 0;
+       ExtensionIndex < Filter.ExtensionCount;
+       ++ExtensionIndex)
+  {
+   string Extension = Filter.Extensions[ExtensionIndex];
+   StrListPushF(Arena, &ExtensionRegexes, "*.%S", Extension);
+  }
+  
+  string_list_join_options SpaceOpts = {};
+  SpaceOpts.Sep = StrLit(" ");
+  string SpaceJoinedExtensionRegexes = StrListJoin(Arena, &ExtensionRegexes, SpaceOpts);
+  StrListPushF(Arena, &FilterList, "%S (%S)", Filter.DisplayName, SpaceJoinedExtensionRegexes);
+  
+  string_list_join_options SemicolonOpts = {};
+  SemicolonOpts.Sep = StrLit(";");
+  string SemicolonJoinedExtensionRegexes = StrListJoin(Arena, &ExtensionRegexes, SemicolonOpts);
+  StrListPush(Arena, &FilterList, SemicolonJoinedExtensionRegexes);
+ }
+ 
+ string_list_join_options NilOpts = {};
+ NilOpts.Sep = StrLit("\0");
+ NilOpts.Post = StrLit("\0");
+ string Win32Filter = StrListJoin(Arena, &FilterList, NilOpts);
+ 
+ return Win32Filter;
+}
+
 internal platform_file_dialog_result
-Win32OpenFileDialog(arena *Arena)
+Win32OpenFileDialog(arena *Arena, platform_file_dialog_filters Filters)
 {
  platform_file_dialog_result Result = {};
+ 
+ temp_arena Temp = TempArena(Arena);
+ 
+ string Win32Filter = Win32FileDialogFiltersToWin32Filter(Temp.Arena, Filters);
  
  char Buffer[2048];
  OPENFILENAME Open = {};
@@ -21,12 +70,7 @@ Win32OpenFileDialog(arena *Arena)
  Open.lpstrFile = Buffer;
  Open.lpstrFile[0] = '\0';
  Open.nMaxFile = ArrayCount(Buffer);
- Open.lpstrFilter =
-  "All Files (*.*)\0" "*.*\0"
-  "PNG (*.png)\0" "*.png\0"
-  "JPEG (*.jpg *.jpeg *jpe)\0" "*.jpg;*.jpeg;*.jpe\0"
-  "Windows BMP File (*.bmp)\0" "*.bmp\0"
-  ;
+ Open.lpstrFilter = Win32Filter.Data;
  Open.nFilterIndex = 1;
  Open.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_ALLOWMULTISELECT | OFN_EXPLORER;
  
@@ -67,6 +111,8 @@ Win32OpenFileDialog(arena *Arena)
   Result.FileCount = FileCount;
   Result.FilePaths = FilePaths;
  }
+ 
+ EndTemp(Temp);
  
  return Result;
 }

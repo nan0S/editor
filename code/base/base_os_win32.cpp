@@ -382,9 +382,14 @@ OS_ProcessLaunch(string_list CmdList)
  os_process_handle Handle = {};
  Handle.StartupInfo.cb = SizeOf(Handle.StartupInfo);
  DWORD CreationFlags = 0;
- string Cmd = StrListJoin(Temp.Arena, &CmdList, StrLit(" "), 0);
+ 
+ string_list_join_options Opts = {};
+ Opts.Sep = StrLit(" ");
+ string Cmd = StrListJoin(Temp.Arena, &CmdList, Opts);
+ 
  CreateProcessA(0, Cmd.Data, 0, 0, 0, CreationFlags, 0, 0,
                 &Handle.StartupInfo, &Handle.ProcessInfo);
+ 
  EndTemp(Temp);
  
  return Handle;

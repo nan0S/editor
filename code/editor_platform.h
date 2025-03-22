@@ -174,6 +174,18 @@ struct platform_file_dialog_result
  u32 FileCount;
  string *FilePaths;
 };
+struct platform_file_dialog_filter
+{
+ string DisplayName;
+ u32 ExtensionCount;
+ string *Extensions;
+};
+struct platform_file_dialog_filters
+{
+ b32 AnyFileFilter;
+ u32 FilterCount;
+ platform_file_dialog_filter *Filters;
+};
 
 #define PLATFORM_ALLOC_VIRTUAL_MEMORY(Name) void *Name(u64 Size, b32 Commit)
 typedef PLATFORM_ALLOC_VIRTUAL_MEMORY(platform_alloc_virtual_memory);
@@ -187,7 +199,7 @@ typedef PLATFORM_COMMIT_VIRTUAL_MEMORY(platform_commit_virtual_memory);
 #define PLATFORM_GET_SCRATCH_ARENA(Name) temp_arena Name(arena *Conflict)
 typedef PLATFORM_GET_SCRATCH_ARENA(platform_get_scratch_arena);
 
-#define PLATFORM_OPEN_FILE_DIALOG(Name) platform_file_dialog_result Name(arena *Arena)
+#define PLATFORM_OPEN_FILE_DIALOG(Name) platform_file_dialog_result Name(arena *Arena, platform_file_dialog_filters Filters)
 typedef PLATFORM_OPEN_FILE_DIALOG(platform_open_file_dialog);
 
 #define PLATFORM_READ_ENTIRE_FILE(Name) string Name(arena *Arena, string FilePath)

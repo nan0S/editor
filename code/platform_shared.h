@@ -35,7 +35,7 @@ global imgui_bindings GlobalImGuiBindings = {
  Platform_ImGuiMaybeCaptureInputStub,
 };
 
-internal platform_file_dialog_result OpenFileDialogStub(arena *Arena) {return {};}
+internal platform_file_dialog_result OpenFileDialogStub(arena *Arena, platform_file_dialog_filters Filters) {return {};}
 
 platform_api Platform = {
  OS_Reserve,

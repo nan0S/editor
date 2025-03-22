@@ -3976,9 +3976,37 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
  if (OpenFileDialog)
  {
   temp_arena Temp = TempArena(0);
+  
+  platform_file_dialog_filter PNG = {};
+  PNG.DisplayName = StrLit("PNG");
+  string PNG_Extensions[] = { StrLit("png") };
+  PNG.ExtensionCount = ArrayCount(PNG_Extensions);
+  PNG.Extensions = PNG_Extensions;
+  
+  platform_file_dialog_filter JPEG = {};
+  JPEG.DisplayName = StrLit("JPEG");
+  string JPEG_Extensions[] = { StrLit("jpg"), StrLit("jpeg"), StrLit("jpe") };
+  JPEG.ExtensionCount = ArrayCount(JPEG_Extensions);
+  JPEG.Extensions = JPEG_Extensions;
+  
+  platform_file_dialog_filter BMP = {};
+  BMP.DisplayName = StrLit("Windows BMP File");
+  string BMP_Extensions[] = { StrLit("bmp") };
+  BMP.ExtensionCount = ArrayCount(BMP_Extensions);
+  BMP.Extensions = BMP_Extensions;
+  
+  platform_file_dialog_filter AllFilters[] = { PNG, JPEG, BMP };
+  
+  platform_file_dialog_filters Filters = {};
+  Filters.AnyFileFilter = true;
+  Filters.FilterCount = ArrayCount(AllFilters);
+  Filters.Filters = AllFilters;
+  
+  platform_file_dialog_result OpenDialog = Platform.OpenFileDialog(Temp.Arena, Filters);
+  
   camera *Camera = &Editor->Camera;
-  platform_file_dialog_result OpenDialog = Platform.OpenFileDialog(Temp.Arena);
   TryLoadImages(Editor, OpenDialog.FileCount, OpenDialog.FilePaths, Camera->P);
+  
   EndTemp(Temp);
  }
  

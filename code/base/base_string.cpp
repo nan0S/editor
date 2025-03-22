@@ -931,7 +931,12 @@ PathListJoin(arena *Arena, string_list *Path)
 #elif
 # error unsupported OS
 #endif
- string Result = StrListJoin(Arena, Path, Sep, StringListJoinFlag_SkipEmpty);
+ 
+ string_list_join_options Opts = {};
+ Opts.Sep = Sep;
+ Opts.Flags = StringListJoinFlag_SkipEmpty;
+ 
+ string Result = StrListJoin(Arena, Path, Opts);
  return Result;
 }
 
@@ -991,22 +996,28 @@ StrListConcatInPlace(string_list *List, string_list *ToPush)
 }
 
 internal string
-StrListJoin(arena *Arena, string_list *List, string Sep, string_list_join_flags Flags)
+StrListJoin(arena *Arena, string_list *List, string_list_join_options Opts)
 {
  string Result = {};
  u64 MaxSepTotalSize = 0;
  if (List->NodeCount > 0)
  {
-  MaxSepTotalSize = Sep.Count * (List->NodeCount - 1);
+  MaxSepTotalSize = Opts.Sep.Count * (List->NodeCount - 1);
  }
- u64 MaxSize = List->TotalSize + MaxSepTotalSize;
+ u64 MaxSize = List->TotalSize + MaxSepTotalSize + Opts.Pre.Count + Opts.Post.Count;
  Result.Data = PushArrayNonZero(Arena, MaxSize + 1, char);
  
  char *At = Result.Data;
+ 
+ MemoryCopy(At, Opts.Pre.Data, Opts.Pre.Count);
+ At += Opts.Pre.Count;
+ 
  string CurSep = {};
  ListIter(Node, List->Head, string_list_node)
  {
-  if ((Flags & StringListJoinFlag_SkipEmpty) && Node->Str.Count == 0)
+  string Str = Node->Str;
+  
+  if ((Opts.Flags & StringListJoinFlag_SkipEmpty) && Str.Count == 0)
   {
    // nothing to do
   }
@@ -1014,12 +1025,17 @@ StrListJoin(arena *Arena, string_list *List, string Sep, string_list_join_flags 
   {
    MemoryCopy(At, CurSep.Data, CurSep.Count);
    At += CurSep.Count;
-   MemoryCopy(At, Node->Str.Data, Node->Str.Count);
-   At += Node->Str.Count;
-   CurSep = Sep;
+   
+   MemoryCopy(At, Str.Data, Str.Count);
+   At += Str.Count;
+   
+   CurSep = Opts.Sep;
   }
  }
- Assert(At >= Result.Data);
+ 
+ MemoryCopy(At, Opts.Post.Data, Opts.Post.Count);
+ At += Opts.Post.Count;
+ 
  Result.Count = Cast(u64)(At - Result.Data);
  *At++ = 0;
  

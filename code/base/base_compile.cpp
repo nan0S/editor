@@ -272,7 +272,9 @@ ComputeCompilationCommand(compiler_setup Setup, compilation_target Target)
   
   if (Setup.Verbose)
   {
-   string CmdStr = StrListJoin(Arena, Cmd, StrLit(" "), 0);
+   string_list_join_options Opts = {};
+   Opts.Sep = StrLit(" ");
+   string CmdStr = StrListJoin(Arena, Cmd, Opts);
    OS_PrintF("%S\n", CmdStr);
   }
   

@@ -168,7 +168,7 @@ Win32GetWindowDim(HWND Window)
 internal v2
 Win32ScreenToClip(i32 X, i32 Y, v2u WindowDim)
 {
- v2 Result = V2(2.0f * X / WindowDim.X - 1.0f,
+ v2 Result = V2( (2.0f * X / WindowDim.X - 1.0f),
                 -(2.0f * Y / WindowDim.Y - 1.0f));
  return Result;
 }
@@ -351,10 +351,20 @@ Win32DisplayErrorBox(char const *Msg)
 }
 
 internal void
-Win32HotReloadTask(void *UserData)
+Win32PrintDebugInputEvents(platform_input *Input)
 {
- win32_hot_reload_task *Task = Cast(win32_hot_reload_task *)UserData;
- Task->CodeReloaded = HotReloadIfRecompiled(Task->Code);
+ for (u32 EventIndex = 0;
+      EventIndex < Input->EventCount;
+      ++EventIndex)
+ {
+  platform_event *Event = Input->Events + EventIndex;
+  char const *Name = PlatformEventTypeNames[Event->Type];
+  char const *KeyName = PlatformKeyNames[Event->Key];
+  if (Event->Type != PlatformEvent_MouseMove)
+  {
+   OS_PrintDebugF("[%lu] %s %s\n", Name, KeyName);
+  }
+ }
 }
 
 internal void
@@ -540,26 +550,8 @@ EntryPoint(void)
     b32 RendererCodeReloaded = false;
     ProfileBlock("Hot Reload")
     {
-     win32_hot_reload_task EditorHotReload = {};
-     win32_hot_reload_task RendererHotReload = {};
-     
-     EditorHotReload.Code = &EditorCode;
-     RendererHotReload.Code = &RendererCode;
-#if 0
-     // TODO(hbr): Unfortunately multithreaded path doesn't improve performance. It seems as
-     // OS_LoadLibrary (LoadLibrary from Win32 API) grabs mutex or something, making the calls
-     // serial in practice.
-     WorkQueueAddEntry(HighPriorityQueue, Win32HotReloadTask, &EditorHotReload);
-     WorkQueueAddEntry(HighPriorityQueue, Win32HotReloadTask, &RendererHotReload);
-     
-     WorkQueueCompleteAllWork(HighPriorityQueue);
-#else
-     Win32HotReloadTask(&EditorHotReload);
-     Win32HotReloadTask(&RendererHotReload);
-#endif
-     
-     EditorCodeReloaded = EditorHotReload.CodeReloaded;
-     RendererCodeReloaded = RendererHotReload.CodeReloaded;
+     EditorCodeReloaded = HotReloadIfRecompiled(&EditorCode);
+     RendererCodeReloaded = HotReloadIfRecompiled(&RendererCode);
     }
     
     if (RendererCodeReloaded && RendererCode.IsValid)
@@ -637,20 +629,7 @@ EntryPoint(void)
      ScreenToClient(Window, &CursorP);
      Input.ClipSpaceMouseP = Win32ScreenToClip(CursorP.x, CursorP.y, WindowDim);
      
-#if 0
-     for (u32 EventIndex = 0;
-          EventIndex < Input.EventCount;
-          ++EventIndex)
-     {
-      platform_event *Event = Input.Events + EventIndex;
-      char const *Name = PlatformEventTypeNames[Event->Type];
-      char const *KeyName = PlatformKeyNames[Event->Key];
-      if (Event->Type != PlatformEvent_MouseMove)
-      {
-       OS_PrintDebugF("[%lu] %s %s\n", Name, KeyName);
-      }
-     }
-#endif
+     //Win32PrintDebugInputEvents(&Input);
     }
     
     //- update and render

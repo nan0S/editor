@@ -8,12 +8,6 @@ struct win32_platform_input
  platform_event Events[WIN32_MAX_EVENT_COUNT];
 };
 
-struct win32_hot_reload_task
-{
- hot_reload_library *Code;
- b32 CodeReloaded;
-};
-
 struct win32_state
 {
  win32_platform_input Win32Input;

@@ -9,6 +9,7 @@
 #include "platform_shared.cpp"
 
 global win32_state GlobalWin32State;
+global imgui_bindings GlobalImGuiBindings;
 
 internal string
 Win32FileDialogFiltersToWin32Filter(arena *Arena, platform_file_dialog_filters Filters)
@@ -385,6 +386,7 @@ EntryPoint(void)
  arena *PermamentArena = AllocArena(Gigabytes(64));
  
  Platform.OpenFileDialog = Win32OpenFileDialog;
+ GlobalImGuiBindings = ImGuiStubBindings();
  
  //- key mappings
  {

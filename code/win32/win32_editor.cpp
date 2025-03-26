@@ -550,8 +550,8 @@ EntryPoint(void)
     b32 RendererCodeReloaded = false;
     ProfileBlock("Hot Reload")
     {
-     EditorCodeReloaded = HotReloadIfRecompiled(&EditorCode);
-     RendererCodeReloaded = HotReloadIfRecompiled(&RendererCode);
+     EditorCodeReloaded = HotReloadIfOutOfSync(&EditorCode);
+     RendererCodeReloaded = HotReloadIfOutOfSync(&RendererCode);
     }
     
     if (RendererCodeReloaded && RendererCode.IsValid)

@@ -9,7 +9,6 @@
 #include "platform_shared.cpp"
 
 global win32_state GlobalWin32State;
-global imgui_bindings GlobalImGuiBindings;
 
 internal string
 Win32FileDialogFiltersToWin32Filter(arena *Arena, platform_file_dialog_filters Filters)
@@ -141,12 +140,12 @@ Win32GetEventFlags(void)
 internal platform_event *
 Win32PushPlatformEvent(platform_event_type Type)
 {
- win32_state *State = &GlobalWin32State;
+ win32_state *Win32State = &GlobalWin32State;
  platform_event *Result = 0;
  
- if (State->Win32Input.EventCount < WIN32_MAX_EVENT_COUNT)
+ if (Win32State->Win32Input.EventCount < WIN32_MAX_EVENT_COUNT)
  {
-  Result = State->Win32Input.Events + State->Win32Input.EventCount++;
+  Result = Win32State->Win32Input.Events + Win32State->Win32Input.EventCount++;
   Result->Type = Type;
   Result->Flags = Win32GetEventFlags();
  }
@@ -191,12 +190,14 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
 {
  LRESULT Result = 0;
  
+ win32_state *Win32State = &GlobalWin32State;
+ 
  win32_imgui_maybe_capture_input_data ImGuiData = {};
  ImGuiData.Window = Window;
  ImGuiData.Msg = Msg;
  ImGuiData.wParam = wParam;
  ImGuiData.lParam = lParam;
- imgui_maybe_capture_input_result ImGuiResult = GlobalImGuiBindings.MaybeCaptureInput(Cast(imgui_maybe_capture_input_data *)&ImGuiData);
+ imgui_maybe_capture_input_result ImGuiResult = Win32State->ImGuiBindings.MaybeCaptureInput(Cast(imgui_maybe_capture_input_data *)&ImGuiData);
  
  if (ImGuiResult.CapturedInput)
  {
@@ -272,7 +273,7 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
      if (WasDown != IsDown)
      {
       b32 Pressed = (Msg == WM_KEYDOWN);
-      platform_key Key = GlobalWin32State.Win32ToPlatformKeyTable[wParam];
+      platform_key Key = Win32State->Win32ToPlatformKeyTable[wParam];
       platform_event *Event = Win32PushPlatformEvent(Pressed ? PlatformEvent_Press : PlatformEvent_Release);
       if (Event)
       {
@@ -319,13 +320,13 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
      
      // NOTE(hbr): 0xFFFFFFFF queries file count
      UINT FileCount = DragQueryFileA(DropHandle, 0xFFFFFFFF, 0, 0);
-     string *Files = PushArray(GlobalWin32State.InputArena, FileCount, string);
+     string *Files = PushArray(Win32State->InputArena, FileCount, string);
      for (UINT FileIndex = 0;
           FileIndex < FileCount;
           ++FileIndex)
      {
       UINT RequiredCount = DragQueryFileA(DropHandle, FileIndex, 0, 0);
-      string File = PushString(GlobalWin32State.InputArena, RequiredCount + 1);
+      string File = PushString(Win32State->InputArena, RequiredCount + 1);
       UINT CopiedCount = DragQueryFileA(DropHandle, FileIndex, File.Data, Cast(UINT)File.Count);
       Assert(RequiredCount == CopiedCount);
       Files[FileIndex] = File;
@@ -385,12 +386,14 @@ EntryPoint(void)
  
  arena *PermamentArena = AllocArena(Gigabytes(64));
  
+ win32_state *Win32State = &GlobalWin32State;
+ 
  Platform.OpenFileDialog = Win32OpenFileDialog;
- GlobalImGuiBindings = ImGuiStubBindings();
+ Win32State->ImGuiBindings = ImGuiStubBindings();
  
  //- key mappings
  {
-  platform_key *Table = GlobalWin32State.Win32ToPlatformKeyTable;
+  platform_key *Table = Win32State->Win32ToPlatformKeyTable;
   
   Table[VK_F1] = PlatformKey_F1;
   Table[VK_F2] = PlatformKey_F2;
@@ -446,7 +449,7 @@ EntryPoint(void)
   Table[VK_MBUTTON] = PlatformKey_MiddleMouseButton;
  }
  
- GlobalWin32State.InputArena = AllocArena(Gigabytes(1));
+ Win32State->InputArena = AllocArena(Gigabytes(1));
  
  //- create window
  WNDCLASSEXA WindowClass = {};
@@ -569,7 +572,7 @@ EntryPoint(void)
     if (EditorCodeReloaded && EditorCode.IsValid)
     {
      imgui_bindings Bindings = EditorFunctions.OnCodeReload(&EditorMemory);
-     GlobalImGuiBindings = Bindings;
+     Win32State->ImGuiBindings = Bindings;
      RendererMemory.ImGuiBindings = Bindings;
      
      win32_imgui_init_data Init = {};
@@ -582,8 +585,8 @@ EntryPoint(void)
     v2u WindowDim = {};
     ProfileBlock("Profile Input Events")
     {
-     StructZero(&GlobalWin32State.Win32Input);
-     ClearArena(GlobalWin32State.InputArena);
+     StructZero(&Win32State->Win32Input);
+     ClearArena(Win32State->InputArena);
      
      MSG Msg;
      BOOL MsgReceived = 0;
@@ -608,7 +611,7 @@ EntryPoint(void)
           KeyIndex < WIN32_KEY_COUNT;
           ++KeyIndex)
      {
-      platform_key Key = GlobalWin32State.Win32ToPlatformKeyTable[KeyIndex];
+      platform_key Key = Win32State->Win32ToPlatformKeyTable[KeyIndex];
       if (Key)
       {
        // NOTE(hbr): I tried to use GetAsyncKeyState but run into issues -
@@ -620,8 +623,8 @@ EntryPoint(void)
       }
      }
      
-     Input.EventCount = GlobalWin32State.Win32Input.EventCount;
-     Input.Events = GlobalWin32State.Win32Input.Events;
+     Input.EventCount = Win32State->Win32Input.EventCount;
+     Input.Events = Win32State->Win32Input.Events;
      
      // NOTE(hbr): get window dim after processing events
      WindowDim = Win32GetWindowDim(Window);
@@ -668,7 +671,7 @@ EntryPoint(void)
     }
     
     RefreshRequested = Input.RefreshRequested;
-    ProfilingStopped = Input.ProflingStopped;
+    ProfilingStopped = Input.ProfilingStopped;
    }
   }
  }

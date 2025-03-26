@@ -510,7 +510,7 @@ internal b32
 ResetCtxMenu(string Label)
 {
  b32 Reset = false;
- if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(1))
+ if (UI_IsItemHovered() && UI_IsMouseClicked(UIMouseButton_Right))
  {
   UI_OpenPopup(Label);
  }
@@ -1798,7 +1798,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
       }break;
       
       case Curve_Parametric: {
-       ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+       UI_SetNextItemOpen(true, UICond_Once);
        if (UI_BeginTreeF("Equation"))
        {
         parametric_curve_params *Parametric = &CurveParams->Parametric;
@@ -1986,7 +1986,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
      }
     }
     
-    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+    UI_SetNextItemOpen(true, UICond_Once);
     CurveParams->LineDisabled = !UI_BeginTreeF("Line");
     if (!CurveParams->LineDisabled)
     {
@@ -2027,7 +2027,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
     
     if (UsesControlPoints(Curve))
     {
-     ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+     UI_SetNextItemOpen(true, UICond_Once);
      CurveParams->PointsDisabled = !UI_BeginTreeF("Control Points");
      if (!CurveParams->PointsDisabled)
      {
@@ -2342,7 +2342,7 @@ UpdateAndRenderEntityListUI(editor *Editor)
        }
        
        string CtxMenu = StrLit("EntityContextMenu");
-       if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(1))
+       if (UI_IsItemHovered() && UI_IsMouseClicked(UIMouseButton_Right))
        {
         UI_OpenPopup(CtxMenu);
        }
@@ -2447,11 +2447,11 @@ UpdateAndRenderNotifications(editor *Editor, platform_input *Input, render_group
                         1.0f - PowF32(2.0f, -MoveSpeed * Input->dtForFrame));
     Notification->ScreenPosY = NextPosY;
     
-    ImVec2 WindowPosition = ImVec2(WindowDim.X - Padding, NextPosY);
-    ImVec2 WindowMinSize = ImVec2(WindowWidth, 0.0f);
-    ImVec2 WindowMaxSize = ImVec2(WindowWidth, FLT_MAX);
-    ImGui::SetNextWindowPos(WindowPosition, ImGuiCond_Always, ImVec2(1.0f, 1.0f));
-    ImGui::SetNextWindowSizeConstraints(WindowMinSize, WindowMaxSize);
+    v2 WindowP = V2(WindowDim.X - Padding, NextPosY);
+    v2 WindowMinSize = V2(WindowWidth, 0.0f);
+    v2 WindowMaxSize = V2(WindowWidth, FLT_MAX);
+    UI_SetNextWindowPos(WindowP, UIPlacement_BotRightCorner);
+    UI_SetNextWindowSizeConstraints(WindowMinSize, WindowMaxSize);
     
     enum notification_phase
     {
@@ -2496,8 +2496,8 @@ UpdateAndRenderNotifications(editor *Editor, platform_input *Input, render_group
                 UI_EndWindow())
      {
       ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
-      if (ImGui::IsWindowHovered() && (ImGui::IsMouseClicked(0) ||
-                                       ImGui::IsMouseClicked(1)))
+      if (UI_IsWindowHovered() && (UI_IsMouseClicked(UIMouseButton_Left) ||
+                                   UI_IsMouseClicked(UIMouseButton_Right)))
       {
        Remove = true;
       }
@@ -3712,7 +3712,7 @@ RenderProfilerAllFramesUI(editor *Editor, platform_input *Input)
    f32 DrawHeight = (DrawRegion.Max.Y - DrawRegion.Min.Y);
    
    UI_CheckboxF(&Visual->Stopped, "Stop");
-   Input->ProflingStopped = Visual->Stopped;
+   Input->ProfilingStopped = Visual->Stopped;
    
    u32 FrameCount = MAX_PROFILER_FRAME_COUNT;
    f32 FrameBarWidth = DrawWidth / FrameCount;
@@ -3733,7 +3733,6 @@ RenderProfilerAllFramesUI(editor *Editor, platform_input *Input)
    {
     OS_PrintDebugF("Rect clicked");
    }
-   
    
    sort_entry_array SortAnchors = AllocSortEntryArray(Temp.Arena, MAX_PROFILER_ANCHOR_COUNT);
    

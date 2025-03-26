@@ -52,7 +52,8 @@ UI_ParametricEquationExpr(parametric_equation_expr *Expr, u32 *Id)
  {
   case ParametricEquationExpr_Unary: {
    parametric_equation_unary_expr Unary = Expr->Unary;
-   ImGui::SetNextItemOpen(true);
+   
+   UI_SetNextItemOpen(true, UICond_Once);
    if (UI_BeginTreeF("Sub"))
    {
     UI_ParametricEquationExpr(Unary.SubExpr, Id);
@@ -63,14 +64,14 @@ UI_ParametricEquationExpr(parametric_equation_expr *Expr, u32 *Id)
   case ParametricEquationExpr_Binary: {
    parametric_equation_binary_expr Binary = Expr->Binary;
    
-   ImGui::SetNextItemOpen(true);
+   UI_SetNextItemOpen(true, UICond_Once);
    if (UI_BeginTreeF("Left"))
    {
     UI_ParametricEquationExpr(Binary.Left, Id);
     UI_EndTree();
    }
    
-   ImGui::SetNextItemOpen(true);
+   UI_SetNextItemOpen(true, UICond_Once);
    if (UI_BeginTreeF("Right"))
    {
     UI_ParametricEquationExpr(Binary.Right, Id);
@@ -89,7 +90,8 @@ UI_ParametricEquationExpr(parametric_equation_expr *Expr, u32 *Id)
         ++ArgIndex)
    {
     parametric_equation_expr *Arg = Application.Args[ArgIndex];
-    ImGui::SetNextItemOpen(true);
+    
+    UI_SetNextItemOpen(true, UICond_Once);
     if (UI_BeginTreeF("%u", ArgIndex))
     {
      UI_ParametricEquationExpr(Arg, Id);

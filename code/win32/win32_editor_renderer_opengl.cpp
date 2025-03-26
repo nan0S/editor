@@ -1,32 +1,18 @@
 #include <windows.h>
 #include <gl/gl.h>
 
-#include "base/base_core.h"
-#include "base/base_arena.h"
-#include "base/base_string.h"
-#include "base/base_os.h"
+#include "renderer_shared.h"
 
-#include "editor_profiler.h"
 #include "editor_math.h"
-#include "editor_imgui_bindings.h"
-#include "editor_platform.h"
-#include "editor_renderer.h"
 #include "editor_third_party_inc.h"
 
 #include "win32/win32_editor_renderer.h"
 #include "win32/win32_editor_renderer_opengl.h"
 #include "editor_renderer_opengl.h"
 
-#include "base/base_core.cpp"
-#include "base/base_arena.cpp"
-#include "base/base_string.cpp"
-#include "base/base_os.cpp"
-
-#include "editor_profiler.cpp"
 #include "editor_math.cpp"
 
 global b32 GlobalRendererCodeReloaded;
-platform_api Platform;
 
 #include "editor_renderer_opengl.cpp"
 

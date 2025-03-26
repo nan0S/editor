@@ -166,7 +166,7 @@ struct platform_input
  // will be blocking thus EditorUpdateAndRender will be called only after the first user
  // event (MouseMove, KeyPressed, ...) has been received.
  b32 RefreshRequested;
- b32 ProflingStopped;
+ b32 ProfilingStopped;
 };
 
 struct platform_file_dialog_result

@@ -28,12 +28,17 @@ IMGUI_NEW_FRAME(Platform_ImGuiNewFrameStub) {}
 IMGUI_RENDER(Platform_ImGuiRenderStub) {}
 IMGUI_MAYBE_CAPTURE_INPUT(Platform_ImGuiMaybeCaptureInputStub) { return {}; }
 
-global imgui_bindings GlobalImGuiBindings = {
- Platform_ImGuiInitStub,
- Platform_ImGuiNewFrameStub,
- Platform_ImGuiRenderStub,
- Platform_ImGuiMaybeCaptureInputStub,
-};
+internal imgui_bindings
+ImGuiStubBindings(void)
+{
+ imgui_bindings Bindings = {
+  Platform_ImGuiInitStub,
+  Platform_ImGuiNewFrameStub,
+  Platform_ImGuiRenderStub,
+  Platform_ImGuiMaybeCaptureInputStub,
+ };
+ return Bindings;
+}
 
 internal platform_file_dialog_result OpenFileDialogStub(arena *Arena, platform_file_dialog_filters Filters) {return {};}
 
@@ -46,6 +51,12 @@ platform_api Platform = {
  OS_ReadEntireFile,
  WorkQueueAddEntry,
  WorkQueueCompleteAllWork,
+};
+
+struct platform_clock
+{
+ u64 LastTSC;
+ u64 CPU_TimerFreq;
 };
 
 #endif //PLATFORM_SHARED_H

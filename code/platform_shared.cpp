@@ -76,3 +76,23 @@ Platform_MakeRendererMemory(arena *PermamentArena, profiler *Profiler)
  
  return RendererMemory;
 }
+
+internal platform_clock
+Platform_MakeClock()
+{
+ platform_clock Clock = {};
+ Clock.LastTSC = OS_ReadCPUTimer();
+ Clock.CPU_TimerFreq = OS_CPUTimerFreq();
+ 
+ return Clock;
+}
+
+internal f32
+Platform_ClockFrame(platform_clock *Clock)
+{
+ u64 NowTSC = OS_ReadCPUTimer();
+ f32 dtForFrame = Cast(f32)(NowTSC - Clock->LastTSC) / Clock->CPU_TimerFreq;
+ Clock->LastTSC = NowTSC;
+ 
+ return dtForFrame;
+}

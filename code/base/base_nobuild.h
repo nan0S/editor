@@ -4,7 +4,7 @@
 struct recompilation_result
 {
  b32 TriedToRecompile;
- int RecompilationExitCode;
+ exit_code_int RecompilationExitCode;
 };
 internal recompilation_result RecompileYourselfIfNecessary(int ArgCount, char *Argv[]);
 

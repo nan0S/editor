@@ -52,6 +52,10 @@ typedef double f64;
 #define F64_INF _F64Inf()
 #define F32_EPS 0.0001f
 #define F64_EPS 0.000000001
+#define F32_MAX 3.402823466e+38f
+#define F32_MIN (-F32_MAX)
+#define F64_MAX 1.7976931348623158e+308
+#define F64_MIN (-F64_MAX)
 
 // NOTE(hbr): Unfortunately this construction is necessary. Putting this outside of function
 // can violate one definition rule.

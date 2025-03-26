@@ -1,9 +1,52 @@
 #define UI_PushColorHandleVar  NameConcat(__PushColorHandle, __LINE__)
 
+internal v2
+V2FromImVec2(ImVec2 Vec2)
+{
+ v2 Result = V2(Vec2.x, Vec2.y);
+ return Result;
+}
+
+internal ImVec2
+ImVec2FromV2(v2 V)
+{
+ ImVec2 Result = ImVec2(V.X, V.Y);
+ return Result;
+}
+
 internal b32
 UI_IsItemHovered(void)
 {
  b32 Result = (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled));
+ return Result;
+}
+
+internal ImGuiMouseButton
+UIMouseButtonToImGuiMouseButton(ui_mouse_button Button)
+{
+ ImGuiMouseButton Result = 0;
+ switch (Button)
+ {
+  case UIMouseButton_Left: {Result = ImGuiMouseButton_Left;}break;
+  case UIMouseButton_Right: {Result = ImGuiMouseButton_Right;}break;
+  case UIMouseButton_Middle: {Result = ImGuiMouseButton_Middle;}break;
+ }
+ return Result;
+}
+
+internal b32
+UI_IsMouseClicked(ui_mouse_button Button)
+{
+ ImGuiMouseButton ImButton = UIMouseButtonToImGuiMouseButton(Button);
+ b32 Result = Cast(b32)ImGui::IsMouseClicked(ImButton);
+ 
+ return Result;
+}
+
+internal b32
+UI_IsWindowHovered(void)
+{
+ b32 Result = Cast(b32)ImGui::IsWindowHovered();
  return Result;
 }
 
@@ -21,6 +64,58 @@ UI_SetNextItemPos(v2 Pos)
 {
  ImVec2 ImPos(Pos.X, Pos.Y);
  ImGui::SetCursorPos(ImPos);
+}
+
+internal ImGuiCond
+UICondToImGuiCond(ui_cond Cond)
+{
+ ImGuiCond Result = 0;
+ switch (Cond)
+ {
+  case UICond_None: {Result=ImGuiCond_None;}break;
+  case UICond_Always: {Result=ImGuiCond_Always;}break;
+  case UICond_Once: {Result=ImGuiCond_Once;}break;
+ }
+ return Result;
+}
+
+internal void
+UI_SetNextItemOpen(b32 Open, ui_cond Cond)
+{
+ ImGuiCond ImCond = UICondToImGuiCond(Cond);
+ ImGui::SetNextItemOpen(Cast(bool)Open, ImCond);
+}
+
+internal ImVec2
+UIPlacementToImGuiPivot(ui_placement Placement)
+{
+ ImVec2 Pivot = {};
+ switch (Placement)
+ {
+  case UIPlacement_TopLeftCorner: {Pivot = ImVec2(0.0f, 0.0f);}break;
+  case UIPlacement_TopRightCorner: {Pivot = ImVec2(1.0f, 0.0f);}break;
+  case UIPlacement_BotLeftCorner: {Pivot = ImVec2(0.0f, 1.0f);}break;
+  case UIPlacement_BotRightCorner: {Pivot = ImVec2(1.0f, 1.0f);}break;
+  case UIPlacement_Center: {Pivot = ImVec2(0.5f, 0.5f);}break;
+ }
+ 
+ return Pivot;
+}
+
+internal void
+UI_SetNextWindowPos(v2 P, ui_placement Placement)
+{
+ ImVec2 ImP = ImVec2FromV2(P);
+ ImVec2 Pivot = UIPlacementToImGuiPivot(Placement);
+ ImGui::SetNextWindowPos(ImP, ImGuiCond_Always, Pivot);
+}
+
+internal void
+UI_SetNextWindowSizeConstraints(v2 MinSize, v2 MaxSize)
+{
+ ImVec2 ImMinSize = ImVec2FromV2(MinSize);
+ ImVec2 ImMaxSize = ImVec2FromV2(MaxSize);
+ ImGui::SetNextWindowSizeConstraints(ImMinSize, ImMaxSize);
 }
 
 internal b32
@@ -771,13 +866,6 @@ internal v2 UI_GetWindowSize(void)
 {
  ImVec2 Size = ImGui::GetWindowSize();
  v2 Result = V2(Size.x, Size.y);
- return Result;
-}
-
-internal v2
-V2FromImVec2(ImVec2 Vec2)
-{
- v2 Result = V2(Vec2.x, Vec2.y);
  return Result;
 }
 

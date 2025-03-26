@@ -32,6 +32,29 @@ struct ui_push_color_handle
  u32 PushColorCount;
 };
 
+enum ui_cond
+{
+ UICond_None,
+ UICond_Always,
+ UICond_Once,
+};
+
+enum ui_mouse_button
+{
+ UIMouseButton_Left,
+ UIMouseButton_Right,
+ UIMouseButton_Middle,
+};
+
+enum ui_placement
+{
+ UIPlacement_TopLeftCorner,
+ UIPlacement_TopRightCorner,
+ UIPlacement_BotLeftCorner,
+ UIPlacement_BotRightCorner,
+ UIPlacement_Center,
+};
+
 internal void                 UI_PushLabel(string Label);
 internal void                 UI_PushLabelF(char const *Format, ...);
 internal void                 UI_PushId(u32 Id);
@@ -79,8 +102,15 @@ internal void              UI_NewRow(void);
 internal void              UI_SameRow(void);
 
 internal b32               UI_IsItemHovered(void);
+internal b32               UI_IsMouseClicked(ui_mouse_button Button);
+internal b32               UI_IsWindowHovered(void);
+
 internal void              UI_SetNextItemSize(v2 Size);
 internal void              UI_SetNextItemPos(v2 Pos); // top-left corner
+internal void              UI_SetNextItemOpen(b32 Open, ui_cond Cond = UICond_None);
+internal void              UI_SetNextWindowPos(v2 P, ui_placement Placement = UIPlacement_TopLeftCorner);
+internal void              UI_SetNextWindowSizeConstraints(v2 MinSize, v2 MaxSize);
+
 internal v2                UI_GetWindowSize(void);
 internal rect2             UI_GetDrawableRegionBounds(void); // window has title bar, scroll bar, get drawable part
 

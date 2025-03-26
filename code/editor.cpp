@@ -3219,6 +3219,12 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
    *QuitProject = true;
   }
   
+  if (!Eat && ((Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Backtick)))
+  {
+   Eat = true;
+   Editor->DevConsole = !Editor->DevConsole;
+  }
+  
   if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_Delete)
   {
    entity *Entity = EntityFromId(Editor->SelectedEntityId);
@@ -3855,6 +3861,26 @@ RenderProfilerWindowUI(editor *Editor, platform_input *Input)
 }
 
 internal void
+RenderDevConsole(editor *Editor)
+{
+ if (Editor->DevConsole)
+ {
+  if (UI_BeginWindow(&Editor->DevConsole, 0, StrLit("Dev Console")))
+  {
+   if (UI_Button(StrLit("Add Notification")))
+   {
+    AddNotificationF(Editor, Notification_Error,
+                     "This is a dev notification\nblablablablablablablabla"
+                     "blablablablablablablablablablablablablablablablablablablabla"
+                     "blablablablablablablablablablablablablablablablablablablabla"
+                     "blablablablablablablablablablablablablablablablablablablabla");
+   }
+  }
+  UI_EndWindow();
+ }
+}
+
+internal void
 EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct render_frame *Frame)
 {
  ProfileFunctionBegin();
@@ -3964,6 +3990,7 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
   UpdateAndRenderAnimatingCurvesUI(Editor);
   UpdateAndRenderMergingCurvesUI(Editor);
   RenderProfilerWindowUI(Editor, Input);
+  RenderDevConsole(Editor);
   
 #if BUILD_DEBUG
   ImGui::ShowDemoWindow();

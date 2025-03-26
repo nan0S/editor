@@ -369,6 +369,8 @@ struct editor
  merging_curves_state MergingCurves;
  visual_profiler Profiler;
  
+ b32 DevConsole;
+ 
  //////////////////////////////
  
  // TODO(hbr): Remove this from the state

@@ -443,6 +443,7 @@ EntryPoint(void)
   Table[VK_SPACE] = PlatformKey_Space;
   Table[VK_TAB] = PlatformKey_Tab;
   Table[VK_DELETE] = PlatformKey_Delete;
+  Table[VK_OEM_3] = PlatformKey_Backtick;
   
   Table[VK_LBUTTON] = PlatformKey_LeftMouseButton;
   Table[VK_RBUTTON] = PlatformKey_RightMouseButton;

@@ -66,6 +66,7 @@ enum platform_key
  PlatformKey_Space,
  PlatformKey_Tab,
  PlatformKey_Delete,
+ PlatformKey_Backtick,
  
  PlatformKey_LeftMouseButton,
  PlatformKey_RightMouseButton,
@@ -124,6 +125,7 @@ global char const *PlatformKeyNames[] =
  "Space",
  "Tab",
  "Delete",
+ "Backtick",
  
  "LeftMouseButton",
  "RightMouseButton",

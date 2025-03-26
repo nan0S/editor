@@ -21,51 +21,99 @@ enum build_platform
 };
 
 internal compilation_command
-Renderer_Compilation(arena *Arena, compiler_setup Setup, build_platform Platform)
+Renderer_Compilation(arena *Arena, compiler_setup Setup, build_platform BuildPlatform)
 {
- compilation_target Target = MakeTarget(Lib, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/win32/win32_editor_renderer_opengl.cpp")), 0);
- LinkLibrary(&Target, StrLit("User32.lib")); // RegisterClassA,...
- LinkLibrary(&Target, StrLit("Opengl32.lib")); // wgl,glEnable,...
- LinkLibrary(&Target, StrLit("Gdi32.lib")); // SwapBuffers,SetPixelFormat,...
+ operating_system OS = DetectOS();
+ 
+ string RendererPath = {};
+ switch (BuildPlatform)
+ {
+  case BuildPlatform_Native: {
+   switch (OS)
+   {
+    case OS_Win32: {
+     RendererPath = StrLit("../code/win32/win32_editor_renderer_opengl.cpp");
+    }break;
+    
+    case OS_Linux: {
+     Assert(!"Not supported");
+    }break;
+   }
+  }break;
+  
+  case BuildPlatform_GLFW: {
+   RendererPath = StrLit("../code/glfw/glfw_editor_renderer_opengl.cpp");
+  }break;
+ }
+ 
+ compilation_target Target = MakeTarget(Lib, OS_ExecutableRelativeToFullPath(Arena, RendererPath), 0);
+ switch (OS)
+ {
+  case OS_Win32: {
+   LinkLibrary(&Target, StrLit("User32.lib")); // RegisterClassA,...
+   LinkLibrary(&Target, StrLit("Opengl32.lib")); // wgl,glEnable,...
+   LinkLibrary(&Target, StrLit("Gdi32.lib")); // SwapBuffers,SetPixelFormat,...
+  }break;
+  
+  case OS_Linux: {
+   Assert(!"Not supported");
+  }break;
+ }
+ 
+ if (BuildPlatform == BuildPlatform_GLFW)
+ {
+  LinkLibrary(&Target, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/third_party/glfw/lib-vc2022/glfw3_mt.lib")));
+  LinkLibrary(&Target, StrLit("Opengl32.lib"));
+  LinkLibrary(&Target, StrLit("User32.lib"));
+  LinkLibrary(&Target, StrLit("Gdi32.lib"));
+  LinkLibrary(&Target, StrLit("Shell32.lib"));
+ }
  
  compilation_command Renderer = ComputeCompilationCommand(Setup, Target);
  return Renderer;
 }
 
 internal compilation_command
-PlatformExe_Compilation(arena *Arena, compiler_setup Setup, compilation_command Editor, compilation_command Renderer,
-                        build_platform Platform)
+PlatformExe_Compilation(arena *Arena, compiler_setup Setup,
+                        compilation_command Editor, compilation_command Renderer,
+                        build_platform BuildPlatform)
 {
  operating_system OS = DetectOS();
+ 
  string PlatformExePath = {};
- switch (OS)
+ switch (BuildPlatform)
  {
-  case OS_Win32: {
-   switch (Platform)
+  case BuildPlatform_Native: {
+   switch (OS)
    {
-    case BuildPlatform_Native: {
+    case OS_Win32: {
      PlatformExePath = StrLit("../code/win32/win32_editor.cpp");
     }break;
-    case BuildPlatform_GLFW: {
-     PlatformExePath = StrLit("../code/glfw/glfw_editor.cpp");
+    
+    case OS_Linux: {
+     PlatformExePath = StrLit("../code/x11/x11_editor.cpp");
     }break;
    }
   }break;
   
-  case OS_Linux: {
-   AssertMsg(Platform == BuildPlatform_Native, "Only native platform supported on Linux");
-   PlatformExePath = StrLit("../code/x11/x11_editor.cpp");
+  case BuildPlatform_GLFW: {
+   PlatformExePath = StrLit("../code/glfw/glfw_editor.cpp");
   }break;
  }
  
  compilation_target Target = MakeTarget(Exe, OS_ExecutableRelativeToFullPath(Arena, PlatformExePath), 0);
- 
  switch (OS)
  {
   case OS_Win32: {
    LinkLibrary(&Target, StrLit("User32.lib")); // CreateWindowExA,...
    LinkLibrary(&Target, StrLit("Comdlg32.lib")); // GetOpenFileName,...
    LinkLibrary(&Target, StrLit("Shell32.lib")); // DragQueryFileA,...
+   
+   if (BuildPlatform == BuildPlatform_GLFW)
+   {
+    LinkLibrary(&Target, StrLit("Gdi32.lib")); // SwapBuffers,SetPixelFormat,...
+    LinkLibrary(&Target, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/third_party/glfw/lib-vc2022/glfw3_mt.lib")));
+   }
   }break;
   
   case OS_Linux: {
@@ -82,15 +130,29 @@ PlatformExe_Compilation(arena *Arena, compiler_setup Setup, compilation_command 
  return PlatformExe;
 }
 
-internal int
+internal exit_code_int
 CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, b32 ForceRecompile, b32 Verbose)
 {
- int ExitCode = 0;
+ exit_code_int ExitCode = 0;
  temp_arena Temp = TempArena(0);
+ 
+ build_platform BuildPlatform = {};
+ operating_system OS = DetectOS();
+ switch (OS)
+ {
+  case OS_Win32: {BuildPlatform = BuildPlatform_Native;}break;
+  case OS_Linux: {BuildPlatform = BuildPlatform_Native;}break;
+ }
  
  compiler_setup Setup = MakeCompilerSetup(Compiler, Debug, true, Verbose);
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code")));
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/third_party/imgui")));
+ 
+ if (BuildPlatform == BuildPlatform_GLFW)
+ {
+  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/third_party/glfw")));
+  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/third_party/gl3w")));
+ }
  
  //- precompile third party code into obj
  compilation_command ThirdParty = {};
@@ -110,18 +172,18 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
  }
  
  //- compile renderer into library and platform layer into executable
- build_platform Platform = (DetectOS() == OS_Win32 ? BuildPlatform_Native : BuildPlatform_Native);
- 
- compilation_command Renderer = Renderer_Compilation(Temp.Arena, Setup, Platform);
- compilation_command PlatformExe = PlatformExe_Compilation(Temp.Arena, Setup, Editor, Renderer, Platform);
+ compilation_command Renderer = Renderer_Compilation(Temp.Arena, Setup, BuildPlatform);
+ compilation_command PlatformExe = PlatformExe_Compilation(Temp.Arena, Setup, Editor, Renderer, BuildPlatform);
  
  // NOTE(hbr): Start up renderer and Win32 compilation processes first because they don't depend on anything.
  // Do them in background when waiting for ThirdParty to compile. Editor on the other hand depends on ThirdParty
- // to compile first.
+ // (and possibly GLFW) to compile first.
  os_process_handle RendererProcess = OS_ProcessLaunch(Renderer.Cmd);
  os_process_handle PlatformExeProcess = OS_ProcessLaunch(PlatformExe.Cmd);
  os_process_handle ThirdPartyProcess = OS_ProcessLaunch(ThirdParty.Cmd);
+ 
  ExitCode = OS_ProcessWait(ThirdPartyProcess);
+ 
  os_process_handle EditorProcess = OS_ProcessLaunch(Editor.Cmd);
  
  EnqueueProcess(ProcessQueue, EditorProcess);
@@ -133,7 +195,8 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
  return ExitCode;
 }
 
-int main(int ArgCount, char *Args[])
+int
+main(int ArgCount, char *Args[])
 {
  u64 BeginTSC = OS_ReadCPUTimer();
  int ExitCode = 0;
@@ -199,21 +262,21 @@ int main(int ArgCount, char *Args[])
   process_queue ProcessQueue = {};
   if (Debug)
   {
-   int SubProcessExitCode = CompileEditor(&ProcessQueue, Compiler, true, ForceRecompile, Verbose);
-   if (SubProcessExitCode) ExitCode = SubProcessExitCode;
+   exit_code_int SubProcessExitCode = CompileEditor(&ProcessQueue, Compiler, true, ForceRecompile, Verbose);
+   ExitCode = OS_CombineExitCodes(ExitCode, SubProcessExitCode);
   }
   if (Release)
   {
-   int SubProcessExitCode = CompileEditor(&ProcessQueue, Compiler, false, ForceRecompile, Verbose);
-   if (SubProcessExitCode) ExitCode = SubProcessExitCode;
+   exit_code_int SubProcessExitCode = CompileEditor(&ProcessQueue, Compiler, false, ForceRecompile, Verbose);
+   ExitCode = OS_CombineExitCodes(ExitCode, SubProcessExitCode);
   }
   
   for (u32 ProcessIndex = 0;
        ProcessIndex < ProcessQueue.ProcessCount;
        ++ProcessIndex)
   {
-   int SubProcessExitCode = OS_ProcessWait(ProcessQueue.Processes[ProcessIndex]);
-   if (SubProcessExitCode) ExitCode = SubProcessExitCode;
+   exit_code_int SubProcessExitCode = OS_ProcessWait(ProcessQueue.Processes[ProcessIndex]);
+   ExitCode = OS_CombineExitCodes(ExitCode, SubProcessExitCode);
   }
   
   u64 CPUFreq = OS_CPUTimerFreq();

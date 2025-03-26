@@ -535,12 +535,10 @@ EntryPoint(void)
    
    
    //- misc
-   u64 LastTSC = OS_ReadCPUTimer();
-   u64 CPU_TimerFreq = OS_CPUTimerFreq();
-   
    b32 Running = true;
    b32 RefreshRequested = true;
    b32 ProfilingStopped = false;
+   platform_clock Clock = Platform_MakeClock();
    
    //- main loop
    while (Running)
@@ -551,33 +549,24 @@ EntryPoint(void)
     }
     
     //- hot reload
-    b32 EditorCodeReloaded = false;
-    b32 RendererCodeReloaded = false;
     ProfileBlock("Hot Reload")
     {
-     EditorCodeReloaded = HotReloadIfOutOfSync(&EditorCode);
-     RendererCodeReloaded = HotReloadIfOutOfSync(&RendererCode);
-    }
-    
-    if (RendererCodeReloaded && RendererCode.IsValid)
-    {
-     RendererFunctions.OnCodeReload(&RendererMemory);
+     if (HotReloadIfOutOfSync(&EditorCode))
+     {
+      imgui_bindings Bindings = EditorFunctions.OnCodeReload(&EditorMemory);
+      Win32State->ImGuiBindings = Bindings;
+      RendererMemory.ImGuiBindings = Bindings;
+     }
+     
+     if (HotReloadIfOutOfSync(&RendererCode))
+     {
+      RendererFunctions.OnCodeReload(&RendererMemory);
+     }
     }
     
     if (!Renderer && RendererCode.IsValid)
     {
      Renderer = RendererFunctions.Init(PermamentArena, &RendererMemory, Window, WindowDC);
-    }
-    
-    if (EditorCodeReloaded && EditorCode.IsValid)
-    {
-     imgui_bindings Bindings = EditorFunctions.OnCodeReload(&EditorMemory);
-     Win32State->ImGuiBindings = Bindings;
-     RendererMemory.ImGuiBindings = Bindings;
-     
-     win32_imgui_init_data Init = {};
-     Init.Window = Window;
-     Bindings.Init(Cast(imgui_init_data *)&Init);
     }
     
     //- process input events
@@ -639,30 +628,24 @@ EntryPoint(void)
     
     //- update and render
     render_frame *Frame = 0;
-    if (RendererCode.IsValid)
+    if (Renderer && RendererCode.IsValid)
     {
      Frame = RendererFunctions.BeginFrame(Renderer, &RendererMemory, WindowDim);
     }
     
-    {
-     u64 NowTSC = OS_ReadCPUTimer();
-     Input.dtForFrame = Cast(f32)(NowTSC - LastTSC) / CPU_TimerFreq;
-     LastTSC = NowTSC;
-    }
-    
+    Input.dtForFrame = Platform_ClockFrame(&Clock);
     if (EditorCode.IsValid)
     {
      EditorFunctions.UpdateAndRender(&EditorMemory, &Input, Frame);
     }
-    
-    if (RendererCode.IsValid)
-    {
-     RendererFunctions.EndFrame(Renderer, &RendererMemory, Frame);
-    }
-    
     if (Input.QuitRequested)
     {
      Running = false;
+    }
+    
+    if (Renderer && RendererCode.IsValid)
+    {
+     RendererFunctions.EndFrame(Renderer, &RendererMemory, Frame);
     }
     
     if (!ProfilingStopped)

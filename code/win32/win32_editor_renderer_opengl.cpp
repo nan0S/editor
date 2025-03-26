@@ -3,17 +3,17 @@
 
 #include "renderer_shared.h"
 
-#include "editor_math.h"
-#include "editor_third_party_inc.h"
-
 #include "win32/win32_editor_renderer.h"
 #include "win32/win32_editor_renderer_opengl.h"
+#include "win32/win32_editor_imgui_bindings.h"
+
+#include "editor_math.h"
+#include "editor_third_party_inc.h"
 #include "editor_renderer_opengl.h"
 
 #include "editor_math.cpp"
 
 global b32 GlobalRendererCodeReloaded;
-
 #include "editor_renderer_opengl.cpp"
 
 internal void
@@ -236,6 +236,11 @@ DLL_EXPORT
 WIN32_RENDERER_INIT(Win32RendererInit)
 {
  opengl *OpenGL = Win32OpenGLInit(Arena, Memory, Window, WindowDC);
+ 
+ win32_imgui_init_data Init = {};
+ Init.Window = Window;
+ Memory->ImGuiBindings.Init(Cast(imgui_init_data *)&Init);
+ 
  return Cast(renderer *)OpenGL;
 }
 

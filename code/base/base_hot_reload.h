@@ -21,6 +21,6 @@ struct hot_reload_library
 typedef b32 reloaded_b32;
 
 internal hot_reload_library MakeHotReloadableLibrary(arena *Arena, string LibraryPath, char const **FunctionNames, void **FunctionTable, void **TempFunctionTable, u32 FunctionCount);
-internal reloaded_b32 HotReloadIfRecompiled(hot_reload_library *Code);
+internal reloaded_b32 HotReloadIfOutOfSync(hot_reload_library *Code);
 
 #endif //BASE_HOT_RELOAD_H

@@ -22,7 +22,7 @@ MakeHotReloadableLibrary(arena *Arena, string LibraryPath, char const **Function
 }
 
 internal b32
-HotReloadIfRecompiled(hot_reload_library *Code)
+HotReloadIfOutOfSync(hot_reload_library *Code)
 {
  b32 Reloaded = false;
  

@@ -3901,7 +3901,6 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
                                   Editor->BackgroundColor,
                                   Editor->CollisionToleranceClip,
                                   Editor->RotationRadiusClip);
-  Editor->RenderGroup = RenderGroup;
  }
  
  ProcessAsyncEvents(Editor);

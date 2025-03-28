@@ -74,7 +74,7 @@ internal void                 UI_PopAlpha(void);
 #define UI_LabelF(...)            DeferBlock(UI_PushLabelF(__VA_ARGS__), UI_PopLabel())
 #define UI_Id(Id)                 DeferBlock(UI_PushId(Id), UI_PopId())
 #define UI_Disabled(Disabled)     DeferBlock(UI_BeginDisabled(Disabled), UI_EndDisabled())
-#define UI_Colored(Apply, Color)  ui_push_color_handle UI_PushColorHandleVar = UI_PushColor(Apply, Color); DeferBlock(NoOp, UI_PopColor(UI_PushColorHandleVar))
+#define UI_Colored(Apply, Color)  ui_push_color_handle NameConcat(UI_PushColorHandleVar, __LINE__) = UI_PushColor(Apply, Color); DeferBlock(NoOp, UI_PopColor(NameConcat(UI_PushColorHandleVar, __LINE__)))
 #define UI_Alpha(Alpha)           DeferBlock(UI_PushAlpha(Alpha), UI_PopAlpha())
 
 internal not_collapsed_b32 UI_BeginWindow(b32 *IsOpen, ui_window_flags Flags, string Label);
@@ -110,8 +110,8 @@ internal b32               UI_IsWindowHovered(void);
 
 internal void              UI_SetNextItemSize(v2 Size);
 internal void              UI_SetNextItemPos(v2 Pos); // top-left corner
-internal void              UI_SetNextItemOpen(b32 Open, ui_cond Cond = UICond_None);
-internal void              UI_SetNextWindowPos(v2 P, ui_placement Placement = UIPlacement_TopLeftCorner);
+internal void              UI_SetNextItemOpen(b32 Open, ui_cond Cond);
+internal void              UI_SetNextWindowPos(v2 P, ui_placement Placement);
 internal void              UI_SetNextWindowSizeConstraints(v2 MinSize, v2 MaxSize);
 
 internal void              UI_BringCurrentWindowToDisplayFront(void);

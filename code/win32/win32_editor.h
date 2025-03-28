@@ -14,7 +14,6 @@ struct win32_state
  arena *InputArena;
 #define WIN32_KEY_COUNT 0xFF
  platform_key Win32ToPlatformKeyTable[WIN32_KEY_COUNT];
- imgui_bindings ImGuiBindings;
 };
 
 #endif //WIN32_EDITOR_H

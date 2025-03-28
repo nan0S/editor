@@ -17,7 +17,7 @@ ImVec2FromV2(v2 V)
 internal b32
 UI_IsItemHovered(void)
 {
- b32 Result = (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled));
+ b32 Result = Platform.ImGui.IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
  return Result;
 }
 
@@ -38,7 +38,7 @@ internal b32
 UI_IsMouseClicked(ui_mouse_button Button)
 {
  ImGuiMouseButton ImButton = UIMouseButtonToImGuiMouseButton(Button);
- b32 Result = Cast(b32)ImGui::IsMouseClicked(ImButton);
+ b32 Result = Cast(b32)Platform.ImGui.IsMouseClicked(ImButton);
  
  return Result;
 }
@@ -46,7 +46,7 @@ UI_IsMouseClicked(ui_mouse_button Button)
 internal b32
 UI_IsWindowHovered(void)
 {
- b32 Result = Cast(b32)ImGui::IsWindowHovered();
+ b32 Result = Cast(b32)Platform.ImGui.IsWindowHovered();
  return Result;
 }
 
@@ -63,7 +63,7 @@ internal void
 UI_SetNextItemPos(v2 Pos)
 {
  ImVec2 ImPos(Pos.X, Pos.Y);
- ImGui::SetCursorPos(ImPos);
+ Platform.ImGui.SetCursorPos(ImPos);
 }
 
 internal ImGuiCond
@@ -83,7 +83,7 @@ internal void
 UI_SetNextItemOpen(b32 Open, ui_cond Cond)
 {
  ImGuiCond ImCond = UICondToImGuiCond(Cond);
- ImGui::SetNextItemOpen(Cast(bool)Open, ImCond);
+ Platform.ImGui.SetNextItemOpen(Cast(bool)Open, ImCond);
 }
 
 internal ImVec2
@@ -107,7 +107,7 @@ UI_SetNextWindowPos(v2 P, ui_placement Placement)
 {
  ImVec2 ImP = ImVec2FromV2(P);
  ImVec2 Pivot = UIPlacementToImGuiPivot(Placement);
- ImGui::SetNextWindowPos(ImP, ImGuiCond_Always, Pivot);
+ Platform.ImGui.SetNextWindowPos(ImP, ImGuiCond_Always, Pivot);
 }
 
 internal void
@@ -115,13 +115,13 @@ UI_SetNextWindowSizeConstraints(v2 MinSize, v2 MaxSize)
 {
  ImVec2 ImMinSize = ImVec2FromV2(MinSize);
  ImVec2 ImMaxSize = ImVec2FromV2(MaxSize);
- ImGui::SetNextWindowSizeConstraints(ImMinSize, ImMaxSize);
+ Platform.ImGui.SetNextWindowSizeConstraints(ImMinSize, ImMaxSize);
 }
 
 internal void
 UI_BringCurrentWindowToDisplayFront(void)
 {
- ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
+ Platform.ImGui.BringWindowToDisplayFront(Platform.ImGui.GetCurrentWindow());
 }
 
 internal b32
@@ -137,7 +137,7 @@ UI_Combo(u32 *Enum, u32 EnumCount, string EnumNames[], string Label)
  {
   CEnumNames[EnumIndex] = CStrFromStr(Temp.Arena, EnumNames[EnumIndex]).Data;
  }
- b32 Result = Cast(b32)ImGui::Combo(CLabel.Data, &Enum_, CEnumNames, EnumCount);
+ b32 Result = Cast(b32)Platform.ImGui.Combo(CLabel.Data, &Enum_, CEnumNames, EnumCount);
  *Enum = Enum_;
  EndTemp(Temp);
  
@@ -164,7 +164,7 @@ UI_Checkbox(b32 *Enabled, string Label)
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
  bool Enabled_ = *Enabled;
- b32 Result = Cast(b32)ImGui::Checkbox(CLabel.Data, &Enabled_);
+ b32 Result = Cast(b32)Platform.ImGui.Checkbox(CLabel.Data, &Enabled_);
  *Enabled = Cast(b32)Enabled_;
  EndTemp(Temp);
  
@@ -190,7 +190,7 @@ UI_ColorPicker(v4 *Color, string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
- b32 Result = Cast(b32)ImGui::ColorEdit4(CLabel.Data, Color->E);
+ b32 Result = Cast(b32)Platform.ImGui.ColorEdit4(CLabel.Data, Color->E);
  EndTemp(Temp);
  
  return Result;
@@ -221,7 +221,7 @@ UI_Button(string Label)
   Size = ImVec2(UI_GlobalNextItemSize.X, UI_GlobalNextItemSize.Y);
   UI_GlobalNextItemSizeSet = false;
  }
- b32 Result = Cast(b32)ImGui::Button(CLabel.Data, Size);
+ b32 Result = Cast(b32)Platform.ImGui.Button(CLabel.Data, Size);
  EndTemp(Temp);
  
  return Result;
@@ -247,7 +247,7 @@ UI_AngleSlider(v2 *Rotation, string Label)
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
  f32 RotationRad = Rotation2DToRadians(*Rotation);
- ImGui::SliderAngle(CLabel.Data, &RotationRad);
+ Platform.ImGui.SliderAngle(CLabel.Data, &RotationRad);
  *Rotation = Rotation2DFromRadians(RotationRad);
  EndTemp(Temp);
 }
@@ -269,8 +269,8 @@ PushTightInputText(u32 InputWidthInChars)
 {
  if (InputWidthInChars)
  {
-  float FontSize = ImGui::GetFontSize();
-  ImGui::PushItemWidth(FontSize * InputWidthInChars);
+  float FontSize = Platform.ImGui.GetFontSize();
+  Platform.ImGui.PushItemWidth(FontSize * InputWidthInChars);
  }
 }
 
@@ -279,7 +279,7 @@ PopTightInputText(u32 InputWidthInChars)
 {
  if (InputWidthInChars)
  {
-  ImGui::PopItemWidth();
+  Platform.ImGui.PopItemWidth();
  }
 }
 
@@ -290,7 +290,7 @@ UI_InputText(char *Buf, u64 BufSize, u32 InputWidthInChars, string Label)
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
  PushTightInputText(InputWidthInChars);
- Result.Changed = Cast(b32)ImGui::InputText(CLabel.Data, Buf, BufSize);
+ Result.Changed = Cast(b32)Platform.ImGui.InputText(CLabel.Data, Buf, BufSize);
  PopTightInputText(InputWidthInChars);
  Result.Input = StrFromCStr(Buf);
  EndTemp(Temp);
@@ -319,7 +319,7 @@ UI_MultiLineInputText(char *Buf, u64 BufSize, u32 InputWidthInChars, string Labe
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
  PushTightInputText(InputWidthInChars);
- Result.Changed = Cast(b32)ImGui::InputTextMultiline(CLabel.Data, Buf, BufSize, ImVec2(0, 0), ImGuiInputTextFlags_AllowTabInput);
+ Result.Changed = Cast(b32)Platform.ImGui.InputTextMultiline(CLabel.Data, Buf, BufSize, ImVec2(0, 0), ImGuiInputTextFlags_AllowTabInput);
  PopTightInputText(InputWidthInChars);
  Result.Input = StrFromCStr(Buf);
  EndTemp(Temp);
@@ -346,7 +346,7 @@ UI_PushLabel(string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
- ImGui::PushID(CLabel.Data);
+ Platform.ImGui.PushID_Str(CLabel.Data);
  EndTemp(Temp);
 }
 
@@ -362,11 +362,11 @@ UI_PushLabelF(char const *Format, ...)
  EndTemp(Temp);
 }
 
-internal void UI_PushId(u32 Id) { ImGui::PushID(Id); }
-internal void UI_PopId(void) { ImGui::PopID(); }
+internal void UI_PushId(u32 Id) { Platform.ImGui.PushID_Int(Id); }
+internal void UI_PopId(void) { Platform.ImGui.PopID(); }
 internal void UI_PopLabel(void) { UI_PopId(); }
-internal void UI_BeginDisabled(b32 Disabled) { ImGui::BeginDisabled(Cast(bool)Disabled); }
-internal void UI_EndDisabled(void) { ImGui::EndDisabled(); }
+internal void UI_BeginDisabled(b32 Disabled) { Platform.ImGui.BeginDisabled(Cast(bool)Disabled); }
+internal void UI_EndDisabled(void) { Platform.ImGui.EndDisabled(); }
 
 internal ImVec4
 V4ToImColor(v4 Color)
@@ -407,7 +407,7 @@ UI_PushColor(ui_color_apply Apply, v4 Color)
       ColIndex < ColCount;
       ++ColIndex)
  {
-  ImGui::PushStyleColor(ImCols[ColIndex], V4ToImColor(Colors[ColIndex]));
+  Platform.ImGui.PushStyleColor(ImCols[ColIndex], V4ToImColor(Colors[ColIndex]));
  }
  
  Result.PushColorCount = ColCount;
@@ -418,19 +418,19 @@ UI_PushColor(ui_color_apply Apply, v4 Color)
 internal void
 UI_PopColor(ui_push_color_handle Handle)
 {
- ImGui::PopStyleColor(Handle.PushColorCount);
+ Platform.ImGui.PopStyleColor(Handle.PushColorCount);
 }
 
 internal void
 UI_PushAlpha(f32 Alpha)
 {
- ImGui::PushStyleVar(ImGuiStyleVar_Alpha, Alpha);
+ Platform.ImGui.PushStyleVar(ImGuiStyleVar_Alpha, Alpha);
 }
 
 internal void
 UI_PopAlpha(void)
 {
- ImGui::PopStyleVar();
+ Platform.ImGui.PopStyleVar();
 }
 
 internal b32
@@ -443,8 +443,8 @@ UI_DragFloat(f32 *Value, f32 MinValue, f32 MaxValue, char const *ValueFormat, st
  Speed = ClampBot(0.001f, Speed);
  char const *Format = ValueFormat;
  if (Format == 0) Format = "%.3f";
- b32 Result = Cast(b32)ImGui::DragFloat(CLabel.Data, Value, Speed, MinValue,
-                                        MaxValue, Format, ImGuiSliderFlags_NoRoundToFormat);
+ b32 Result = Cast(b32)Platform.ImGui.DragFloat(CLabel.Data, Value, Speed, MinValue,
+                                                MaxValue, Format, ImGuiSliderFlags_NoRoundToFormat);
  EndTemp(Temp);
  
  return Result;
@@ -474,8 +474,8 @@ UI_DragFloat2(f32 Values[2], f32 MinValue, f32 MaxValue, char const *ValueFormat
  Speed = ClampBot(0.001f, Speed);
  char const *Format = ValueFormat;
  if (Format == 0) Format = "%.3f";
- b32 Result = Cast(b32)ImGui::DragFloat2(CLabel.Data, Values, Speed, MinValue,
-                                         MaxValue, Format, ImGuiSliderFlags_NoRoundToFormat);
+ b32 Result = Cast(b32)Platform.ImGui.DragFloat2(CLabel.Data, Values, Speed, MinValue,
+                                                 MaxValue, Format, ImGuiSliderFlags_NoRoundToFormat);
  EndTemp(Temp);
  
  return Result;
@@ -500,7 +500,7 @@ UI_SliderFloat(f32 *Value, f32 MinValue, f32 MaxValue, string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
- b32 Result = Cast(b32)ImGui::SliderFloat(CLabel.Data, Value, MinValue, MaxValue);
+ b32 Result = Cast(b32)Platform.ImGui.SliderFloat(CLabel.Data, Value, MinValue, MaxValue);
  EndTemp(Temp);
  
  return Result;
@@ -520,8 +520,8 @@ UI_SliderFloatF(f32 *Value, f32 MinValue, f32 MaxValue, char const *Format, ...)
  return Result;
 }
 
-internal void UI_NewRow(void) { ImGui::NewLine(); }
-internal void UI_SameRow(void) { ImGui::SameLine(); }
+internal void UI_NewRow(void) { Platform.ImGui.NewLine(); }
+internal void UI_SameRow(void) { Platform.ImGui.SameLine(); }
 
 internal void
 UI_SeparatorText(string Text)
@@ -529,7 +529,7 @@ UI_SeparatorText(string Text)
  temp_arena Temp = TempArena(0);
  string CText = CStrFromStr(Temp.Arena, Text);
  // TODO(hbr): uncomment
- ImGui::SeparatorText(CText.Data);
+ Platform.ImGui.SeparatorText(CText.Data);
  EndTemp(Temp);
 }
 
@@ -559,7 +559,7 @@ UI_SliderInteger(i32 *Value, i32 MinValue, i32 MaxValue, string Label)
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
  int ValueInt = SafeCastInt(*Value);
- b32 Result = Cast(b32)ImGui::SliderInt(CLabel.Data, &ValueInt, SafeCastInt(MinValue), SafeCastInt(MaxValue));
+ b32 Result = Cast(b32)Platform.ImGui.SliderInt(CLabel.Data, &ValueInt, SafeCastInt(MinValue), SafeCastInt(MaxValue));
  *Value = ValueInt;
  EndTemp(Temp);
  
@@ -587,11 +587,11 @@ UI_Text(b32 Wrapped, string Text)
  string CText = CStrFromStr(Temp.Arena, Text);
  if (Wrapped)
  {
-  ImGui::TextWrapped("%s", CText.Data);
+  Platform.ImGui.TextWrapped("%s", CText.Data);
  }
  else
  {
-  ImGui::Text("%s", CText.Data);
+  Platform.ImGui.Text("%s", CText.Data);
  }
  EndTemp(Temp);
 }
@@ -630,7 +630,7 @@ UI_BeginWindow(b32 *IsOpen, ui_window_flags Flags, string Label)
  bool IsOpen_ = false;
  if (IsOpen) IsOpen_ = Cast(bool)(*IsOpen);
  ImGuiWindowFlags ImFlags = UIWindowFlagsToImWindowFlags(Flags);
- b32 Result = Cast(b32)ImGui::Begin(CLabel.Data, (IsOpen ? &IsOpen_ : 0), ImFlags);
+ b32 Result = Cast(b32)Platform.ImGui.Begin(CLabel.Data, (IsOpen ? &IsOpen_ : 0), ImFlags);
  if (IsOpen) *IsOpen = Cast(b32)IsOpen_;
  EndTemp(Temp);
  
@@ -651,14 +651,14 @@ UI_BeginWindowF(b32 *IsOpen, ui_window_flags Flags, char const *Format, ...)
  return Result;
 }
 
-internal void UI_EndWindow(void) { ImGui::End(); }
+internal void UI_EndWindow(void) { Platform.ImGui.End(); }
 
 internal not_collapsed_b32
 UI_CollapsingHeader(string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
- b32 Result = !(Cast(b32)ImGui::CollapsingHeader(CLabel.Data));
+ b32 Result = !(Cast(b32)Platform.ImGui.CollapsingHeader(CLabel.Data));
  EndTemp(Temp);
  
  return Result;
@@ -683,7 +683,7 @@ UI_SelectableItem(b32 Selected, string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
- b32 Result = Cast(b32)ImGui::Selectable(CLabel.Data, Cast(bool)Selected);
+ b32 Result = Cast(b32)Platform.ImGui.Selectable(CLabel.Data, Cast(bool)Selected);
  EndTemp(Temp);
  
  return Result;
@@ -708,7 +708,7 @@ UI_Tooltip(string Contents)
 {
  temp_arena Temp = TempArena(0);
  string CContents = CStrFromStr(Temp.Arena, Contents);
- ImGui::SetTooltip(CContents.Data);
+ Platform.ImGui.SetTooltip(CContents.Data);
  EndTemp(Temp);
 }
 
@@ -738,7 +738,7 @@ UI_Rect(u32 Id)
 internal void
 UI_HorizontalSeparator(void)
 {
- ImGui::Separator();
+ Platform.ImGui.Separator();
 }
 
 internal void
@@ -746,7 +746,7 @@ UI_OpenPopup(string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
- ImGui::OpenPopup(CLabel.Data);
+ Platform.ImGui.OpenPopup(CLabel.Data);
  EndTemp(Temp);
 }
 
@@ -756,13 +756,13 @@ UI_BeginPopup(string Label, ui_window_flags Flags)
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
  ImGuiWindowFlags ImFlags = UIWindowFlagsToImWindowFlags(Flags);
- b32 Result = Cast(b32)ImGui::BeginPopup(CLabel.Data, ImFlags);
+ b32 Result = Cast(b32)Platform.ImGui.BeginPopup(CLabel.Data, ImFlags);
  EndTemp(Temp);
  
  return Result;
 }
 
-internal void UI_EndPopup(void) { ImGui::EndPopup(); }
+internal void UI_EndPopup(void) { Platform.ImGui.EndPopup(); }
 
 internal b32
 UI_MenuItem(b32 *Selected, char const *Shortcut, string Label)
@@ -771,7 +771,7 @@ UI_MenuItem(b32 *Selected, char const *Shortcut, string Label)
  string CLabel = CStrFromStr(Temp.Arena, Label);
  bool Selected_ = false;
  if (Selected) Selected_ = Cast(bool)(*Selected);
- b32 Result = Cast(b32)ImGui::MenuItem(CLabel.Data, Shortcut, &Selected_);
+ b32 Result = Cast(b32)Platform.ImGui.MenuItem(CLabel.Data, Shortcut, &Selected_);
  if (Selected) *Selected = Cast(b32)Selected_;
  EndTemp(Temp);
  
@@ -794,18 +794,18 @@ UI_MenuItemF(b32 *Selected, char const *Shortcut, char const *Format, ...)
 internal b32
 UI_BeginMainMenuBar(void)
 {
- b32 Result = Cast(b32)ImGui::BeginMainMenuBar();
+ b32 Result = Cast(b32)Platform.ImGui.BeginMainMenuBar();
  return Result;
 }
 
-internal void UI_EndMainMenuBar(void)   { ImGui::EndMainMenuBar(); }
+internal void UI_EndMainMenuBar(void)   { Platform.ImGui.EndMainMenuBar(); }
 
 internal b32
 UI_BeginMenu(string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
- b32 Result = Cast(b32)ImGui::BeginMenu(CLabel.Data);
+ b32 Result = Cast(b32)Platform.ImGui.BeginMenu(CLabel.Data);
  EndTemp(Temp);
  
  return Result;
@@ -824,7 +824,7 @@ UI_BeginMenuF(char const *Format, ...)
  return Result;
 }
 
-internal void UI_EndMenu(void) { ImGui::EndMenu(); }
+internal void UI_EndMenu(void) { Platform.ImGui.EndMenu(); }
 
 internal b32
 UI_BeginCombo(string Preview, string Label)
@@ -832,7 +832,7 @@ UI_BeginCombo(string Preview, string Label)
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
  string CPreview = CStrFromStr(Temp.Arena, Preview);
- b32 Result = Cast(b32)ImGui::BeginCombo(CLabel.Data, CPreview.Data);
+ b32 Result = Cast(b32)Platform.ImGui.BeginCombo(CLabel.Data, CPreview.Data);
  EndTemp(Temp);
  
  return Result;
@@ -852,28 +852,28 @@ UI_BeginComboF(string Preview, char const *Format, ...)
  return Result;
 }
 
-internal void UI_EndCombo(void) { ImGui::EndCombo(); }
+internal void UI_EndCombo(void) { Platform.ImGui.EndCombo(); }
 
 internal b32
 UI_BeginPopupModal(string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
- b32 Result = Cast(b32)ImGui::BeginPopupModal(CLabel.Data, 0,
-                                              ImGuiWindowFlags_NoTitleBar |
-                                              ImGuiWindowFlags_AlwaysAutoResize);
+ b32 Result = Cast(b32)Platform.ImGui.BeginPopupModal(CLabel.Data, 0,
+                                                      ImGuiWindowFlags_NoTitleBar |
+                                                      ImGuiWindowFlags_AlwaysAutoResize);
  EndTemp(Temp);
  
  return Result;
 }
 
-internal void UI_CloseCurrentPopup(void) { ImGui::CloseCurrentPopup(); }
+internal void UI_CloseCurrentPopup(void) { Platform.ImGui.CloseCurrentPopup(); }
 
 internal b32 UI_BeginTree(string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
- b32 Expanded = Cast(bool)ImGui::TreeNode(CLabel.Data);
+ b32 Expanded = Cast(bool)Platform.ImGui.TreeNode(CLabel.Data);
  EndTemp(Temp);
  
  return Expanded;
@@ -893,11 +893,11 @@ UI_BeginTreeF(char const *Format, ...)
  return Result;
 }
 
-internal void UI_EndTree(void) { ImGui::TreePop(); }
+internal void UI_EndTree(void) { Platform.ImGui.TreePop(); }
 
 internal v2 UI_GetWindowSize(void)
 {
- ImVec2 Size = ImGui::GetWindowSize();
+ ImVec2 Size = Platform.ImGui.GetWindowSize();
  v2 Result = V2(Size.x, Size.y);
  return Result;
 }
@@ -919,8 +919,8 @@ UI_GetWindowHeight(void)
 internal rect2
 UI_GetDrawableRegionBounds(void)
 {
- ImVec2 ImCursor = ImGui::GetCursorPos();
- ImVec2 ImSize = ImGui::GetWindowContentRegionMax();
+ ImVec2 ImCursor = Platform.ImGui.GetCursorPos();
+ ImVec2 ImSize = Platform.ImGui.GetWindowContentRegionMax();
  
  v2 Cursor = V2FromImVec2(ImCursor);
  v2 Size = V2FromImVec2(ImSize);
@@ -933,5 +933,5 @@ UI_GetDrawableRegionBounds(void)
 internal void
 UI_RenderDemoWindow(void)
 {
- ImGui::ShowDemoWindow();
+ Platform.ImGui.ShowDemoWindow();
 }

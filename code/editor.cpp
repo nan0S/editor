@@ -4057,24 +4057,11 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
  ProfileEnd();
 }
 
-IMGUI_INIT_FUNC();
-IMGUI_NEW_FRAME_FUNC();
-IMGUI_RENDER_FUNC();
-IMGUI_MAYBE_CAPTURE_INPUT_FUNC();
-
-internal imgui_bindings
+internal void
 EditorOnCodeReload_(editor_memory *Memory)
 {
- ProfilerEquip(Memory->Profiler);
  Platform = Memory->PlatformAPI;
- 
- imgui_bindings Bindings = {};
- Bindings.Init = ImGuiInit;
- Bindings.NewFrame = ImGuiNewFrame;
- Bindings.Render = ImGuiRender;
- Bindings.MaybeCaptureInput = ImGuiMaybeCaptureInput;
- 
- return Bindings;
+ ProfilerEquip(Memory->Profiler);
 }
 
 DLL_EXPORT
@@ -4086,6 +4073,5 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 DLL_EXPORT
 EDITOR_ON_CODE_RELOAD(EditorOnCodeReload)
 {
- imgui_bindings Result = EditorOnCodeReload_(Memory);
- return Result;
+ EditorOnCodeReload_(Memory);
 }

@@ -10,6 +10,11 @@
 
 global win32_state GlobalWin32State;
 
+IMGUI_INIT_FUNC();
+IMGUI_NEW_FRAME_FUNC();
+IMGUI_RENDER_FUNC();
+IMGUI_MAYBE_CAPTURE_INPUT_FUNC();
+
 internal string
 Win32FileDialogFiltersToWin32Filter(arena *Arena, platform_file_dialog_filters Filters)
 {
@@ -185,19 +190,24 @@ Win32ClipSpaceMousePFromLParam(HWND Window, LPARAM lParam)
  return Result;
 }
 
+global b32 GlobalImGuiInit;
 internal LRESULT 
 Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
 {
  LRESULT Result = 0;
- 
  win32_state *Win32State = &GlobalWin32State;
  
- win32_imgui_maybe_capture_input_data ImGuiData = {};
- ImGuiData.Window = Window;
- ImGuiData.Msg = Msg;
- ImGuiData.wParam = wParam;
- ImGuiData.lParam = lParam;
- imgui_maybe_capture_input_result ImGuiResult = Win32State->ImGuiBindings.MaybeCaptureInput(Cast(imgui_maybe_capture_input_data *)&ImGuiData);
+ imgui_maybe_capture_input_result ImGuiResult = {};
+ if (GlobalImGuiInit)
+ {
+  win32_imgui_maybe_capture_input_data ImGuiData = {};
+  ImGuiData.Window = Window;
+  ImGuiData.Msg = Msg;
+  ImGuiData.wParam = wParam;
+  ImGuiData.lParam = lParam;
+  
+  ImGuiResult = Platform.ImGui.MaybeCaptureInput(Cast(imgui_maybe_capture_input_data *)&ImGuiData);
+ }
  
  if (ImGuiResult.CapturedInput)
  {
@@ -377,6 +387,12 @@ EntryPoint(void)
  HINSTANCE Instance = GetModuleHandle(0);
  b32 InitSuccess = false;
  
+ Platform = Platform_MakePlatformAPI(Win32OpenFileDialog,
+                                     ImGuiInit,
+                                     ImGuiNewFrame,
+                                     ImGuiRender,
+                                     ImGuiMaybeCaptureInput);
+ 
  OS_Init(ArgCount, Args);
  ThreadCtxInit();
  
@@ -385,11 +401,7 @@ EntryPoint(void)
  ProfilerEquip(Profiler);
  
  arena *PermamentArena = AllocArena(Gigabytes(64));
- 
  win32_state *Win32State = &GlobalWin32State;
- 
- Platform.OpenFileDialog = Win32OpenFileDialog;
- Win32State->ImGuiBindings = ImGuiStubBindings();
  
  //- key mappings
  {
@@ -559,6 +571,7 @@ EntryPoint(void)
       if (!Renderer && RendererCode.IsValid)
       {
        Renderer = RendererFunctions.Init(PermamentArena, &RendererMemory, Window, WindowDC);
+       GlobalImGuiInit = true;
       }
      }
      
@@ -566,13 +579,7 @@ EntryPoint(void)
      // because ImGui can be init'ed only after renderer has been initialized.
      if (HotReloadIfOutOfSync(&EditorCode))
      {
-      imgui_bindings Bindings = EditorFunctions.OnCodeReload(&EditorMemory);
-      Win32State->ImGuiBindings = Bindings;
-      RendererMemory.ImGuiBindings = Bindings;
-      
-      win32_imgui_init_data Init = {};
-      Init.Window = Window;
-      Bindings.Init(Cast(imgui_init_data *)&Init);
+      EditorFunctions.OnCodeReload(&EditorMemory);
      }
     }
     

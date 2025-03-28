@@ -75,7 +75,7 @@ Renderer_Compilation(arena *Arena, compiler_setup Setup, build_platform BuildPla
 
 internal compilation_command
 PlatformExe_Compilation(arena *Arena, compiler_setup Setup,
-                        compilation_command Editor, compilation_command Renderer,
+                        compilation_command Editor, compilation_command Renderer, compilation_command ThirdParty,
                         build_platform BuildPlatform)
 {
  operating_system OS = DetectOS();
@@ -126,6 +126,8 @@ PlatformExe_Compilation(arena *Arena, compiler_setup Setup,
  DefineMacro(&Target, StrLit("EDITOR_DLL"), Editor.OutputTarget);
  DefineMacro(&Target, StrLit("EDITOR_RENDERER_DLL"), Renderer.OutputTarget);
  
+ StaticLink(&Target, ThirdParty.OutputTarget);
+ 
  compilation_command PlatformExe = ComputeCompilationCommand(Setup, Target);
  return PlatformExe;
 }
@@ -173,7 +175,7 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
  
  //- compile renderer into library and platform layer into executable
  compilation_command Renderer = Renderer_Compilation(Temp.Arena, Setup, BuildPlatform);
- compilation_command PlatformExe = PlatformExe_Compilation(Temp.Arena, Setup, Editor, Renderer, BuildPlatform);
+ compilation_command PlatformExe = PlatformExe_Compilation(Temp.Arena, Setup, Editor, Renderer, ThirdParty, BuildPlatform);
  
  // NOTE(hbr): Start up renderer and Win32 compilation processes first because they don't depend on anything.
  // Do them in background when waiting for ThirdParty to compile. Editor on the other hand depends on ThirdParty

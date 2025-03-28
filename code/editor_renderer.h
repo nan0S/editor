@@ -167,8 +167,6 @@ struct renderer_memory
  render_vertex *VertexBuffer;
  u32 MaxVertexCount;
  
- imgui_bindings ImGuiBindings;
- 
  platform_api PlatformAPI;
  
  profiler *Profiler;

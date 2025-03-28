@@ -7,7 +7,6 @@
 #include "base/base_os.h"
 
 #include "editor_profiler.h"
-#include "editor_third_party_inc.h"
 #include "editor_imgui_bindings.h"
 #include "editor_platform.h"
 #include "editor_renderer.h"

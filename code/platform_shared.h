@@ -23,40 +23,12 @@
 #define EDITOR_DLL_FILE_NAME ConvertNameToString(EDITOR_DLL)
 #define EDITOR_RENDERER_DLL_FILE_NAME ConvertNameToString(EDITOR_RENDERER_DLL)
 
-IMGUI_INIT(Platform_ImGuiInitStub) {}
-IMGUI_NEW_FRAME(Platform_ImGuiNewFrameStub) {}
-IMGUI_RENDER(Platform_ImGuiRenderStub) {}
-IMGUI_MAYBE_CAPTURE_INPUT(Platform_ImGuiMaybeCaptureInputStub) { return {}; }
-
-internal imgui_bindings
-ImGuiStubBindings(void)
-{
- imgui_bindings Bindings = {
-  Platform_ImGuiInitStub,
-  Platform_ImGuiNewFrameStub,
-  Platform_ImGuiRenderStub,
-  Platform_ImGuiMaybeCaptureInputStub,
- };
- return Bindings;
-}
-
-internal platform_file_dialog_result OpenFileDialogStub(arena *Arena, platform_file_dialog_filters Filters) {return {};}
-
-platform_api Platform = {
- OS_Reserve,
- OS_Release,
- OS_Commit,
- ThreadCtxGetScratch,
- OpenFileDialogStub,
- OS_ReadEntireFile,
- WorkQueueAddEntry,
- WorkQueueCompleteAllWork,
-};
-
 struct platform_clock
 {
  u64 LastTSC;
  u64 CPU_TimerFreq;
 };
+
+platform_api Platform;
 
 #endif //PLATFORM_SHARED_H

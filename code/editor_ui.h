@@ -58,6 +58,8 @@ enum ui_placement
  UIPlacement_Center,
 };
 
+internal void                 UI_Equip(imgui_bindings Bindings);
+
 internal void                 UI_PushLabel(string Label);
 internal void                 UI_PushLabelF(char const *Format, ...);
 internal void                 UI_PushId(u32 Id);

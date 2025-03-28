@@ -228,6 +228,8 @@ struct platform_api
  
  platform_work_queue_add_entry *WorkQueueAddEntry;
  platform_work_queue_complete_all_work *WorkQueueCompleteAllWork;
+ 
+ imgui_bindings ImGui;
 };
 extern platform_api Platform;
 #define TempArena Platform.GetScratchArena
@@ -262,7 +264,7 @@ struct editor_memory
 #define EDITOR_UPDATE_AND_RENDER(Name) void Name(editor_memory *Memory, platform_input *Input, struct render_frame *Frame)
 typedef EDITOR_UPDATE_AND_RENDER(editor_update_and_render);
 
-#define EDITOR_ON_CODE_RELOAD(Name) imgui_bindings Name(editor_memory *Memory)
+#define EDITOR_ON_CODE_RELOAD(Name) void Name(editor_memory *Memory)
 typedef EDITOR_ON_CODE_RELOAD(editor_on_code_reload);
 
 union editor_function_table

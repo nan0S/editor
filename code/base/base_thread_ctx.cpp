@@ -1,7 +1,7 @@
 global thread_static thread_ctx GlobalThreadCtxThreadLocal;
 
 internal thread_ctx *
-ThreadCtxGetEquipped(void)
+ThreadCtxGet(void)
 {
  return &GlobalThreadCtxThreadLocal;
 }
@@ -9,7 +9,7 @@ ThreadCtxGetEquipped(void)
 internal void
 ThreadCtxInit(void)
 {
- thread_ctx *Ctx = ThreadCtxGetEquipped();
+ thread_ctx *Ctx = ThreadCtxGet();
  for (u32 ArenaIndex = 0;
       ArenaIndex < ArrayCount(Ctx->Arenas);
       ++ArenaIndex)
@@ -21,7 +21,7 @@ ThreadCtxInit(void)
 internal temp_arena
 ThreadCtxGetScratch(arena *Conflict)
 {
- thread_ctx *Ctx = ThreadCtxGetEquipped();
+ thread_ctx *Ctx = ThreadCtxGet();
  temp_arena Result = {};
  
  for (u32 Index = 0;

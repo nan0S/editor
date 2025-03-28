@@ -1,6 +1,9 @@
 #ifndef EDITOR_STB_H
 #define EDITOR_STB_H
 
+//#define STBI_NO_STDIO
+#include "third_party/stb/stb_image.h"
+
 struct loaded_image
 {
  b32 Success;

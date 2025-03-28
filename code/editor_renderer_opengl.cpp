@@ -877,7 +877,7 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
  RenderFrame->MaxVertexCount = Memory->MaxVertexCount;
  RenderFrame->WindowDim = WindowDim;
  
- Memory->ImGuiBindings.NewFrame();
+ Platform.ImGui.NewFrame();
  
  ProfileEnd();
  
@@ -1091,7 +1091,7 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
   UseProgramEnd(OpenGL, Prog);
  }
  
- Memory->ImGuiBindings.Render();
+ Platform.ImGui.Render();
  
  ProfileEnd();
 }

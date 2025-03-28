@@ -1,8 +1,15 @@
+#include "base/base_core.h"
+
 //- stb
 #define STB_IMAGE_IMPLEMENTATION
 #include "third_party/stb/stb_image.h"
 
 //- imgui
+#pragma push_macro("Max")
+#pragma push_macro("Min")
+#undef Max
+#undef Min
+
 #include "third_party/imgui/imgui.cpp"
 #if BUILD_DEBUG
 # include "third_party/imgui/imgui_demo.cpp"
@@ -11,51 +18,17 @@
 #include "third_party/imgui/imgui_tables.cpp"
 #include "third_party/imgui/imgui_widgets.cpp"
 
-//- editor imgui bindings
-#include "base/base_core.h"
-#include "editor_imgui_bindings.h"
-
 #if OS_WINDOWS
 
-#include "win32/win32_editor_imgui_bindings.h"
-#include "third_party/imgui/imgui_impl_win32.cpp"
-#include "third_party/imgui/imgui_impl_opengl3.cpp"
-
-IMGUI_INIT_FUNC()
-{
- win32_imgui_init_data *Win32Init = Cast(win32_imgui_init_data *)Init;
- ImGui::CreateContext();
- ImGui_ImplWin32_Init(Win32Init->Window);
- ImGui_ImplOpenGL3_Init();
-}
-
-IMGUI_NEW_FRAME_FUNC()
-{
- ImGui_ImplOpenGL3_NewFrame();
- ImGui_ImplWin32_NewFrame();
- ImGui::NewFrame();
-}
-
-IMGUI_RENDER_FUNC()
-{
- ImGui::Render();
- ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-}
-
-IMGUI_MAYBE_CAPTURE_INPUT_FUNC()
-{
- imgui_maybe_capture_input_result Result = {};
- win32_imgui_maybe_capture_input_data *Win32Input = Cast(win32_imgui_maybe_capture_input_data *)Input;
- 
- Result.CapturedInput = Cast(b32)ImGui_ImplWin32_WndProcHandler(Win32Input->Window, Win32Input->Msg, Win32Input->wParam, Win32Input->lParam);
- Result.ImGuiWantCaptureKeyboard = Cast(b32)ImGui::GetIO().WantCaptureKeyboard;
- Result.ImGuiWantCaptureMouse = Cast(b32)ImGui::GetIO().WantCaptureMouse;
- 
- return Result;
-}
+# include "win32/win32_editor_imgui_bindings.h"
+# include "third_party/imgui/imgui_impl_win32.cpp"
+# include "third_party/imgui/imgui_impl_opengl3.cpp"
 
 #elif OS_LINUX
 # error not implemented
 #else
 # error unsupported OS
 #endif
+
+#pragma pop_macro("Max")
+#pragma pop_macro("Min")

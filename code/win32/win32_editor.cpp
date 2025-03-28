@@ -6,14 +6,46 @@
 #include "win32/win32_editor_renderer.h"
 #include "win32/win32_editor_imgui_bindings.h"
 
+#include "third_party/imgui/imgui_impl_win32.h"
+#include "third_party/imgui/imgui_impl_opengl3.h"
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 #include "platform_shared.cpp"
 
 global win32_state GlobalWin32State;
 
-IMGUI_INIT_FUNC();
-IMGUI_NEW_FRAME_FUNC();
-IMGUI_RENDER_FUNC();
-IMGUI_MAYBE_CAPTURE_INPUT_FUNC();
+IMGUI_INIT(Win32OpenGLImGuiInit)
+{
+ win32_imgui_init_data *Win32Init = Cast(win32_imgui_init_data *)Init;
+ ImGui::CreateContext();
+ ImGui_ImplWin32_Init(Win32Init->Window);
+ ImGui_ImplOpenGL3_Init();
+}
+
+IMGUI_NEW_FRAME(Win32OpenGLImGuiNewFrame)
+{
+ ImGui_ImplOpenGL3_NewFrame();
+ ImGui_ImplWin32_NewFrame();
+ ImGui::NewFrame();
+}
+
+IMGUI_RENDER(Win32OpenGLImGuiRender)
+{
+ ImGui::Render();
+ ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
+IMGUI_MAYBE_CAPTURE_INPUT(Win32ImGuiMaybeCaptureInput)
+{
+ imgui_maybe_capture_input_result Result = {};
+ win32_imgui_maybe_capture_input_data *Win32Input = Cast(win32_imgui_maybe_capture_input_data *)Input;
+ 
+ Result.CapturedInput = Cast(b32)ImGui_ImplWin32_WndProcHandler(Win32Input->Window, Win32Input->Msg, Win32Input->wParam, Win32Input->lParam);
+ Result.ImGuiWantCaptureKeyboard = Cast(b32)ImGui::GetIO().WantCaptureKeyboard;
+ Result.ImGuiWantCaptureMouse = Cast(b32)ImGui::GetIO().WantCaptureMouse;
+ 
+ return Result;
+}
 
 internal string
 Win32FileDialogFiltersToWin32Filter(arena *Arena, platform_file_dialog_filters Filters)
@@ -388,10 +420,10 @@ EntryPoint(void)
  b32 InitSuccess = false;
  
  Platform = Platform_MakePlatformAPI(Win32OpenFileDialog,
-                                     ImGuiInit,
-                                     ImGuiNewFrame,
-                                     ImGuiRender,
-                                     ImGuiMaybeCaptureInput);
+                                     Win32OpenGLImGuiInit,
+                                     Win32OpenGLImGuiNewFrame,
+                                     Win32OpenGLImGuiRender,
+                                     Win32ImGuiMaybeCaptureInput);
  
  OS_Init(ArgCount, Args);
  ThreadCtxInit();

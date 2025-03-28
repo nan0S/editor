@@ -9,11 +9,14 @@ typedef b32 expanded_b32;
 
 enum
 {
- WindowFlag_AutoResize         = (1<<0),
- WindowFlag_NoTitleBar         = (1<<1),
- WindowFlag_NoFocusOnAppearing = (1<<2),
+ UIWindowFlag_AutoResize         = (1<<0),
+ UIWindowFlag_NoTitleBar         = (1<<1),
+ UIWindowFlag_NoFocusOnAppearing = (1<<2),
+ UIWindowFlag_NoMove             = (1<<3),
+ 
+ UIWindowFlag_Count              = 4,
 };
-typedef u32 window_flags;
+typedef u32 ui_window_flags;
 
 struct ui_input_result
 {
@@ -74,12 +77,12 @@ internal void                 UI_PopAlpha(void);
 #define UI_Colored(Apply, Color)  ui_push_color_handle UI_PushColorHandleVar = UI_PushColor(Apply, Color); DeferBlock(NoOp, UI_PopColor(UI_PushColorHandleVar))
 #define UI_Alpha(Alpha)           DeferBlock(UI_PushAlpha(Alpha), UI_PopAlpha())
 
-internal not_collapsed_b32 UI_BeginWindow(b32 *IsOpen, window_flags Flags, string Label);
-internal not_collapsed_b32 UI_BeginWindowF(b32 *IsOpen, window_flags Flags, char const *Format, ...);
+internal not_collapsed_b32 UI_BeginWindow(b32 *IsOpen, ui_window_flags Flags, string Label);
+internal not_collapsed_b32 UI_BeginWindowF(b32 *IsOpen, ui_window_flags Flags, char const *Format, ...);
 internal void              UI_EndWindow(void);
 
 internal void              UI_OpenPopup(string Label);
-internal open_b32          UI_BeginPopup(string Label);
+internal open_b32          UI_BeginPopup(string Label, ui_window_flags Flags);
 internal open_b32          UI_BeginPopupModal(string Label);
 internal void              UI_EndPopup(void);
 internal void              UI_CloseCurrentPopup(void);
@@ -111,7 +114,11 @@ internal void              UI_SetNextItemOpen(b32 Open, ui_cond Cond = UICond_No
 internal void              UI_SetNextWindowPos(v2 P, ui_placement Placement = UIPlacement_TopLeftCorner);
 internal void              UI_SetNextWindowSizeConstraints(v2 MinSize, v2 MaxSize);
 
+internal void              UI_BringCurrentWindowToDisplayFront(void);
+
 internal v2                UI_GetWindowSize(void);
+internal f32               UI_GetWindowWidth(void);
+internal f32               UI_GetWindowHeight(void);
 internal rect2             UI_GetDrawableRegionBounds(void); // window has title bar, scroll bar, get drawable part
 
 internal changed_b32       UI_Combo(u32 *Enum, u32 EnumCount, string EnumNames[], string Label);
@@ -136,8 +143,8 @@ internal ui_input_result   UI_InputText(char *Buf, u64 BufSize, u32 InputWidthIn
 internal ui_input_result   UI_InputTextF(char *Buf, u64 BufSize, u32 InputWidthInChars, char const *Format, ...);
 internal ui_input_result   UI_MultiLineInputText(char *Buf, u64 BufSize, u32 InputWidthInChars, string Label);
 internal ui_input_result   UI_MultiLineInputTextF(char *Buf, u64 BufSize, u32 InputWidthInChars, char const *Format, ...);
-internal void              UI_Text(string Text);
-internal void              UI_TextF(char const *Format, ...);
+internal void              UI_Text(b32 Wrapped, string Text);
+internal void              UI_TextF(b32 Wrapped, char const *Format, ...);
 internal void              UI_SeparatorText(string Text);
 internal void              UI_SeparatorTextF(char const *Format, ...);
 internal clicked_b32       UI_MenuItem(b32 *Selected, char const *Shortcut, string Label);
@@ -149,5 +156,6 @@ internal clicked_b32       UI_SelectableItemF(b32 Selected, char const *Format, 
 internal void              UI_Tooltip(string Contents);
 internal void              UI_TooltipF(char const *Format, ...);
 internal clicked_b32       UI_Rect(u32 Id);
+internal void              UI_HorizontalSeparator(void);
 
 #endif //EDITOR_UI_H

@@ -514,9 +514,7 @@ ResetCtxMenu(string Label)
  {
   UI_OpenPopup(Label);
  }
- // NOTE(hbr): Passing Label.Data directly here is ok, because Label is actually
- // string literal thus is 0-padded.
- if (ImGui::BeginPopup(Label.Data, ImGuiWindowFlags_NoMove))
+ if (UI_BeginPopup(Label, UIWindowFlag_NoMove))
  {
   Reset = UI_MenuItemF(0, 0, "Reset");
   UI_EndPopup();
@@ -832,8 +830,7 @@ UpdateAndRenderDegreeLowering(rendering_entity_handle Handle)
    
    if (UI_BeginWindowF(&IsDegreeLoweringWindowOpen, 0, "Degree Lowering"))
    {          
-    // TODO(hbr): Add that to ui library
-    ImGui::TextWrapped("Degree lowering failed. Tweak the middle point to fit the curve manually.");
+    UI_Text(true, StrLit("Degree lowering failed. Tweak the middle point to fit the curve manually."));
     UI_SeparatorText(NilStr);
     MixChanged = UI_SliderFloatF(&Lowering->MixParameter, 0.0f, 1.0f, "Middle Point Mix");
     
@@ -1610,7 +1607,7 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
   UI_Colored(UI_Color_Text, RedColor)
   {
    UI_SameRow();
-   UI_Text(Var->EquationErrorMessage);
+   UI_Text(false, Var->EquationErrorMessage);
   }
  }
  
@@ -1644,7 +1641,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
  if (Editor->SelectedEntityWindow && Entity)
  {
   UI_PushLabelF("SelectedEntity");
-  if (UI_BeginWindowF(&Editor->SelectedEntityWindow, WindowFlag_AutoResize, "Selected Entity"))
+  if (UI_BeginWindowF(&Editor->SelectedEntityWindow, UIWindowFlag_AutoResize, "Selected Entity"))
   {
    curve *Curve = 0;
    image *Image = 0;
@@ -1816,7 +1813,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
         }
         
         //- additional vars
-        UI_TextF("Additional Vars");
+        UI_TextF(false, "Additional Vars");
         UI_SameRow();
         UI_Disabled(!HasFreeAdditionalVar(Resources))
         {
@@ -1845,7 +1842,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
           VarChanged = true;
          }
          UI_SameRow();
-         UI_TextF(" := ");
+         UI_TextF(false, " := ");
          UI_SameRow();
          
          update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena, Var,
@@ -1870,7 +1867,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
         //- min/max bounds
         UI_Label(StrLit("t_min"))
         {
-         UI_TextF("t_min := ");
+         UI_TextF(false, "t_min := ");
          UI_SameRow();
          update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
                                                                                 &Resources->MinT_Var,
@@ -1883,7 +1880,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
         
         UI_Label(StrLit("t_max"))
         {
-         UI_TextF("t_max := ");
+         UI_TextF(false, "t_max := ");
          UI_SameRow();
          update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
                                                                                 &Resources->MaxT_Var,
@@ -1895,7 +1892,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
         }
         
         //- (x,y) equations
-        UI_TextF("x(t)  := ");
+        UI_TextF(false, "x(t)  := ");
         UI_SameRow();
         ui_input_result X_Equation = UI_InputTextF(Resources->X_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##x(t)");
         if (ArenaCleared || VarChanged || X_Equation.Changed)
@@ -1912,11 +1909,11 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
          UI_SameRow();
          UI_Colored(UI_Color_Text, RedColor)
          {
-          UI_Text(Resources->X_ErrorMessage);
+          UI_Text(false, Resources->X_ErrorMessage);
          }
         }
         
-        UI_TextF("y(t)  := ");
+        UI_TextF(false, "y(t)  := ");
         UI_SameRow();
         ui_input_result Y_Equation = UI_InputTextF(Resources->Y_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##y(t)");
         if (ArenaCleared || VarChanged || Y_Equation.Changed)
@@ -1933,7 +1930,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
          UI_SameRow();
          UI_Colored(UI_Color_Text, RedColor)
          {
-          UI_Text(Resources->Y_ErrorMessage);
+          UI_Text(false, Resources->Y_ErrorMessage);
          }
         }
         
@@ -2059,7 +2056,6 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
          Weights[Selected] = 1.0f;
          WeightChanged = true;
         }
-        ImGui::Spacing();
        }
        
        if (UI_BeginTreeF("Weights"))
@@ -2207,8 +2203,8 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
      UI_Label(StrLit("Info"))
      {
       UI_SeparatorTextF("Info");
-      UI_TextF("Number of control points: %u", Curve->ControlPointCount);
-      UI_TextF("Number of samples:        %u", Curve->CurveSampleCount);
+      UI_TextF(false, "Number of control points: %u", Curve->ControlPointCount);
+      UI_TextF(false, "Number of samples:        %u", Curve->CurveSampleCount);
      }
     }
     
@@ -2346,7 +2342,7 @@ UpdateAndRenderEntityListUI(editor *Editor)
        {
         UI_OpenPopup(CtxMenu);
        }
-       if (UI_BeginPopup(CtxMenu))
+       if (UI_BeginPopup(CtxMenu, 0))
        {
         if (UI_MenuItemF(0, 0, "Delete"))
         {
@@ -2388,14 +2384,14 @@ UpdateAndRenderDiagnosticsUI(editor *Editor, platform_input *Input)
  //- render diagnostics UI
  if (Editor->DiagnosticsWindow)
  {
-  if (UI_BeginWindowF(&Editor->DiagnosticsWindow, WindowFlag_AutoResize, "Diagnostics"))
+  if (UI_BeginWindowF(&Editor->DiagnosticsWindow, UIWindowFlag_AutoResize, "Diagnostics"))
   {
    frame_stats *Stats = &Editor->FrameStats;
-   UI_TextF("%-20s %.2f ms", "Frame time", 1000.0f * Input->dtForFrame);
-   UI_TextF("%-20s %.0f", "FPS", Stats->FPS);
-   UI_TextF("%-20s %.2f ms", "Min frame time", 1000.0f * Stats->MinFrameTime);
-   UI_TextF("%-20s %.2f ms", "Max frame time", 1000.0f * Stats->MaxFrameTime);
-   UI_TextF("%-20s %.2f ms", "Average frame time", 1000.0f * Stats->AvgFrameTime);
+   UI_TextF(false, "%-20s %.2f ms", "Frame time", 1000.0f * Input->dtForFrame);
+   UI_TextF(false, "%-20s %.0f", "FPS", Stats->FPS);
+   UI_TextF(false, "%-20s %.2f ms", "Min frame time", 1000.0f * Stats->MinFrameTime);
+   UI_TextF(false, "%-20s %.2f ms", "Max frame time", 1000.0f * Stats->MaxFrameTime);
+   UI_TextF(false, "%-20s %.2f ms", "Average frame time", 1000.0f * Stats->AvgFrameTime);
   }
   UI_EndWindow();
  }
@@ -2408,13 +2404,14 @@ UpdateAndRenderHelpWindowUI(editor *Editor)
  {
   if (UI_BeginWindow(&Editor->HelpWindow, 0, StrLit("Help")))
   {
-   ImGui::TextWrapped("(very unstructured) Controls overview:\n\n"
-                      " - controls are made to be as intuitive as possible; read this, no need to understand everything, note which keys and mouse buttons might do something interesting and go experiment as soon as possible instead\n\n"
-                      " - use left mouse button to add/move/select control points\n\n"
-                      " - hold Left Ctrl key and use left mouse button to move/select entities themselves instead\n\n"
-                      " - clicking on curve's shape will insert control point in the middle of the curve's shape, hold Left Alt to append control point as the last point instead, regardless whether curve's shape was clicked\n\n"
-                      " - use right mouse button to delete/deselect entities; releasing button outside of the small circle that will appear will cancel that action\n\n"
-                      " - use middle mouse button to move the camera\n\n");
+   UI_Text(true,
+           StrLit("(very unstructured) Controls overview:\n\n"
+                  " - controls are made to be as intuitive as possible; read this, no need to understand everything, note which keys and mouse buttons might do something interesting and go experiment as soon as possible instead\n\n"
+                  " - use left mouse button to add/move/select control points\n\n"
+                  " - hold Left Ctrl key and use left mouse button to move/select entities themselves instead\n\n"
+                  " - clicking on curve's shape will insert control point in the middle of the curve's shape, hold Left Alt to append control point as the last point instead, regardless whether curve's shape was clicked\n\n"
+                  " - use right mouse button to delete/deselect entities; releasing button outside of the small circle that will appear will cancel that action\n\n"
+                  " - use middle mouse button to move the camera\n\n"));
   }
   UI_EndWindow();
  }
@@ -2491,11 +2488,11 @@ UpdateAndRenderNotifications(editor *Editor, platform_input *Input, render_group
     
     UI_Alpha(Fade)
     {
-     DeferBlock(UI_BeginWindowF(0, WindowFlag_AutoResize | WindowFlag_NoTitleBar | WindowFlag_NoFocusOnAppearing,
+     DeferBlock(UI_BeginWindowF(0, UIWindowFlag_AutoResize | UIWindowFlag_NoTitleBar | UIWindowFlag_NoFocusOnAppearing,
                                 "Notification%lu", NotificationIndex),
                 UI_EndWindow())
      {
-      ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
+      UI_BringCurrentWindowToDisplayFront();
       if (UI_IsWindowHovered() && (UI_IsMouseClicked(UIMouseButton_Left) ||
                                    UI_IsMouseClicked(UIMouseButton_Right)))
       {
@@ -2514,15 +2511,15 @@ UpdateAndRenderNotifications(editor *Editor, platform_input *Input, render_group
       
       UI_Colored(UI_Color_Text, TitleColor)
       {
-       UI_Text(Title);
+       UI_Text(false, Title);
       }
       
-      ImGui::Separator();
+      UI_HorizontalSeparator();
       ImGui::PushTextWrapPos(0.0f);
-      UI_Text(Notification->Content);
+      UI_Text(false, Notification->Content);
       ImGui::PopTextWrapPos();
       
-      f32 WindowHeight = ImGui::GetWindowHeight();
+      f32 WindowHeight = UI_GetWindowHeight();
       TargetPosY -= WindowHeight + Padding;
      }
     }
@@ -2565,7 +2562,7 @@ UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing, editor *Editor)
  
  UI_Id(0)
  {
-  UI_TextF("Curve 0: ");
+  UI_TextF(false, "Curve 0: ");
   
   UI_SameRow();
   
@@ -2615,7 +2612,7 @@ UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing, editor *Editor)
  
  UI_Id(1)
  {
-  UI_TextF("Curve 1: ");
+  UI_TextF(false, "Curve 1: ");
   
   UI_SameRow();
   
@@ -3654,7 +3651,7 @@ RenderProfilerSingleFrameUI(editor *Editor)
     f32 TotalSelfTSC = 0;
     v4 Color = {};
     u32 Id = 0;
-    char const *Label = 0;
+    string Label = NilStr;
     
     if (EntryIndex < SortAnchors.Count)
     {
@@ -3666,14 +3663,14 @@ RenderProfilerSingleFrameUI(editor *Editor)
      TotalSelfTSC = Cast(f32)Anchor.TotalSelfTSC;
      Color = ProfileColors[AnchorIndex % ArrayCount(ProfileColors)];
      Id = AnchorIndex;
-     Label = Anchor.Label;
+     Label = Profiler->Labels[AnchorIndex];
     }
     else
     {
      TotalSelfTSC = Frame->TotalTSC - AnchorTSC_Sum;
      Color = V4(0.5f, 0.1f, 0.1f, 1.0f);
      Id = MAX_PROFILER_ANCHOR_COUNT;
-     Label = "NOT PROFILED";
+     Label = StrLit("NOT PROFILED");
     }
     
     f32 Fraction =  TotalSelfTSC / Frame->TotalTSC;
@@ -3789,7 +3786,7 @@ RenderProfilerAllFramesUI(editor *Editor, platform_input *Input)
      f32 AnchorTotalSelfTSC = 0;
      v4 Color = {};
      u32 Id = 0;
-     char const *Label = 0;
+     string Label = NilStr;
      
      if (EntryIndex < SortAnchors.Count)
      {
@@ -3801,14 +3798,14 @@ RenderProfilerAllFramesUI(editor *Editor, platform_input *Input)
       AnchorTotalSelfTSC = Cast(f32)Anchor.TotalSelfTSC;
       Color = ProfileColors[AnchorIndex % ArrayCount(ProfileColors)];
       Id = AnchorIndex;
-      Label = Anchor.Label;
+      Label = Profiler->Labels[AnchorIndex];
      }
      else
      {
       AnchorTotalSelfTSC = Frame->TotalTSC - AllAnchorsTSC_Sum;
       Color = V4(0.5f, 0.1f, 0.1f, 1.0f);
       Id = MAX_PROFILER_ANCHOR_COUNT;
-      Label = "NOT PROFILED";
+      Label = StrLit("NOT PROFILED");
      }
      
      f32 AnchorMs = 1000 * AnchorTotalSelfTSC * Profiler->Inv_CPU_Freq;
@@ -3831,7 +3828,7 @@ RenderProfilerAllFramesUI(editor *Editor, platform_input *Input)
      
      if (UI_IsItemHovered())
      {
-      UI_TooltipF("[%.2fms] %s", AnchorMs, Label);
+      UI_TooltipF("[%.2fms] %S", AnchorMs, Label);
      }
     }
     

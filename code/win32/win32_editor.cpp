@@ -552,22 +552,28 @@ EntryPoint(void)
     //- hot reload
     ProfileBlock("Hot Reload")
     {
+     if (HotReloadIfOutOfSync(&RendererCode))
+     {
+      RendererFunctions.OnCodeReload(&RendererMemory);
+      
+      if (!Renderer && RendererCode.IsValid)
+      {
+       Renderer = RendererFunctions.Init(PermamentArena, &RendererMemory, Window, WindowDC);
+      }
+     }
+     
+     // NOTE(hbr): It is crucial to check this in this order (in relation to renderer)
+     // because ImGui can be init'ed only after renderer has been initialized.
      if (HotReloadIfOutOfSync(&EditorCode))
      {
       imgui_bindings Bindings = EditorFunctions.OnCodeReload(&EditorMemory);
       Win32State->ImGuiBindings = Bindings;
       RendererMemory.ImGuiBindings = Bindings;
+      
+      win32_imgui_init_data Init = {};
+      Init.Window = Window;
+      Bindings.Init(Cast(imgui_init_data *)&Init);
      }
-     
-     if (HotReloadIfOutOfSync(&RendererCode))
-     {
-      RendererFunctions.OnCodeReload(&RendererMemory);
-     }
-    }
-    
-    if (!Renderer && RendererCode.IsValid)
-    {
-     Renderer = RendererFunctions.Init(PermamentArena, &RendererMemory, Window, WindowDC);
     }
     
     //- process input events

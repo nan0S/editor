@@ -237,10 +237,6 @@ WIN32_RENDERER_INIT(Win32RendererInit)
 {
  opengl *OpenGL = Win32OpenGLInit(Arena, Memory, Window, WindowDC);
  
- win32_imgui_init_data Init = {};
- Init.Window = Window;
- Memory->ImGuiBindings.Init(Cast(imgui_init_data *)&Init);
- 
  return Cast(renderer *)OpenGL;
 }
 

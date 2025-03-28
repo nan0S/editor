@@ -46,7 +46,7 @@ UI_ParametricEquationExpr(parametric_equation_expr *Expr, u32 *Id)
    TypeStr = StrF(Temp.Arena, "Application(%S)", IdentifierName);
   }break;
  }
- UI_Text(TypeStr);
+ UI_Text(false, TypeStr);
  
  switch (Expr->Type)
  {

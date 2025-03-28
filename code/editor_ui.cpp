@@ -118,6 +118,12 @@ UI_SetNextWindowSizeConstraints(v2 MinSize, v2 MaxSize)
  ImGui::SetNextWindowSizeConstraints(ImMinSize, ImMaxSize);
 }
 
+internal void
+UI_BringCurrentWindowToDisplayFront(void)
+{
+ ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
+}
+
 internal b32
 UI_Combo(u32 *Enum, u32 EnumCount, string EnumNames[], string Label)
 {
@@ -575,38 +581,56 @@ UI_SliderIntegerF(i32 *Value, i32 MinValue, i32 MaxValue, char const *Format, ..
 }
 
 internal void
-UI_Text(string Text)
+UI_Text(b32 Wrapped, string Text)
 {
  temp_arena Temp = TempArena(0);
  string CText = CStrFromStr(Temp.Arena, Text);
- ImGui::Text("%s", CText.Data);
+ if (Wrapped)
+ {
+  ImGui::TextWrapped("%s", CText.Data);
+ }
+ else
+ {
+  ImGui::Text("%s", CText.Data);
+ }
  EndTemp(Temp);
 }
 
 internal void
-UI_TextF(char const *Format, ...)
+UI_TextF(b32 Wrapped, char const *Format, ...)
 {
  va_list Args;
  va_start(Args, Format);
  temp_arena Temp = TempArena(0);
  string Text = StrFV(Temp.Arena, Format, Args);
- UI_Text(Text);
+ UI_Text(Wrapped, Text);
  EndTemp(Temp);
  va_end(Args);
 }
 
+StaticAssert(UIWindowFlag_Count == 4, SafetyCheckSoThatImplementationBelowChecksForAllUIWindowFlags);
+internal ImGuiWindowFlags
+UIWindowFlagsToImWindowFlags(ui_window_flags Flags)
+{
+ ImGuiWindowFlags ImFlags = 0;
+ 
+ if (Flags & UIWindowFlag_AutoResize)         ImFlags |= ImGuiWindowFlags_AlwaysAutoResize;
+ if (Flags & UIWindowFlag_NoTitleBar)         ImFlags |= ImGuiWindowFlags_NoDecoration;
+ if (Flags & UIWindowFlag_NoFocusOnAppearing) ImFlags |= ImGuiWindowFlags_NoFocusOnAppearing;
+ if (Flags & UIWindowFlag_NoMove)             ImFlags |= ImGuiWindowFlags_NoMove;
+ 
+ return ImFlags;
+}
+
 internal not_collapsed_b32
-UI_BeginWindow(b32 *IsOpen, window_flags Flags, string Label)
+UI_BeginWindow(b32 *IsOpen, ui_window_flags Flags, string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
  bool IsOpen_ = false;
  if (IsOpen) IsOpen_ = Cast(bool)(*IsOpen);
- ImGuiWindowFlags ImGuiFlags = 0;
- if (Flags & WindowFlag_AutoResize) ImGuiFlags |= ImGuiWindowFlags_AlwaysAutoResize;
- if (Flags & WindowFlag_NoTitleBar) ImGuiFlags |= ImGuiWindowFlags_NoDecoration;
- if (Flags & WindowFlag_NoFocusOnAppearing) ImGuiFlags |= ImGuiWindowFlags_NoFocusOnAppearing;
- b32 Result = Cast(b32)ImGui::Begin(CLabel.Data, (IsOpen ? &IsOpen_ : 0), ImGuiFlags);
+ ImGuiWindowFlags ImFlags = UIWindowFlagsToImWindowFlags(Flags);
+ b32 Result = Cast(b32)ImGui::Begin(CLabel.Data, (IsOpen ? &IsOpen_ : 0), ImFlags);
  if (IsOpen) *IsOpen = Cast(b32)IsOpen_;
  EndTemp(Temp);
  
@@ -614,7 +638,7 @@ UI_BeginWindow(b32 *IsOpen, window_flags Flags, string Label)
 }
 
 internal not_collapsed_b32
-UI_BeginWindowF(b32 *IsOpen, window_flags Flags, char const *Format, ...)
+UI_BeginWindowF(b32 *IsOpen, ui_window_flags Flags, char const *Format, ...)
 {
  temp_arena Temp = TempArena(0);
  va_list Args;
@@ -682,8 +706,10 @@ UI_SelectableItemF(b32 Selected, char const *Format, ...)
 internal void
 UI_Tooltip(string Contents)
 {
- u32 Count = SafeCastU32(Contents.Count);
- ImGui::SetTooltip("%.*s", Count, Contents.Data);
+ temp_arena Temp = TempArena(0);
+ string CContents = CStrFromStr(Temp.Arena, Contents);
+ ImGui::SetTooltip(CContents.Data);
+ EndTemp(Temp);
 }
 
 internal void
@@ -710,6 +736,12 @@ UI_Rect(u32 Id)
 }
 
 internal void
+UI_HorizontalSeparator(void)
+{
+ ImGui::Separator();
+}
+
+internal void
 UI_OpenPopup(string Label)
 {
  temp_arena Temp = TempArena(0);
@@ -719,11 +751,12 @@ UI_OpenPopup(string Label)
 }
 
 internal open_b32
-UI_BeginPopup(string Label)
+UI_BeginPopup(string Label, ui_window_flags Flags)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
- b32 Result = Cast(b32)ImGui::BeginPopup(CLabel.Data);
+ ImGuiWindowFlags ImFlags = UIWindowFlagsToImWindowFlags(Flags);
+ b32 Result = Cast(b32)ImGui::BeginPopup(CLabel.Data, ImFlags);
  EndTemp(Temp);
  
  return Result;
@@ -866,6 +899,20 @@ internal v2 UI_GetWindowSize(void)
 {
  ImVec2 Size = ImGui::GetWindowSize();
  v2 Result = V2(Size.x, Size.y);
+ return Result;
+}
+
+internal f32
+UI_GetWindowWidth(void)
+{
+ f32 Result = UI_GetWindowSize().X;
+ return Result;
+}
+
+internal f32
+UI_GetWindowHeight(void)
+{
+ f32 Result = UI_GetWindowSize().Y;
  return Result;
 }
 

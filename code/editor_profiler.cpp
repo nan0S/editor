@@ -1,3 +1,5 @@
+#if EDITOR_PROFILER
+
 global profiler *GlobalProfiler;
 
 internal void
@@ -11,6 +13,13 @@ internal void
 ProfilerEquip(profiler *Profiler)
 {
  GlobalProfiler = Profiler;
+}
+
+inline internal profiler_frame *
+ProfilerCurrentFrame(profiler *Profiler)
+{
+ profiler_frame *Frame = Profiler->Frames + Profiler->FrameIndex;
+ return Frame;
 }
 
 internal void
@@ -36,13 +45,6 @@ ProfilerEndFrame(profiler *Profiler)
  Frame->TotalTSC += TSC;
 }
 
-inline internal profiler_frame *
-ProfilerCurrentFrame(profiler *Profiler)
-{
- profiler_frame *Frame = Profiler->Frames + Profiler->FrameIndex;
- return Frame;
-}
-
 inline internal void
 __ProfileBegin(char const *Label, u16 AnchorIndex)
 {
@@ -66,23 +68,41 @@ __ProfileBegin(char const *Label, u16 AnchorIndex)
 inline internal void
 __ProfileEnd(void)
 {
+ u64 EndTSC = OS_ReadCPUTimer();
+ 
  profiler *Profiler = GlobalProfiler;
  profiler_frame *Frame = ProfilerCurrentFrame(Profiler);
  
  Assert(Profiler->UsedBlockCount > 0);
  profile_block *Block = Profiler->Blocks + --Profiler->UsedBlockCount;
  
- u64 ElapsedTSC = OS_ReadCPUTimer() - Block->StartTSC;
+ anchor_index AnchorIndex = Block->AnchorIndex;
  
- profile_anchor *Anchor = Frame->Anchors + Block->AnchorIndex.Index;
+ profile_anchor *Anchor = Frame->Anchors + AnchorIndex.Index;
  profile_anchor *Parent = Frame->Anchors + Block->ParentIndex.Index;
+ 
+ u64 ElapsedTSC = EndTSC - Block->StartTSC;
  
  Anchor->TotalTSC = Block->OldTotalTSC + ElapsedTSC;
  Anchor->TotalSelfTSC += ElapsedTSC;
  ++Anchor->HitCount;
  Anchor->Parent = Block->ParentIndex;
- Anchor->Label = Block->Label;
  Parent->TotalSelfTSC -= ElapsedTSC;
+ 
+ if (Profiler->Labels[AnchorIndex.Index].Data == 0)
+ {
+  u32 LabelBufferAt = Profiler->LabelBufferAt;
+  u32 SpaceLeft = MAX_PROFILER_LABEL_BUFFER_LENGTH - LabelBufferAt;
+  
+  char *Label = Profiler->LabelBuffer + LabelBufferAt;
+  u32 LabelLength = SafeCastU32(CStrLen(Block->Label));
+  MemoryCopy(Label, Block->Label, LabelLength);
+  
+  Profiler->LabelBufferAt = LabelBufferAt + LabelLength;
+  Profiler->Labels[AnchorIndex.Index] = MakeStr(Label, LabelLength);
+ }
  
  Profiler->AnchorParentIndex = Block->ParentIndex;
 }
+
+#endif

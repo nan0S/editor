@@ -929,3 +929,9 @@ UI_GetDrawableRegionBounds(void)
  
  return Result;
 }
+
+internal void
+UI_RenderDemoWindow(void)
+{
+ ImGui::ShowDemoWindow();
+}

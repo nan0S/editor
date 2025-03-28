@@ -158,4 +158,6 @@ internal void              UI_TooltipF(char const *Format, ...);
 internal clicked_b32       UI_Rect(u32 Id);
 internal void              UI_HorizontalSeparator(void);
 
+internal void              UI_RenderDemoWindow(void);
+
 #endif //EDITOR_UI_H

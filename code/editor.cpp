@@ -2515,9 +2515,7 @@ UpdateAndRenderNotifications(editor *Editor, platform_input *Input, render_group
       }
       
       UI_HorizontalSeparator();
-      ImGui::PushTextWrapPos(0.0f);
-      UI_Text(false, Notification->Content);
-      ImGui::PopTextWrapPos();
+      UI_Text(true, Notification->Content);
       
       f32 WindowHeight = UI_GetWindowHeight();
       TargetPosY -= WindowHeight + Padding;
@@ -3868,9 +3866,9 @@ RenderDevConsole(editor *Editor)
    {
     AddNotificationF(Editor, Notification_Error,
                      "This is a dev notification\nblablablablablablablabla"
-                     "blablablablablablablablablablablablablablablablablablablabla"
-                     "blablablablablablablablablablablablablablablablablablablabla"
-                     "blablablablablablablablablablablablablablablablablablablabla");
+                     "blablablabl ablablablablabla blabl abla blablablablab lablablabla"
+                     "bla bla blablabl ablablablablab lablablablablablablablablablabla"
+                     "blabla blab lablablablab lablabla blablablablablablablablablabla");
    }
   }
   UI_EndWindow();
@@ -3989,7 +3987,7 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
   RenderDevConsole(Editor);
   
 #if BUILD_DEBUG
-  ImGui::ShowDemoWindow();
+  UI_RenderDemoWindow();
 #endif
   
   ProfileEnd();

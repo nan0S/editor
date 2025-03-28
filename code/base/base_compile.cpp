@@ -291,8 +291,17 @@ EnqueueProcess(process_queue *Queue, os_process_handle Process)
  Queue->Processes[Queue->ProcessCount++] = Process;
 }
 
-internal void
+internal exit_code_int
 WaitProcesses(process_queue *Queue)
 {
+ exit_code_int ExitCode = 0;
+ for (u32 ProcessIndex = 0;
+      ProcessIndex < Queue->ProcessCount;
+      ++ProcessIndex)
+ {
+  exit_code_int SubProcessExitCode = OS_ProcessWait(Queue->Processes[ProcessIndex]);
+  ExitCode = OS_CombineExitCodes(ExitCode, SubProcessExitCode);
+ }
  
+ return ExitCode;
 }

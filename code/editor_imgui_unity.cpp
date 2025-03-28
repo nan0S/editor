@@ -1,9 +1,5 @@
 #include "base/base_core.h"
 
-//- stb
-#define STB_IMAGE_IMPLEMENTATION
-#include "third_party/stb/stb_image.h"
-
 //- imgui
 #pragma push_macro("Max")
 #pragma push_macro("Min")

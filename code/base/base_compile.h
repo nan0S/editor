@@ -103,7 +103,7 @@ internal void DefineVariable(compilation_target *Target, string Name, string Val
 
 internal compilation_command ComputeCompilationCommand(compiler_setup Setup, compilation_target Target);
 
-internal void EnqueueProcess(process_queue *Queue, os_process_handle Process);
-internal void WaitProcesses(process_queue *Queue);
+internal void          EnqueueProcess(process_queue *Queue, os_process_handle Process);
+internal exit_code_int WaitProcesses(process_queue *Queue);
 
 #endif //BASE_COMPILE_H

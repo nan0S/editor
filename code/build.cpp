@@ -21,6 +21,36 @@ enum build_platform
 };
 
 internal compilation_command
+ImGui_Compilation(arena *Arena, compiler_setup Setup, b32 ForceRecompile)
+{
+ compilation_flags Flags = (ForceRecompile ? 0 : CompilationFlag_DontRecompileIfAlreadyExists);
+ compilation_target Target = MakeTarget(Obj, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/editor_imgui_unity.cpp")), Flags);
+ 
+ compilation_command Result = ComputeCompilationCommand(Setup, Target);
+ return Result;
+}
+
+internal compilation_command
+STB_Compilation(arena *Arena, compiler_setup Setup, b32 ForceRecompile)
+{
+ compilation_flags Flags = (ForceRecompile ? 0 : CompilationFlag_DontRecompileIfAlreadyExists);
+ compilation_target Target = MakeTarget(Obj, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/editor_stb_unity.cpp")), Flags);
+ 
+ compilation_command Result = ComputeCompilationCommand(Setup, Target);
+ return Result;
+}
+
+internal compilation_command
+Editor_Compilation(arena *Arena, compiler_setup Setup, compilation_command STB)
+{
+ compilation_target Target = MakeTarget(Lib, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/editor.cpp")), 0);
+ StaticLink(&Target, STB.OutputTarget);
+ 
+ compilation_command Result = ComputeCompilationCommand(Setup, Target);
+ return Result;
+ 
+}
+internal compilation_command
 Renderer_Compilation(arena *Arena, compiler_setup Setup, build_platform BuildPlatform)
 {
  operating_system OS = DetectOS();
@@ -75,7 +105,7 @@ Renderer_Compilation(arena *Arena, compiler_setup Setup, build_platform BuildPla
 
 internal compilation_command
 PlatformExe_Compilation(arena *Arena, compiler_setup Setup,
-                        compilation_command Editor, compilation_command Renderer, compilation_command ThirdParty,
+                        compilation_command Editor, compilation_command Renderer, compilation_command ImGui,
                         build_platform BuildPlatform)
 {
  operating_system OS = DetectOS();
@@ -126,7 +156,7 @@ PlatformExe_Compilation(arena *Arena, compiler_setup Setup,
  DefineMacro(&Target, StrLit("EDITOR_DLL"), Editor.OutputTarget);
  DefineMacro(&Target, StrLit("EDITOR_RENDERER_DLL"), Renderer.OutputTarget);
  
- StaticLink(&Target, ThirdParty.OutputTarget);
+ StaticLink(&Target, ImGui.OutputTarget);
  
  compilation_command PlatformExe = ComputeCompilationCommand(Setup, Target);
  return PlatformExe;
@@ -156,37 +186,22 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
   IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/third_party/gl3w")));
  }
  
- //- precompile third party code into obj
- compilation_command ThirdParty = {};
- {
-  compilation_flags Flags = (ForceRecompile ? 0 : CompilationFlag_DontRecompileIfAlreadyExists);
-  compilation_target Target = MakeTarget(Obj, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/editor_third_party_unity.cpp")), Flags);
-  ThirdParty = ComputeCompilationCommand(Setup, Target);
- }
- 
- //- compile editor code into library
- compilation_command Editor = {};
- {
-  string TargetPath = {};
-  compilation_target Target = MakeTarget(Lib, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/editor.cpp")), 0);
-  StaticLink(&Target, ThirdParty.OutputTarget);
-  Editor = ComputeCompilationCommand(Setup, Target);
- }
- 
- //- compile renderer into library and platform layer into executable
  compilation_command Renderer = Renderer_Compilation(Temp.Arena, Setup, BuildPlatform);
- compilation_command PlatformExe = PlatformExe_Compilation(Temp.Arena, Setup, Editor, Renderer, ThirdParty, BuildPlatform);
+ compilation_command STB = STB_Compilation(Temp.Arena, Setup, ForceRecompile);
+ compilation_command ImGui = ImGui_Compilation(Temp.Arena, Setup, ForceRecompile);
+ compilation_command Editor = Editor_Compilation(Temp.Arena, Setup, STB);
+ compilation_command PlatformExe = PlatformExe_Compilation(Temp.Arena, Setup, Editor, Renderer, ImGui, BuildPlatform);
  
- // NOTE(hbr): Start up renderer and Win32 compilation processes first because they don't depend on anything.
- // Do them in background when waiting for ThirdParty to compile. Editor on the other hand depends on ThirdParty
- // (and possibly GLFW) to compile first.
+ // NOTE(hbr): First start processes that don't depend on anything. Then run their descendants.
  os_process_handle RendererProcess = OS_ProcessLaunch(Renderer.Cmd);
- os_process_handle PlatformExeProcess = OS_ProcessLaunch(PlatformExe.Cmd);
- os_process_handle ThirdPartyProcess = OS_ProcessLaunch(ThirdParty.Cmd);
+ os_process_handle STBProcess = OS_ProcessLaunch(STB.Cmd);
+ os_process_handle ImGuiProcess = OS_ProcessLaunch(ImGui.Cmd);
  
- ExitCode = OS_ProcessWait(ThirdPartyProcess);
- 
+ ExitCode = OS_CombineExitCodes(ExitCode, OS_ProcessWait(STBProcess));
  os_process_handle EditorProcess = OS_ProcessLaunch(Editor.Cmd);
+ 
+ ExitCode = OS_CombineExitCodes(ExitCode, OS_ProcessWait(ImGuiProcess));
+ os_process_handle PlatformExeProcess = OS_ProcessLaunch(PlatformExe.Cmd);
  
  EnqueueProcess(ProcessQueue, EditorProcess);
  EnqueueProcess(ProcessQueue, RendererProcess);
@@ -197,8 +212,7 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
  return ExitCode;
 }
 
-int
-main(int ArgCount, char *Args[])
+int main(int ArgCount, char *Args[])
 {
  u64 BeginTSC = OS_ReadCPUTimer();
  int ExitCode = 0;
@@ -273,12 +287,9 @@ main(int ArgCount, char *Args[])
    ExitCode = OS_CombineExitCodes(ExitCode, SubProcessExitCode);
   }
   
-  for (u32 ProcessIndex = 0;
-       ProcessIndex < ProcessQueue.ProcessCount;
-       ++ProcessIndex)
   {
-   exit_code_int SubProcessExitCode = OS_ProcessWait(ProcessQueue.Processes[ProcessIndex]);
-   ExitCode = OS_CombineExitCodes(ExitCode, SubProcessExitCode);
+   exit_code_int SubProcessesExitCode = WaitProcesses(&ProcessQueue);
+   ExitCode = OS_CombineExitCodes(ExitCode, SubProcessesExitCode);
   }
   
   u64 CPUFreq = OS_CPUTimerFreq();

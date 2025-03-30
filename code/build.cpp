@@ -172,7 +172,7 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
  operating_system OS = DetectOS();
  switch (OS)
  {
-  case OS_Win32: {BuildPlatform = BuildPlatform_Native;}break;
+  case OS_Win32: {BuildPlatform = BuildPlatform_GLFW;}break;
   case OS_Linux: {BuildPlatform = BuildPlatform_Native;}break;
  }
  

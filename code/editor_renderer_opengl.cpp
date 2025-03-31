@@ -1,3 +1,5 @@
+global b32 GlobalRendererCodeReloaded;
+
 #define GL_NUM_EXTENSIONS                 0x821D
 
 #define GL_MAX_COLOR_ATTACHMENTS            0x8CDF
@@ -750,6 +752,18 @@ OutColor = FragColor;
 internal void
 OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
 {
+ glEnable(GL_BLEND);
+ glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+ 
+ glEnable(GL_MULTISAMPLE);
+ // NOTE(hbr): So that glEnable,glEnd with glBindTexture works. When using shaders it is not needed.
+ glEnable(GL_TEXTURE_2D);
+ 
+ glEnable(GL_DEPTH_TEST);
+ // TODO(hbr): For now I set this to always so that transparency somehow works.
+ // I think I need to implement depth peeling (or sorting but this can be ugly).
+ glDepthFunc(GL_ALWAYS);
+ 
  GLuint DummyVAO;
  OpenGL->glGenVertexArrays(1, &DummyVAO);
  OpenGL->glBindVertexArray(DummyVAO);
@@ -845,7 +859,7 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
   {
    glEnable(GL_DEBUG_OUTPUT);
    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-   OpenGL->glDebugMessageCallback(OpenGLDebugCallback, 0);
+   //OpenGL->glDebugMessageCallback(OpenGLDebugCallback, 0);
   }
   
   //- recompile shaders

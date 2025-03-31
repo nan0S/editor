@@ -8,7 +8,7 @@
 #include "base/base_thread_ctx.h"
 
 #include "editor_profiler.h"
-#include "editor_imgui_bindings.h"
+#include "editor_imgui.h"
 #include "editor_platform.h"
 #include "editor_renderer.h"
 

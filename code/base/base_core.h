@@ -5,6 +5,89 @@
 #include <stdarg.h>
 #include <string.h>
 
+//- ctx crack
+#if defined(_WIN32)
+# define OS_WINDOWS 1
+#elif defined(__linux__)
+# define OS_LINUX 1
+#else
+# error unsupported OS
+#endif
+
+#if defined(__clang__)
+# define COMPILER_CLANG 1
+#elif defined(__GNUC__) || defined(__GNUG__)
+# define COMPILER_GCC 1
+#elif defined(_MSC_VER)
+# define COMPILER_MSVC 1
+#else
+# error unsupported compiler
+#endif
+
+#if !defined(OS_WINDOWS)
+# define OS_WINDOWS 0
+#endif
+#if !defined(OS_LINUX)
+# define OS_LINUX 0
+#endif
+#if !defined(COMPILER_MSVC)
+# define COMPILER_MSVC 0
+#endif
+#if !defined(COMPILER_GCC)
+# define COMPILER_GCC 0
+#endif
+#if !defined(COMPILER_CLANG)
+# define COMPILER_CLANG 0
+#endif
+#if !defined(BUILD_DEBUG)
+# define BUILD_DEBUG 0
+#endif
+
+#if OS_WINDOWS
+# define thread_static __declspec(thread)
+#endif
+#if OS_LINUX
+# define thread_static __thread
+#endif
+#if !defined(thread_static)
+# error thread_static not defined
+#endif
+
+
+#if COMPILER_MSVC || (COMPILER_CLANG && OS_WINDOWS)
+# pragma section(".rdata$", read)
+# define read_only __declspec(allocate(".rdata$"))
+#elif (COMPILER_CLANG && OS_LINUX)
+# define read_only __attribute__((section(".rodata")))
+#else
+// NOTE(rjf): I don't know of a useful way to do this in GCC land.
+// __attribute__((section(".rodata"))) looked promising, but it introduces a
+// strange warning about malformed section attributes, and it doesn't look
+// like writing to that section reliably produces access violations, strangely
+// enough. (It does on Clang)
+# define read_only
+#endif
+
+#if COMPILER_MSVC
+# define DLL_EXPORT extern "C" __declspec(dllexport)
+#endif
+#if COMPILER_CLANG || COMPILER_GCC
+# define DLL_EXPORT extern "C" __attribute__((visibility("default")))
+#endif
+#if !defined(DLL_EXPORT)
+# error DLL_EXPORT not defined
+#endif
+
+#if COMPILER_MSVC
+# define Trap __debugbreak()
+#endif
+#if COMPILER_GCC || COMPILER_CLANG
+# define Trap __builtin_trap()
+#endif
+#if !defined(Trap)
+# error trap not defined
+#endif
+
 //- basic
 #define internal static
 #define local    static
@@ -122,89 +205,6 @@ union mat4
  f32 M[4][4];
  v4 Rows[4];
 };
-
-//- ctx crack
-#if defined(_WIN32)
-# define OS_WINDOWS 1
-#elif defined(__linux__)
-# define OS_LINUX 1
-#else
-# error unsupported OS
-#endif
-
-#if defined(__clang__)
-# define COMPILER_CLANG 1
-#elif defined(__GNUC__) || defined(__GNUG__)
-# define COMPILER_GCC 1
-#elif defined(_MSC_VER)
-# define COMPILER_MSVC 1
-#else
-# error unsupported compiler
-#endif
-
-#if !defined(OS_WINDOWS)
-# define OS_WINDOWS 0
-#endif
-#if !defined(OS_LINUX)
-# define OS_LINUX 0
-#endif
-#if !defined(COMPILER_MSVC)
-# define COMPILER_MSVC 0
-#endif
-#if !defined(COMPILER_GCC)
-# define COMPILER_GCC 0
-#endif
-#if !defined(COMPILER_CLANG)
-# define COMPILER_CLANG 0
-#endif
-#if !defined(BUILD_DEBUG)
-# define BUILD_DEBUG 0
-#endif
-
-#if OS_WINDOWS
-# define thread_static __declspec(thread)
-#endif
-#if OS_LINUX
-# define thread_static __thread
-#endif
-#if !defined(thread_static)
-# error thread_static not defined
-#endif
-
-
-#if COMPILER_MSVC || (COMPILER_CLANG && OS_WINDOWS)
-# pragma section(".rdata$", read)
-# define read_only __declspec(allocate(".rdata$"))
-#elif (COMPILER_CLANG && OS_LINUX)
-# define read_only __attribute__((section(".rodata")))
-#else
-// NOTE(rjf): I don't know of a useful way to do this in GCC land.
-// __attribute__((section(".rodata"))) looked promising, but it introduces a
-// strange warning about malformed section attributes, and it doesn't look
-// like writing to that section reliably produces access violations, strangely
-// enough. (It does on Clang)
-# define read_only
-#endif
-
-#if COMPILER_MSVC
-# define DLL_EXPORT extern "C" __declspec(dllexport)
-#endif
-#if COMPILER_CLANG || COMPILER_GCC
-# define DLL_EXPORT extern "C" __attribute__((visibility("default")))
-#endif
-#if !defined(DLL_EXPORT)
-# error DLL_EXPORT not defined
-#endif
-
-#if COMPILER_MSVC
-# define Trap __debugbreak()
-#endif
-#if COMPILER_GCC || COMPILER_CLANG
-# define Trap __builtin_trap()
-#endif
-#if !defined(Trap)
-# error trap not defined
-#endif
 
 #if defined(BUILD_DEBUG)
 # define Assert(Expr) AssertAlways(Expr)

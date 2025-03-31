@@ -11,8 +11,6 @@
 #include "editor_renderer_opengl.h"
 
 #include "editor_math.cpp"
-
-global b32 GlobalRendererCodeReloaded;
 #include "editor_renderer_opengl.cpp"
 
 internal void
@@ -68,7 +66,7 @@ Win32SetPixelFormat(win32_opengl_renderer *Win32OpenGL, HDC WindowDC)
  SetPixelFormat(WindowDC, SuggestedPixelFormatIndex, &SuggestedPixelFormat);
 }
 
-#define OpenGLFunction(Name) OpenGL->Name = Cast(func_##Name *)wglGetProcAddress(#Name);
+#define OpenGLFunction(Name) OpenGL->Name = Cast(func_##Name_Proc *)wglGetProcAddress(#Name);
 #define Win32OpenGLFunction(Name) Win32OpenGL->Name = Cast(func_##Name *)wglGetProcAddress(#Name);
 
 internal opengl *
@@ -76,6 +74,7 @@ Win32OpenGLInit(arena *Arena, renderer_memory *Memory, HWND Window, HDC WindowDC
 {
  ProfileFunctionBegin();
  
+ // TODO(hbr): this is not necessary, remove it
  Platform = Memory->PlatformAPI;
  
  opengl *OpenGL = PushStruct(Arena, opengl);
@@ -153,19 +152,6 @@ Win32OpenGLInit(arena *Arena, renderer_memory *Memory, HWND Window, HDC WindowDC
  
  if (wglMakeCurrent(WindowDC, OpenGLRC))
  {
-  // TODO(hbr): Probably move these things into platform-non-specific opengl code.
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  
-  glEnable(GL_MULTISAMPLE);
-  // NOTE(hbr): So that glEnable,glEnd with glBindTexture works. When using shaders it is not needed.
-  glEnable(GL_TEXTURE_2D);
-  
-  glEnable(GL_DEPTH_TEST);
-  // TODO(hbr): For now I set this to always so that transparency somehow works.
-  // I think I need to implement depth peeling (or sorting but this can be ugly).
-  glDepthFunc(GL_ALWAYS);
-  
   Win32OpenGLFunction(wglSwapIntervalEXT);
   OpenGLFunction(glGenVertexArrays);
   OpenGLFunction(glBindVertexArray);
@@ -254,6 +240,6 @@ DLL_EXPORT
 RENDERER_END_FRAME(Win32RendererEndFrame)
 {
  OpenGLEndFrame(Cast(opengl *)Renderer, Memory, Frame);
- win32_opengl_renderer *Win32OpenGL = Cast(win32_opengl_renderer *)Renderer->Header.Platform;
- SwapBuffers(Win32OpenGL->WindowDC);
+ win32_opengl_renderer *Win32 = Cast(win32_opengl_renderer *)Renderer->Header.Platform;
+ SwapBuffers(Win32->WindowDC);
 }

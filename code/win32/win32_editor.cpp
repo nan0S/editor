@@ -412,10 +412,8 @@ Win32PrintDebugInputEvents(platform_input *Input)
 }
 
 internal void
-EntryPoint(void)
+EntryPoint(int ArgCount, char **Args)
 {
- int ArgCount = __argc;
- char **Args = __argv;
  HINSTANCE Instance = GetModuleHandle(0);
  b32 InitSuccess = false;
  
@@ -709,19 +707,4 @@ EntryPoint(void)
  }
 }
 
-#ifndef CONSOLE_APPLICATION
-# define CONSOLE_APPLICATION 0
-#endif
-int
-#if CONSOLE_APPLICATION
-main(int ArgCount, char **Argv)
-#else
-WinMain(HINSTANCE Instance,
-        HINSTANCE PrevInstance,
-        LPSTR     lpCmdLine,
-        int       nShowCmd)
-#endif
-{
- EntryPoint();
- return 0;
-}
+#include "editor_main.cpp"

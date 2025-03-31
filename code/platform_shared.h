@@ -8,7 +8,7 @@
 #include "base/base_thread_ctx.h"
 #include "base/base_hot_reload.h"
 
-#include "editor_imgui_bindings.h"
+#include "editor_imgui.h"
 #include "editor_platform.h"
 #include "editor_work_queue.h"
 #include "editor_renderer.h"

@@ -41,6 +41,16 @@ STB_Compilation(arena *Arena, compiler_setup Setup, b32 ForceRecompile)
 }
 
 internal compilation_command
+GLFW_Compilation(arena *Arena, compiler_setup Setup, b32 ForceRecompile)
+{
+ compilation_flags Flags = (ForceRecompile ? 0 : CompilationFlag_DontRecompileIfAlreadyExists);
+ compilation_target Target = MakeTarget(Obj, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/editor_glfw_unity.cpp")), Flags);
+ 
+ compilation_command Result = ComputeCompilationCommand(Setup, Target);
+ return Result;
+}
+
+internal compilation_command
 Editor_Compilation(arena *Arena, compiler_setup Setup, compilation_command STB)
 {
  compilation_target Target = MakeTarget(Lib, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/editor.cpp")), 0);
@@ -51,7 +61,7 @@ Editor_Compilation(arena *Arena, compiler_setup Setup, compilation_command STB)
  
 }
 internal compilation_command
-Renderer_Compilation(arena *Arena, compiler_setup Setup, build_platform BuildPlatform)
+Renderer_Compilation(arena *Arena, compiler_setup Setup, compilation_command GLFW, build_platform BuildPlatform)
 {
  operating_system OS = DetectOS();
  
@@ -92,11 +102,10 @@ Renderer_Compilation(arena *Arena, compiler_setup Setup, build_platform BuildPla
  
  if (BuildPlatform == BuildPlatform_GLFW)
  {
-  LinkLibrary(&Target, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/third_party/glfw/lib-vc2022/glfw3_mt.lib")));
-  LinkLibrary(&Target, StrLit("Opengl32.lib"));
-  LinkLibrary(&Target, StrLit("User32.lib"));
-  LinkLibrary(&Target, StrLit("Gdi32.lib"));
+  StaticLink(&Target, GLFW.OutputTarget);
+  
   LinkLibrary(&Target, StrLit("Shell32.lib"));
+  LinkLibrary(&Target, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/third_party/glfw/lib-vc2022/glfw3_mt.lib")));
  }
  
  compilation_command Renderer = ComputeCompilationCommand(Setup, Target);
@@ -105,7 +114,8 @@ Renderer_Compilation(arena *Arena, compiler_setup Setup, build_platform BuildPla
 
 internal compilation_command
 PlatformExe_Compilation(arena *Arena, compiler_setup Setup,
-                        compilation_command Editor, compilation_command Renderer, compilation_command ImGui,
+                        compilation_command Editor, compilation_command Renderer,
+                        compilation_command ImGui, compilation_command GLFW,
                         build_platform BuildPlatform)
 {
  operating_system OS = DetectOS();
@@ -141,7 +151,7 @@ PlatformExe_Compilation(arena *Arena, compiler_setup Setup,
    
    if (BuildPlatform == BuildPlatform_GLFW)
    {
-    LinkLibrary(&Target, StrLit("Gdi32.lib")); // SwapBuffers,SetPixelFormat,...
+    LinkLibrary(&Target, StrLit("Opengl32.lib")); // wgl,glEnable,...
     LinkLibrary(&Target, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/third_party/glfw/lib-vc2022/glfw3_mt.lib")));
    }
   }break;
@@ -172,7 +182,7 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
  operating_system OS = DetectOS();
  switch (OS)
  {
-  case OS_Win32: {BuildPlatform = BuildPlatform_GLFW;}break;
+  case OS_Win32: {BuildPlatform = BuildPlatform_Native;}break;
   case OS_Linux: {BuildPlatform = BuildPlatform_Native;}break;
  }
  
@@ -180,22 +190,26 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code")));
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/third_party/imgui")));
  
+ compilation_command GLFW = {};
  if (BuildPlatform == BuildPlatform_GLFW)
  {
   IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/third_party/glfw")));
   IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/third_party/gl3w")));
+  
+  GLFW = GLFW_Compilation(Temp.Arena, Setup, ForceRecompile);
  }
  
- compilation_command Renderer = Renderer_Compilation(Temp.Arena, Setup, BuildPlatform);
+ compilation_command Renderer = Renderer_Compilation(Temp.Arena, Setup, GLFW, BuildPlatform);
  compilation_command STB = STB_Compilation(Temp.Arena, Setup, ForceRecompile);
  compilation_command ImGui = ImGui_Compilation(Temp.Arena, Setup, ForceRecompile);
  compilation_command Editor = Editor_Compilation(Temp.Arena, Setup, STB);
- compilation_command PlatformExe = PlatformExe_Compilation(Temp.Arena, Setup, Editor, Renderer, ImGui, BuildPlatform);
+ compilation_command PlatformExe = PlatformExe_Compilation(Temp.Arena, Setup, Editor, Renderer, ImGui, GLFW, BuildPlatform);
  
  // NOTE(hbr): First start processes that don't depend on anything. Then run their descendants.
  os_process_handle RendererProcess = OS_ProcessLaunch(Renderer.Cmd);
  os_process_handle STBProcess = OS_ProcessLaunch(STB.Cmd);
  os_process_handle ImGuiProcess = OS_ProcessLaunch(ImGui.Cmd);
+ os_process_handle GLFWProcess = OS_ProcessLaunch(GLFW.Cmd);
  
  ExitCode = OS_CombineExitCodes(ExitCode, OS_ProcessWait(STBProcess));
  os_process_handle EditorProcess = OS_ProcessLaunch(Editor.Cmd);

@@ -66,7 +66,7 @@ Win32SetPixelFormat(win32_opengl_renderer *Win32OpenGL, HDC WindowDC)
  SetPixelFormat(WindowDC, SuggestedPixelFormatIndex, &SuggestedPixelFormat);
 }
 
-#define OpenGLFunction(Name) OpenGL->Name = Cast(func_##Name_Proc *)wglGetProcAddress(#Name);
+#define OpenGLFunction(Name) OpenGL->Name = Cast(func_##Name *)wglGetProcAddress(#Name);
 #define Win32OpenGLFunction(Name) Win32OpenGL->Name = Cast(func_##Name *)wglGetProcAddress(#Name);
 
 internal opengl *

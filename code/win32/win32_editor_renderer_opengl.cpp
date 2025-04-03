@@ -7,10 +7,8 @@
 #include "win32/win32_editor_renderer_opengl.h"
 #include "win32/win32_editor_imgui_bindings.h"
 
-#include "editor_math.h"
 #include "editor_renderer_opengl.h"
 
-#include "editor_math.cpp"
 #include "editor_renderer_opengl.cpp"
 
 internal void

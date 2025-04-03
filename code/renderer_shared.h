@@ -11,6 +11,11 @@
 #include "editor_imgui.h"
 #include "editor_platform.h"
 #include "editor_renderer.h"
+#include "editor_math.h"
+
+#include "editor_math.cpp"
+
+#ifndef DONT_INCLUDE
 
 #include "base/base_core.cpp"
 #include "base/base_arena.cpp"
@@ -20,6 +25,9 @@
 
 #include "editor_profiler.cpp"
 
+
 platform_api Platform;
+
+#endif
 
 #endif //RENDERER_SHARED_H

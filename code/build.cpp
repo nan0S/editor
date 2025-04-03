@@ -152,6 +152,7 @@ PlatformExe_Compilation(arena *Arena, compiler_setup Setup,
    if (BuildPlatform == BuildPlatform_GLFW)
    {
     LinkLibrary(&Target, StrLit("Opengl32.lib")); // wgl,glEnable,...
+    LinkLibrary(&Target, StrLit("Gdi32.lib")); // SwapBuffers,SetPixelFormat,...
     LinkLibrary(&Target, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/third_party/glfw/lib-vc2022/glfw3_mt.lib")));
    }
   }break;
@@ -167,6 +168,7 @@ PlatformExe_Compilation(arena *Arena, compiler_setup Setup,
  DefineMacro(&Target, StrLit("EDITOR_RENDERER_DLL"), Renderer.OutputTarget);
  
  StaticLink(&Target, ImGui.OutputTarget);
+ StaticLink(&Target, GLFW.OutputTarget);
  
  compilation_command PlatformExe = ComputeCompilationCommand(Setup, Target);
  return PlatformExe;
@@ -182,7 +184,7 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
  operating_system OS = DetectOS();
  switch (OS)
  {
-  case OS_Win32: {BuildPlatform = BuildPlatform_Native;}break;
+  case OS_Win32: {BuildPlatform = BuildPlatform_GLFW;}break;
   case OS_Linux: {BuildPlatform = BuildPlatform_Native;}break;
  }
  

@@ -165,8 +165,8 @@ global b32 GlobalRendererCodeReloaded;
 #define GL_INVALID_FRAMEBUFFER_OPERATION  0x0506
 
 // TODO(hbr): restore
-//#define GL_CALL(Expr) Expr; OpenGLCheckErrors()
-#define GL_CALL(Expr) Expr
+#define GL_CALL(Expr) Expr; OpenGLCheckErrors()
+//#define GL_CALL(Expr) Expr
 
 #define GLFloatAttribPointerAndDivisor(OpenGL, Id, Type, Member, Divisor) \
 GL_CALL(OpenGL->glVertexAttribPointer(Id, SizeOf(MemberOf(Type, Member))/SizeOf(f32), GL_FLOAT, GL_FALSE, SizeOf(Type), Cast(void *)OffsetOf(Type, Member))); \
@@ -384,8 +384,12 @@ OutColor = FragColor;
   "Color",
   "Transform",
  };
- StaticAssert(ArrayCount(AttributeNames) == ArrayCount(MemberOf(line_program, Attributes.All)), AllAttributeNamesDefined);
- StaticAssert(ArrayCount(UniformNames) == ArrayCount(MemberOf(line_program, Uniforms.All)), AllUniformNamesDefined);
+ StaticAssert(ArrayCount(AttributeNames) ==
+              ArrayCount(MemberOf(line_program, Attributes.All)),
+              AllAttributeNamesDefined);
+ StaticAssert(ArrayCount(UniformNames) ==
+              ArrayCount(MemberOf(line_program, Uniforms.All)),
+              AllUniformNamesDefined);
  
  line_program Result = {};
  Result.ProgramHandle =
@@ -585,14 +589,16 @@ f32 AlphaChannel = Lerp(ProperColor.a, 0, OutlineT);
   "VertColor",
   "VertOutlineColor",
  };
- StaticAssert(ArrayCount(AttrNames) == ArrayCount(MemberOf(perfect_circle_program, Attributes.All)),
+ StaticAssert(ArrayCount(AttrNames) ==
+              ArrayCount(MemberOf(perfect_circle_program, Attributes.All)),
               AttrNamesLengthMatchesDefinedAttributes);
  
  char const *UniformNames[] =
  {
   "Projection",
  };
- StaticAssert(ArrayCount(UniformNames) == ArrayCount(MemberOf(perfect_circle_program, Uniforms.All)),
+ StaticAssert(ArrayCount(UniformNames) ==
+              ArrayCount(MemberOf(perfect_circle_program, Uniforms.All)),
               UniformNamesLengthMatchesDefinedUniforms);
  
  Result.ProgramHandle =
@@ -683,8 +689,12 @@ case 7: {OutColor = texture(Sampler7, FragUV);} break;
   "Sampler6",
   "Sampler7",
  };
- StaticAssert(ArrayCount(AttributeNames) == ArrayCount(MemberOf(image_program, Attributes.All)), AllAttributeNamesDefined);
- StaticAssert(ArrayCount(UniformNames) == ArrayCount(MemberOf(image_program, Uniforms.All)), AllUniformNamesDefined);
+ StaticAssert(ArrayCount(AttributeNames) ==
+              ArrayCount(MemberOf(image_program, Attributes.All)),
+              AllAttributeNamesDefined);
+ StaticAssert(ArrayCount(UniformNames) ==
+              ArrayCount(MemberOf(image_program, Uniforms.All)),
+              AllUniformNamesDefined);
  
  image_program Result = {};
  Result.ProgramHandle =
@@ -737,8 +747,12 @@ OutColor = FragColor;
  {
   "Projection",
  };
- StaticAssert(ArrayCount(AttributeNames) == ArrayCount(MemberOf(vertex_program, Attributes.All)), AllAttributeNamesDefined);
- StaticAssert(ArrayCount(UniformNames) == ArrayCount(MemberOf(vertex_program, Uniforms.All)), AllUniformNamesDefined);
+ StaticAssert(ArrayCount(AttributeNames) ==
+              ArrayCount(MemberOf(vertex_program, Attributes.All)),
+              AllAttributeNamesDefined);
+ StaticAssert(ArrayCount(UniformNames) ==
+              ArrayCount(MemberOf(vertex_program, Uniforms.All)),
+              AllUniformNamesDefined);
  
  vertex_program Result = {};
  Result.ProgramHandle =
@@ -859,7 +873,7 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
   {
    glEnable(GL_DEBUG_OUTPUT);
    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-   //OpenGL->glDebugMessageCallback(OpenGLDebugCallback, 0);
+   OpenGL->glDebugMessageCallback(OpenGLDebugCallback, 0);
   }
   
   //- recompile shaders

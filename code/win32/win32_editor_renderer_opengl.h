@@ -15,6 +15,8 @@ typedef BOOL WINAPI func_wglChoosePixelFormatARB(HDC hdc,
 typedef HGLRC WINAPI func_wglCreateContextAttribsARB(HDC hDC, HGLRC hShareContext,
                                                      const int *attribList);
 
+typedef void func_glShaderSource(GLuint shader, GLsizei count, GLchar const *const *string, GLint *length);
+
 #define WGL_DRAW_TO_WINDOW_ARB                  0x2001
 #define WGL_ACCELERATION_ARB                    0x2003
 #define WGL_SUPPORT_OPENGL_ARB                  0x2010

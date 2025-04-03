@@ -24,7 +24,7 @@ typedef GLuint func_glCreateProgram(void);
 typedef GLuint func_glCreateShader(GLenum type);
 typedef void func_glAttachShader(GLuint program, GLuint shader);
 typedef void func_glCompileShader(GLuint shader);
-typedef void func_glShaderSource(GLuint shader, GLsizei count, GLchar const *const *string, GLint *length);
+typedef void func_glShaderSource(GLuint shader, GLsizei count, const GLchar *const*string, const GLint *length);
 typedef void func_glLinkProgram(GLuint program);
 typedef void func_glGetProgramInfoLog(GLuint program, GLsizei bufSize, GLsizei *length, GLchar *infoLog);
 typedef void func_glGetShaderInfoLog(GLuint shader, GLsizei bufSize, GLsizei *length, GLchar *infoLog);

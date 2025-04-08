@@ -136,10 +136,9 @@ StaticAssert(ArrayCount(PlatformKeyNames) == PlatformKey_Count, PlatformKeyNames
 typedef u32 platform_event_flags;
 enum
 {
- PlatformEventFlag_Eaten    = (1<<0),
- PlatformEventFlag_Alt      = (1<<1),
- PlatformEventFlag_Shift    = (1<<2),
- PlatformEventFlag_Ctrl     = (1<<3),
+ PlatformEventFlag_Alt      = (1<<0),
+ PlatformEventFlag_Shift    = (1<<1),
+ PlatformEventFlag_Ctrl     = (1<<2),
 };
 
 struct platform_event

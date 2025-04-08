@@ -126,12 +126,10 @@ struct image_program
  
  union {
   struct {
-   GLuint Z_UniformLoc;
-   GLuint Model_UniformLoc;
    GLuint Projection_UniformLoc;
    GLuint Samplers[8];
   };
-  GLuint All[11];
+  GLuint All[9];
  } Uniforms;
 };
 StaticAssert(SizeOf(MemberOf(image_program, Attributes)) ==

@@ -164,9 +164,8 @@ global b32 GlobalRendererCodeReloaded;
 
 #define GL_INVALID_FRAMEBUFFER_OPERATION  0x0506
 
-// TODO(hbr): restore
 #define GL_CALL(Expr) Expr; OpenGLCheckErrors()
-//#define GL_CALL(Expr) Expr
+#define GL_MAYBE_EXPECT_ERROR(Expr) Expr; OpenGLClearErrors()
 
 #define GLFloatAttribPointerAndDivisor(OpenGL, Id, Type, Member, Divisor) \
 GL_CALL(OpenGL->glVertexAttribPointer(Id, SizeOf(MemberOf(Type, Member))/SizeOf(f32), GL_FLOAT, GL_FALSE, SizeOf(Type), Cast(void *)OffsetOf(Type, Member))); \
@@ -189,8 +188,13 @@ OpenGLCheckErrors(void)
    case GL_OUT_OF_MEMORY:                 error = "OUT_OF_MEMORY"; break;
    case GL_INVALID_FRAMEBUFFER_OPERATION: error = "INVALID_FRAMEBUFFER_OPERATION"; break;
   }
-  Trap;
  }
+}
+
+internal void
+OpenGLClearErrors(void)
+{
+ while (glGetError() != GL_NO_ERROR);
 }
 
 GL_DEBUG_CALLBACK(OpenGLDebugCallback)
@@ -267,47 +271,47 @@ OpenGLCreateProgram(opengl *OpenGL, char const *VertexCode, char const *Fragment
 #define Clamp(Min, T, Max) clamp(T, Min, Max)
   )FOO";
  
- GLuint VertexShaderID = OpenGL->glCreateShader(GL_VERTEX_SHADER);
+ GL_CALL(GLuint VertexShaderID = OpenGL->glCreateShader(GL_VERTEX_SHADER));
  GLchar *VertexShaderCode[] =
  {
   Cast(char *)ShaderCodeHeader,
   Cast(char *)VertexCode,
  };
- OpenGL->glShaderSource(VertexShaderID, ArrayCount(VertexShaderCode), VertexShaderCode, 0);
- OpenGL->glCompileShader(VertexShaderID);
+ GL_CALL(OpenGL->glShaderSource(VertexShaderID, ArrayCount(VertexShaderCode), VertexShaderCode, 0));
+ GL_CALL(OpenGL->glCompileShader(VertexShaderID));
  
- GLuint FragmentShaderID = OpenGL->glCreateShader(GL_FRAGMENT_SHADER);
+ GL_CALL(GLuint FragmentShaderID = OpenGL->glCreateShader(GL_FRAGMENT_SHADER));
  GLchar *FragmentShaderCode[] =
  {
   Cast(char *)ShaderCodeHeader,
   Cast(char *)FragmentCode,
  };
- OpenGL->glShaderSource(FragmentShaderID, ArrayCount(FragmentShaderCode), FragmentShaderCode, 0);
- OpenGL->glCompileShader(FragmentShaderID);
+ GL_CALL(OpenGL->glShaderSource(FragmentShaderID, ArrayCount(FragmentShaderCode), FragmentShaderCode, 0));
+ GL_CALL(OpenGL->glCompileShader(FragmentShaderID));
  
- GLuint ProgramID = OpenGL->glCreateProgram();
- OpenGL->glAttachShader(ProgramID, VertexShaderID);
- OpenGL->glAttachShader(ProgramID, FragmentShaderID);
- OpenGL->glLinkProgram(ProgramID);
+ GL_CALL(GLuint ProgramID = OpenGL->glCreateProgram());
+ GL_CALL(OpenGL->glAttachShader(ProgramID, VertexShaderID));
+ GL_CALL(OpenGL->glAttachShader(ProgramID, FragmentShaderID));
+ GL_CALL(OpenGL->glLinkProgram(ProgramID));
  
- OpenGL->glValidateProgram(ProgramID);
+ GL_CALL(OpenGL->glValidateProgram(ProgramID));
  GLint Linked = false;
- OpenGL->glGetProgramiv(ProgramID, GL_LINK_STATUS, &Linked);
+ GL_CALL(OpenGL->glGetProgramiv(ProgramID, GL_LINK_STATUS, &Linked));
  if(!Linked)
  {
   GLsizei Ignored;
   char VertexErrors[4096];
   char FragmentErrors[4096];
   char ProgramErrors[4096];
-  OpenGL->glGetShaderInfoLog(VertexShaderID, sizeof(VertexErrors), &Ignored, VertexErrors);
-  OpenGL->glGetShaderInfoLog(FragmentShaderID, sizeof(FragmentErrors), &Ignored, FragmentErrors);
-  OpenGL->glGetProgramInfoLog(ProgramID, sizeof(ProgramErrors), &Ignored, ProgramErrors);
+  GL_CALL(OpenGL->glGetShaderInfoLog(VertexShaderID, sizeof(VertexErrors), &Ignored, VertexErrors));
+  GL_CALL(OpenGL->glGetShaderInfoLog(FragmentShaderID, sizeof(FragmentErrors), &Ignored, FragmentErrors));
+  GL_CALL(OpenGL->glGetProgramInfoLog(ProgramID, sizeof(ProgramErrors), &Ignored, ProgramErrors));
   
   Assert(!"Shader validation failed");
  }
  
- OpenGL->glDeleteShader(VertexShaderID);
- OpenGL->glDeleteShader(FragmentShaderID);
+ GL_CALL(OpenGL->glDeleteShader(VertexShaderID));
+ GL_CALL(OpenGL->glDeleteShader(FragmentShaderID));
  
  return ProgramID;
 }
@@ -325,10 +329,9 @@ CompileProgramCommon(opengl *OpenGL,
       ++AttrIndex)
  {
   char const *AttributeName = AttributeNames[AttrIndex];
-  GLuint Attr = OpenGL->glGetAttribLocation(ProgramHandle, AttributeName);
+  GL_CALL(GLuint Attr = OpenGL->glGetAttribLocation(ProgramHandle, AttributeName));
   Attributes[AttrIndex] = Attr;
-  // TODO(hbr): restore
-  // Assert(Attr != -1);
+  Assert(Attr != -1);
  }
  
  for (u32 UniformIndex = 0;
@@ -336,10 +339,9 @@ CompileProgramCommon(opengl *OpenGL,
       ++UniformIndex)
  {
   char const *UniformName = UniformNames[UniformIndex];
-  GLuint Uniform = OpenGL->glGetUniformLocation(ProgramHandle, UniformName);
+  GL_CALL(GLuint Uniform = OpenGL->glGetUniformLocation(ProgramHandle, UniformName));
   Uniforms[UniformIndex] = Uniform;
-  // TODO(hbr): restore
-  // Assert(Uniform != -1);
+  Assert(Uniform != -1);
  }
  
  return ProgramHandle;
@@ -450,7 +452,7 @@ UseProgramEnd(opengl *OpenGL, line_program *Prog)
       ++AttrLocIndex)
  {
   GLuint Attr = Prog->Attributes.All[AttrLocIndex];
-  (OpenGL->glDisableVertexAttribArray(Attr));
+  GL_CALL(OpenGL->glDisableVertexAttribArray(Attr));
  }
  GL_CALL(OpenGL->glUseProgram(0));
 }
@@ -677,8 +679,6 @@ case 7: {OutColor = texture(Sampler7, FragUV);} break;
  };
  char const *UniformNames[] =
  {
-  "Z",
-  "Model",
   "Projection",
   "Sampler0",
   "Sampler1",
@@ -766,21 +766,19 @@ OutColor = FragColor;
 internal void
 OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
 {
- glEnable(GL_BLEND);
- glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
- 
- glEnable(GL_MULTISAMPLE);
+ GL_CALL(glEnable(GL_BLEND));
+ GL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+ GL_CALL(glEnable(GL_MULTISAMPLE));
  // NOTE(hbr): So that glEnable,glEnd with glBindTexture works. When using shaders it is not needed.
- glEnable(GL_TEXTURE_2D);
- 
- glEnable(GL_DEPTH_TEST);
+ GL_CALL(glEnable(GL_TEXTURE_2D));
+ GL_CALL(glEnable(GL_DEPTH_TEST));
  // TODO(hbr): For now I set this to always so that transparency somehow works.
  // I think I need to implement depth peeling (or sorting but this can be ugly).
- glDepthFunc(GL_ALWAYS);
+ GL_CALL(glDepthFunc(GL_ALWAYS));
  
  GLuint DummyVAO;
- OpenGL->glGenVertexArrays(1, &DummyVAO);
- OpenGL->glBindVertexArray(DummyVAO);
+ GL_CALL(OpenGL->glGenVertexArrays(1, &DummyVAO));
+ GL_CALL(OpenGL->glBindVertexArray(DummyVAO));
  
  //- allocate texutre indices
  {
@@ -789,17 +787,17 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
   OpenGL->MaxTextureCount = TextureCount;
   OpenGL->Textures = Textures;
   
-  glGenTextures(Cast(GLsizei)TextureCount, Textures);
+  GL_CALL(glGenTextures(Cast(GLsizei)TextureCount, Textures));
   for (u32 TextureIndex = 0;
        TextureIndex < TextureCount;
        ++TextureIndex)
   {
-   glBindTexture(GL_TEXTURE_2D, Textures[TextureIndex]);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-   glBindTexture(GL_TEXTURE_2D, 0);
+   GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[TextureIndex]));
+   GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR));
+   GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+   GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP));
+   GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP));
+   GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
   }
  }
  
@@ -807,19 +805,19 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
  {
   u32 BufferCount = Memory->Limits.MaxBufferCount;
   GLuint *Buffers = PushArray(Arena, BufferCount, GLuint);
-  OpenGL->glGenBuffers(Cast(GLsizei)BufferCount, Buffers);
+  GL_CALL(OpenGL->glGenBuffers(Cast(GLsizei)BufferCount, Buffers));
   OpenGL->MaxBufferCount = BufferCount;
   OpenGL->Buffers = Buffers;
  }
  
  //- allocate buffers
  {
-  OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.QuadVBO);
-  OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.CircleVBO);
-  OpenGL->glGenBuffers(1, &OpenGL->Line.VertexBuffer);
-  OpenGL->glGenBuffers(1, &OpenGL->Image.VertexBuffer);
-  OpenGL->glGenBuffers(1, &OpenGL->Image.ImageBuffer);
-  OpenGL->glGenBuffers(1, &OpenGL->Vertex.VertexBuffer);
+  GL_CALL(OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.QuadVBO));
+  GL_CALL(OpenGL->glGenBuffers(1, &OpenGL->PerfectCircle.CircleVBO));
+  GL_CALL(OpenGL->glGenBuffers(1, &OpenGL->Line.VertexBuffer));
+  GL_CALL(OpenGL->glGenBuffers(1, &OpenGL->Image.VertexBuffer));
+  GL_CALL(OpenGL->glGenBuffers(1, &OpenGL->Image.ImageBuffer));
+  GL_CALL(OpenGL->glGenBuffers(1, &OpenGL->Vertex.VertexBuffer));
   
   {
    v2 Vertices[] =
@@ -832,8 +830,8 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
     V2( 1,  1),
     V2(-1,  1),
    };
-   OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->PerfectCircle.QuadVBO);
-   OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW);
+   GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->PerfectCircle.QuadVBO));
+   GL_CALL(OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW));
   }
   
   {
@@ -847,18 +845,17 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
     { V2( 1,  1), V2(1, 1) },
     { V2(-1,  1), V2(0, 1) },
    };
-   OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Image.VertexBuffer);
-   OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW);
+   GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, OpenGL->Image.VertexBuffer));
+   GL_CALL(OpenGL->glBufferData(GL_ARRAY_BUFFER, SizeOf(Vertices), Vertices, GL_STATIC_DRAW));
   }
  }
  
  {
   GLint MaxTextureSlots;
-  glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &MaxTextureSlots);
+  GL_CALL(glGetIntegerv(GL_MAX_TEXTURE_IMAGE_UNITS, &MaxTextureSlots));
   OpenGL->MaxTextureSlots = 1;
   if (MaxTextureSlots > 0) OpenGL->MaxTextureSlots = MaxTextureSlots;
  }
- 
 }
 
 internal render_frame *
@@ -866,31 +863,36 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
 {
  ProfileFunctionBegin();
  
+ render_frame *RenderFrame = &OpenGL->RenderFrame;
+ 
+#if 1
+ 
  if (GlobalRendererCodeReloaded)
  {
   //- fix error handling function pointer
   if (OpenGL->glDebugMessageCallback)
   {
-   glEnable(GL_DEBUG_OUTPUT);
-   glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-   OpenGL->glDebugMessageCallback(OpenGLDebugCallback, 0);
+   GL_CALL(glEnable(GL_DEBUG_OUTPUT));
+   GL_CALL(glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS));
+   //GL_CALL(OpenGL->glDebugMessageCallback(OpenGLDebugCallback, 0));
   }
   
   //- recompile shaders
-  OpenGL->glDeleteProgram(OpenGL->PerfectCircle.Program.ProgramHandle);
+  GL_MAYBE_EXPECT_ERROR(OpenGL->glDeleteProgram(OpenGL->PerfectCircle.Program.ProgramHandle));
   OpenGL->PerfectCircle.Program = CompilePerfectCircleProgram(OpenGL);
   
-  OpenGL->glDeleteProgram(OpenGL->Line.Program.ProgramHandle);
+  GL_MAYBE_EXPECT_ERROR(OpenGL->glDeleteProgram(OpenGL->Line.Program.ProgramHandle));
   OpenGL->Line.Program = CompileLineProgram(OpenGL);
   
-  OpenGL->glDeleteProgram(OpenGL->Image.Program.ProgramHandle);
+  GL_MAYBE_EXPECT_ERROR(OpenGL->glDeleteProgram(OpenGL->Image.Program.ProgramHandle));
   OpenGL->Image.Program = CompileImageProgram(OpenGL);
   
-  OpenGL->glDeleteProgram(OpenGL->Vertex.Program.ProgramHandle);
+  GL_MAYBE_EXPECT_ERROR(OpenGL->glDeleteProgram(OpenGL->Vertex.Program.ProgramHandle));
   OpenGL->Vertex.Program = CompileVertexProgram(OpenGL);
+  
+  GlobalRendererCodeReloaded = false;
  }
  
- render_frame *RenderFrame = &OpenGL->RenderFrame;
  RenderFrame->LineCount = 0;
  RenderFrame->Lines = Memory->LineBuffer;
  RenderFrame->MaxLineCount = Memory->MaxLineCount;
@@ -906,6 +908,8 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
  RenderFrame->WindowDim = WindowDim;
  
  Platform.ImGui.NewFrame();
+ 
+#endif
  
  ProfileEnd();
  
@@ -977,6 +981,8 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
  v4 Clear = Frame->ClearColor;
  GL_CALL(glClearColor(Clear.R, Clear.G, Clear.B, Clear.A));
  GL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
+ 
+#if 1
  GL_CALL(glViewport(0, 0, Frame->WindowDim.X, Frame->WindowDim.Y));
  
  OpenGLManageTransferQueue(OpenGL, Queue);
@@ -1120,6 +1126,8 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
  }
  
  Platform.ImGui.Render();
+ 
+#endif
  
  ProfileEnd();
 }

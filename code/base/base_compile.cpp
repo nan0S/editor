@@ -149,6 +149,7 @@ ComputeCompilationCommand(compiler_setup Setup, compilation_target Target)
     StrListPushF(Arena, Cmd, "-wd4505"); // unreferenced functions
     StrListPushF(Arena, Cmd, "-wd4189"); // unreferenced variables
     StrListPushF(Arena, Cmd, "-wd4456"); // hiding previous local declaration - shadowing
+    StrListPushF(Arena, Cmd, "-wd4127"); // constant conditional expression
     StrListPushF(Arena, Cmd, "-EHa-"); // disables exceptions
     
     // TODO(hbr): Investigate this, this is weird, I don't understand something here.

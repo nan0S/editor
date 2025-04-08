@@ -329,6 +329,8 @@ inline internal u32 SafeCastU32(u64 X) { Assert(X <= U32_MAX); return Cast(u32)X
 inline internal u16 SafeCastU16(u64 X) { Assert(X <= U16_MAX); return Cast(u16)X; }
 inline internal  u8  SafeCastU8(u64 X) { Assert(X <=  U8_MAX); return Cast( u8)X; }
 
+inline internal int SafeCastInt(i64 X) { Assert(I32_MIN <= X && X <= I32_MAX); return Cast(int)X; }
+
 inline internal u64 SafeSubtractU64(u64 A, u64 B) { Assert(A >= B); return A-B; }
 inline internal u32 SafeSubtractU32(u32 A, u32 B) { Assert(A >= B); return A-B; }
 inline internal u16 SafeSubtractU16(u16 A, u16 B) { Assert(A >= B); return A-B; }

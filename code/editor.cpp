@@ -3260,12 +3260,6 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
    v2 AtP = Unproject(RenderGroup, Event->ClipSpaceMouseP);
    TryLoadImages(Editor, Event->FileCount, Event->FilePaths, AtP);
   }
-  
-  //-
-  if (Eat)
-  {
-   Event->Flags |= PlatformEventFlag_Eaten;
-  }
  }
  
  // NOTE(hbr): these "sanity checks" are only necessary because ImGui captured any input that ends

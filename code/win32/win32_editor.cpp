@@ -222,6 +222,7 @@ Win32ClipSpaceMousePFromLParam(HWND Window, LPARAM lParam)
  return Result;
 }
 
+// TODO(hbr): remove
 global b32 GlobalImGuiInit;
 internal LRESULT 
 Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
@@ -395,23 +396,6 @@ Win32DisplayErrorBox(char const *Msg)
 }
 
 internal void
-Win32PrintDebugInputEvents(platform_input *Input)
-{
- for (u32 EventIndex = 0;
-      EventIndex < Input->EventCount;
-      ++EventIndex)
- {
-  platform_event *Event = Input->Events + EventIndex;
-  char const *Name = PlatformEventTypeNames[Event->Type];
-  char const *KeyName = PlatformKeyNames[Event->Key];
-  if (Event->Type != PlatformEvent_MouseMove)
-  {
-   OS_PrintDebugF("[%lu] %s %s\n", Name, KeyName);
-  }
- }
-}
-
-internal void
 EntryPoint(int ArgCount, char **Args)
 {
  HINSTANCE Instance = GetModuleHandle(0);
@@ -510,28 +494,24 @@ EntryPoint(int ArgCount, char **Args)
   int ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
   int ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
   
-  // TODO(hbr): restore window sizes
-  int WindowWidth =  ScreenWidth * 1/2;
-  //int WindowWidth =  ScreenWidth;
-  //int WindowWidth =  ScreenWidth * 9/10;
+  main_window_params WindowParams = Platform_GetMainWindowInitialPlacement(ScreenWidth, ScreenHeight);
   
-  int WindowHeight = ScreenHeight * 1/2;
-  //int WindowHeight = ScreenHeight;
-  //int WindowHeight = ScreenHeight * 9/10;
+  int WindowX = CW_USEDEFAULT;
+  int WindowY = CW_USEDEFAULT;
+  int WindowWidth = CW_USEDEFAULT;
+  int WindowHeight = CW_USEDEFAULT;
   
-  int WindowX = (ScreenWidth - WindowWidth) / 2;
-  int WindowY = (ScreenHeight - WindowHeight) / 2;
-  if (WindowWidth == 0 || WindowHeight == 0)
+  if (!WindowParams.UseDefault)
   {
-   WindowX = CW_USEDEFAULT;
-   WindowY = CW_USEDEFAULT;
-   WindowWidth = CW_USEDEFAULT;
-   WindowHeight = CW_USEDEFAULT;
+   WindowX = SafeCastInt(WindowParams.LeftCornerP.X);
+   WindowY = SafeCastInt(WindowParams.LeftCornerP.Y);
+   WindowWidth = SafeCastInt(WindowParams.Dims.X);
+   WindowHeight = SafeCastInt(WindowParams.Dims.Y);
   }
   
   HWND Window = CreateWindowExA(WS_EX_APPWINDOW | WS_EX_ACCEPTFILES,
                                 WindowClass.lpszClassName,
-                                "Parametric Curves Editor",
+                                WindowParams.Title,
                                 WS_OVERLAPPEDWINDOW,
                                 WindowX, WindowY,
                                 WindowWidth, WindowHeight,
@@ -665,7 +645,7 @@ EntryPoint(int ArgCount, char **Args)
      ScreenToClient(Window, &CursorP);
      Input.ClipSpaceMouseP = Win32ScreenToClip(CursorP.x, CursorP.y, WindowDim);
      
-     //Win32PrintDebugInputEvents(&Input);
+     //Platform_PrintDebugInputEvents(&Input);
     }
     
     //- update and render

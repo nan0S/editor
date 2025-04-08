@@ -97,6 +97,8 @@ Platform_ClockFrame(platform_clock *Clock)
  return dtForFrame;
 }
 
+#if 1
+
 IMGUI_IS_ITEM_HOVERED(ImGuiIsItemHovered){return ImGui::IsItemHovered(flags);}
 IMGUI_IS_MOUSE_CLICKED(ImGuiIsMouseClicked){return ImGui::IsMouseClicked(button);}
 IMGUI_IS_WINDOW_HOVERED(ImGuiIsWindowHovered){return ImGui::IsWindowHovered(0);}
@@ -159,6 +161,72 @@ IMGUI_SET_NEXT_WINDOW_POS(ImGuiSetNextWindowPos){ImGui::SetNextWindowPos(pos, co
 #define ImGuiGetWindowSize ImGui::GetWindowSize
 #define ImGuiGetCursorPos ImGui::GetCursorPos
 #define ImGuiGetWindowContentRegionMax ImGui::GetWindowContentRegionMax
+
+#else
+
+IMGUI_IS_ITEM_HOVERED(ImGuiIsItemHovered){return 0;}
+IMGUI_IS_MOUSE_CLICKED(ImGuiIsMouseClicked){return 0;}
+IMGUI_IS_WINDOW_HOVERED(ImGuiIsWindowHovered){return 0;}
+IMGUI_SET_CURSOR_POS(ImGuiSetCursorPos){}
+IMGUI_SET_NEXT_ITEM_OPEN(ImGuiSetNextItemOpen){}
+IMGUI_SET_NEXT_WINDOW_SIZE_CONSRAINTS(ImGuiSetNextWindowSizeConstraints){}
+IMGUI_BRING_WINDOW_TO_DISPLAY_FRONT(ImGuiBringWindowToDisplayFront){}
+IMGUI_GET_CURRENT_WINDOW(ImGuiGetCurrentWindow){return 0;}
+IMGUI_COMBO(ImGuiCombo){return 0;}
+IMGUI_CHECKBOX(ImGuiCheckbox){return 0;}
+IMGUI_COLOR_EDIT4(ImGuiColorEdit4){return 0;}
+IMGUI_BUTTON(ImGuiButton){return 0;}
+IMGUI_SLIDER_ANGLE(ImGuiSliderAngle){return 0;}
+IMGUI_GET_FONT_SIZE(ImGuiGetFontSize){return 0;}
+IMGUI_PUSH_ITEM_WIDTH(ImGuiPushItemWidth){}
+IMGUI_POP_ITEM_WIDTH(ImGuiPopItemWidth){}
+IMGUI_INPUT_TEXT(ImGuiInputText){return 0;}
+IMGUI_INPUT_TEXT_MULTILINE(ImGuiInputTextMultiline){return 0;}
+IMGUI_PUSH_ID__STR(ImGuiPushID_Str){}
+IMGUI_PUSH_ID__INT(ImGuiPushID_Int){}
+IMGUI_POP_ID(ImGuiPopID){}
+IMGUI_BEGIN_DISABLED(ImGuiBeginDisabled){}
+IMGUI_END_DISABLED(ImGuiEndDisabled){}
+IMGUI_PUSH_STYLE_COLOR(ImGuiPushStyleColor){}
+IMGUI_POP_STYLE_COLOR(ImGuiPopStyleColor){}
+IMGUI_PUSH_STYLE_VAR(ImGuiPushStyleVar){}
+IMGUI_POP_STYLE_VAR(ImGuiPopStyleVar){}
+IMGUI_DRAG_FLOAT(ImGuiDragFloat){return 0;}
+IMGUI_DRAG_FLOAT2(ImGuiDragFloat2){return 0;}
+IMGUI_SLIDER_FLOAT(ImGuiSliderFloat){return 0;}
+IMGUI_NEW_LINE(ImGuiNewLine){}
+IMGUI_SAME_LINE(ImGuiSameLine){}
+IMGUI_SEPARATOR_TEXT(ImGuiSeparatorText){}
+IMGUI_SLIDER_INT(ImGuiSliderInt){return 0;}
+IMGUI_COLLAPSING_HEADER(ImGuiCollapsingHeader){return 0;}
+IMGUI_SELECTABLE(ImGuiSelectable){return 0;}
+IMGUI_OPEN_POPUP(ImGuiOpenPopup){}
+IMGUI_MENU_ITEM(ImGuiMenuItem){return 0;}
+IMGUI_BEGIN_MENU(ImGuiBeginMenu){return 0;}
+IMGUI_BEGIN_COMBO(ImGuiBeginCombo){return 0;}
+IMGUI_SHOW_DEMO_WINDOW(ImGuiShowDemoWindow){}
+IMGUI_SET_NEXT_WINDOW_POS(ImGuiSetNextWindowPos){}
+IMGUI_TEXT_WRAPPED(ImGuiTextWrapped){}
+IMGUI_TEXT(ImGuiText){}
+IMGUI_BEGIN(ImGuiBegin){return 0;}
+IMGUI_END(ImGuiEnd){}
+IMGUI_SET_TOOLTIP(ImGuiSetTooltip){}
+IMGUI_SEPARATOR(ImGuiSeparator){}
+IMGUI_BEGIN_POPUP(ImGuiBeginPopup){return 0;}
+IMGUI_END_POPUP(ImGuiEndPopup){}
+IMGUI_BEGIN_MAIN_MENU_BAR(ImGuiBeginMainMenuBar){return 0;}
+IMGUI_END_MAIN_MENU_BAR(ImGuiEndMainMenuBar){}
+IMGUI_END_MENU(ImGuiEndMenu){}
+IMGUI_END_COMBO(ImGuiEndCombo){}
+IMGUI_BEGIN_POPUP_MODAL(ImGuiBeginPopupModal){return 0;}
+IMGUI_CLOSE_CURRENT_POPUP(ImGuiCloseCurrentPopup){}
+IMGUI_TREE_NODE(ImGuiTreeNode){return 0;}
+IMGUI_TREE_POP(ImGuiTreePop){}
+IMGUI_GET_WINDOW_SIZE(ImGuiGetWindowSize){return {};}
+IMGUI_GET_CURSOR_POS(ImGuiGetCursorPos){return {};}
+IMGUI_GET_WINDOW_CONTENT_REGION_MAX(ImGuiGetWindowContentRegionMax){return {};}
+
+#endif
 
 internal platform_api
 Platform_MakePlatformAPI(platform_open_file_dialog OpenFileDialog,
@@ -234,7 +302,6 @@ Platform_MakePlatformAPI(platform_open_file_dialog OpenFileDialog,
   ImGuiGetWindowContentRegionMax,
   ImGuiShowDemoWindow,
   ImGuiSetNextWindowPos,
-  
  };
  
  platform_api API = {
@@ -250,4 +317,46 @@ Platform_MakePlatformAPI(platform_open_file_dialog OpenFileDialog,
  };
  
  return API;
+}
+
+internal void
+Platform_PrintDebugInputEvents(platform_input *Input)
+{
+ for (u32 EventIndex = 0;
+      EventIndex < Input->EventCount;
+      ++EventIndex)
+ {
+  platform_event *Event = Input->Events + EventIndex;
+  char const *Name = PlatformEventTypeNames[Event->Type];
+  char const *KeyName = PlatformKeyNames[Event->Key];
+  //if (Event->Type != PlatformEvent_MouseMove)
+  {
+   OS_PrintDebugF("%s %s\n", Name, KeyName);
+  }
+ }
+}
+
+internal main_window_params
+Platform_GetMainWindowInitialParams(u32 ScreenWidth, u32 ScreenHeight)
+{
+ u32 WindowWidth =  ScreenWidth * 1/2;
+ //u32 WindowWidth =  ScreenWidth;
+ //u32 WindowWidth =  ScreenWidth * 9/10;
+ 
+ u32 WindowHeight = ScreenHeight * 1/2;
+ //u32 WindowHeight = ScreenHeight;
+ //u32 WindowHeight = ScreenHeight * 9/10;
+ 
+ u32 WindowX = (ScreenWidth - WindowWidth) / 2;
+ u32 WindowY = (ScreenHeight - WindowHeight) / 2;
+ 
+ main_window_params Result = {};
+ 
+ Result.LeftCornerP = V2U(WindowX, WindowY);
+ Result.Dims = V2U(WindowWidth, WindowHeight);
+ Result.UseDefault = (WindowWidth == 0 || WindowHeight == 0);
+ 
+ Result.Title = "Parametric Curves Editor";
+ 
+ return Result;
 }

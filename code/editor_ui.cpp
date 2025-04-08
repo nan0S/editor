@@ -545,14 +545,6 @@ UI_SeparatorTextF(char const *Format, ...)
  va_end(Args);
 }
 
-internal int
-SafeCastInt(i64 Value)
-{
- AssertAlways(INT_MIN <= Value && Value <= INT_MAX);
- int Result = Cast(int)Value;
- return Result;
-}
-
 internal b32
 UI_SliderInteger(i32 *Value, i32 MinValue, i32 MaxValue, string Label)
 {

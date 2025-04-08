@@ -29,6 +29,15 @@ struct platform_clock
  u64 CPU_TimerFreq;
 };
 
+struct main_window_params
+{
+ v2u LeftCornerP;
+ v2u Dims;
+ b32 UseDefault;
+ 
+ char const *Title;
+};
+
 platform_api Platform;
 
 #endif //PLATFORM_SHARED_H

@@ -60,7 +60,6 @@ struct profiler
  u16 UsedBlockCount;
  profile_block Blocks[MAX_PROFILER_ANCHOR_COUNT];
  
- 
  u32 LabelBufferAt;
  char LabelBuffer[MAX_PROFILER_LABEL_BUFFER_LENGTH];
  
@@ -96,5 +95,9 @@ internal void            ProfilerEndFrame(profiler *Profiler);
 #define ProfilerEndFrame(...)
 
 #endif
+
+// NOTE(hbr): Don't look at this, just forward declaration for things to compile more independently
+internal void __ProfileBegin(char const *Label, u16 AnchorIndex);
+internal void __ProfileEnd(void);
 
 #endif //EDITOR_PROFILER_H

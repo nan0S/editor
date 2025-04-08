@@ -170,23 +170,9 @@ struct platform_input
  b32 ProfilingStopped;
 };
 
-struct platform_file_dialog_result
-{
- u32 FileCount;
- string *FilePaths;
-};
-struct platform_file_dialog_filter
-{
- string DisplayName;
- u32 ExtensionCount;
- string *Extensions;
-};
-struct platform_file_dialog_filters
-{
- b32 AnyFileFilter;
- u32 FilterCount;
- platform_file_dialog_filter *Filters;
-};
+typedef os_file_dialog_result platform_file_dialog_result;
+typedef os_file_dialog_filter platform_file_dialog_filter;
+typedef os_file_dialog_filters platform_file_dialog_filters;
 
 #define PLATFORM_ALLOC_VIRTUAL_MEMORY(Name) void *Name(u64 Size, b32 Commit)
 typedef PLATFORM_ALLOC_VIRTUAL_MEMORY(platform_alloc_virtual_memory);

@@ -47,113 +47,6 @@ IMGUI_MAYBE_CAPTURE_INPUT(Win32ImGuiMaybeCaptureInput)
  return Result;
 }
 
-internal string
-Win32FileDialogFiltersToWin32Filter(arena *Arena, platform_file_dialog_filters Filters)
-{
- string_list FilterList = {};
- 
- if (Filters.AnyFileFilter)
- {
-  StrListPush(Arena, &FilterList, StrLit("All Files (*.*)"));
-  StrListPush(Arena, &FilterList, StrLit("*.*"));
- }
- 
- for (u32 FilterIndex = 0;
-      FilterIndex < Filters.FilterCount;
-      ++FilterIndex)
- {
-  platform_file_dialog_filter Filter = Filters.Filters[FilterIndex];
-  
-  string_list ExtensionRegexes = {};
-  for (u32 ExtensionIndex = 0;
-       ExtensionIndex < Filter.ExtensionCount;
-       ++ExtensionIndex)
-  {
-   string Extension = Filter.Extensions[ExtensionIndex];
-   StrListPushF(Arena, &ExtensionRegexes, "*.%S", Extension);
-  }
-  
-  string_list_join_options SpaceOpts = {};
-  SpaceOpts.Sep = StrLit(" ");
-  string SpaceJoinedExtensionRegexes = StrListJoin(Arena, &ExtensionRegexes, SpaceOpts);
-  StrListPushF(Arena, &FilterList, "%S (%S)", Filter.DisplayName, SpaceJoinedExtensionRegexes);
-  
-  string_list_join_options SemicolonOpts = {};
-  SemicolonOpts.Sep = StrLit(";");
-  string SemicolonJoinedExtensionRegexes = StrListJoin(Arena, &ExtensionRegexes, SemicolonOpts);
-  StrListPush(Arena, &FilterList, SemicolonJoinedExtensionRegexes);
- }
- 
- string_list_join_options NilOpts = {};
- NilOpts.Sep = StrLit("\0");
- NilOpts.Post = StrLit("\0");
- string Win32Filter = StrListJoin(Arena, &FilterList, NilOpts);
- 
- return Win32Filter;
-}
-
-internal platform_file_dialog_result
-Win32OpenFileDialog(arena *Arena, platform_file_dialog_filters Filters)
-{
- platform_file_dialog_result Result = {};
- 
- temp_arena Temp = TempArena(Arena);
- 
- string Win32Filter = Win32FileDialogFiltersToWin32Filter(Temp.Arena, Filters);
- 
- char Buffer[2048];
- OPENFILENAME Open = {};
- Open.lStructSize = SizeOf(Open);
- Open.lpstrFile = Buffer;
- Open.lpstrFile[0] = '\0';
- Open.nMaxFile = ArrayCount(Buffer);
- Open.lpstrFilter = Win32Filter.Data;
- Open.nFilterIndex = 1;
- Open.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_ALLOWMULTISELECT | OFN_EXPLORER;
- 
- if (GetOpenFileName(&Open) == TRUE)
- {
-  char *At = Buffer;
-  u32 FileCount = 0;
-  while (At[0])
-  {
-   At += CStrLen(At) + 1;
-   ++FileCount;
-  }
-  
-  At = Buffer;
-  string BasePath = StrCopy(Arena, StrFromCStr(At));
-  At += BasePath.Count + 1;
-  
-  string *FilePaths = PushArrayNonZero(Arena, FileCount, string);
-  if (FileCount == 1)
-  {
-   FilePaths[0] = BasePath;
-  }
-  else
-  {
-   Assert(FileCount > 0);
-   --FileCount;
-   for (u32 FileIndex = 0;
-        FileIndex < FileCount;
-        ++FileIndex)
-   {
-    // NOTE(hbr): No need to StrCopy here because we PathConcat anyway
-    string FileName = StrFromCStr(At);
-    At += FileName.Count + 1;
-    FilePaths[FileIndex] = PathConcat(Arena, BasePath, FileName);
-   }
-  }
-  
-  Result.FileCount = FileCount;
-  Result.FilePaths = FilePaths;
- }
- 
- EndTemp(Temp);
- 
- return Result;
-}
-
 internal platform_event_flags
 Win32GetEventFlags(void)
 {
@@ -401,7 +294,7 @@ EntryPoint(int ArgCount, char **Args)
  HINSTANCE Instance = GetModuleHandle(0);
  b32 InitSuccess = false;
  
- Platform = Platform_MakePlatformAPI(Win32OpenFileDialog,
+ Platform = Platform_MakePlatformAPI(OS_OpenFileDialog,
                                      Win32OpenGLImGuiInit,
                                      Win32OpenGLImGuiNewFrame,
                                      Win32OpenGLImGuiRender,
@@ -415,7 +308,9 @@ EntryPoint(int ArgCount, char **Args)
  ProfilerEquip(Profiler);
  
  arena *PermamentArena = AllocArena(Gigabytes(64));
+ 
  win32_state *Win32State = &GlobalWin32State;
+ Win32State->InputArena = AllocArena(Gigabytes(1));
  
  //- key mappings
  {
@@ -475,8 +370,6 @@ EntryPoint(int ArgCount, char **Args)
   Table[VK_RBUTTON] = PlatformKey_RightMouseButton;
   Table[VK_MBUTTON] = PlatformKey_MiddleMouseButton;
  }
- 
- Win32State->InputArena = AllocArena(Gigabytes(1));
  
  //- create window
  WNDCLASSEXA WindowClass = {};

@@ -645,3 +645,10 @@ OS_Sleep(u64 Milliseconds)
 {
  usleep(Milliseconds * 1000);
 }
+
+internal os_file_dialog_result
+OS_OpenFileDialog(arena *Arena, os_file_dialog_filters Filters)
+{
+ os_file_dialog_result Result = {};
+ return Result;
+}

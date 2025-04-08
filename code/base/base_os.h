@@ -141,4 +141,25 @@ internal u32 OS_ThreadGetID(void);
 
 internal void OS_Sleep(u64 Milliseconds);
 
+//- gfx
+struct os_file_dialog_result
+{
+ u32 FileCount;
+ string *FilePaths;
+};
+struct os_file_dialog_filter
+{
+ string DisplayName;
+ u32 ExtensionCount;
+ string *Extensions;
+};
+struct os_file_dialog_filters
+{
+ b32 AnyFileFilter;
+ u32 FilterCount;
+ os_file_dialog_filter *Filters;
+};
+
+internal os_file_dialog_result OS_OpenFileDialog(arena *Arena, os_file_dialog_filters Filters);
+
 #endif //BASE_OS_H

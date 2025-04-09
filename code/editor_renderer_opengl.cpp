@@ -1,4 +1,4 @@
-global b32 GlobalRendererCodeReloaded;
+global b32 GlobalRendererCodeReloadedOrRendererInitialized;
 
 #define GL_NUM_EXTENSIONS                 0x821D
 
@@ -856,6 +856,8 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
   OpenGL->MaxTextureSlots = 1;
   if (MaxTextureSlots > 0) OpenGL->MaxTextureSlots = MaxTextureSlots;
  }
+ 
+ GlobalRendererCodeReloadedOrRendererInitialized = true;
 }
 
 internal render_frame *
@@ -865,9 +867,7 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
  
  render_frame *RenderFrame = &OpenGL->RenderFrame;
  
-#if 1
- 
- if (GlobalRendererCodeReloaded)
+ if (GlobalRendererCodeReloadedOrRendererInitialized)
  {
   //- fix error handling function pointer
   if (OpenGL->glDebugMessageCallback)
@@ -890,7 +890,7 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
   GL_MAYBE_EXPECT_ERROR(OpenGL->glDeleteProgram(OpenGL->Vertex.Program.ProgramHandle));
   OpenGL->Vertex.Program = CompileVertexProgram(OpenGL);
   
-  GlobalRendererCodeReloaded = false;
+  GlobalRendererCodeReloadedOrRendererInitialized = false;
  }
  
  RenderFrame->LineCount = 0;
@@ -907,9 +907,7 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
  RenderFrame->MaxVertexCount = Memory->MaxVertexCount;
  RenderFrame->WindowDim = WindowDim;
  
- Platform.ImGui.NewFrame();
- 
-#endif
+ Memory->ImGuiNewFrame();
  
  ProfileEnd();
  
@@ -982,7 +980,6 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
  GL_CALL(glClearColor(Clear.R, Clear.G, Clear.B, Clear.A));
  GL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
  
-#if 1
  GL_CALL(glViewport(0, 0, Frame->WindowDim.X, Frame->WindowDim.Y));
  
  OpenGLManageTransferQueue(OpenGL, Queue);
@@ -1125,9 +1122,7 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
   UseProgramEnd(OpenGL, Prog);
  }
  
- Platform.ImGui.Render();
- 
-#endif
+ Memory->ImGuiRender();
  
  ProfileEnd();
 }

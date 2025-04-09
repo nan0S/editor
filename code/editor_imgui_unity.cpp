@@ -16,7 +16,6 @@
 
 #if OS_WINDOWS
 
-# include "win32/win32_editor_imgui_bindings.h"
 //# include "third_party/imgui/imgui_impl_win32.cpp"
 
 # include "third_party/imgui/imgui_impl_opengl3.cpp"

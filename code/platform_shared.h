@@ -38,6 +38,4 @@ struct main_window_params
  char const *Title;
 };
 
-platform_api Platform;
-
 #endif //PLATFORM_SHARED_H

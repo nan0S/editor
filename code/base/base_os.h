@@ -161,5 +161,6 @@ struct os_file_dialog_filters
 };
 
 internal os_file_dialog_result OS_OpenFileDialog(arena *Arena, os_file_dialog_filters Filters);
+internal void OS_MessageBox(string Msg);
 
 #endif //BASE_OS_H

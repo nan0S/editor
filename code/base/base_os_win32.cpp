@@ -785,3 +785,12 @@ OS_OpenFileDialog(arena *Arena, os_file_dialog_filters Filters)
  
  return Result;
 }
+
+internal void
+OS_MessageBox(string Msg)
+{             
+ temp_arena Temp = TempArena(0);
+ string CMsg = CStrFromStr(Temp.Arena, Msg);
+ MessageBoxA(0, CMsg.Data, 0, MB_OK);
+ EndTemp(Temp);
+}

@@ -170,6 +170,9 @@ struct renderer_memory
  platform_api PlatformAPI;
  
  profiler *Profiler;
+ 
+ imgui_new_frame *ImGuiNewFrame;
+ imgui_render *ImGuiRender;
 };
 
 #define RENDERER_BEGIN_FRAME(Name) render_frame *Name(renderer *Renderer, renderer_memory *Memory, v2u WindowDim)

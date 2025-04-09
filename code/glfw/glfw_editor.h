@@ -16,4 +16,10 @@ struct glfw_state
  arena *InputArena;
 };
 
+struct glfw_imgui_maybe_capture_input_result
+{
+ b32 ImGuiWantCaptureMouse;
+ b32 ImGuiWantCaptureKeyboard;
+};
+
 #endif //GLFW_EDITOR_H

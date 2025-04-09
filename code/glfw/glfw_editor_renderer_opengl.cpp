@@ -1,7 +1,8 @@
 #include "editor_renderer_opengl.h"
 #include "editor_renderer_opengl.cpp"
 
-GLFW_RENDERER_INIT(GLFWRendererInit)
+internal renderer *
+GLFWRendererInit(arena *Arena, renderer_memory *Memory, GLFWwindow *Window)
 {
  ProfileFunctionBegin();
  
@@ -58,10 +59,6 @@ GLFW_RENDERER_INIT(GLFWRendererInit)
   
   OpenGLInit(OpenGL, Arena, Memory);
  }
- 
- glfw_imgui_init_data Init = {};
- Init.Window = Window;
- Platform.ImGui.Init(Cast(imgui_init_data *)&Init);
  
  ProfileEnd();
  

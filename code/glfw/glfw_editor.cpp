@@ -1,31 +1,16 @@
 #include "platform_shared.h"
-
 #include "editor_glfw.h"
 #include "editor_math.h"
-
 #include "glfw/glfw_editor.h"
-#include "glfw/glfw_editor_renderer.h"
-#include "glfw/glfw_editor_imgui_bindings.h"
 #include "glfw/glfw_editor_renderer_opengl.h"
-
 #include "third_party/imgui/imgui_impl_glfw.h"
 #include "third_party/imgui/imgui_impl_opengl3.h"
 
 #include "platform_shared.cpp"
-
 #include "editor_math.cpp"
-
 #include "glfw/glfw_editor_renderer_opengl.cpp"
 
 global glfw_state GlobalGLFWState;
-
-IMGUI_INIT(GLFWOpenGLImGuiInit)
-{
- glfw_imgui_init_data *GLFWInit = Cast(glfw_imgui_init_data *)Init;
- ImGui::CreateContext();
- ImGui_ImplGlfw_InitForOpenGL(GLFWInit->Window, true);
- ImGui_ImplOpenGL3_Init();
-}
 
 IMGUI_NEW_FRAME(GLFWOpenGLImGuiNewFrame)
 {
@@ -40,14 +25,14 @@ IMGUI_RENDER(GLFWOpenGLImGuiRender)
  ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
-IMGUI_MAYBE_CAPTURE_INPUT(GLFWImGuiMaybeCaptureInput)
+internal glfw_imgui_maybe_capture_input_result
+GLFWImGuiMaybeCaptureInput(void)
 {
- imgui_maybe_capture_input_result Result = {};
+ glfw_imgui_maybe_capture_input_result ImGuiCapture = {};
+ ImGuiCapture.ImGuiWantCaptureKeyboard = Cast(b32)ImGui::GetIO().WantCaptureKeyboard;
+ ImGuiCapture.ImGuiWantCaptureMouse = Cast(b32)ImGui::GetIO().WantCaptureMouse;
  
- Result.ImGuiWantCaptureKeyboard = Cast(b32)ImGui::GetIO().WantCaptureKeyboard;
- Result.ImGuiWantCaptureMouse = Cast(b32)ImGui::GetIO().WantCaptureMouse;
- 
- return Result;
+ return ImGuiCapture;
 }
 
 internal platform_event *
@@ -91,7 +76,8 @@ internal void
 GLFWKeyCallback(GLFWwindow *Window, int Key, int ScanCode, int Action, int Mods)
 {
  glfw_state *GLFWState = &GlobalGLFWState;
- imgui_maybe_capture_input_result ImGuiCapture = Platform.ImGui.MaybeCaptureInput(0);
+ 
+ glfw_imgui_maybe_capture_input_result ImGuiCapture =  GLFWImGuiMaybeCaptureInput();
  if (!ImGuiCapture.ImGuiWantCaptureKeyboard)
  {
   switch (Action)
@@ -154,7 +140,7 @@ GLFWGetCursorPosInClipSpace(GLFWwindow *Window)
 internal void
 GLFWMouseButtonCallback(GLFWwindow *Window, int Button, int Action, int Mods)
 {
- imgui_maybe_capture_input_result ImGuiCapture = Platform.ImGui.MaybeCaptureInput(0);
+ glfw_imgui_maybe_capture_input_result ImGuiCapture = GLFWImGuiMaybeCaptureInput();
  if (!ImGuiCapture.ImGuiWantCaptureMouse)
  {
   switch (Action)
@@ -191,7 +177,7 @@ GLFWMouseMoveCallback(GLFWwindow *Window, double X, double Y)
 internal void
 GLFWMouseScrollCallback(GLFWwindow *Window, double XOffset, double YOffset)
 {
- imgui_maybe_capture_input_result ImGuiCapture = Platform.ImGui.MaybeCaptureInput(0);
+ glfw_imgui_maybe_capture_input_result ImGuiCapture = GLFWImGuiMaybeCaptureInput();
  if (!ImGuiCapture.ImGuiWantCaptureMouse)
  {
   platform_event *Event = GLFWPushPlatformEvent(PlatformEvent_Scroll);
@@ -231,12 +217,6 @@ GLFWDropCallback(GLFWwindow *Window, int PathCount, char const *Paths[])
 internal void
 EntryPoint(int ArgCount, char **Args)
 {
- Platform = Platform_MakePlatformAPI(OS_OpenFileDialog,
-                                     GLFWOpenGLImGuiInit,
-                                     GLFWOpenGLImGuiNewFrame,
-                                     GLFWOpenGLImGuiRender,
-                                     GLFWImGuiMaybeCaptureInput);
- 
  OS_Init(ArgCount, Args);
  ThreadCtxInit();
  
@@ -353,13 +333,21 @@ Table[GLFWButton] = PlatformButton
    glfwSetScrollCallback(Window, GLFWMouseScrollCallback);
    glfwSetDropCallback(Window, GLFWDropCallback);
    
-   renderer_memory RendererMemory = Platform_MakeRendererMemory(PermamentArena, Profiler);
+   //- renderer
+   renderer_memory RendererMemory = Platform_MakeRendererMemory(PermamentArena, Profiler,
+                                                                GLFWOpenGLImGuiNewFrame,
+                                                                GLFWOpenGLImGuiRender);
    
    work_queue LowPriorityQueue = {};
    work_queue HighPriorityQueue = {};
    Platform_MakeWorkQueues(&LowPriorityQueue, &HighPriorityQueue);
    
    renderer *Renderer = GLFWRendererInit(PermamentArena, &RendererMemory, Window);
+   
+   //- imgui init
+   ImGui::CreateContext();
+   ImGui_ImplGlfw_InitForOpenGL(Window, true);
+   ImGui_ImplOpenGL3_Init();
    
    //- init editor stuff
    editor_function_table EditorFunctions = {};
@@ -404,8 +392,15 @@ Table[GLFWButton] = PlatformButton
     {
      StructZero(&GLFWState->GLFWInput);
      ClearArena(GLFWState->InputArena);
-     glfwPollEvents();
-     //glfwWaitEvents();
+     
+     if (RefreshRequested)
+     {
+      glfwPollEvents();
+     }
+     else
+     {
+      glfwWaitEvents();
+     }
      
      if (glfwWindowShouldClose(Window))
      {
@@ -426,10 +421,6 @@ Table[GLFWButton] = PlatformButton
        int StateKey = glfwGetKey(Window, KeyIndex);
        int StateButton = glfwGetMouseButton(Window, KeyIndex);
        b32 IsDown = (StateKey == GLFW_PRESS || StateButton == GLFW_PRESS);
-       if (IsDown)
-       {
-        OS_PrintDebugF("%s\n", PlatformKeyNames[Key]);
-       }
        Input.Pressed[Key] = IsDown;
       }
      }
@@ -469,9 +460,7 @@ Table[GLFWButton] = PlatformButton
  }
  else
  {
-  // TODO(hbr): error handling
-  fprintf(stderr, "GLFW3: failed to initialize\n");
-  exit(EXIT_FAILURE);
+  OS_MessageBox(StrLit("failed to initialize GLFW"));
  }
 }
 

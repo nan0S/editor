@@ -1,26 +1,15 @@
 #include <windows.h>
 
 #include "platform_shared.h"
-
 #include "win32/win32_editor.h"
 #include "win32/win32_editor_renderer.h"
 #include "win32/win32_editor_imgui_bindings.h"
-
 #include "third_party/imgui/imgui_impl_win32.h"
 #include "third_party/imgui/imgui_impl_opengl3.h"
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 #include "platform_shared.cpp"
 
 global win32_state GlobalWin32State;
-
-IMGUI_INIT(Win32OpenGLImGuiInit)
-{
- win32_imgui_init_data *Win32Init = Cast(win32_imgui_init_data *)Init;
- ImGui::CreateContext();
- ImGui_ImplWin32_Init(Win32Init->Window);
- ImGui_ImplOpenGL3_Init();
-}
 
 IMGUI_NEW_FRAME(Win32OpenGLImGuiNewFrame)
 {
@@ -33,18 +22,6 @@ IMGUI_RENDER(Win32OpenGLImGuiRender)
 {
  ImGui::Render();
  ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-}
-
-IMGUI_MAYBE_CAPTURE_INPUT(Win32ImGuiMaybeCaptureInput)
-{
- imgui_maybe_capture_input_result Result = {};
- win32_imgui_maybe_capture_input_data *Win32Input = Cast(win32_imgui_maybe_capture_input_data *)Input;
- 
- Result.CapturedInput = Cast(b32)ImGui_ImplWin32_WndProcHandler(Win32Input->Window, Win32Input->Msg, Win32Input->wParam, Win32Input->lParam);
- Result.ImGuiWantCaptureKeyboard = Cast(b32)ImGui::GetIO().WantCaptureKeyboard;
- Result.ImGuiWantCaptureMouse = Cast(b32)ImGui::GetIO().WantCaptureMouse;
- 
- return Result;
 }
 
 internal platform_event_flags
@@ -115,6 +92,8 @@ Win32ClipSpaceMousePFromLParam(HWND Window, LPARAM lParam)
  return Result;
 }
 
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 // TODO(hbr): remove
 global b32 GlobalImGuiInit;
 internal LRESULT 
@@ -123,16 +102,14 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
  LRESULT Result = 0;
  win32_state *Win32State = &GlobalWin32State;
  
- imgui_maybe_capture_input_result ImGuiResult = {};
+ b32 ImGuiCapturedInput = false;
+ b32 ImGuiWantCaptureKeyboard = false;
+ b32 ImGuiWantCaptureMouse = false;
  if (GlobalImGuiInit)
  {
-  win32_imgui_maybe_capture_input_data ImGuiData = {};
-  ImGuiData.Window = Window;
-  ImGuiData.Msg = Msg;
-  ImGuiData.wParam = wParam;
-  ImGuiData.lParam = lParam;
-  
-  ImGuiResult = Platform.ImGui.MaybeCaptureInput(Cast(imgui_maybe_capture_input_data *)&ImGuiData);
+  ImGuiCapturedInput = Cast(b32)ImGui_ImplWin32_WndProcHandler(Window, Msg, wParam, lParam);
+  ImGuiWantCaptureKeyboard = Cast(b32)ImGui::GetIO().WantCaptureKeyboard;
+  ImGuiWantCaptureMouse = Cast(b32)ImGui::GetIO().WantCaptureMouse;
  }
  
  if (ImGuiResult.CapturedInput)
@@ -283,22 +260,12 @@ Win32WindowProc(HWND Window, UINT Msg, WPARAM wParam, LPARAM lParam)
 }
 
 internal void
-Win32DisplayErrorBox(char const *Msg)
-{             
- MessageBoxA(0, Msg, 0, MB_OK);
-}
-
-internal void
 EntryPoint(int ArgCount, char **Args)
 {
  HINSTANCE Instance = GetModuleHandle(0);
  b32 InitSuccess = false;
  
- Platform = Platform_MakePlatformAPI(OS_OpenFileDialog,
-                                     Win32OpenGLImGuiInit,
-                                     Win32OpenGLImGuiNewFrame,
-                                     Win32OpenGLImGuiRender,
-                                     Win32ImGuiMaybeCaptureInput);
+ Platform = Platform_MakePlatformAPI();
  
  OS_Init(ArgCount, Args);
  ThreadCtxInit();
@@ -418,7 +385,9 @@ EntryPoint(int ArgCount, char **Args)
    renderer *Renderer = 0;
    HDC WindowDC = GetDC(Window);
    
-   renderer_memory RendererMemory = Platform_MakeRendererMemory(PermamentArena, Profiler);
+   renderer_memory RendererMemory = Platform_MakeRendererMemory(PermamentArena, Profiler,
+                                                                Win32OpenGLImGuiNewFrame,
+                                                                Win32OpenGLImGuiRender);
    
    win32_renderer_function_table RendererFunctions = {};
    win32_renderer_function_table TempRendererFunctions = {};
@@ -481,6 +450,12 @@ EntryPoint(int ArgCount, char **Args)
     if (!Renderer && RendererCode.IsValid)
     {
      Renderer = RendererFunctions.Init(PermamentArena, &RendererMemory, Window, WindowDC);
+     
+     win32_imgui_init_data *Win32Init = Cast(win32_imgui_init_data *)Init;
+     ImGui::CreateContext();
+     ImGui_ImplWin32_Init(Win32Init->Window);
+     ImGui_ImplOpenGL3_Init();
+     
      GlobalImGuiInit = true;
     }
     
@@ -576,7 +551,7 @@ EntryPoint(int ArgCount, char **Args)
  
  if (!InitSuccess)
  {
-  Win32DisplayErrorBox("Failed to initialize window");
+  OS_MessageBox(StrLit("Error initializing window!"));
  }
 }
 

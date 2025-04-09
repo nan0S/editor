@@ -40,7 +40,10 @@ Platform_MakeEditorMemory(arena *PermamentArena, renderer_memory *RendererMemory
 }
 
 internal renderer_memory
-Platform_MakeRendererMemory(arena *PermamentArena, profiler *Profiler)
+Platform_MakeRendererMemory(arena *PermamentArena,
+                            profiler *Profiler,
+                            imgui_new_frame *ImGuiNewFrame,
+                            imgui_render *ImGuiRender)
 {
  renderer_memory RendererMemory = {};
  RendererMemory.PlatformAPI = Platform;
@@ -73,6 +76,9 @@ Platform_MakeRendererMemory(arena *PermamentArena, profiler *Profiler)
  RendererMemory.VertexBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxVertexCount, render_vertex);
  
  RendererMemory.Profiler = Profiler;
+ 
+ RendererMemory.ImGuiNewFrame = ImGuiNewFrame;
+ RendererMemory.ImGuiRender = ImGuiRender;
  
  return RendererMemory;
 }
@@ -228,19 +234,59 @@ IMGUI_GET_WINDOW_CONTENT_REGION_MAX(ImGuiGetWindowContentRegionMax){return {};}
 
 #endif
 
-internal platform_api
-Platform_MakePlatformAPI(platform_open_file_dialog OpenFileDialog,
-                         imgui_init *ImGuiInit,
-                         imgui_new_frame *ImGuiNewFrame,
-                         imgui_render *ImGuiRender,
-                         imgui_maybe_capture_input *ImGuiMaybeCaptureInput)
+internal void
+Platform_PrintDebugInputEvents(platform_input *Input)
 {
- imgui_bindings ImGuiBindings = {
-  ImGuiInit,
-  ImGuiNewFrame,
-  ImGuiRender,
-  ImGuiMaybeCaptureInput,
-  
+ for (u32 EventIndex = 0;
+      EventIndex < Input->EventCount;
+      ++EventIndex)
+ {
+  platform_event *Event = Input->Events + EventIndex;
+  char const *Name = PlatformEventTypeNames[Event->Type];
+  char const *KeyName = PlatformKeyNames[Event->Key];
+  //if (Event->Type != PlatformEvent_MouseMove)
+  {
+   OS_PrintDebugF("%s %s\n", Name, KeyName);
+  }
+ }
+}
+
+internal main_window_params
+Platform_GetMainWindowInitialParams(u32 ScreenWidth, u32 ScreenHeight)
+{
+ u32 WindowWidth =  ScreenWidth * 1/2;
+ //u32 WindowWidth =  ScreenWidth;
+ //u32 WindowWidth =  ScreenWidth * 9/10;
+ 
+ u32 WindowHeight = ScreenHeight * 1/2;
+ //u32 WindowHeight = ScreenHeight;
+ //u32 WindowHeight = ScreenHeight * 9/10;
+ 
+ u32 WindowX = (ScreenWidth - WindowWidth) / 2;
+ u32 WindowY = (ScreenHeight - WindowHeight) / 2;
+ 
+ main_window_params Result = {};
+ 
+ Result.LeftCornerP = V2U(WindowX, WindowY);
+ Result.Dims = V2U(WindowWidth, WindowHeight);
+ Result.UseDefault = (WindowWidth == 0 || WindowHeight == 0);
+ 
+ Result.Title = "Parametric Curves Editor";
+ 
+ return Result;
+}
+
+platform_api Platform = {
+ OS_Reserve,
+ OS_Release,
+ OS_Commit,
+ ThreadCtxGetScratch,
+ OS_OpenFileDialog,
+ OS_ReadEntireFile,
+ WorkQueueAddEntry,
+ WorkQueueCompleteAllWork,
+ 
+ {
   ImGuiIsItemHovered,
   ImGuiIsMouseClicked,
   ImGuiIsWindowHovered,
@@ -302,61 +348,5 @@ Platform_MakePlatformAPI(platform_open_file_dialog OpenFileDialog,
   ImGuiGetWindowContentRegionMax,
   ImGuiShowDemoWindow,
   ImGuiSetNextWindowPos,
- };
- 
- platform_api API = {
-  OS_Reserve,
-  OS_Release,
-  OS_Commit,
-  ThreadCtxGetScratch,
-  OpenFileDialog,
-  OS_ReadEntireFile,
-  WorkQueueAddEntry,
-  WorkQueueCompleteAllWork,
-  ImGuiBindings,
- };
- 
- return API;
-}
-
-internal void
-Platform_PrintDebugInputEvents(platform_input *Input)
-{
- for (u32 EventIndex = 0;
-      EventIndex < Input->EventCount;
-      ++EventIndex)
- {
-  platform_event *Event = Input->Events + EventIndex;
-  char const *Name = PlatformEventTypeNames[Event->Type];
-  char const *KeyName = PlatformKeyNames[Event->Key];
-  //if (Event->Type != PlatformEvent_MouseMove)
-  {
-   OS_PrintDebugF("%s %s\n", Name, KeyName);
-  }
- }
-}
-
-internal main_window_params
-Platform_GetMainWindowInitialParams(u32 ScreenWidth, u32 ScreenHeight)
-{
- u32 WindowWidth =  ScreenWidth * 1/2;
- //u32 WindowWidth =  ScreenWidth;
- //u32 WindowWidth =  ScreenWidth * 9/10;
- 
- u32 WindowHeight = ScreenHeight * 1/2;
- //u32 WindowHeight = ScreenHeight;
- //u32 WindowHeight = ScreenHeight * 9/10;
- 
- u32 WindowX = (ScreenWidth - WindowWidth) / 2;
- u32 WindowY = (ScreenHeight - WindowHeight) / 2;
- 
- main_window_params Result = {};
- 
- Result.LeftCornerP = V2U(WindowX, WindowY);
- Result.Dims = V2U(WindowWidth, WindowHeight);
- Result.UseDefault = (WindowWidth == 0 || WindowHeight == 0);
- 
- Result.Title = "Parametric Curves Editor";
- 
- return Result;
-}
+ },
+};

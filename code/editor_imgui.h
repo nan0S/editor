@@ -12,26 +12,11 @@
 #pragma pop_macro("Max")
 #pragma pop_macro("Min")
 
-struct imgui_init_data;
-#define IMGUI_INIT(Name) void Name(imgui_init_data *Init)
-typedef IMGUI_INIT(imgui_init);
-
 #define IMGUI_NEW_FRAME(Name) void Name(void)
 typedef IMGUI_NEW_FRAME(imgui_new_frame);
 
 #define IMGUI_RENDER(Name) void Name(void)
 typedef IMGUI_RENDER(imgui_render);
-
-struct imgui_maybe_capture_input_data;
-struct imgui_maybe_capture_input_result
-{
- b32 CapturedInput;
- b32 ImGuiWantCaptureMouse;
- b32 ImGuiWantCaptureKeyboard;
-};
-#define IMGUI_MAYBE_CAPTURE_INPUT(Name) imgui_maybe_capture_input_result Name(imgui_maybe_capture_input_data *Input)
-#define IMGUI_MAYBE_CAPTURE_INPUT_FUNC() IMGUI_MAYBE_CAPTURE_INPUT(ImGuiMaybeCaptureInput)
-typedef IMGUI_MAYBE_CAPTURE_INPUT(imgui_maybe_capture_input);
 
 #define IMGUI_IS_ITEM_HOVERED(Name) bool Name(ImGuiHoveredFlags flags)
 typedef IMGUI_IS_ITEM_HOVERED(imgui_IsItemHovered);
@@ -218,11 +203,6 @@ typedef IMGUI_SET_NEXT_WINDOW_POS(imgui_SetNextWindowPos);
 
 struct imgui_bindings
 {
- imgui_init *Init;
- imgui_new_frame *NewFrame;
- imgui_render *Render;
- imgui_maybe_capture_input *MaybeCaptureInput;
- 
 #define ImGuiFunc(Name) imgui_##Name *Name
  
  ImGuiFunc(IsItemHovered);

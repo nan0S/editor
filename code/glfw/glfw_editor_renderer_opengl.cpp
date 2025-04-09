@@ -1,12 +1,4 @@
-#include "renderer_shared.h"
-
-#include "editor_glfw.h"
 #include "editor_renderer_opengl.h"
-
-#include "glfw/glfw_editor_renderer.h"
-#include "glfw/glfw_editor_renderer_opengl.h"
-#include "glfw/glfw_editor_imgui_bindings.h"
-
 #include "editor_renderer_opengl.cpp"
 
 GLFW_RENDERER_INIT(GLFWRendererInit)
@@ -87,8 +79,6 @@ RENDERER_END_FRAME(GLFWRendererEndFrame)
 {
  opengl *OpenGL = Cast(opengl *)Renderer;
  glfw_opengl_renderer *GLFW = Cast(glfw_opengl_renderer *)Renderer->Header.Platform;
- 
  OpenGLEndFrame(OpenGL, Memory, Frame);
- 
  glfwSwapBuffers(GLFW->Window);
 }

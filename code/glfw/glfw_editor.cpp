@@ -1,17 +1,20 @@
 #include "platform_shared.h"
 
 #include "editor_glfw.h"
+#include "editor_math.h"
 
 #include "glfw/glfw_editor.h"
 #include "glfw/glfw_editor_renderer.h"
 #include "glfw/glfw_editor_imgui_bindings.h"
+#include "glfw/glfw_editor_renderer_opengl.h"
 
 #include "third_party/imgui/imgui_impl_glfw.h"
 #include "third_party/imgui/imgui_impl_opengl3.h"
 
 #include "platform_shared.cpp"
 
-#define DONT_INCLUDE
+#include "editor_math.cpp"
+
 #include "glfw/glfw_editor_renderer_opengl.cpp"
 
 global glfw_state GlobalGLFWState;

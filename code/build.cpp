@@ -63,16 +63,23 @@ Editor_Compilation(arena *Arena, compiler_setup Setup, compilation_command STB)
 internal compilation_command
 Renderer_Compilation(arena *Arena, compiler_setup Setup, compilation_command GLFW, build_platform BuildPlatform)
 {
- operating_system OS = DetectOS();
+ compilation_command Result = {};
  
- string RendererPath = {};
  switch (BuildPlatform)
  {
   case BuildPlatform_Native: {
+   operating_system OS = DetectOS();
    switch (OS)
    {
     case OS_Win32: {
-     RendererPath = StrLit("../code/win32/win32_editor_renderer_opengl.cpp");
+     string RendererPath = StrLit("../code/win32/win32_editor_renderer_opengl.cpp");
+     compilation_target Target = MakeTarget(Lib, OS_ExecutableRelativeToFullPath(Arena, RendererPath), 0);
+     
+     LinkLibrary(&Target, StrLit("User32.lib")); // RegisterClassA,...
+     LinkLibrary(&Target, StrLit("Opengl32.lib")); // wgl,glEnable,...
+     LinkLibrary(&Target, StrLit("Gdi32.lib")); // SwapBuffers,SetPixelFormat,...
+     
+     Result = ComputeCompilationCommand(Setup, Target);
     }break;
     
     case OS_Linux: {
@@ -81,35 +88,10 @@ Renderer_Compilation(arena *Arena, compiler_setup Setup, compilation_command GLF
    }
   }break;
   
-  case BuildPlatform_GLFW: {
-   RendererPath = StrLit("../code/glfw/glfw_editor_renderer_opengl.cpp");
-  }break;
+  case BuildPlatform_GLFW: {}break;
  }
  
- compilation_target Target = MakeTarget(Lib, OS_ExecutableRelativeToFullPath(Arena, RendererPath), 0);
- switch (OS)
- {
-  case OS_Win32: {
-   LinkLibrary(&Target, StrLit("User32.lib")); // RegisterClassA,...
-   LinkLibrary(&Target, StrLit("Opengl32.lib")); // wgl,glEnable,...
-   LinkLibrary(&Target, StrLit("Gdi32.lib")); // SwapBuffers,SetPixelFormat,...
-  }break;
-  
-  case OS_Linux: {
-   Assert(!"Not supported");
-  }break;
- }
- 
- if (BuildPlatform == BuildPlatform_GLFW)
- {
-  StaticLink(&Target, GLFW.OutputTarget);
-  
-  LinkLibrary(&Target, StrLit("Shell32.lib"));
-  LinkLibrary(&Target, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/third_party/glfw/lib-vc2022/glfw3_mt.lib")));
- }
- 
- compilation_command Renderer = ComputeCompilationCommand(Setup, Target);
- return Renderer;
+ return Result;
 }
 
 internal compilation_command

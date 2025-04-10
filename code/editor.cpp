@@ -2938,7 +2938,8 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
       control_point_index Index = CurveLinePointIndexToControlPointIndex(CollisionCurve, Collision.CurveLinePointIndex);
       u32 InsertAt = Index.Index + 1;
       InsertControlPoint(&CollisionEntityWitness, MouseP, InsertAt);
-      BeginMovingCurvePoint(LeftClick, MakeEntityId(Collision.Entity), CurvePointIndexFromControlPointIndex(MakeControlPointIndex(InsertAt)));
+      BeginMovingCurvePoint(LeftClick, MakeEntityId(Collision.Entity),
+                            CurvePointIndexFromControlPointIndex(MakeControlPointIndex(InsertAt)));
      }
      else
      {

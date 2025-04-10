@@ -26,7 +26,6 @@ Ideas:
 - some kind of locking system - when I want to edit only one curve without
 obstacles, I don't want to unwittingly click on some other curve/image and select it
 - confirm window when removing points
-- dodawanie punktow z dwoch stron
 - loop curve with checkbox - it seems useful
 - czesto jak rysuje to jestem mega zzoomwany na image - chce dodac nowa curve ale nie mam jak latwo odselectowac aktualnej bo wszedzie wokolo jest image
 - ogolnie caly czas sie boje ze cos usune - undo/redo to troche zmityguje ale chyba to nie powinno byc takie proste - szczegolnie images - byc moze lewy przycisk nie powinien usuwac entities - tylko punkty na przyklad

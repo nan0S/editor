@@ -145,8 +145,14 @@ IMGUI_OPEN_POPUP(ImGuiOpenPopup){ImGui::OpenPopup(str_id);}
 IMGUI_MENU_ITEM(ImGuiMenuItem){return ImGui::MenuItem(label, shortcut, p_selected);}
 IMGUI_BEGIN_MENU(ImGuiBeginMenu){return ImGui::BeginMenu(label);}
 IMGUI_BEGIN_COMBO(ImGuiBeginCombo){return ImGui::BeginCombo(label, preview_value);}
-IMGUI_SHOW_DEMO_WINDOW(ImGuiShowDemoWindow){ImGui::ShowDemoWindow();}
 IMGUI_SET_NEXT_WINDOW_POS(ImGuiSetNextWindowPos){ImGui::SetNextWindowPos(pos, cond, pivot);}
+
+IMGUI_SHOW_DEMO_WINDOW(ImGuiShowDemoWindow)
+{
+#if BUILD_DEBUG
+ ImGui::ShowDemoWindow();
+#endif
+}
 
 #define ImGuiTextWrapped ImGui::TextWrapped
 #define ImGuiText ImGui::Text

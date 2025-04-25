@@ -60,9 +60,9 @@ UI_SetNextItemSize(v2 Size)
 }
 
 internal void
-UI_SetNextItemPos(v2 Pos)
+UI_SetNextItemPos(v2 TopLeftP)
 {
- ImVec2 ImPos(Pos.X, Pos.Y);
+ ImVec2 ImPos(TopLeftP.X, TopLeftP.Y);
  Platform.ImGui.SetCursorPos(ImPos);
 }
 
@@ -700,7 +700,10 @@ UI_Tooltip(string Contents)
 {
  temp_arena Temp = TempArena(0);
  string CContents = CStrFromStr(Temp.Arena, Contents);
- Platform.ImGui.SetTooltip(CContents.Data);
+ if (Platform.ImGui.IsItemHovered(0))
+ {
+  Platform.ImGui.SetTooltip(CContents.Data);
+ }
  EndTemp(Temp);
 }
 
@@ -912,7 +915,7 @@ internal rect2
 UI_GetDrawableRegionBounds(void)
 {
  ImVec2 ImCursor = Platform.ImGui.GetCursorPos();
- ImVec2 ImSize = Platform.ImGui.GetWindowContentRegionMax();
+ ImVec2 ImSize = Platform.ImGui.GetContentRegionAvail();
  
  v2 Cursor = V2FromImVec2(ImCursor);
  v2 Size = V2FromImVec2(ImSize);

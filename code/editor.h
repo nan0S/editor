@@ -312,17 +312,19 @@ struct merging_curves_state
 
 enum visual_profiler_mode
 {
- VisualProfiler_AllFrames,
- VisualProfiler_SingleFrame,
+ VisualProfilerMode_AllFrames,
+ VisualProfilerMode_SingleFrame,
 };
-struct visual_profiler
+struct visual_profiler_state
 {
  b32 Stopped;
  profiler *Profiler;
  
  visual_profiler_mode Mode;
+ b32 AllFramesDetailed;
  
- f32 ReferenceMs;
+ f32 DefaultReferenceFrameDurationMs;
+ f32 ReferenceFrameDurationMs;
  
  u32 FrameIndex;
  profiler_frame FrameSnapshot;
@@ -365,7 +367,7 @@ struct editor
  
  animating_curves_state AnimatingCurves;
  merging_curves_state MergingCurves;
- visual_profiler Profiler;
+ visual_profiler_state Profiler;
  
  b32 DevConsole;
  

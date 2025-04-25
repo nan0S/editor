@@ -970,7 +970,8 @@ B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knots Knots)
  
  u32 Rows = Degree;
  u32 Cols = Degree;
- v2 *C = PushArray2DNonZero(Temp.Arena, Rows, Cols, v2);
+ // TODO(hbr): I noticed, that it is a bug to not add 1 here, investiagate whether this is enough or there is something more to it.
+ v2 *C = PushArray2DNonZero(Temp.Arena, Rows+1, Cols+1, v2);
  
 #define c(k, i) C[Index2D(k, i+m, Cols)]
  

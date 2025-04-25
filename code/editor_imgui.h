@@ -195,6 +195,9 @@ typedef IMGUI_GET_CURSOR_POS(imgui_GetCursorPos);
 #define IMGUI_GET_WINDOW_CONTENT_REGION_MAX(Name) ImVec2 Name(void)
 typedef IMGUI_GET_WINDOW_CONTENT_REGION_MAX(imgui_GetWindowContentRegionMax);
 
+#define IMGUI_GET_CONTENT_REGION_AVAIL(Name) ImVec2 Name(void)
+typedef IMGUI_GET_CONTENT_REGION_AVAIL(imgui_GetContentRegionAvail);
+
 #define IMGUI_SHOW_DEMO_WINDOW(Name) void Name(void)
 typedef IMGUI_SHOW_DEMO_WINDOW(imgui_ShowDemoWindow);
 
@@ -264,6 +267,7 @@ struct imgui_bindings
  ImGuiFunc(GetWindowSize);
  ImGuiFunc(GetCursorPos);
  ImGuiFunc(GetWindowContentRegionMax);
+ ImGuiFunc(GetContentRegionAvail);
  ImGuiFunc(ShowDemoWindow);
  ImGuiFunc(SetNextWindowPos);
  

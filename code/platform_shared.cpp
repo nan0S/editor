@@ -126,7 +126,7 @@ IMGUI_INPUT_TEXT_MULTILINE(ImGuiInputTextMultiline){return ImGui::InputTextMulti
 IMGUI_PUSH_ID__STR(ImGuiPushID_Str){return ImGui::PushID(str_id);}
 IMGUI_PUSH_ID__INT(ImGuiPushID_Int){return ImGui::PushID(int_id);}
 IMGUI_POP_ID(ImGuiPopID){return ImGui::PopID();}
-IMGUI_BEGIN_DISABLED(ImGuiBeginDisabled){return ImGui::BeginDisabled();}
+IMGUI_BEGIN_DISABLED(ImGuiBeginDisabled){return ImGui::BeginDisabled(disabled);}
 IMGUI_END_DISABLED(ImGuiEndDisabled){return ImGui::EndDisabled();}
 IMGUI_PUSH_STYLE_COLOR(ImGuiPushStyleColor){return ImGui::PushStyleColor(idx, col);}
 IMGUI_POP_STYLE_COLOR(ImGuiPopStyleColor){return ImGui::PopStyleColor(count);}
@@ -173,6 +173,7 @@ IMGUI_SHOW_DEMO_WINDOW(ImGuiShowDemoWindow)
 #define ImGuiGetWindowSize ImGui::GetWindowSize
 #define ImGuiGetCursorPos ImGui::GetCursorPos
 #define ImGuiGetWindowContentRegionMax ImGui::GetWindowContentRegionMax
+#define ImGuiGetContentRegionAvail  ImGui::GetContentRegionAvail
 
 #else
 
@@ -237,6 +238,7 @@ IMGUI_TREE_POP(ImGuiTreePop){}
 IMGUI_GET_WINDOW_SIZE(ImGuiGetWindowSize){return {};}
 IMGUI_GET_CURSOR_POS(ImGuiGetCursorPos){return {};}
 IMGUI_GET_WINDOW_CONTENT_REGION_MAX(ImGuiGetWindowContentRegionMax){return {};}
+IMGUI_GET_CONTENT_REGION_AVAIL(ImGuiGetContentRegionAvail){return {};}
 
 #endif
 
@@ -352,6 +354,7 @@ platform_api Platform = {
   ImGuiGetWindowSize,
   ImGuiGetCursorPos,
   ImGuiGetWindowContentRegionMax,
+  ImGuiGetContentRegionAvail,
   ImGuiShowDemoWindow,
   ImGuiSetNextWindowPos,
  },

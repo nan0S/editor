@@ -450,7 +450,7 @@ Table[GLFWButton] = PlatformButton
     
     if (!ProfilingStopped)
     {
-     ProfilerBeginFrame(Profiler);
+     ProfilerEndFrame(Profiler);
     }
     
     RefreshRequested = Input.RefreshRequested;

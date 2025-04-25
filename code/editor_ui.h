@@ -111,7 +111,7 @@ internal b32               UI_IsMouseClicked(ui_mouse_button Button);
 internal b32               UI_IsWindowHovered(void);
 
 internal void              UI_SetNextItemSize(v2 Size);
-internal void              UI_SetNextItemPos(v2 Pos); // top-left corner
+internal void              UI_SetNextItemPos(v2 TopLeftP); // top-left corner
 internal void              UI_SetNextItemOpen(b32 Open, ui_cond Cond);
 internal void              UI_SetNextWindowPos(v2 P, ui_placement Placement);
 internal void              UI_SetNextWindowSizeConstraints(v2 MinSize, v2 MaxSize);

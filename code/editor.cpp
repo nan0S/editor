@@ -1313,7 +1313,9 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->AnimatingCurves.Arena = AllocArena(Megabytes(32));
  
  Editor->ProfilerWindow = true;
- Editor->Profiler.ReferenceMs = 2.0f;
+ Editor->Profiler.ReferenceFrameDurationMs =
+  Editor->Profiler.DefaultReferenceFrameDurationMs =
+  1000.0f / 120;
  Editor->Profiler.Profiler = Memory->Profiler;
 }
 
@@ -1815,6 +1817,8 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
         //- additional vars
         UI_TextF(false, "Additional Vars");
         UI_SameRow();
+        
+        
         UI_Disabled(!HasFreeAdditionalVar(Resources))
         {
          if (UI_ButtonF("+"))
@@ -3579,275 +3583,295 @@ RenderMergingCurves(merging_curves_state *Merging, render_group *RenderGroup)
 }
 
 internal void
-ProfilerInspectAllFrames(visual_profiler *Visual)
+ProfilerInspectAllFrames(visual_profiler_state *Visual)
 {
- Visual->Mode = VisualProfiler_AllFrames;
+ Visual->Mode = VisualProfilerMode_AllFrames;
 }
 
 internal void
-ProfilerInspectSingleFrame(visual_profiler *Visual, u32 FrameIndex)
+ProfilerInspectSingleFrame(visual_profiler_state *Visual, u32 FrameIndex)
 {
  profiler *Profiler = Visual->Profiler;
- Visual->Mode = VisualProfiler_SingleFrame;
+ Visual->Mode = VisualProfilerMode_SingleFrame;
  Assert(FrameIndex < MAX_PROFILER_FRAME_COUNT);
  Visual->FrameIndex = FrameIndex;
  Visual->FrameSnapshot = Profiler->Frames[FrameIndex];
 }
 
-internal void
-RenderProfilerSingleFrameUI(editor *Editor)
+global v4 AnchorColors[] = {
+ V4(0.8f, 0.1f, 0.1f, 1.0f),
+ V4(0.1f, 0.8f, 0.1f, 1.0f),
+ V4(0.1f, 0.1f, 0.8f, 1.0f),
+ V4(0.8f, 0.8f, 0.1f, 1.0f),
+ V4(0.8f, 0.1f, 0.8f, 1.0f),
+ V4(0.1f, 0.8f, 0.8f, 1.0f),
+};
+
+enum layout_frame
 {
- temp_arena Temp = TempArena(0);
+ LayoutFrame_VerticalDetailed,
+ LayoutFrame_VerticalSimple,
+ LayoutFrame_Horizontal,
+};
+
+struct profiler_layout
+{
+ v2 CursorP;
+};
+
+typedef b32 frame_or_anchor_clicked_b32;
+internal frame_or_anchor_clicked_b32
+LayoutProfilerFrame(layout_frame Layout,
+                    profiler_frame *Frame,
+                    profiler *Profiler,
+                    u32 FrameIndex,
+                    rect2 DrawRegion,
+                    f32 FrameWidth,
+                    visual_profiler_state *Visual,
+                    sort_entry_array SortAnchors,
+                    f32 DrawWidth,
+                    f32 DrawHeight)
+{
+ b32 FrameOrAnchorClicked = false;
  
- visual_profiler *Visual = &Editor->Profiler;
- profiler *Profiler = Visual->Profiler;
- profiler_frame *Frame = &Visual->FrameSnapshot;
+ f32 FrameMs = 1000 * Frame->TotalTSC * Profiler->Inv_CPU_Freq;
+ f32 FrameLeft = DrawRegion.Min.X + FrameIndex * FrameWidth;
  
- if (Editor->ProfilerWindow)
+ ProfileBegin("Drawing");
+ 
+ if (Layout == LayoutFrame_VerticalDetailed ||
+     Layout == LayoutFrame_Horizontal)
  {
-  if (UI_BeginWindowF(&Editor->ProfilerWindow, 0, "Frame %u###Profiler", Visual->FrameIndex))
+  ProfileBegin("Sorting");
+  ClearSortEntryArray(&SortAnchors);
+  for (u32 AnchorIndex = 0;
+       AnchorIndex < MAX_PROFILER_ANCHOR_COUNT;
+       ++AnchorIndex)
   {
-   if (UI_Button(StrLit("Back")))
+   profile_anchor *Anchor = Frame->Anchors + AnchorIndex;
+   if (Anchor->HitCount)
    {
-    ProfilerInspectAllFrames(Visual);
-   }
-   
-   sort_entry_array SortAnchors = AllocSortEntryArray(Temp.Arena, MAX_PROFILER_ANCHOR_COUNT);
-   for (u32 AnchorIndex = 0;
-        AnchorIndex < MAX_PROFILER_ANCHOR_COUNT;
-        ++AnchorIndex)
-   {
-    profile_anchor *Anchor = Frame->Anchors + AnchorIndex;
-    if (Anchor->HitCount)
-    {
-     sort_key_f32 SortKey = -Cast(sort_key_f32)Anchor->TotalSelfTSC;
-     AddSortEntry(&SortAnchors, SortKey, AnchorIndex);
-    }
-   }
-   SortStable(SortAnchors);
-   
-   v2 WindowSize = UI_GetWindowSize();
-   local v4 ProfileColors[] = {
-    V4(0.8f, 0.1f, 0.1f, 1.0f),
-    V4(0.1f, 0.8f, 0.1f, 1.0f),
-    V4(0.1f, 0.1f, 0.8f, 1.0f),
-    V4(0.8f, 0.8f, 0.1f, 1.0f),
-    V4(0.8f, 0.1f, 0.8f, 1.0f),
-    V4(0.1f, 0.8f, 0.8f, 1.0f),
-   };
-   
-   f32 AnchorTSC_Sum = 0;
-   for (u32 EntryIndex = 0;
-        EntryIndex <= SortAnchors.Count;
-        ++EntryIndex)
-   {
-    f32 TotalSelfTSC = 0;
-    v4 Color = {};
-    u32 Id = 0;
-    string Label = NilStr;
-    
-    if (EntryIndex < SortAnchors.Count)
-    {
-     u32 AnchorIndex = SortAnchors.Entries[EntryIndex].Index;
-     profile_anchor Anchor = Frame->Anchors[AnchorIndex];
-     Assert(Anchor.HitCount);
-     
-     AnchorTSC_Sum += Anchor.TotalSelfTSC;
-     TotalSelfTSC = Cast(f32)Anchor.TotalSelfTSC;
-     Color = ProfileColors[AnchorIndex % ArrayCount(ProfileColors)];
-     Id = AnchorIndex;
-     Label = Profiler->Labels[AnchorIndex];
-    }
-    else
-    {
-     TotalSelfTSC = Frame->TotalTSC - AnchorTSC_Sum;
-     Color = V4(0.5f, 0.1f, 0.1f, 1.0f);
-     Id = MAX_PROFILER_ANCHOR_COUNT;
-     Label = StrLit("NOT PROFILED");
-    }
-    
-    f32 Fraction =  TotalSelfTSC / Frame->TotalTSC;
-    f32 ElapsedMs  = 1000 * TotalSelfTSC * Profiler->Inv_CPU_Freq;
-    f32 Width = Fraction * WindowSize.X;
-    v2 Size = V2(Width, 10);
-    
-    UI_SetNextItemSize(Size);
-    if (EntryIndex > 0) UI_SameRow();
-    UI_Colored(UI_Color_Item, Color)
-    {
-     UI_Rect(Id);
-    }
-    
-    if (UI_IsItemHovered())
-    {
-     UI_TooltipF("[%.2fms] %s", ElapsedMs, Label);
-    }
+    sort_key_f32 SortKey = -Cast(sort_key_f32)Anchor->TotalSelfTSC;
+    AddSortEntry(&SortAnchors, SortKey, AnchorIndex);
    }
   }
-  UI_EndWindow();
- }
- 
- EndTemp(Temp);
-}
-
-internal void
-RenderProfilerAllFramesUI(editor *Editor, platform_input *Input)
-{
- ProfileFunctionBegin();
- 
- visual_profiler *Visual = &Editor->Profiler;
- profiler *Profiler = Visual->Profiler;
- temp_arena Temp = TempArena(0);
- 
- if (Editor->ProfilerWindow)
- {
-  if (UI_BeginWindow(&Editor->ProfilerWindow, 0, StrLit("Profiler###Profiler")))
+  SortStable(SortAnchors);
+  ProfileEnd();
+  
+  f32 AnchorTop = DrawRegion.Max.Y;
+  f32 AllAnchorsTSC_Sum = 0;
+  
+  for (u32 EntryIndex = 0;
+       EntryIndex <= SortAnchors.Count;
+       ++EntryIndex)
   {
-   rect2 DrawRegion = UI_GetDrawableRegionBounds();
-   f32 DrawWidth = (DrawRegion.Max.X - DrawRegion.Min.X);
-   f32 DrawHeight = (DrawRegion.Max.Y - DrawRegion.Min.Y);
+   f32 AnchorTotalSelfTSC = 0;
+   v4 Color = {};
+   u32 AnchorId = 0;
+   string Label = NilStr;
    
-   UI_CheckboxF(&Visual->Stopped, "Stop");
-   Input->ProfilingStopped = Visual->Stopped;
-   
-   u32 FrameCount = MAX_PROFILER_FRAME_COUNT;
-   f32 FrameBarWidth = DrawWidth / FrameCount;
-   UI_SliderFloat(&Visual->ReferenceMs, 0.0f, 128.0f, StrLit("Reference Ms"));
-   
-   
-   if (UI_Button(StrLit("Button1")))
+   if (EntryIndex < SortAnchors.Count)
    {
-    OS_PrintDebugF("Button1 clicked");
-   }
-   
-   if (UI_Button(StrLit("Button2")))
-   {
-    OS_PrintDebugF("Button2 clicked");
-   }
-   
-   if (UI_Rect(12313))
-   {
-    OS_PrintDebugF("Rect clicked");
-   }
-   
-   sort_entry_array SortAnchors = AllocSortEntryArray(Temp.Arena, MAX_PROFILER_ANCHOR_COUNT);
-   
-   f32 FramePosX = DrawRegion.Min.X;
-   
-   for (u32 FrameIndex = 0;
-        FrameIndex < FrameCount;
-        ++FrameIndex)
-   {
-    profiler_frame *Frame = Profiler->Frames + FrameIndex;
+    u32 AnchorIndex = SortAnchors.Entries[EntryIndex].Index;
+    profile_anchor Anchor = Frame->Anchors[AnchorIndex];
+    Assert(Anchor.HitCount);
     
-    ProfileBegin("Sorting");
-    
-    ClearSortEntryArray(&SortAnchors);
-    for (u32 AnchorIndex = 0;
-         AnchorIndex < MAX_PROFILER_ANCHOR_COUNT;
-         ++AnchorIndex)
+    AllAnchorsTSC_Sum += Anchor.TotalSelfTSC;
+    AnchorTotalSelfTSC = Cast(f32)Anchor.TotalSelfTSC;
+    Color = AnchorColors[AnchorIndex % ArrayCount(AnchorColors)];
+    AnchorId = AnchorIndex;
+    Label = Profiler->Labels[AnchorIndex];
+   }
+   else
+   {
+    AnchorTotalSelfTSC = Frame->TotalTSC - AllAnchorsTSC_Sum;
+    Color = V4(0.5f, 0.1f, 0.1f, 1.0f);
+    AnchorId = MAX_PROFILER_ANCHOR_COUNT;
+    Label = StrLit("NOT PROFILED");
+   }
+   
+   f32 AnchorMs = 1000 * AnchorTotalSelfTSC * Profiler->Inv_CPU_Freq;
+   f32 AnchorFraction = AnchorTotalSelfTSC / Frame->TotalTSC;
+   f32 HorizontalAnchorWidth = AnchorFraction * DrawWidth;
+   f32 VerticalAnchorHeight = DrawHeight * AnchorMs / Visual->ReferenceFrameDurationMs;
+   
+   v2 AnchorSize;
+   if (Layout == LayoutFrame_VerticalDetailed)
+   {
+    AnchorSize = V2(FrameWidth, VerticalAnchorHeight);
+   }
+   else
+   {
+    Assert(Layout == LayoutFrame_Horizontal);
+    // TODO(hbr): Don't hardcode 10 here
+    AnchorSize = V2(HorizontalAnchorWidth, 20);
+   }
+   
+   AnchorTop -= AnchorSize.Y;
+   v2 AnchorPos = V2(FrameLeft, AnchorTop);
+   
+   if (Layout == LayoutFrame_VerticalDetailed)
+   {
+    UI_SetNextItemPos(AnchorPos);
+   }
+   
+   UI_SetNextItemSize(AnchorSize);
+   
+   UI_Colored(UI_Color_Item, Color)
+   {
+    if (UI_Rect(AnchorId)) 
     {
-     profile_anchor *Anchor = Frame->Anchors + AnchorIndex;
-     if (Anchor->HitCount)
-     {
-      sort_key_f32 SortKey = -Cast(sort_key_f32)Anchor->TotalSelfTSC;
-      AddSortEntry(&SortAnchors, SortKey, AnchorIndex);
-     }
+     FrameOrAnchorClicked = true;
     }
-    SortStable(SortAnchors);
-    
-    ProfileEnd();
-    
-    ProfileBegin("Drawing");
-    
-    local v4 ProfileColors[] = {
-     V4(0.8f, 0.1f, 0.1f, 1.0f),
-     V4(0.1f, 0.8f, 0.1f, 1.0f),
-     V4(0.1f, 0.1f, 0.8f, 1.0f),
-     V4(0.8f, 0.8f, 0.1f, 1.0f),
-     V4(0.8f, 0.1f, 0.8f, 1.0f),
-     V4(0.1f, 0.8f, 0.8f, 1.0f),
-    };
-    
-    f32 AnchorPosY = DrawRegion.Max.Y - 50;
-    f32 AllAnchorsTSC_Sum = 0;
-    
-    for (u32 EntryIndex = 0;
-         EntryIndex <= SortAnchors.Count;
-         ++EntryIndex)
-    {
-     f32 AnchorTotalSelfTSC = 0;
-     v4 Color = {};
-     u32 Id = 0;
-     string Label = NilStr;
-     
-     if (EntryIndex < SortAnchors.Count)
-     {
-      u32 AnchorIndex = SortAnchors.Entries[EntryIndex].Index;
-      profile_anchor Anchor = Frame->Anchors[AnchorIndex];
-      Assert(Anchor.HitCount);
-      
-      AllAnchorsTSC_Sum += Anchor.TotalSelfTSC;
-      AnchorTotalSelfTSC = Cast(f32)Anchor.TotalSelfTSC;
-      Color = ProfileColors[AnchorIndex % ArrayCount(ProfileColors)];
-      Id = AnchorIndex;
-      Label = Profiler->Labels[AnchorIndex];
-     }
-     else
-     {
-      AnchorTotalSelfTSC = Frame->TotalTSC - AllAnchorsTSC_Sum;
-      Color = V4(0.5f, 0.1f, 0.1f, 1.0f);
-      Id = MAX_PROFILER_ANCHOR_COUNT;
-      Label = StrLit("NOT PROFILED");
-     }
-     
-     f32 AnchorMs = 1000 * AnchorTotalSelfTSC * Profiler->Inv_CPU_Freq;
-     f32 AnchorHeight = DrawHeight * AnchorMs / Visual->ReferenceMs;
-     v2 Size = V2(FrameBarWidth, AnchorHeight);
-     
-     AnchorPosY -= Size.Y;
-     v2 Pos = V2(FramePosX, AnchorPosY);
-     
-     UI_SetNextItemPos(Pos);
-     UI_SetNextItemSize(Size);
-     
-     UI_Colored(UI_Color_Item, Color)
-     {
-      if (UI_Rect(Id)) 
-      {
-       ProfilerInspectSingleFrame(Visual, FrameIndex);
-      }
-     }
-     
-     if (UI_IsItemHovered())
-     {
-      UI_TooltipF("[%.2fms] %S", AnchorMs, Label);
-     }
-    }
-    
-    FramePosX += FrameBarWidth;
-    
-    ProfileEnd();
    }
+   if (UI_IsItemHovered())
+   {
+    UI_TooltipF("[%.2fms] %S", AnchorMs, Label);
+   }
+   
+   UI_SameRow();
+   
+   if (Layout == LayoutFrame_Horizontal)
+   {
+    UI_TextF(false, "[%.2fms] %S", AnchorMs, Label);
+   }
+  }
+ }
+ else if (Layout == LayoutFrame_VerticalSimple)
+ {
+  f32 FrameHeight = DrawHeight * FrameMs / Visual->ReferenceFrameDurationMs;
+  f32 FrameBot  = DrawRegion.Max.Y;
+  f32 FrameTop = FrameBot - FrameHeight;
+  
+  v2 FrameP = V2(FrameLeft, FrameTop);
+  v2 FrameSize = V2(FrameWidth, FrameHeight);
+  
+  UI_SetNextItemPos(FrameP);
+  UI_SetNextItemSize(FrameSize);
+  if (UI_Rect(FrameIndex))
+  {
+   FrameOrAnchorClicked = true;
   }
   
-  UI_EndWindow();
+  if (UI_IsItemHovered())
+  {
+   UI_TooltipF("[%.2fms] Frame %u", FrameMs, FrameIndex);
+  }
+ }
+ else
+ {
+  InvalidPath;
  }
  
- EndTemp(Temp);
- 
  ProfileEnd();
+ 
+ return FrameOrAnchorClicked;
 }
 
 internal void
 RenderProfilerWindowUI(editor *Editor, platform_input *Input)
 {
- visual_profiler *Visual = &Editor->Profiler;
- switch (Visual->Mode)
+ ProfileFunctionBegin();
+ if (Editor->ProfilerWindow)
  {
-  case VisualProfiler_AllFrames: {RenderProfilerAllFramesUI(Editor, Input);}break;
-  case VisualProfiler_SingleFrame: {RenderProfilerSingleFrameUI(Editor);}break;
+  if (UI_BeginWindow(&Editor->ProfilerWindow, 0, StrLit("Profiler")))
+  {
+   temp_arena Temp = TempArena(0);
+   visual_profiler_state *Visual = &Editor->Profiler;
+   
+   layout_frame LayoutFrame;
+   if (Visual->Mode == VisualProfilerMode_AllFrames)
+   {
+    UI_CheckboxF(&Visual->Stopped, "Stop");
+    Input->ProfilingStopped = Visual->Stopped;
+    
+    UI_SameRow();
+    
+    u32 CurrentView = (Visual->AllFramesDetailed ? 1 : 0);
+    UI_Checkbox(&Visual->AllFramesDetailed, StrLit("Detailed"));
+    
+    UI_SameRow();
+    
+    UI_Label(StrLit("ReferenceFrameDuration"))
+    {
+     UI_SliderFloat(&Visual->ReferenceFrameDurationMs,
+                    1000.0f / 500, 1000.0f / 30,
+                    StrLit("Reference Frame Duration (ms)"));
+     if (ResetCtxMenu(StrLit("Reset")))
+     {
+      Visual->ReferenceFrameDurationMs = Visual->DefaultReferenceFrameDurationMs;
+     }
+    }
+    
+    if (Visual->AllFramesDetailed)
+    {
+     LayoutFrame = LayoutFrame_VerticalDetailed;
+    }
+    else
+    {
+     LayoutFrame = LayoutFrame_VerticalSimple;
+    }
+   }
+   else
+   {
+    Assert(Visual->Mode == VisualProfilerMode_SingleFrame);
+    if (UI_Button(StrLit("Back")))
+    {
+     ProfilerInspectAllFrames(Visual);
+    }
+    
+    LayoutFrame = LayoutFrame_Horizontal;
+   }
+   
+   rect2 DrawRegion = UI_GetDrawableRegionBounds();
+   f32 DrawWidth = (DrawRegion.Max.X - DrawRegion.Min.X);
+   f32 DrawHeight = (DrawRegion.Max.Y - DrawRegion.Min.Y);
+   f32 FrameWidth = DrawWidth / MAX_PROFILER_FRAME_COUNT;
+   
+   sort_entry_array SortAnchors = AllocSortEntryArray(Temp.Arena, MAX_PROFILER_ANCHOR_COUNT);
+   
+   profiler *Profiler = Visual->Profiler;
+   
+   if (Visual->Mode == VisualProfilerMode_AllFrames)
+   {
+    for (u32 FrameIndex = 0;
+         FrameIndex < MAX_PROFILER_FRAME_COUNT;
+         ++FrameIndex)
+    {
+     profiler_frame *Frame = Profiler->Frames + FrameIndex;
+     b32 FrameOrAnchorClicked = LayoutProfilerFrame(LayoutFrame,
+                                                    Frame,
+                                                    Profiler,
+                                                    FrameIndex,
+                                                    DrawRegion,
+                                                    FrameWidth,
+                                                    Visual,
+                                                    SortAnchors,
+                                                    DrawWidth,
+                                                    DrawHeight);
+     
+     if (FrameOrAnchorClicked)
+     {
+      ProfilerInspectSingleFrame(Visual, FrameIndex);
+     }
+    }
+   }
+   else
+   {
+    profiler_frame *Frame = &Visual->FrameSnapshot;
+    LayoutProfilerFrame(LayoutFrame,
+                        Frame, Profiler, 0,
+                        DrawRegion, 0, Visual,
+                        SortAnchors, DrawWidth, DrawHeight);
+   }
+   
+   EndTemp(Temp);
+   
+   UI_EndWindow();
+  }
  }
+ 
+ ProfileEnd();
 }
 
 internal void

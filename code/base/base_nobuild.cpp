@@ -177,10 +177,9 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
    
    // NOTE(hbr): Always debug and never debug info to be fast
    compiler_setup Setup = MakeCompilerSetup(Compiler_Default, true, false, false);
-   compilation_target Target = MakeTarget(Exe, SourceCodePath, CompilationFlag_TemporaryTarget);
+   compilation_target Target = MakeTarget(Target_Exe, SourceCodePath, CompilationFlag_TemporaryTarget);
    
-   compilation_command BuildCompile = ComputeCompilationCommand(Setup, Target);
-   os_process_handle BuildCompileProcess = OS_ProcessLaunch(BuildCompile.Cmd);
+   os_process_handle BuildCompileProcess = Compile(Setup, Target);
    int SelfRecompilationExitCode = OS_ProcessWait(BuildCompileProcess);
    Result.RecompilationExitCode = SelfRecompilationExitCode;
    
@@ -188,8 +187,9 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
    {
     //- run this program again, this time with up to date binary
     string_list InvokeBuild = {};
+    string BuildOutput = ComputeCompilationTargetOutput(Setup, Target).OutputTarget;
     // NOTE(hbr): I have to add that stupid dot on Linux
-    StrListPushF(Arena, &InvokeBuild, "./%S", BuildCompile.OutputTarget);
+    StrListPushF(Arena, &InvokeBuild, "./%S", BuildOutput);
     for (int ArgIndex = 1;
          ArgIndex < ArgCount;
          ++ArgIndex)

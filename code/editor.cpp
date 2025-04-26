@@ -21,10 +21,10 @@ platform_api Platform;
 // NOTE(hbr): this is code that is
 
 internal void
-MovePointAlongCurve(curve *Curve, v2 *TranslateInOut, f32 *PointFractionInOut, b32 Forward)
+MovePointAlongCurve(curve *Curve, v2 *TranslateInput, f32 *PointFractionInput, b32 Forward)
 {
- v2 Translate = *TranslateInOut;
- f32 Fraction = *PointFractionInOut;
+ v2 Translate = *TranslateInput;
+ f32 Fraction = *PointFractionInput;
  
  u32 SampleCount = Curve->CurveSampleCount;
  v2 *Samples = Curve->CurveSamples;
@@ -62,8 +62,8 @@ MovePointAlongCurve(curve *Curve, v2 *TranslateInOut, f32 *PointFractionInOut, b
   }
  }
  
- *TranslateInOut = Translate;
- *PointFractionInOut = Fraction;
+ *TranslateInput = Translate;
+ *PointFractionInput = Fraction;
 }
 
 internal renderer_index *
@@ -1313,14 +1313,12 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->AnimatingCurves.Arena = AllocArena(Megabytes(32));
  
  Editor->ProfilerWindow = true;
- Editor->Profiler.ReferenceFrameDurationMs =
-  Editor->Profiler.DefaultReferenceFrameDurationMs =
-  1000.0f / 120;
+ Editor->Profiler.ReferenceMs = Editor->Profiler.DefaultReferenceMs = 1000.0f / 120;
  Editor->Profiler.Profiler = Memory->Profiler;
 }
 
 internal void
-UpdateAndRenderAnimatingCurves(animating_curves_state *Animation, platform_input *Input, render_group *RenderGroup)
+UpdateAndRenderAnimatingCurves(animating_curves_state *Animation, platform_input_ouput *Input, render_group *RenderGroup)
 {
  entity *Entity0 = EntityFromId(Animation->Choose2Curves.Curves[0]);
  entity *Entity1 = EntityFromId(Animation->Choose2Curves.Curves[1]);
@@ -2383,7 +2381,7 @@ UpdateAndRenderEntityListUI(editor *Editor)
 }
 
 internal void
-UpdateAndRenderDiagnosticsUI(editor *Editor, platform_input *Input)
+UpdateAndRenderDiagnosticsUI(editor *Editor, platform_input_ouput *Input)
 {
  //- render diagnostics UI
  if (Editor->DiagnosticsWindow)
@@ -2422,7 +2420,7 @@ UpdateAndRenderHelpWindowUI(editor *Editor)
 }
 
 internal void
-UpdateAndRenderNotifications(editor *Editor, platform_input *Input, render_group *RenderGroup)
+UpdateAndRenderNotifications(editor *Editor, platform_input_ouput *Input, render_group *RenderGroup)
 {
  UI_LabelF("Notifications")
  {
@@ -2763,7 +2761,7 @@ ProcessAsyncEvents(editor *Editor)
 }
 
 internal void
-UpdateFrameStats(frame_stats *Stats, platform_input *Input)
+UpdateFrameStats(frame_stats *Stats, platform_input_ouput *Input)
 {
  f32 dt = Input->dtForFrame;
  
@@ -2848,7 +2846,7 @@ EndRightClick(editor_right_click_state *Right)
 }
 
 internal void
-ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGroup,
+ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *RenderGroup,
                    b32 *NewProject, b32 *OpenFileDialog, b32 *SaveProject,
                    b32 *SaveProjectAs, b32 *QuitProject)
 {
@@ -3258,6 +3256,11 @@ ProcessInputEvents(editor *Editor, platform_input *Input, render_group *RenderGr
    EndEntityModify(EntityWitness);
   }
   
+  if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Q && (Event->Flags & PlatformEventFlag_Ctrl))
+  {
+   Editor->Profiler.Stopped = !Editor->Profiler.Stopped;
+  }
+  
   //- misc
   if (!Eat && Event->Type == PlatformEvent_FilesDrop)
   {
@@ -3598,15 +3601,6 @@ ProfilerInspectSingleFrame(visual_profiler_state *Visual, u32 FrameIndex)
  Visual->FrameSnapshot = Profiler->Frames[FrameIndex];
 }
 
-global v4 AnchorColors[] = {
- V4(0.8f, 0.1f, 0.1f, 1.0f),
- V4(0.1f, 0.8f, 0.1f, 1.0f),
- V4(0.1f, 0.1f, 0.8f, 1.0f),
- V4(0.8f, 0.8f, 0.1f, 1.0f),
- V4(0.8f, 0.1f, 0.8f, 1.0f),
- V4(0.1f, 0.8f, 0.8f, 1.0f),
-};
-
 enum layout_frame
 {
  LayoutFrame_VerticalDetailed,
@@ -3614,11 +3608,7 @@ enum layout_frame
  LayoutFrame_Horizontal,
 };
 
-struct profiler_layout
-{
- v2 CursorP;
-};
-
+#if 0
 typedef b32 frame_or_anchor_clicked_b32;
 internal frame_or_anchor_clicked_b32
 LayoutProfilerFrame(layout_frame Layout,
@@ -3767,7 +3757,167 @@ LayoutProfilerFrame(layout_frame Layout,
  
  return FrameOrAnchorClicked;
 }
+#endif
 
+internal void
+RenderProfilerWindowContents(editor *Editor)
+{
+ ProfileFunctionBegin();
+ 
+ visual_profiler_state *Visual = &Editor->Profiler;
+ visual_profiler_mode Mode = Visual->Mode;
+ profiler *Profiler = Visual->Profiler;
+ 
+ temp_arena Temp = TempArena(0);
+ 
+ local v4 AnchorColors[] = {
+  V4(0.8f, 0.1f, 0.1f, 1.0f),
+  V4(0.1f, 0.8f, 0.1f, 1.0f),
+  V4(0.1f, 0.1f, 0.8f, 1.0f),
+  V4(0.8f, 0.8f, 0.1f, 1.0f),
+  V4(0.8f, 0.1f, 0.8f, 1.0f),
+  V4(0.1f, 0.8f, 0.8f, 1.0f),
+ };
+ 
+ switch (Mode)
+ {
+  case VisualProfilerMode_AllFrames: {
+   //- configuration buttons/sliders
+   UI_CheckboxF(&Visual->Stopped, "Stop");
+   UI_SameRow();
+   UI_Checkbox(&Visual->AllFramesDetailed, StrLit("Detailed"));
+   UI_SameRow();
+  }break;
+  
+  case VisualProfilerMode_SingleFrame: {
+   if (UI_Button(StrLit("Back")))
+   {
+    ProfilerInspectAllFrames(Visual);
+   }
+  }break;
+ }
+ 
+ UI_Label(StrLit("ReferenceFrameDuration"))
+ {
+  UI_SliderFloat(&Visual->ReferenceMs, 1000.0f/500, 1000.0f/30, StrLit("Reference ms"));
+  if (ResetCtxMenu(StrLit("Reset")))
+  {
+   Visual->ReferenceMs = Visual->DefaultReferenceMs;
+  }
+ }
+ 
+ rect2 DrawRegion = UI_GetDrawableRegionBounds();
+ f32 DrawWidth = DrawRegion.Max.X - DrawRegion.Min.X;
+ f32 DrawHeight = DrawRegion.Max.Y - DrawRegion.Min.Y;
+ f32 Inv_ReferenceMs = 1.0f / Visual->ReferenceMs;
+ 
+ switch (Mode)
+ {
+  case VisualProfilerMode_AllFrames: {
+   //- frame rendering
+   u32 FrameCount = MAX_PROFILER_FRAME_COUNT;
+   f32 AtX = DrawRegion.Min.X;
+   
+   for (u32 FrameIndex = 0;
+        FrameIndex < FrameCount;
+        ++FrameIndex)
+   {
+    profiler_frame *Frame = Profiler->Frames + FrameIndex;
+    
+    f32 FrameWidth = DrawWidth / FrameCount;
+    
+    //- render all frame anchors
+    if (Visual->AllFramesDetailed)
+    {
+     temp_arena Temp2 = BeginTemp(Temp.Arena);
+     
+     u32 MaxAnchorCount = MAX_PROFILER_ANCHOR_COUNT;
+     sort_entry_array SortAnchors = AllocSortEntryArray(Temp2.Arena, MaxAnchorCount);
+     for (u32 AnchorIndex = 0;
+          AnchorIndex < MaxAnchorCount;
+          ++AnchorIndex)
+     {
+      profile_anchor *Anchor = Frame->Anchors + AnchorIndex;
+      if (Anchor->HitCount)
+      {
+       f32 SortKey = Cast(f32)Anchor->TotalSelfTSC;
+       AddSortEntry(&SortAnchors, SortKey, AnchorIndex);
+      }
+     }
+     
+     f32 AtY = DrawRegion.Max.Y;
+     for (u32 SortIndex = 0;
+          SortIndex < SortAnchors.Count;
+          ++SortIndex)
+     {
+      u32 AnchorIndex = SortAnchors.Entries[SortIndex].Index;
+      profile_anchor *Anchor = Frame->Anchors + AnchorIndex;
+      string AnchorLabel = Profiler->Labels[AnchorIndex];
+      
+      f32 AnchorTotalSelfMs = 1000 * Anchor->TotalSelfTSC * Profiler->Inv_CPU_Freq;
+      f32 AnchorWidth = FrameWidth;
+      f32 AnchorHeight = DrawHeight * AnchorTotalSelfMs * Inv_ReferenceMs;
+      
+      AtY -= AnchorHeight;
+      
+      f32 AnchorTopLeftX = AtX;
+      f32 AnchorTopLeftY = AtY;
+      
+      v2 AnchorSize = V2(AnchorWidth, AnchorHeight);
+      v2 AnchorTopLeftP = V2(AnchorTopLeftX, AnchorTopLeftY);
+      v4 AnchorColor = AnchorColors[AnchorIndex % ArrayCount(AnchorColors)];
+      
+      UI_SetNextItemSize(AnchorSize);
+      UI_SetNextItemPos(AnchorTopLeftP);
+      UI_Colored(UI_Color_Item, AnchorColor)
+      {
+       if (UI_Rect(AnchorIndex))
+       {
+        ProfilerInspectSingleFrame(Visual, FrameIndex);
+       }
+      }
+      if (UI_IsItemHovered())
+      {
+       UI_TooltipF("[%.2fms] %S", AnchorTotalSelfMs, AnchorLabel);
+      }
+     }
+     
+     EndTemp(Temp2);
+    }
+    //- render just frames, without splitting into anchors
+    else
+    {
+     
+    }
+    
+    AtX += FrameWidth;
+   }
+  }break;
+  
+  case VisualProfilerMode_SingleFrame: {
+   NotImplemented;
+  }break;
+ }
+ 
+ EndTemp(Temp);
+ 
+ ProfileEnd();
+}
+
+internal void
+RenderProfilerWindowUI(editor *Editor, platform_input_ouput *Input)
+{
+ if (Editor->ProfilerWindow)
+ {
+  if (UI_BeginWindow(&Editor->ProfilerWindow, 0, StrLit("Profiler")))
+  {
+   RenderProfilerWindowContents(Editor);
+  }
+  UI_EndWindow();
+ }
+}
+
+#if 0
 internal void
 RenderProfilerWindowUI(editor *Editor, platform_input *Input)
 {
@@ -3873,6 +4023,7 @@ RenderProfilerWindowUI(editor *Editor, platform_input *Input)
  
  ProfileEnd();
 }
+#endif
 
 internal void
 RenderDevConsole(editor *Editor)
@@ -3895,7 +4046,7 @@ RenderDevConsole(editor *Editor)
 }
 
 internal void
-EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct render_frame *Frame)
+EditorUpdateAndRender_(editor_memory *Memory, platform_input_ouput *Input, struct render_frame *Frame)
 {
  ProfileFunctionBegin();
  
@@ -4053,6 +4204,7 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input *Input, struct rend
  {
   Input->QuitRequested = true;
  }
+ Input->ProfilingStopped = Editor->Profiler.Stopped;
  
  if (AnimateCurves)
  {

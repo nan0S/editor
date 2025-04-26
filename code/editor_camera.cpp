@@ -42,7 +42,7 @@ ZoomCamera(camera *Camera, f32 By)
 }
 
 internal void
-UpdateCamera(camera *Camera, platform_input *Input)
+UpdateCamera(camera *Camera, platform_input_ouput *Input)
 {
  if (Camera->ReachingTarget)
  {

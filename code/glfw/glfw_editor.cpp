@@ -223,6 +223,11 @@ EntryPoint(int ArgCount, char **Args)
  profiler *Profiler = Cast(profiler *)OS_Reserve(SizeOf(profiler), true);
  ProfilerInit(Profiler);
  ProfilerEquip(Profiler);
+ b32 ProfilingStopped = false;
+ if (!ProfilingStopped)
+ {
+  ProfilerBeginFrame(Profiler);
+ }
  
  arena *PermamentArena = AllocArena(Gigabytes(64));
  
@@ -365,30 +370,25 @@ Table[GLFWButton] = PlatformButton
                                                           Platform, Profiler);
    
    b32 Running = true;
-   b32 ProfilingStopped = false;
    b32 RefreshRequested = true;
    platform_clock Clock = Platform_MakeClock();
    
    while (Running)
    {
-    if (!ProfilingStopped)
-    {
-     ProfilerBeginFrame(Profiler);
-    }
-    
     //- hot reload
+    b32 CodeReloaded = false;
     ProfileBlock("Hot Reload")
     {
      if (HotReloadIfOutOfSync(&EditorCode))
      {
       EditorFunctions.OnCodeReload(&EditorMemory);
+      CodeReloaded = true;
      }
     }
     
     //- process input events
-    // TODO(hbr): get this from GLFW
     v2u WindowDim = {};
-    platform_input Input = {};
+    platform_input_ouput Input = {};
     {
      StructZero(&GLFWState->GLFWInput);
      ClearArena(GLFWState->InputArena);
@@ -455,6 +455,16 @@ Table[GLFWButton] = PlatformButton
     
     RefreshRequested = Input.RefreshRequested;
     ProfilingStopped = Input.ProfilingStopped;
+    
+    if (CodeReloaded)
+    {
+     ProfilerReset(Profiler);
+    }
+    
+    if (!ProfilingStopped)
+    {
+     ProfilerBeginFrame(Profiler);
+    }
    }
   }
  }

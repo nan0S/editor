@@ -242,6 +242,20 @@ inline void *_SafeCastToPtr(void *Expr, u64 SizeOf1, u64 SizeOf2) { Assert(SizeO
 #define ConvertNameToString_(Name) #Name
 #define ConvertNameToString(Name) ConvertNameToString_(Name) // convert CustomName -> "CustomName"
 
+#if !defined(COMPILATION_UNIT_INDEX) && !defined(COMPILATION_UNIT_COUNT)
+# define COMPILATION_UNIT_INDEX 0
+# define COMPILATION_UNIT_COUNT 1
+#endif
+#if defined(COMPILATION_UNIT_INDEX) && defined(COMPILATION_UNIT_COUNT)
+StaticAssert(COMPILATION_UNIT_INDEX < COMPILATION_UNIT_COUNT, CompilationUnitMacros_SanityCheck);
+#endif
+#if defined(COMPILATION_UNIT_INDEX) && !defined(COMPILATION_UNIT_COUNT)
+# error COMPILATION_UNIT_INDEX defined but COMPILATION_UNIT_COUNT is not defined
+#endif
+#if !defined(COMPILATION_UNIT_INDEX) && defined(COMPILATION_UNIT_COUNT)
+# error COMPILATION_UNIT_COUNT defined but COMPILATION_UNIT_INDEX is not defined
+#endif
+
 #if COMPILER_MSVC
 # include <intrin.h> 
 # define CompilerWriteBarrier _WriteBarrier()

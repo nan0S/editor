@@ -41,9 +41,10 @@ enum compiler
 
 enum compilation_target_type
 {
- Exe,
- Obj,
- Lib,
+ Target_None,
+ Target_Exe,
+ Target_Obj,
+ Target_Lib,
 };
 
 struct compiler_setup
@@ -85,6 +86,11 @@ struct compilation_command
  string_list Cmd;
 };
 
+struct compilation_target_output
+{
+ string TargetName;
+ string OutputTarget; // TargetName with extension
+};
 struct process_queue
 {
 #define PROCESS_QUEUE_MAX_PROCESS_COUNT 256
@@ -101,7 +107,9 @@ internal void LinkLibrary(compilation_target *Target, string Library);
 internal void StaticLink(compilation_target *Target, string Link);
 internal void DefineVariable(compilation_target *Target, string Name, string Value);
 
-internal compilation_command ComputeCompilationCommand(compiler_setup Setup, compilation_target Target);
+internal compilation_target_output ComputeCompilationTargetOutput(compiler_setup Setup, compilation_target Target);
+
+internal os_process_handle Compile(compiler_setup Setup, compilation_target Target);
 
 internal void          EnqueueProcess(process_queue *Queue, os_process_handle Process);
 internal exit_code_int WaitProcesses(process_queue *Queue);

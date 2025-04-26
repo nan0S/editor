@@ -318,13 +318,14 @@ enum visual_profiler_mode
 struct visual_profiler_state
 {
  b32 Stopped;
+ 
  profiler *Profiler;
  
  visual_profiler_mode Mode;
  b32 AllFramesDetailed;
  
- f32 DefaultReferenceFrameDurationMs;
- f32 ReferenceFrameDurationMs;
+ f32 DefaultReferenceMs;
+ f32 ReferenceMs;
  
  u32 FrameIndex;
  profiler_frame FrameSnapshot;

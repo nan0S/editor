@@ -428,22 +428,20 @@ EntryPoint(int ArgCount, char **Args)
    //- main loop
    while (Running)
    {
-    if (!ProfilingStopped)
-    {
-     ProfilerBeginFrame(Profiler);
-    }
-    
     //- hot reload
+    b32 CodeReloaded = false;
     ProfileBlock("Hot Reload")
     {
      if (HotReloadIfOutOfSync(&EditorCode))
      {
       EditorFunctions.OnCodeReload(&EditorMemory);
+      CodeReloaded = true;
      }
      
      if (HotReloadIfOutOfSync(&RendererCode))
      {
       RendererFunctions.OnCodeReload(&RendererMemory);
+      CodeReloaded = true;
      }
     }
     
@@ -545,6 +543,16 @@ EntryPoint(int ArgCount, char **Args)
     
     RefreshRequested = Input.RefreshRequested;
     ProfilingStopped = Input.ProfilingStopped;
+    
+    if (CodeReloaded)
+    {
+     ProfilerReset(Profiler);
+    }
+    
+    if (!ProfilingStopped)
+    {
+     ProfilerBeginFrame(Profiler);
+    }
    }
   }
  }

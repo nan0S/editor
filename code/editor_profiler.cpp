@@ -7,19 +7,13 @@ ProfilerInit(profiler *Profiler)
 {
  u64 CPU_Freq = OS_CPUTimerFreq();
  Profiler->Inv_CPU_Freq = SafeDiv0(1.0f, CPU_Freq);
+ //Profiler->CurrentFrame = &Profiler->NilFrame;
 }
 
 internal void
 ProfilerEquip(profiler *Profiler)
 {
  GlobalProfiler = Profiler;
-}
-
-inline internal profiler_frame *
-ProfilerCurrentFrame(profiler *Profiler)
-{
- profiler_frame *Frame = Profiler->Frames + Profiler->FrameIndex;
- return Frame;
 }
 
 internal void
@@ -31,25 +25,39 @@ ProfilerBeginFrame(profiler *Profiler)
   Profiler->FrameIndex = 0;
  }
  
- profiler_frame *Frame = ProfilerCurrentFrame(Profiler);
- ArrayZero(Frame->Anchors, MAX_PROFILER_ANCHOR_COUNT);
+ profiler_frame *CurrentFrame = Profiler->Frames + Profiler->FrameIndex;
+ Profiler->CurrentFrame = CurrentFrame;
+ ArrayZero(CurrentFrame->Anchors, MAX_PROFILER_ANCHOR_COUNT);
  
- Frame->TotalTSC = (0 - OS_ReadCPUTimer());
+ CurrentFrame->TotalTSC = (0 - OS_ReadCPUTimer());
 }
 
 internal void
 ProfilerEndFrame(profiler *Profiler)
 {
  u64 TSC = OS_ReadCPUTimer();
- profiler_frame *Frame = ProfilerCurrentFrame(Profiler);
+ Assert(Profiler->UsedBlockCount == 0);
+ profiler_frame *Frame = Profiler->CurrentFrame;
  Frame->TotalTSC += TSC;
+ Profiler->CurrentFrame = &Profiler->NilFrame;
+}
+
+internal void
+ProfilerReset(profiler *Profiler)
+{
+ StructZero(Profiler);
+ ProfilerInit(Profiler);
 }
 
 inline internal void
 __ProfileBegin(char const *Label, u16 AnchorIndex)
 {
+ Assert(COMPILATION_UNIT_PROFILER_ANCHOR_INDEX_OFFSET <= AnchorIndex &&
+        AnchorIndex < (COMPILATION_UNIT_PROFILER_ANCHOR_INDEX_OFFSET +
+                       COMPILATION_UNIT_PROFILER_MAX_ANCHOR_COUNT));
+ 
  profiler *Profiler = GlobalProfiler;
- profiler_frame *Frame = ProfilerCurrentFrame(Profiler);
+ profiler_frame *Frame = Profiler->CurrentFrame;
  
  Assert(Profiler->UsedBlockCount < ArrayCount(Profiler->Blocks));
  profile_block *Block = Profiler->Blocks + Profiler->UsedBlockCount++;
@@ -71,7 +79,7 @@ __ProfileEnd(void)
  u64 EndTSC = OS_ReadCPUTimer();
  
  profiler *Profiler = GlobalProfiler;
- profiler_frame *Frame = ProfilerCurrentFrame(Profiler);
+ profiler_frame *Frame = Profiler->CurrentFrame;
  
  Assert(Profiler->UsedBlockCount > 0);
  profile_block *Block = Profiler->Blocks + --Profiler->UsedBlockCount;
@@ -96,10 +104,11 @@ __ProfileEnd(void)
   
   char *Label = Profiler->LabelBuffer + LabelBufferAt;
   u32 LabelLength = SafeCastU32(CStrLen(Block->Label));
-  MemoryCopy(Label, Block->Label, LabelLength);
+  u32 CopyLength = Min(SpaceLeft, LabelLength);
+  MemoryCopy(Label, Block->Label, CopyLength);
   
-  Profiler->LabelBufferAt = LabelBufferAt + LabelLength;
-  Profiler->Labels[AnchorIndex.Index] = MakeStr(Label, LabelLength);
+  Profiler->LabelBufferAt = LabelBufferAt + CopyLength;
+  Profiler->Labels[AnchorIndex.Index] = MakeStr(Label, CopyLength);
  }
  
  Profiler->AnchorParentIndex = Block->ParentIndex;

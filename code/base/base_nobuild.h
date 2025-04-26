@@ -1,4 +1,4 @@
-#ifndef BASE_NOBUILD_
+#ifndef BASE_NOBUILD_H
 #define BASE_NOBUILD_H
 
 struct recompilation_result

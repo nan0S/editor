@@ -243,7 +243,7 @@ IMGUI_GET_CONTENT_REGION_AVAIL(ImGuiGetContentRegionAvail){return {};}
 #endif
 
 internal void
-Platform_PrintDebugInputEvents(platform_input *Input)
+Platform_PrintDebugInputEvents(platform_input_ouput *Input)
 {
  for (u32 EventIndex = 0;
       EventIndex < Input->EventCount;

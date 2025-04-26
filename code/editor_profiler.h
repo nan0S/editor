@@ -10,6 +10,9 @@
 # define EXPECTED_MAX_CHARS_PER_LABEL 50
 # define MAX_PROFILER_LABEL_BUFFER_LENGTH (MAX_PROFILER_ANCHOR_COUNT * EXPECTED_MAX_CHARS_PER_LABEL)
 
+# define COMPILATION_UNIT_PROFILER_ANCHOR_INDEX_OFFSET (COMPILATION_UNIT_INDEX * MAX_PROFILER_ANCHOR_COUNT / COMPILATION_UNIT_COUNT)
+# define COMPILATION_UNIT_PROFILER_MAX_ANCHOR_COUNT (MAX_PROFILER_ANCHOR_COUNT / COMPILATION_UNIT_COUNT)
+
 #else
 
 # define MAX_PROFILER_FRAME_COUNT 1
@@ -56,6 +59,9 @@ struct profiler
  
  u32 FrameIndex;
  profiler_frame Frames[MAX_PROFILER_FRAME_COUNT];
+ profiler_frame NilFrame;
+ 
+ profiler_frame *CurrentFrame;
  
  u16 UsedBlockCount;
  profile_block Blocks[MAX_PROFILER_ANCHOR_COUNT];
@@ -72,15 +78,16 @@ StaticAssert(ArrayCount(MemberOf(profiler_frame, Anchors)) <= MaxUnsignedReprese
 
 #if EDITOR_PROFILER
 
-#define ProfileBegin(Label) __ProfileBegin(Label, __COUNTER__ + 1)
+#define ProfileBegin(Label) __ProfileBegin(Label, __COUNTER__ + 1 + COMPILATION_UNIT_PROFILER_ANCHOR_INDEX_OFFSET)
 #define ProfileEnd() __ProfileEnd()
 #define ProfileFunctionBegin() ProfileBegin(__func__)
 #define ProfileBlock(Label) DeferBlock(ProfileBegin(Label), ProfileEnd())
 
-internal void            ProfilerInit(profiler *Profiler);
-internal void            ProfilerEquip(profiler *Profiler);
-internal void            ProfilerBeginFrame(profiler *Profiler);
-internal void            ProfilerEndFrame(profiler *Profiler);
+internal void ProfilerInit(profiler *Profiler);
+internal void ProfilerEquip(profiler *Profiler);
+internal void ProfilerBeginFrame(profiler *Profiler);
+internal void ProfilerEndFrame(profiler *Profiler);
+internal void ProfilerReset(profiler *Profiler); // useful when some code hot-reloaded and anchor indices are stale
 
 #else
 
@@ -93,6 +100,7 @@ internal void            ProfilerEndFrame(profiler *Profiler);
 #define ProfilerEquip(...)
 #define ProfilerBeginFrame(...)
 #define ProfilerEndFrame(...)
+#define ProfilerReset(...)
 
 #endif
 

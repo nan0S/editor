@@ -48,6 +48,7 @@ inline internal v4 &operator-=(v4 &U, v4 V) { U.X -= V.X; U.Y -= V.Y; U.Z -= V.Z
 inline internal v4 &operator*=(v4 &U, f32 Scale) { U.X *= Scale; U.Y *= Scale; U.Z *= Scale; U.W *= Scale; return U; }
 
 internal v4 RGBA_Color(u8 R, u8 G, u8 B, u8 A = 255);
+internal v4 RGB_FromHex(u32 HexCode);
 internal v4 BrightenColor(v4 Color, f32 BrightenByRatio);
 internal v4 DarkenColor(v4 Color, f32 DarkenByRatio);
 internal v4 FadeColor(v4 Color, f32 FadeByRatio);

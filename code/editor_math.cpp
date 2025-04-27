@@ -11,6 +11,17 @@ RGBA_Color(u8 R, u8 G, u8 B, u8 A)
 }
 
 internal v4
+RGB_FromHex(u32 HexCode)
+{
+ u8 B = (HexCode >> 0) & 0xff;
+ u8 G = (HexCode >> 8) & 0xff;
+ u8 R = (HexCode >> 16) & 0xff;
+ Assert(((HexCode >> 24) & 0xff) == 0);
+ v4 Result = RGBA_Color(R, G, B);
+ return Result;
+}
+
+internal v4
 BrightenColor(v4 Color, f32 BrightenByRatio)
 {
  v4 Result = {};

@@ -611,7 +611,7 @@ IsControlPointSelected(curve *Curve)
 internal sort_entry_array
 SortEntities(arena *Arena, entity_array Entities)
 {
- sort_entry_array SortArray = AllocSortEntryArray(Arena, Entities.Count);
+ sort_entry_array SortArray = AllocSortEntryArray(Arena, Entities.Count, SortOrder_Descending);
  for (u32 EntityIndex = 0;
       EntityIndex < Entities.Count;
       ++EntityIndex)
@@ -628,7 +628,7 @@ SortEntities(arena *Arena, entity_array Entities)
     case Entity_Count: InvalidPath; break;
    }
    
-   AddSortEntry(&SortArray, -Entity->SortingLayer - Offset, EntityIndex);
+   AddSortEntry(&SortArray, Entity->SortingLayer + Offset, EntityIndex);
   }
  }
  

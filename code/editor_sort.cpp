@@ -1,9 +1,10 @@
 inline internal sort_entry_array
-AllocSortEntryArray(arena *Arena, u32 MaxCount)
+AllocSortEntryArray(arena *Arena, u32 MaxCount, sort_order Order)
 {
  sort_entry_array Result = {};
  Result.MaxCount = MaxCount;
  Result.Entries = PushArrayNonZero(Arena, MaxCount, sort_entry);
+ Result.Order = Order;
  
  return Result;
 }
@@ -14,7 +15,7 @@ AddSortEntry(sort_entry_array *Array, sort_key_f32 SortKey, u32 Index)
  Assert(Array->Count < Array->MaxCount);
  
  sort_entry *Entry = Array->Entries + Array->Count++;
- Entry->SortKey = SortKey;
+ Entry->SortKey = (Array->Order == SortOrder_Ascending ? SortKey : -SortKey);
  Entry->Index = Index;
 }
 

@@ -7,7 +7,7 @@ ProfilerInit(profiler *Profiler)
 {
  u64 CPU_Freq = OS_CPUTimerFreq();
  Profiler->Inv_CPU_Freq = SafeDiv0(1.0f, CPU_Freq);
- //Profiler->CurrentFrame = &Profiler->NilFrame;
+ Profiler->CurrentFrame = &Profiler->NilFrame;
 }
 
 internal void

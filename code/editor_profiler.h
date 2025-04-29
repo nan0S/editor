@@ -5,7 +5,7 @@
 
 #if EDITOR_PROFILER
 
-# define MAX_PROFILER_FRAME_COUNT 512
+# define MAX_PROFILER_FRAME_COUNT 1024
 # define MAX_PROFILER_ANCHOR_COUNT 1024
 # define EXPECTED_MAX_CHARS_PER_LABEL 50
 # define MAX_PROFILER_LABEL_BUFFER_LENGTH (MAX_PROFILER_ANCHOR_COUNT * EXPECTED_MAX_CHARS_PER_LABEL)
@@ -44,6 +44,8 @@ struct profile_block
  anchor_index AnchorIndex;
  anchor_index ParentIndex;
  char const *Label;
+ char const *File;
+ int Line;
  u64 StartTSC;
 };
 
@@ -51,6 +53,12 @@ struct profiler_frame
 {
  profile_anchor Anchors[MAX_PROFILER_ANCHOR_COUNT];
  u64 TotalTSC;
+};
+
+struct profile_anchor_source_code_location
+{
+ char const *File;
+ u32 Line;
 };
 
 struct profiler
@@ -68,8 +76,10 @@ struct profiler
  
  u32 LabelBufferAt;
  char LabelBuffer[MAX_PROFILER_LABEL_BUFFER_LENGTH];
+ string AnchorLabels[MAX_PROFILER_ANCHOR_COUNT];
  
- string Labels[MAX_PROFILER_ANCHOR_COUNT];
+ profile_anchor_source_code_location
+  AnchorLocations[MAX_PROFILER_ANCHOR_COUNT];
  
  f32 Inv_CPU_Freq;
 };
@@ -78,7 +88,7 @@ StaticAssert(ArrayCount(MemberOf(profiler_frame, Anchors)) <= MaxUnsignedReprese
 
 #if EDITOR_PROFILER
 
-#define ProfileBegin(Label) __ProfileBegin(Label, __COUNTER__ + 1 + COMPILATION_UNIT_PROFILER_ANCHOR_INDEX_OFFSET)
+#define ProfileBegin(Label) __ProfileBegin(Label, __FILE__, __LINE__, __COUNTER__ + 1 + COMPILATION_UNIT_PROFILER_ANCHOR_INDEX_OFFSET)
 #define ProfileEnd() __ProfileEnd()
 #define ProfileFunctionBegin() ProfileBegin(__func__)
 #define ProfileBlock(Label) DeferBlock(ProfileBegin(Label), ProfileEnd())
@@ -87,7 +97,7 @@ internal void ProfilerInit(profiler *Profiler);
 internal void ProfilerEquip(profiler *Profiler);
 internal void ProfilerBeginFrame(profiler *Profiler);
 internal void ProfilerEndFrame(profiler *Profiler);
-internal void ProfilerReset(profiler *Profiler); // useful when some code hot-reloaded and anchor indices are stale
+internal void ProfilerReset(profiler *Profiler); // useful when some code hot-reloaded because anchor indices might be stale
 
 #else
 
@@ -107,5 +117,8 @@ internal void ProfilerReset(profiler *Profiler); // useful when some code hot-re
 // NOTE(hbr): Don't look at this, just forward declaration for things to compile more independently
 internal void __ProfileBegin(char const *Label, u16 AnchorIndex);
 internal void __ProfileEnd(void);
+
+internal b32 ProfilerIsAnchorActive(anchor_index Index);
+internal anchor_index MakeAnchorIndex(u32 Index);
 
 #endif //EDITOR_PROFILER_H

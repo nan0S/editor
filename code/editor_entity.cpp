@@ -632,7 +632,7 @@ SortEntities(arena *Arena, entity_array Entities)
   }
  }
  
- SortStable(SortArray);
+ Sort(SortArray.Entries, SortArray.Count, SortFlag_Stable);
  
  return SortArray;
 }

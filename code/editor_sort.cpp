@@ -25,23 +25,16 @@ ClearSortEntryArray(sort_entry_array *Array)
  Array->Count = 0;
 }
 
-inline internal int
-SortEntryCmp(sort_entry *A, sort_entry *B)
-{
- int Result = Cmp(A->SortKey, B->SortKey);
- return Result;
-}
-
 internal void
-QuickSort(sort_entry *Entries, u64 Count)
+QuickSort(sort_entry *Entries, u32 Count)
 {
  if (Count > 0)
  { 
-  u64 PivotIndex = Count - 1;
+  u32 PivotIndex = Count - 1;
   sort_key_f32 Pivot = Entries[PivotIndex].SortKey;
   
-  u64 Left = 0;
-  for (u64 Index = 0;
+  u32 Left = 0;
+  for (u32 Index = 0;
        Index < Count;
        ++Index)
   {
@@ -59,28 +52,28 @@ QuickSort(sort_entry *Entries, u64 Count)
 }
 
 internal sort_entry *
-MergeSortStable(sort_entry *Entries, u64 Count, sort_entry *TempMemory)
+MergeSortStable(sort_entry *Entries, u32 Count, sort_entry *TempMemory)
 {
  sort_entry *Curr = Entries;
  sort_entry *Next = TempMemory;
  
- for (u64 Length = 1;
+ for (u32 Length = 1;
       Length <= Count;
       Length <<= 1)
  {
-  for (u64 Index = 0;
+  for (u32 Index = 0;
        Index < Count;
        Index += (Length << 1))
   {
-   u64 LeftIndex = Index;
-   u64 RightIndex = LeftIndex + Length;
+   u32 LeftIndex = Index;
+   u32 RightIndex = LeftIndex + Length;
    
    sort_entry *LeftAt = Curr + LeftIndex;
    sort_entry *RightAt = Curr + RightIndex;
    
-   u64 Left = Min(Count - ClampTop(LeftIndex, Count), Length);
-   u64 Right = Min(Count - ClampTop(RightIndex, Count), Length);
-   u64 Total = Left + Right;
+   u32 Left = Min(Count - ClampTop(LeftIndex, Count), Length);
+   u32 Right = Min(Count - ClampTop(RightIndex, Count), Length);
+   u32 Total = Left + Right;
    sort_entry *NextAt = Next + Index;
    
    while (Total--)
@@ -110,23 +103,77 @@ MergeSortStable(sort_entry *Entries, u64 Count, sort_entry *TempMemory)
  return Curr;
 }
 
-internal void
-Sort(sort_entry_array Array)
+internal int
+SortEntryCmp(void *Data, sort_entry *A, sort_entry *B)
 {
- QuickSort(Array.Entries, Array.Count);
+ int Result = Cmp(A->SortKey, B->SortKey);
+ return Result;
 }
 
 internal void
-SortStable(sort_entry_array Array)
+Sort(sort_entry *Entries, u32 Count, sort_flags Flags)
 {
- temp_arena Temp = TempArena(0);
+ SortTyped(Entries, Count, SortEntryCmp, 0, Flags, sort_entry);
  
- sort_entry *TempMemory = PushArrayNonZero(Temp.Arena, Array.Count, sort_entry);
- sort_entry *Sorted = MergeSortStable(Array.Entries, Array.Count, TempMemory);
- if (Sorted != Array.Entries)
+#if 0
+ if (Flags & SortFlag_Stable)
  {
-  ArrayCopy(Array.Entries, Sorted, Array.Count);
+  temp_arena Temp = TempArena(0);
+  sort_entry *TempMemory = PushArrayNonZero(Temp.Arena, Count, sort_entry);
+  sort_entry *Sorted = MergeSortStable(Entries, Count, TempMemory);
+  if (Sorted != Entries)
+  {
+   ArrayCopy(Entries, Sorted, Count);
+  }
+  EndTemp(Temp);
  }
- 
- EndTemp(Temp);
+ else
+ {
+  QuickSort(Entries, Count);
+ }
+#endif
+}
+
+internal void
+QuickSort(void *Elems, u32 ElemSize, u32 Count, sort_cmp_func *CmpFunc, void *Data, void *SwapBuffer)
+{
+ if (Count > 0)
+ { 
+  u32 PivotIndex = Count - 1;
+  void *PivotAt = AtIndexUntyped(Elems, PivotIndex, ElemSize);
+  u32 Left = 0;
+  void *ElemAt = Elems;
+  
+  for (u32 Index = 0;
+       Index < Count;
+       ++Index)
+  {
+   void *ElemAt = AtIndexUntyped(Elems, Index, ElemSize);
+   if (CmpFunc(Data, ElemAt, PivotAt) <= 0)
+   {
+    void *ElemLeftAt = AtIndexUntyped(Elems, Left, ElemSize);
+    SwapUntyped(ElemAt, ElemLeftAt, SwapBuffer, ElemSize);
+    ++Left;
+   }
+  }
+  
+  Assert(Left > 0);
+  QuickSort(AtIndexUntyped(Elems, 0, ElemSize), ElemSize, Left - 1, CmpFunc, Data, SwapBuffer);
+  QuickSort(AtIndexUntyped(Elems, Left, ElemSize), ElemSize, Count - Left, CmpFunc, Data, SwapBuffer);
+ }
+}
+
+internal void
+__SortTyped(void *Array, u32 ElemSize, u32 Count,
+            sort_cmp_func *CmpFunc, void *Data,
+            sort_flags Flags, void *SwapBuffer)
+{
+ if (Flags & SortFlag_Stable)
+ {
+  NotImplemented;
+ }
+ else
+ {
+  QuickSort(Array, ElemSize, Count, CmpFunc, Data, SwapBuffer);
+ }
 }

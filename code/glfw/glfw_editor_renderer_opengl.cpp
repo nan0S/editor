@@ -74,8 +74,16 @@ RENDERER_BEGIN_FRAME(GLFWRendererBeginFrame)
 
 RENDERER_END_FRAME(GLFWRendererEndFrame)
 {
+ ProfileFunctionBegin();
+ 
  opengl *OpenGL = Cast(opengl *)Renderer;
  glfw_opengl_renderer *GLFW = Cast(glfw_opengl_renderer *)Renderer->Header.Platform;
  OpenGLEndFrame(OpenGL, Memory, Frame);
- glfwSwapBuffers(GLFW->Window);
+ 
+ ProfileBlock("glfwSwapBuffers")
+ {
+  glfwSwapBuffers(GLFW->Window);
+ }
+ 
+ ProfileEnd();
 }

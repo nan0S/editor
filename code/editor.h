@@ -322,7 +322,6 @@ struct visual_profiler_state
  profiler *Profiler;
  
  visual_profiler_mode Mode;
- b32 AllFramesDetailed;
  
  f32 DefaultReferenceMs;
  f32 ReferenceMs;

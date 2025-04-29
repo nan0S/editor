@@ -280,6 +280,8 @@ StaticAssert(COMPILATION_UNIT_INDEX < COMPILATION_UNIT_COUNT, CompilationUnitMac
 #define ApproxEq64(X, Y) (Abs(X - Y) <= F64_EPS)
 #define Cmp(X, Y) (((X) < (Y)) ? -1 : (((X) == (Y)) ? 0 : 1))
 #define Swap(A, B, Type) do { Type NameConcat(Temp, __LINE__) = (A); (A) = (B); (B) = NameConcat(Temp, __LINE__); } while (0)
+#define SwapUntyped(A, B, SwapBuffer, ElemSize) MemoryCopy(SwapBuffer, A, ElemSize); MemoryCopy(A, B, ElemSize); MemoryCopy(B, SwapBuffer, ElemSize)
+#define AtIndexUntyped(Base, Index, ElemSize) Cast(void *)(Cast(umm)Base + Index * ElemSize)
 #define AlignForwardPow2(Align, Pow2) (((Align)+((Pow2)-1)) & (~((Pow2)-1)))
 #define AlignForward(Value, Align) ((Value) - (((Value) + (Align) - 1) % (Align)))
 #define IsPow2(X) (((X) & (X-1)) == 0)

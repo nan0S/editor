@@ -7,6 +7,8 @@ PushVertexArray(render_group *Group,
                 v4 Color,
                 f32 ZOffset)
 {
+ ProfileFunctionBegin();
+ 
  render_frame *Frame = Group->Frame;
  if (Frame->LineCount < Frame->MaxLineCount)
  {
@@ -18,6 +20,8 @@ PushVertexArray(render_group *Group,
   Line->Model = Group->ModelXForm;
   Line->ZOffset = ZOffset + Group->ZOffset;
  }
+ 
+ ProfileEnd();
 }
 
 internal void
@@ -28,6 +32,8 @@ PushCircle(render_group *Group,
            f32 OutlineThickness = 0,
            v4 OutlineColor = V4(0, 0, 0, 0))
 {
+ ProfileFunctionBegin();
+ 
  render_frame *Frame = Group->Frame;
  if (Frame->CircleCount < Frame->MaxCircleCount)
  {
@@ -46,6 +52,8 @@ PushCircle(render_group *Group,
   Data->Color = Color;
   Data->OutlineColor = OutlineColor;
  }
+ 
+ ProfileEnd();
 }
 
 internal void
@@ -53,6 +61,8 @@ PushRectangle(render_group *Group,
               v2 P, v2 Size, v2 Rotation,
               v4 Color, f32 ZOffset)
 {
+ ProfileFunctionBegin();
+ 
  render_frame *Frame = Group->Frame;
  if (Frame->VertexCount + 6 < Frame->MaxVertexCount)
  {
@@ -96,6 +106,8 @@ PushRectangle(render_group *Group,
   
   Frame->VertexCount += 6;
  }
+ 
+ ProfileEnd();
 }
 
 internal void
@@ -104,12 +116,16 @@ PushLine(render_group *Group,
          f32 LineWidth, v4 Color,
          f32 ZOffset)
 {
+ ProfileFunctionBegin();
+ 
  v2 Position = 0.5f * (BeginPoint + EndPoint);
  v2 Line = EndPoint - BeginPoint;
  f32 Length = Norm(Line);
  v2 Size = V2(Length, LineWidth);
  v2 Rotation = Rotation2DFromVector(Line);
  PushRectangle(Group, Position, Size, Rotation, Color, ZOffset);
+ 
+ ProfileEnd();
 }
 
 internal void
@@ -117,6 +133,8 @@ PushTriangle(render_group *Group,
              v2 P0, v2 P1, v2 P2,
              v4 Color, f32 ZOffset)
 {
+ ProfileFunctionBegin();
+ 
  render_frame *Frame = Group->Frame;
  if (Frame->VertexCount + 3 < Frame->MaxVertexCount)
  {
@@ -137,6 +155,8 @@ PushTriangle(render_group *Group,
   
   Frame->VertexCount += 3;
  }
+ 
+ ProfileEnd();
 }
 
 internal void
@@ -251,13 +271,21 @@ PopTextureTransfer(renderer_transfer_queue *Queue, renderer_transfer_op *Op)
 internal void
 SetTransform(render_group *RenderGroup, mat3 Model, f32 ZOffset)
 {
+ ProfileFunctionBegin();
+ 
  RenderGroup->ModelXForm = Model;
  RenderGroup->ZOffset = ZOffset;
+ 
+ ProfileEnd();
 }
 
 internal void
 ResetTransform(render_group *RenderGroup)
 {
+ ProfileFunctionBegin();
+ 
  RenderGroup->ModelXForm = Identity3x3();
  RenderGroup->ZOffset = 0;
+ 
+ ProfileEnd();
 }

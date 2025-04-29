@@ -331,7 +331,7 @@ CompileProgramCommon(opengl *OpenGL,
   char const *AttributeName = AttributeNames[AttrIndex];
   GL_CALL(GLuint Attr = OpenGL->glGetAttribLocation(ProgramHandle, AttributeName));
   Attributes[AttrIndex] = Attr;
-  Assert(Attr != -1);
+  //Assert(Attr != -1);
  }
  
  for (u32 UniformIndex = 0;
@@ -341,7 +341,7 @@ CompileProgramCommon(opengl *OpenGL,
   char const *UniformName = UniformNames[UniformIndex];
   GL_CALL(GLuint Uniform = OpenGL->glGetUniformLocation(ProgramHandle, UniformName));
   Uniforms[UniformIndex] = Uniform;
-  Assert(Uniform != -1);
+  //Assert(Uniform != -1);
  }
  
  return ProgramHandle;
@@ -776,6 +776,9 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
  // I think I need to implement depth peeling (or sorting but this can be ugly).
  GL_CALL(glDepthFunc(GL_ALWAYS));
  
+ GL_CALL(glEnable(GL_DEBUG_OUTPUT));
+ GL_CALL(glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS));
+ 
  GLuint DummyVAO;
  GL_CALL(OpenGL->glGenVertexArrays(1, &DummyVAO));
  GL_CALL(OpenGL->glBindVertexArray(DummyVAO));
@@ -869,11 +872,11 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
  
  if (GlobalRendererCodeReloadedOrRendererInitialized)
  {
+  ProfileBegin("HotReloadShaders");
+  
   //- fix error handling function pointer
   if (OpenGL->glDebugMessageCallback)
   {
-   GL_CALL(glEnable(GL_DEBUG_OUTPUT));
-   GL_CALL(glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS));
    //GL_CALL(OpenGL->glDebugMessageCallback(OpenGLDebugCallback, 0));
   }
   
@@ -891,6 +894,8 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
   OpenGL->Vertex.Program = CompileVertexProgram(OpenGL);
   
   GlobalRendererCodeReloadedOrRendererInitialized = false;
+  
+  ProfileEnd();
  }
  
  RenderFrame->LineCount = 0;
@@ -907,7 +912,10 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
  RenderFrame->MaxVertexCount = Memory->MaxVertexCount;
  RenderFrame->WindowDim = WindowDim;
  
- Memory->ImGuiNewFrame();
+ ProfileBlock("ImGuiNewFrame")
+ { 
+  Memory->ImGuiNewFrame();
+ }
  
  ProfileEnd();
  
@@ -917,6 +925,8 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
 internal void
 OpenGLManageTransferQueue(opengl *OpenGL, renderer_transfer_queue *Queue)
 {
+ ProfileFunctionBegin();
+ 
  GLuint *Textures = OpenGL->Textures;
  
  while (Queue->OpCount)
@@ -965,6 +975,8 @@ OpenGLManageTransferQueue(opengl *OpenGL, renderer_transfer_queue *Queue)
    Queue->FirstOpIndex = 0;
   }
  }
+ 
+ ProfileEnd();
 }
 
 internal void
@@ -986,6 +998,8 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
  
  //- draw images
  {
+  ProfileBegin("DrawImages");
+  
   image_program *Prog = &OpenGL->Image.Program;
   UseProgramBegin(OpenGL, Prog, Projection);
   
@@ -1032,10 +1046,14 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
   }
   
   UseProgramEnd(OpenGL, Prog);
+  
+  ProfileEnd();
  }
  
  //- draw lines
  {
+  ProfileBegin("DrawLines");
+  
   line_program *Prog = &OpenGL->Line.Program;
   UseProgramBegin(OpenGL, Prog);
   
@@ -1069,10 +1087,14 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
   }
   
   UseProgramEnd(OpenGL, Prog);
+  
+  ProfileEnd();
  }
  
  //- draw vertices
  {
+  ProfileBegin("DrawVertices");
+  
   vertex_program *Prog = &OpenGL->Vertex.Program;
   UseProgramBegin(OpenGL, Prog, Projection);
   
@@ -1089,10 +1111,14 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
   GL_CALL(OpenGL->glDrawArrays(GL_TRIANGLES, 0, Frame->VertexCount));
   
   UseProgramEnd(OpenGL, Prog);
+  
+  ProfileEnd();
  }
  
  //- instance draw circles
  {
+  ProfileBegin("InstaceDrawCircles");
+  
   GLuint QuadVBO = OpenGL->PerfectCircle.QuadVBO;
   GLuint CircleVBO = OpenGL->PerfectCircle.CircleVBO;
   
@@ -1120,9 +1146,14 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
   GL_CALL(OpenGL->glDrawArraysInstanced(GL_TRIANGLES, 0, 6, Frame->CircleCount));
   
   UseProgramEnd(OpenGL, Prog);
+  
+  ProfileEnd();
  }
  
- Memory->ImGuiRender();
+ ProfileBlock("ImGuiRender")
+ {
+  Memory->ImGuiRender();
+ }
  
  ProfileEnd();
 }

@@ -50,7 +50,7 @@ ProfilerReset(profiler *Profiler)
 }
 
 inline internal void
-__ProfileBegin(char const *Label, u16 AnchorIndex)
+__ProfileBegin(char const *Label, char const *File, int Line, u16 AnchorIndex)
 {
  Assert(COMPILATION_UNIT_PROFILER_ANCHOR_INDEX_OFFSET <= AnchorIndex &&
         AnchorIndex < (COMPILATION_UNIT_PROFILER_ANCHOR_INDEX_OFFSET +
@@ -69,8 +69,25 @@ __ProfileBegin(char const *Label, u16 AnchorIndex)
  Block->ParentIndex = Profiler->AnchorParentIndex;
  Profiler->AnchorParentIndex.Index = AnchorIndex;
  Block->Label = Label;
+ Block->File = File;
+ Block->Line = Line;
  
  Block->StartTSC = OS_ReadCPUTimer();
+}
+
+inline internal b32
+ProfilerIsAnchorActive(anchor_index Index)
+{
+ profiler *Profiler = GlobalProfiler;
+ b32 Result = (Profiler->AnchorLabels[Index.Index].Data != 0);
+ return Result;
+}
+
+inline internal anchor_index
+MakeAnchorIndex(u32 Index)
+{
+ anchor_index Result = {SafeCastU16(Index)};
+ return Result;
 }
 
 inline internal void
@@ -97,18 +114,21 @@ __ProfileEnd(void)
  Anchor->Parent = Block->ParentIndex;
  Parent->TotalSelfTSC -= ElapsedTSC;
  
- if (Profiler->Labels[AnchorIndex.Index].Data == 0)
+ if (!ProfilerIsAnchorActive(AnchorIndex))
  {
   u32 LabelBufferAt = Profiler->LabelBufferAt;
   u32 SpaceLeft = MAX_PROFILER_LABEL_BUFFER_LENGTH - LabelBufferAt;
   
   char *Label = Profiler->LabelBuffer + LabelBufferAt;
-  u32 LabelLength = SafeCastU32(CStrLen(Block->Label));
-  u32 CopyLength = Min(SpaceLeft, LabelLength);
-  MemoryCopy(Label, Block->Label, CopyLength);
+  u32 ToCopy = Min(SpaceLeft, SafeCastU32(CStrLen(Block->Label)));
+  MemoryCopy(Label, Block->Label, ToCopy);
   
-  Profiler->LabelBufferAt = LabelBufferAt + CopyLength;
-  Profiler->Labels[AnchorIndex.Index] = MakeStr(Label, CopyLength);
+  Profiler->LabelBufferAt = LabelBufferAt + ToCopy;
+  Profiler->AnchorLabels[AnchorIndex.Index] = MakeStr(Label, ToCopy);
+  
+  profile_anchor_source_code_location *Location = Profiler->AnchorLocations + AnchorIndex.Index;
+  Location->File = Block->File;
+  Location->Line = Block->Line;
  }
  
  Profiler->AnchorParentIndex = Block->ParentIndex;

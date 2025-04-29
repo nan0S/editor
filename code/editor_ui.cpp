@@ -388,6 +388,7 @@ UI_PushColor(ui_color_apply Apply, v4 Color)
  {
   case UI_Color_Text: {
    ImCols[0] = ImGuiCol_Text;
+   Colors[0] = Color;
    ColCount = 1;
   }break;
   

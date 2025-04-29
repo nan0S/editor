@@ -25,37 +25,11 @@ ClearSortEntryArray(sort_entry_array *Array)
  Array->Count = 0;
 }
 
-internal void
-QuickSort(sort_entry *Entries, u32 Count)
+internal void *
+MergeSortStable(void *Elems, u32 ElemSize, u32 Count, void *Temp, sort_cmp_func *CmpFunc, void *Data)
 {
- if (Count > 0)
- { 
-  u32 PivotIndex = Count - 1;
-  sort_key_f32 Pivot = Entries[PivotIndex].SortKey;
-  
-  u32 Left = 0;
-  for (u32 Index = 0;
-       Index < Count;
-       ++Index)
-  {
-   if (Entries[Index].SortKey <= Pivot)
-   {
-    Swap(Entries[Index], Entries[Left], sort_entry);
-    ++Left;
-   }
-  }
-  
-  Assert(Left > 0);
-  QuickSort(Entries, Left - 1);
-  QuickSort(Entries + Left, Count - Left);
- }
-}
-
-internal sort_entry *
-MergeSortStable(sort_entry *Entries, u32 Count, sort_entry *TempMemory)
-{
- sort_entry *Curr = Entries;
- sort_entry *Next = TempMemory;
+ void *Curr = Elems;
+ void *Next = Temp;
  
  for (u32 Length = 1;
       Length <= Count;
@@ -68,36 +42,38 @@ MergeSortStable(sort_entry *Entries, u32 Count, sort_entry *TempMemory)
    u32 LeftIndex = Index;
    u32 RightIndex = LeftIndex + Length;
    
-   sort_entry *LeftAt = Curr + LeftIndex;
-   sort_entry *RightAt = Curr + RightIndex;
+   void *LeftAt = AtIndexUntyped(Curr, LeftIndex, ElemSize);
+   void *RightAt = AtIndexUntyped(Curr, RightIndex, ElemSize);
    
    u32 Left = Min(Count - ClampTop(LeftIndex, Count), Length);
    u32 Right = Min(Count - ClampTop(RightIndex, Count), Length);
    u32 Total = Left + Right;
-   sort_entry *NextAt = Next + Index;
+   void *NextAt = AtIndexUntyped(Next, Index, ElemSize);
    
    while (Total--)
    {
-    sort_entry *Less;
-    if (Left == 0 || (Right > 0 && LeftAt->SortKey > RightAt->SortKey))
+    void *Less;
+    if (Left == 0 || (Right > 0 &&  CmpFunc(Data, LeftAt, RightAt) > 0))
     {
      Less = RightAt;
      Assert(Right > 0);
-     ++RightAt;
+     RightAt = AdvancedPtrUntyped(RightAt, ElemSize);
      --Right;
     }
     else
     {
      Less = LeftAt;
      Assert(Left > 0);
-     ++LeftAt;
+     LeftAt = AdvancedPtrUntyped(LeftAt, ElemSize);
      --Left;
     }
-    *NextAt++ = *Less;
+    
+    MemoryCopy(NextAt, Less, ElemSize);
+    NextAt = AdvancedPtrUntyped(NextAt, ElemSize);
    }
   }
   
-  Swap(Curr, Next, sort_entry *);
+  Swap(Curr, Next, void *);
  }
  
  return Curr;
@@ -114,24 +90,6 @@ internal void
 Sort(sort_entry *Entries, u32 Count, sort_flags Flags)
 {
  SortTyped(Entries, Count, SortEntryCmp, 0, Flags, sort_entry);
- 
-#if 0
- if (Flags & SortFlag_Stable)
- {
-  temp_arena Temp = TempArena(0);
-  sort_entry *TempMemory = PushArrayNonZero(Temp.Arena, Count, sort_entry);
-  sort_entry *Sorted = MergeSortStable(Entries, Count, TempMemory);
-  if (Sorted != Entries)
-  {
-   ArrayCopy(Entries, Sorted, Count);
-  }
-  EndTemp(Temp);
- }
- else
- {
-  QuickSort(Entries, Count);
- }
-#endif
 }
 
 internal void
@@ -170,7 +128,14 @@ __SortTyped(void *Array, u32 ElemSize, u32 Count,
 {
  if (Flags & SortFlag_Stable)
  {
-  NotImplemented;
+  temp_arena Temp = TempArena(0);
+  void *TempMemory = PushArrayUntypedNonZero(Temp.Arena, Count, ElemSize);
+  void *Sorted = MergeSortStable(Array, ElemSize, Count, TempMemory, CmpFunc, Data);
+  if (Sorted != Array)
+  {
+   ArrayCopyUntyped(Array, Sorted, Count, ElemSize);
+  }
+  EndTemp(Temp);
  }
  else
  {

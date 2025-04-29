@@ -33,6 +33,8 @@ internal void * PushSizeNonZero(arena *Arena, u64 Size);
 #define         PushStringNonZero(Arena, Length) MakeStr(PushArrayNonZero(Arena, Length, char), Length)
 #define         PushArray2D(Arena, Rows, Cols, Type) PushArray(Arena, (Rows) * (Cols), Type)
 #define         PushArray2DNonZero(Arena, Rows, Cols, Type) PushArrayNonZero(Arena, (Rows) * (Cols), Type)
+#define         PushArrayUntyped(Arena, Count, ElemSize) PushSize(Arena, (Count) * (ElemSize))
+#define         PushArrayUntypedNonZero(Arena, Count, ElemSize) PushSizeNonZero(Arena, (Count) * (ElemSize))
 
 internal temp_arena BeginTemp(arena *Arena);
 internal void       EndTemp(temp_arena Temp);

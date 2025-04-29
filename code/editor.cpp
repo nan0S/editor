@@ -3725,6 +3725,12 @@ AnchorFilterCmp(void *Data, anchor_filter *A, anchor_filter *B)
 }
 
 internal void
+RenderProfileAnchor()
+{
+ 
+}
+
+internal void
 RenderProfilerWindowContents(editor *Editor)
 {
  visual_profiler_state *Visual = &Editor->Profiler;

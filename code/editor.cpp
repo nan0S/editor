@@ -3724,95 +3724,146 @@ AnchorFilterCmp(void *Data, anchor_filter *A, anchor_filter *B)
  return Result;
 }
 
-struct vertical_anchor_layout
+enum profiles_layout_mode
 {
- f32 ProfileWidth;
- f32 DrawHeight;
+ ProfilesLayoutMode_Horizontal,
+ ProfilesLayoutMode_Vertical,
+};
+struct profiles_layout
+{
+ profiles_layout_mode Mode;
+ 
  f32 Inv_ReferenceMs;
  
  u32 PaletteColorCount;
  v4 *ColorPalette;
  
- f32 StartAtY;
+ rect2 DrawRegion;
  
  f32 AtX;
  f32 AtY;
  
- u32 ProfileId;
+ f32 MainDimensionSize;
+ 
+ u32 RectId;
 };
-internal vertical_anchor_layout
-MakeVerticalProfilesLayout(f32 ProfileWidth,
-                           f32 DrawHeight,
-                           f32 Inv_ReferenceMs,
-                           u32 PaletteColorCount,
-                           v4 *ColorPalette,
-                           f32 AtX,
-                           f32 StartAtY)
+internal profiles_layout
+MakeProfilesLayout(profiles_layout_mode Mode,
+                   f32 Inv_ReferenceMs,
+                   u32 PaletteColorCount,
+                   v4 *ColorPalette,
+                   rect2 DrawRegion)
 {
- vertical_anchor_layout Layout = {};
- Layout.ProfileWidth = ProfileWidth;
- Layout.DrawHeight = DrawHeight;
+ profiles_layout Layout = {};
+ 
+ Layout.Mode = Mode;
  Layout.Inv_ReferenceMs = Inv_ReferenceMs;
  Layout.PaletteColorCount = PaletteColorCount;
  Layout.ColorPalette = ColorPalette;
- Layout.AtX = AtX;
- Layout.StartAtY = StartAtY;
+ Layout.DrawRegion = DrawRegion;
+ 
+ f32 DrawWidth = DrawRegion.Max.X - DrawRegion.Min.X;
+ f32 DrawHeight = DrawRegion.Max.Y - DrawRegion.Min.Y;
+ 
+ switch (Mode)
+ {
+  case ProfilesLayoutMode_Horizontal: {
+   Layout.AtX = DrawRegion.Min.X;
+   Layout.AtY = DrawRegion.Min.Y;
+   Layout.MainDimensionSize = DrawWidth;
+  }break;
+  
+  case ProfilesLayoutMode_Vertical: {
+   Layout.AtX = DrawRegion.Min.X;
+   Layout.AtY = DrawRegion.Max.Y;
+   Layout.MainDimensionSize = DrawHeight;
+  }break;
+ }
  
  return Layout;
 }
 
 internal clicked_b32
-RenderProfile(vertical_anchor_layout *Layout,
+RenderProfile(profiles_layout *Layout,
               string ProfileLabelOverride,
               f32 ProfileMsOverride,
-              u32 ProfileId)
+              u32 ProfileId,
+              f32 ProfileSizeInOtherDimension,
+              b32 AddStandardTooltip)
 {
  b32 Clicked = false;
  
- f32 AnchorWidth = Layout->ProfileWidth;
- f32 AnchorHeight = Layout->DrawHeight * ProfileMsOverride * Layout->Inv_ReferenceMs;
+ f32 ProfileMainSize = Layout->MainDimensionSize * ProfileMsOverride * Layout->Inv_ReferenceMs;
  
- Layout->AtY -= AnchorHeight;
- 
- f32 AnchorTopLeftX = Layout->AtX;
- f32 AnchorTopLeftY = Layout->AtY;
- 
- v2 AnchorSize = V2(AnchorWidth, AnchorHeight);
- v2 AnchorTopLeftP = V2(AnchorTopLeftX, AnchorTopLeftY);
- v4 AnchorColor = Layout->ColorPalette[ProfileId % Layout->PaletteColorCount];
- 
- UI_SetNextItemSize(AnchorSize);
- UI_SetNextItemPos(AnchorTopLeftP);
- UI_Colored(UI_Color_Item, AnchorColor)
+ v2 ProfileSize = {};
+ v2 ProfileTopLeftP = {};
+ switch (Layout->Mode)
  {
-  if (UI_Rect(Layout->ProfileId))
+  case ProfilesLayoutMode_Horizontal: {
+   ProfileSize = V2(ProfileMainSize, ProfileSizeInOtherDimension);
+   ProfileTopLeftP = V2(Layout->AtX, Layout->AtY);
+   Layout->AtX += ProfileSize.X;
+  }break;
+  
+  case ProfilesLayoutMode_Vertical: {
+   ProfileSize = V2(ProfileSizeInOtherDimension, ProfileMainSize);
+   Layout->AtY -= ProfileSize.Y;
+   ProfileTopLeftP = V2(Layout->AtX, Layout->AtY);
+  }break;
+ }
+ 
+ v4 ProfileColor = Layout->ColorPalette[ProfileId % Layout->PaletteColorCount];
+ 
+ UI_SetNextItemSize(ProfileSize);
+ UI_SetNextItemPos(ProfileTopLeftP);
+ UI_Colored(UI_Color_Item, ProfileColor)
+ {
+  if (UI_Rect(Layout->RectId))
   {
    Clicked = true;
   }
  }
- if (UI_IsItemHovered())
+ if (AddStandardTooltip)
  {
-  UI_TooltipF("[%.2fms] %S", ProfileMsOverride, ProfileLabelOverride);
+  if (UI_IsItemHovered())
+  {
+   UI_TooltipF("[%.2fms] %S", ProfileMsOverride, ProfileLabelOverride);
+  }
  }
  
- ++Layout->ProfileId;
+ ++Layout->RectId;
  
  return Clicked;
 }
 
 internal void
-BeginColumn(vertical_anchor_layout *Layout, u32 FrameIndex)
+AdvanceColumn(profiles_layout *Layout, f32 AdvanceBy)
 {
- Layout->AtY = Layout->StartAtY;
- Layout->ProfileId = 0;
- UI_PushId(FrameIndex);
+ Assert(Layout->Mode == ProfilesLayoutMode_Vertical);
+ Layout->AtX += AdvanceBy;
+ Layout->AtY = Layout->DrawRegion.Max.Y;
 }
 
 internal void
-EndColumn(vertical_anchor_layout *Layout)
+AdvanceRow(profiles_layout *Layout, f32 AdvanceBy)
 {
- Layout->AtX += Layout->ProfileWidth;
- UI_PopId();
+ Assert(Layout->Mode == ProfilesLayoutMode_Horizontal);
+ Layout->AtX = Layout->DrawRegion.Min.X;
+ Layout->AtY += AdvanceBy;
+}
+
+internal void
+AdvanceCursor(profiles_layout *Layout, f32 AdvanceBy)
+{
+ switch (Layout->Mode)
+ {
+  case ProfilesLayoutMode_Horizontal: {
+   Layout->AtX += AdvanceBy;
+  }break;
+  case ProfilesLayoutMode_Vertical: {
+   Layout->AtY -= AdvanceBy;
+  }break;
+ }
 }
 
 internal void
@@ -3837,11 +3888,7 @@ RenderProfilerWindowContents(editor *Editor)
  
  switch (Mode)
  {
-  case VisualProfilerMode_AllFrames: {
-   //- configuration buttons/sliders
-   UI_CheckboxF(&Visual->Stopped, "Stop");
-   UI_SameRow();
-  }break;
+  case VisualProfilerMode_AllFrames: {}break;
   
   case VisualProfilerMode_SingleFrame: {
    if (UI_Button(StrLit("Back")))
@@ -3852,6 +3899,9 @@ RenderProfilerWindowContents(editor *Editor)
   }break;
  }
  
+ UI_CheckboxF(&Visual->Stopped, "Stop");
+ 
+ UI_SameRow();
  UI_Label(StrLit("Reference"))
  {
   UI_SliderFloat(&Visual->ReferenceMs, 1000.0f/500, 1000.0f/30, StrLit("Reference ms"));
@@ -3935,13 +3985,11 @@ RenderProfilerWindowContents(editor *Editor)
    u32 FrameCount = MAX_PROFILER_FRAME_COUNT;
    f32 FrameWidth = DrawWidth / FrameCount;
    
-   vertical_anchor_layout Layout = MakeVerticalProfilesLayout(FrameWidth,
-                                                              DrawHeight,
-                                                              Inv_ReferenceMs,
-                                                              ArrayCount(ColorPalette),
-                                                              ColorPalette,
-                                                              DrawRegion.Min.X,
-                                                              DrawRegion.Max.Y);
+   profiles_layout Layout = MakeProfilesLayout(ProfilesLayoutMode_Vertical,
+                                               Inv_ReferenceMs,
+                                               ArrayCount(ColorPalette),
+                                               ColorPalette,
+                                               DrawRegion);
    
    for (u32 FrameIndex = 0;
         FrameIndex < FrameCount;
@@ -3950,14 +3998,12 @@ RenderProfilerWindowContents(editor *Editor)
     profiler_frame *Frame = Profiler->Frames + FrameIndex;
     b32 ProfileClicked = false;
     
-    BeginColumn(&Layout, FrameIndex);
-    
     //- render just frames, without splitting into anchors
     if (FilterIndex == FilterNone)
     {
      string FrameLabel = StrF(Temp.Arena, "Frame %u", FrameIndex);
      f32 FrameTotalMs = MsFromTSC(Frame->TotalTSC, Profiler->Inv_CPU_Freq);
-     ProfileClicked |= RenderProfile(&Layout, FrameLabel, FrameTotalMs, 0);
+     ProfileClicked |= RenderProfile(&Layout, FrameLabel, FrameTotalMs, 0, FrameWidth, true);
     }
     //- render all frame anchors
     else if (FilterIndex == FilterAll)
@@ -3974,7 +4020,7 @@ RenderProfilerWindowContents(editor *Editor)
                             StrLit("NOT PROFILED") :
                             Profiler->AnchorLabels[AnchorInfo.AnchorIndex]);
       f32 AnchorMs = AnchorInfo.AnchorMs;
-      ProfileClicked |= RenderProfile(&Layout, AnchorLabel, AnchorMs, AnchorInfo.AnchorIndex);
+      ProfileClicked |= RenderProfile(&Layout, AnchorLabel, AnchorMs, AnchorInfo.AnchorIndex, FrameWidth, true);
      }
      
      EndTemp(Temp2);
@@ -3985,7 +4031,7 @@ RenderProfilerWindowContents(editor *Editor)
      anchor_index AnchorIndex = AnchorFilters[FilterIndex].AnchorIndex;
      string AnchorLabel = Profiler->AnchorLabels[AnchorIndex.Index];
      f32 AnchorMs = MsFromTSC(Frame->Anchors[AnchorIndex.Index].TotalSelfTSC, Profiler->Inv_CPU_Freq);
-     ProfileClicked |= RenderProfile(&Layout, AnchorLabel, AnchorMs, AnchorIndex.Index);
+     ProfileClicked |= RenderProfile(&Layout, AnchorLabel, AnchorMs, AnchorIndex.Index, FrameWidth, true);
     }
     else
     {
@@ -3997,7 +4043,7 @@ RenderProfilerWindowContents(editor *Editor)
      ProfilerInspectSingleFrame(Visual, FrameIndex);
     }
     
-    EndColumn(&Layout);
+    AdvanceColumn(&Layout, FrameWidth);
    }
   }break;
   
@@ -4011,38 +4057,31 @@ RenderProfilerWindowContents(editor *Editor)
    f32 AnchorHeight = DrawHeight / (SortedAnchors.Count + (SortedAnchors.Count + 1) * PaddingFraction);
    f32 PaddingHeight = PaddingFraction * AnchorHeight;
    
-   f32 AtY = DrawRegion.Min.Y + PaddingHeight;
+   profiles_layout Layout = MakeProfilesLayout(ProfilesLayoutMode_Horizontal,
+                                               Inv_ReferenceMs,
+                                               ArrayCount(ColorPalette),
+                                               ColorPalette,
+                                               DrawRegion);
+   
+   AdvanceRow(&Layout, PaddingHeight);
+   
    for (u32 SortIndex = 0;
         SortIndex < SortedAnchors.Count;
         ++SortIndex)
    {
     profile_anchor_info AnchorInfo = GetProfileAnchorInfo(&SortedAnchors, SortIndex);
-    
     string AnchorLabel = (AnchorInfo.IsFakeMissingAnchor ?
                           StrLit("NOT PROFILED") :
                           Profiler->AnchorLabels[AnchorInfo.AnchorIndex]);
     f32 AnchorMs = AnchorInfo.AnchorMs;
     
-    f32 AnchorWidth = DrawWidth * AnchorMs * Inv_ReferenceMs;
-    f32 AnchorTopLeftX = DrawRegion.Min.X;
-    f32 AnchorTopLeftY = AtY;
-    
-    v2 AnchorSize = V2(AnchorWidth, AnchorHeight);
-    v2 AnchorTopLeftP = V2(AnchorTopLeftX, AnchorTopLeftY);
-    v4 AnchorColor = ColorPalette[AnchorInfo.AnchorIndex % ArrayCount(ColorPalette)];
-    
-    UI_SetNextItemSize(AnchorSize);
-    UI_SetNextItemPos(AnchorTopLeftP);
-    UI_Colored(UI_Color_Item, AnchorColor)
-    {
-     UI_Rect(SortIndex);
-     MaybeProfileAnchorSourceCodeLocationTooltip(AnchorInfo, Profiler);
-    }
+    RenderProfile(&Layout, AnchorLabel, AnchorMs, AnchorInfo.AnchorIndex, AnchorHeight, false);
+    MaybeProfileAnchorSourceCodeLocationTooltip(AnchorInfo, Profiler);
     UI_SameRow();
     UI_TextF(false, "[%.2fms] %S", AnchorMs, AnchorLabel);
     MaybeProfileAnchorSourceCodeLocationTooltip(AnchorInfo, Profiler);
     
-    AtY += AnchorHeight + PaddingHeight;
+    AdvanceRow(&Layout, PaddingHeight + AnchorHeight);
    }
    
    EndTemp(Temp2);
@@ -4193,8 +4232,9 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input_ouput *Input, struc
   UpdateAndRenderNotifications(Editor, Input, RenderGroup);
   UpdateAndRenderAnimatingCurvesUI(Editor);
   UpdateAndRenderMergingCurvesUI(Editor);
-  RenderProfilerWindowUI(Editor, Input);
   RenderDevConsole(Editor);
+  RenderProfilerWindowUI(Editor, Input);
+  
   
 #if BUILD_DEBUG
   UI_RenderDemoWindow();

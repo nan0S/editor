@@ -61,9 +61,6 @@ TODOs:
 - when returning named type from internal like [added_point_index], include 64 in the name, and don't use this name at call sites, just variable name will do
 - is [MarkCurveForRecomputation] really needed after every operation to curve like [Append] or [Insert], can't just set the flag instead
 - when passing [curve] to a internal but as [entity], maybe write a macro that gets [curve] from that [entity] but asserts that it really is a curve
-- get rid of defer and templates
-- get rid of [MemoryZero] in all initialization internals?
-- replace imgui
 - [splitting_curve_point] and similar shouldn't have [IsSplitting] maybe, just some pointer to identify whether this is happening
  - when initializing entities, image and curve, I use [MemoryZero] a lot, maybe just assume that memory is zeroed already
 - be careful when calling [SetCurveControlPoints] when it comes to whether points are in world or local space

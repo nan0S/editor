@@ -174,6 +174,7 @@ IMGUI_SHOW_DEMO_WINDOW(ImGuiShowDemoWindow)
 #define ImGuiGetCursorPos ImGui::GetCursorPos
 #define ImGuiGetWindowContentRegionMax ImGui::GetWindowContentRegionMax
 #define ImGuiGetContentRegionAvail  ImGui::GetContentRegionAvail
+#define ImGuiBulletText ImGui::BulletText
 
 #else
 
@@ -239,6 +240,7 @@ IMGUI_GET_WINDOW_SIZE(ImGuiGetWindowSize){return {};}
 IMGUI_GET_CURSOR_POS(ImGuiGetCursorPos){return {};}
 IMGUI_GET_WINDOW_CONTENT_REGION_MAX(ImGuiGetWindowContentRegionMax){return {};}
 IMGUI_GET_CONTENT_REGION_AVAIL(ImGuiGetContentRegionAvail){return {};}
+IMGUI_BULLET_TEXT(ImGuiBulletText){}
 
 #endif
 
@@ -357,5 +359,6 @@ platform_api Platform = {
   ImGuiGetContentRegionAvail,
   ImGuiShowDemoWindow,
   ImGuiSetNextWindowPos,
+  ImGuiBulletText,
  },
 };

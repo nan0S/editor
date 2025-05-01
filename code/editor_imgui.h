@@ -204,6 +204,9 @@ typedef IMGUI_SHOW_DEMO_WINDOW(imgui_ShowDemoWindow);
 #define IMGUI_SET_NEXT_WINDOW_POS(Name) void Name(ImVec2 pos, ImGuiCond cond, ImVec2 pivot)
 typedef IMGUI_SET_NEXT_WINDOW_POS(imgui_SetNextWindowPos);
 
+#define IMGUI_BULLET_TEXT(Name) void Name(const char* fmt, ...)
+typedef IMGUI_BULLET_TEXT(imgui_BulletText);
+
 struct imgui_bindings
 {
 #define ImGuiFunc(Name) imgui_##Name *Name
@@ -270,6 +273,7 @@ struct imgui_bindings
  ImGuiFunc(GetContentRegionAvail);
  ImGuiFunc(ShowDemoWindow);
  ImGuiFunc(SetNextWindowPos);
+ ImGuiFunc(BulletText);
  
 #undef ImGuiFunc
 };

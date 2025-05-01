@@ -158,7 +158,7 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
      u32 ControlPointCount = Curve->ControlPointCount;
      v2 *ControlPoints = Curve->ControlPoints;
      curve_params *Params = &Curve->Params;
-     curve_point_tracking_state *Tracking = &Curve->PointTracking;
+     point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
      
      if (AreCurvePointsVisible(Curve))
      {
@@ -231,7 +231,7 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
       
       // NOTE(hbr): !Collision.Entity - small optimization because this collision doesn't add
       // anything to Flags.
-      if (!Tracking->IsSplitting && !Result.Entity)
+      if ((Tracking->Type == PointTrackingAlongCurve_DeCasteljauVisualization) && !Result.Entity)
       {
        u32 IterationCount = Tracking->Intermediate.IterationCount;
        v2 *Points = Tracking->Intermediate.P;
@@ -440,7 +440,7 @@ PerformBezierCurveSplit(entity_with_modify_witness *EntityWitness, editor *Edito
  
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
- curve_point_tracking_state *Tracking = &Curve->PointTracking;
+ point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
  Assert(Tracking->Active);
  Tracking->Active = false;
  
@@ -749,59 +749,61 @@ UpdateAndRenderPointTracking(rendering_entity_handle Handle)
  
  curve *Curve = &Entity->Curve;
  curve_params *CurveParams = &Curve->Params;
- curve_point_tracking_state *Tracking = &Curve->PointTracking;
+ point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
  
  if (Tracking->Active)
  {
-  if (Tracking->IsSplitting)
+  switch (Tracking->Type)
   {
-   f32 Radius = GetCurveTrackedPointRadius(Curve);
-   v4 Color = V4(0.0f, 1.0f, 0.0f, 0.5f);
-   f32 OutlineThickness = 0.3f * Radius;
-   v4 OutlineColor = DarkenColor(Color, 0.5f);
-   
-   PushCircle(RenderGroup,
-              Entity->P + Tracking->LocalSpaceTrackedPoint,
-              Entity->Rotation, Entity->Scale,
-              Radius, Color,
-              GetCurvePartZOffset(CurvePart_BezierSplitPoint),
-              OutlineThickness, OutlineColor);
-  }
-  else
-  {
-   u32 IterationCount = Tracking->Intermediate.IterationCount;
-   f32 P = 0.0f;
-   f32 Delta_P = 1.0f / (IterationCount - 1);
-   v4 GradientA = RGBA_Color(255, 0, 144);
-   v4 GradientB = RGBA_Color(155, 200, 0);
-   // TODO(hbr): Shouldn't this use some of the functions that are already used for drwaing curve points to be consistent?
-   f32 PointSize = CurveParams->PointRadius;
-   
-   u32 PointIndex = 0;
-   for (u32 Iteration = 0;
-        Iteration < IterationCount;
-        ++Iteration)
-   {
-    v4 IterationColor = Lerp(GradientA, GradientB, P);
+   case PointTrackingAlongCurve_BezierCurveSplit: {
+    f32 Radius = GetCurveTrackedPointRadius(Curve);
+    v4 Color = V4(0.0f, 1.0f, 0.0f, 0.5f);
+    f32 OutlineThickness = 0.3f * Radius;
+    v4 OutlineColor = DarkenColor(Color, 0.5f);
     
-    PushVertexArray(RenderGroup,
-                    Tracking->LineVerticesPerIteration[Iteration].Vertices,
-                    Tracking->LineVerticesPerIteration[Iteration].VertexCount,
-                    Tracking->LineVerticesPerIteration[Iteration].Primitive,
-                    IterationColor, GetCurvePartZOffset(CurvePart_DeCasteljauAlgorithmLines));
+    PushCircle(RenderGroup,
+               Entity->P + Tracking->LocalSpaceTrackedPoint,
+               Entity->Rotation, Entity->Scale,
+               Radius, Color,
+               GetCurvePartZOffset(CurvePart_BezierSplitPoint),
+               OutlineThickness, OutlineColor);
+   }break;
+   
+   case PointTrackingAlongCurve_DeCasteljauVisualization: {
+    u32 IterationCount = Tracking->Intermediate.IterationCount;
+    f32 P = 0.0f;
+    f32 Delta_P = 1.0f / (IterationCount - 1);
+    v4 GradientA = RGBA_Color(255, 0, 144);
+    v4 GradientB = RGBA_Color(155, 200, 0);
+    // TODO(hbr): Shouldn't this use some of the functions that are already used for drwaing curve points to be consistent?
+    f32 PointSize = CurveParams->PointRadius;
     
-    for (u32 I = 0; I < IterationCount - Iteration; ++I)
+    u32 PointIndex = 0;
+    for (u32 Iteration = 0;
+         Iteration < IterationCount;
+         ++Iteration)
     {
-     v2 Point = Tracking->Intermediate.P[PointIndex];
-     PushCircle(RenderGroup,
-                Entity->P + Point, Entity->Rotation, Entity->Scale,
-                PointSize, IterationColor,
-                GetCurvePartZOffset(CurvePart_DeCasteljauAlgorithmPoints));
-     ++PointIndex;
+     v4 IterationColor = Lerp(GradientA, GradientB, P);
+     
+     PushVertexArray(RenderGroup,
+                     Tracking->LineVerticesPerIteration[Iteration].Vertices,
+                     Tracking->LineVerticesPerIteration[Iteration].VertexCount,
+                     Tracking->LineVerticesPerIteration[Iteration].Primitive,
+                     IterationColor, GetCurvePartZOffset(CurvePart_DeCasteljauAlgorithmLines));
+     
+     for (u32 I = 0; I < IterationCount - Iteration; ++I)
+     {
+      v2 Point = Tracking->Intermediate.P[PointIndex];
+      PushCircle(RenderGroup,
+                 Entity->P + Point, Entity->Rotation, Entity->Scale,
+                 PointSize, IterationColor,
+                 GetCurvePartZOffset(CurvePart_DeCasteljauAlgorithmPoints));
+      ++PointIndex;
+     }
+     
+     P += Delta_P;
     }
-    
-    P += Delta_P;
-   }
+   }break;
   }
  }
 }
@@ -1238,7 +1240,6 @@ InitEditor(editor *Editor, editor_memory *Memory)
   AppendControlPoint(&EntityWitness, V2(-0.5f, +0.5f));
   
   Entity->Curve.PointTracking.Active = true;
-  Entity->Curve.PointTracking.IsSplitting = false;
   SetTrackingPointFraction(&EntityWitness, 0.5f);
   
   EndEntityModify(EntityWitness);
@@ -2167,17 +2168,23 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
      {
       UI_LabelF("PointTracking")
       {
-       curve_point_tracking_state *Tracking = &Curve->PointTracking;
+       point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
        f32 Fraction = Tracking->Fraction;
-       b32 BezierTrackingActive = (Tracking->IsSplitting ? false : Tracking->Active);
-       b32 SplittingTrackingActive = (Tracking->IsSplitting ? Tracking->Active : false);
+       
+       b32 BezierTrackingActive = false;
+       b32 SplittingTrackingActive = false;
+       switch (Tracking->Type)
+       {
+        case PointTrackingAlongCurve_DeCasteljauVisualization: {BezierTrackingActive = Tracking->Active;}break;
+        case PointTrackingAlongCurve_BezierCurveSplit: {SplittingTrackingActive = Tracking->Active;}break;
+       }
        
        if (UI_CheckboxF(&BezierTrackingActive, "##DeCasteljauEnabled"))
        {
         Tracking->Active = BezierTrackingActive;
         if (Tracking->Active)
         {
-         Tracking->IsSplitting = false;
+         Tracking->Type = PointTrackingAlongCurve_DeCasteljauVisualization;
         }
        }
        UI_SameRow();
@@ -2192,7 +2199,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
         Tracking->Active = SplittingTrackingActive;
         if (Tracking->Active)
         {
-         Tracking->IsSplitting = true;
+         Tracking->Type = PointTrackingAlongCurve_BezierCurveSplit;
         }
        }
        UI_SameRow();
@@ -2422,14 +2429,113 @@ UpdateAndRenderHelpWindowUI(editor *Editor)
  {
   if (UI_BeginWindow(&Editor->HelpWindow, 0, StrLit("Help")))
   {
-   UI_Text(true,
-           StrLit("(very unstructured) Controls overview:\n\n"
-                  " - controls are made to be as intuitive as possible; read this, no need to understand everything, note which keys and mouse buttons might do something interesting and go experiment as soon as possible instead\n\n"
-                  " - use left mouse button to add/move/select control points\n\n"
-                  " - hold Left Ctrl key and use left mouse button to move/select entities themselves instead\n\n"
-                  " - clicking on curve's shape will insert control point in the middle of the curve's shape, hold Left Alt to append control point as the last point instead, regardless whether curve's shape was clicked\n\n"
-                  " - use right mouse button to delete/deselect entities; releasing button outside of the small circle that will appear will cancel that action\n\n"
-                  " - use middle mouse button to move the camera\n\n"));
+   UI_Text(false,
+           StrLit("Parametric Curve Editor overview and tutorial."));
+   UI_NewRow();
+   UI_Text(false,
+           StrLit("Controls are made to be as intuitive as possible. Read this tutorial, but\n"
+                  "there is no need to understand everything. Note which keys and mouse buttons\n"
+                  "might do something interesting and go experiment as soon as possible instead."));
+   UI_NewRow();
+   UI_Text(false,
+           StrLit("NOTE: Most things that apply to curves and curve manipulation (i.e.\n"
+                  "move/select/delete) also apply to images, or in general - entities.\n\n"
+                  
+                  ));
+   
+   if (UI_CollapsingHeader(StrLit("Controls")))
+   {
+    if (UI_BeginTree(StrLit("Left mouse button")))
+    {
+     UI_NewRow();
+     UI_Text(false, StrLit("Add/move/select control points."));
+     UI_NewRow();
+     
+     UI_Text(false, StrLit("In more details:"));
+     UI_BulletText(StrLit("clicking on curve control point selects that curve and that control point"));
+     UI_BulletText(StrLit("clicking on curve line inserts control point inside that curve"));
+     UI_BulletText(StrLit("clicking outside of curve (\"on nothing\"), while curve is selected, appends new control point to that curve"));
+     UI_BulletText(StrLit("clicking outside of curve (\"on nothing\"), while no curve is selected, creates a new curve with one control point in that spot"));
+     UI_BulletText(StrLit("notice that left mouse click always adds new control point or selects existing one"));
+     UI_BulletText(StrLit("clicking and holding moves that control point until mouse button is released"));
+     UI_BulletText(StrLit("while splitting Bezier curve, clicking and holding on split point, moves that point along that curve"));
+     UI_BulletText(StrLit("while visualizing De Casteljau's Algorithm, clicking and holding final point, moves that point along that curve"));
+     
+     UI_NewRow();
+     
+     UI_EndTree();
+    }
+    
+    if (UI_BeginTree(StrLit("Left mouse button + Left Ctrl")))
+    {
+     UI_NewRow();
+     UI_Text(false,
+             StrLit("Work on curve level, not individual control points level. Move/select\n"
+                    "curves themselves."));
+     UI_NewRow();
+     
+     
+     UI_Text(false, StrLit("In more detail:"));
+     UI_BulletText(StrLit("clicking on curve (either curve line or curve control point) selects it"));
+     UI_BulletText(StrLit("clicking and holding anywhere while curve is selected, moves it"));
+     UI_BulletText(StrLit("clicking and holding while no curve is selected, doesn't do anything"));
+     
+     UI_NewRow();
+     
+     UI_EndTree();
+    }
+    
+    if (UI_BeginTree(StrLit("Left mouse button + Left Alt")))
+    {
+     UI_NewRow();
+     UI_Text(false,
+             StrLit("When creating precise curve shape, one sometimes wants to add new control point\n"
+                    "that might be close or directly on the curve line. Normally clicking there, inserts\n"
+                    "new control point inside that curve. Use Left Alt to override it and *always*\n"
+                    "append instead."));
+     UI_NewRow();
+     
+     UI_Text(false, StrLit("In more detail:"));
+     UI_BulletText(StrLit("clicking anywhere while curve is selected, *always* appends a new control point to it"));
+     UI_BulletText(StrLit("clicking anywhere while no curve is selected, creates a new curve with one control point in that spot"));
+     
+     UI_NewRow();
+     
+     UI_EndTree();
+    }
+    
+    if (UI_BeginTree(StrLit("Right mouse button")))
+    {
+     UI_NewRow();
+     UI_Text(false, StrLit("Remove/deselect curves/control points."));
+     UI_NewRow();
+     
+     UI_Text(false, StrLit("In more detail:"));
+     UI_BulletText(StrLit("clicking on curve deletes it"));
+     UI_BulletText(StrLit("clicking on control point deletes it and selects that curve"));
+     UI_BulletText(StrLit("clicking outside of curve (\"on nothing\") deselects currently selected curve (if one exists)"));
+     UI_BulletText(StrLit("while splitting Bezier curve, clicking on split point, actually splits the curve"));
+     
+     UI_NewRow();
+     
+     UI_EndTree();
+    }
+    
+    if (UI_BeginTree(StrLit("Middle mouse button")))
+    {
+     UI_NewRow();
+     UI_Text(false, StrLit("Manipulate the camera."));
+     UI_NewRow();
+     
+     UI_Text(false, StrLit("In more detail:"));
+     UI_BulletText(StrLit("clicking and holding moves the camera"));
+     UI_BulletText(StrLit("scrolling (un)zooms the camera"));
+     
+     UI_NewRow();
+     
+     UI_EndTree();
+    }
+   }
   }
   UI_EndWindow();
  }
@@ -2927,7 +3033,7 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
     
     entity_with_modify_witness CollisionEntityWitness = BeginEntityModify(Collision.Entity);
     curve *CollisionCurve = &Collision.Entity->Curve;
-    curve_point_tracking_state *CollisionTracking = &CollisionCurve->PointTracking;
+    point_tracking_along_curve_state *CollisionTracking = &CollisionCurve->PointTracking;
     
     entity *SelectedEntity = EntityFromId(Editor->SelectedEntityId);
     curve *SelectedCurve = &SelectedEntity->Curve;
@@ -3040,7 +3146,7 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
     {
      case EditorLeftClick_MovingTrackingPoint: {
       curve *Curve = SafeGetCurve(Entity);
-      curve_point_tracking_state *Tracking = &Curve->PointTracking;
+      point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
       f32 Fraction = Tracking->Fraction;
       
       MovePointAlongCurve(Curve, &TranslateLocal, &Fraction, true);
@@ -3122,9 +3228,13 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
     
     if (Collision->Flags & Collision_TrackedPoint)
     {
-     if (Curve->PointTracking.IsSplitting)
+     switch (Curve->PointTracking.Type)
      {
-      PerformBezierCurveSplit(&EntityWitness, Editor);
+      case PointTrackingAlongCurve_BezierCurveSplit: {
+       PerformBezierCurveSplit(&EntityWitness, Editor);
+      }break;
+      
+      case PointTrackingAlongCurve_DeCasteljauVisualization: {}break;
      }
     }
     else if (Collision->Flags & Collision_CurvePoint)

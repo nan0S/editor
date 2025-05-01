@@ -546,6 +546,27 @@ UI_SeparatorTextF(char const *Format, ...)
  va_end(Args);
 }
 
+internal void
+UI_BulletText(string Text)
+{
+ temp_arena Temp = TempArena(0);
+ string CText = CStrFromStr(Temp.Arena, Text);
+ Platform.ImGui.BulletText(CText.Data);
+ EndTemp(Temp);
+}
+
+internal void
+UI_BulletTextF(char const *Format, ...)
+{
+ temp_arena Temp = TempArena(0);
+ va_list Args;
+ va_start(Args, Format);
+ string Text = StrFV(Temp.Arena, Format, Args);
+ UI_BulletText(Text);
+ va_end(Args);
+ EndTemp(Temp);
+}
+
 internal b32
 UI_SliderInteger(i32 *Value, i32 MinValue, i32 MaxValue, string Label)
 {

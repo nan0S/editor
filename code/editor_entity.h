@@ -144,13 +144,19 @@ struct visible_cubic_bezier_points
  cubic_bezier_point_index Indices[4];
 };
 
-struct curve_point_tracking_state
+enum point_tracking_along_curve_type
+{
+ PointTrackingAlongCurve_DeCasteljauVisualization,
+ PointTrackingAlongCurve_BezierCurveSplit,
+};
+
+struct point_tracking_along_curve_state
 {
  b32 Active;
  f32 Fraction;
  v2 LocalSpaceTrackedPoint;
  
- b32 IsSplitting;
+ point_tracking_along_curve_type Type;
  
  all_de_casteljau_intermediate_results Intermediate;
  v4 *IterationColors;
@@ -244,7 +250,7 @@ struct curve
  b_spline_knots B_SplineKnots;
  v2 *B_SplinePartitionKnotPoints;
  
- curve_point_tracking_state PointTracking;
+ point_tracking_along_curve_state PointTracking;
  curve_degree_lowering_state DegreeLowering;
  parametric_curve_resources ParametricResources;
 };

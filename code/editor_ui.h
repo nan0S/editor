@@ -149,6 +149,8 @@ internal void              UI_Text(b32 Wrapped, string Text);
 internal void              UI_TextF(b32 Wrapped, char const *Format, ...);
 internal void              UI_SeparatorText(string Text);
 internal void              UI_SeparatorTextF(char const *Format, ...);
+internal void              UI_BulletText(string Text);
+internal void              UI_BulletTextF(char const *Format, ...);
 internal clicked_b32       UI_MenuItem(b32 *Selected, char const *Shortcut, string Label);
 internal clicked_b32       UI_MenuItemF(b32 *Selected, char const *Shortcut, char const *Format, ...);
 internal not_collapsed_b32 UI_CollapsingHeader(string Label);

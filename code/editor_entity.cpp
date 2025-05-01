@@ -899,7 +899,7 @@ SetTrackingPointFraction(entity_with_modify_witness *EntityWitness, f32 Fraction
 {
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
- curve_point_tracking_state *Tracking = &Curve->PointTracking;
+ point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
  
  Tracking->Fraction = Clamp01(Fraction);
  MarkEntityModified(EntityWitness);
@@ -1359,7 +1359,7 @@ RecomputeCurve(entity *Entity)
  u32 ConvexHullCount = CalcConvexHull(PointCount, Controls, ConvexHullPoints);
  vertex_array ConvexHullVertices = ComputeVerticesOfThickLine(EntityArena, ConvexHullCount, ConvexHullPoints, Params->ConvexHullWidth, true);
  
- curve_point_tracking_state *Tracking = &Curve->PointTracking;
+ point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
  if (IsCurveEligibleForPointTracking(Curve))
  {
   if (Tracking->Active)
@@ -1369,7 +1369,7 @@ RecomputeCurve(entity *Entity)
    v2 LocalSpaceTrackedPoint = BezierCurveEvaluateWeighted(Fraction, Controls, Weights, PointCount);
    Tracking->LocalSpaceTrackedPoint = LocalSpaceTrackedPoint;
    
-   if (!Tracking->IsSplitting)
+   if (Tracking->Type == PointTrackingAlongCurve_DeCasteljauVisualization)
    {
     all_de_casteljau_intermediate_results Intermediate = DeCasteljauAlgorithm(EntityArena, Fraction, Controls, Weights, PointCount);
     vertex_array *LineVerticesPerIteration = PushArray(EntityArena, Intermediate.IterationCount, vertex_array);

@@ -305,8 +305,6 @@ struct entity_with_modify_witness
  entity *Entity;
  b32 EntityModified;
 };
-global entity_with_modify_witness _NilEntityWitness;
-global entity_with_modify_witness *NilEntityWitness = &_NilEntityWitness;
 internal entity_with_modify_witness BeginEntityModify(entity *Entity);
 internal void                       EndEntityModify(entity_with_modify_witness Witness);
 internal void                       MarkEntityModified(entity_with_modify_witness *Witness);

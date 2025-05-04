@@ -603,7 +603,7 @@ IsIdentifier(parametric_equation_token Token)
 internal b32
 IsValid(parametric_equation_expr *Expr)
 {
- b32 Valid = (Expr != &NilExpr);
+ b32 Valid = (Expr != NilExpr);
  return Valid;
 }
 
@@ -639,7 +639,7 @@ internal parametric_equation_expr *ParseExpr(arena *Arena, parametric_equation_p
 internal parametric_equation_expr *
 ParseLeafExpr(arena *Arena, parametric_equation_parser *Parser)
 {
- parametric_equation_expr *Expr = &NilExpr;
+ parametric_equation_expr *Expr = NilExpr;
  
  parametric_equation_token NextToken = Parser->TokenAt[0];
  if (IsUnaryOperator(NextToken))
@@ -1201,7 +1201,7 @@ ParseEquation(arena *Arena, string Equation, parametric_equation_env Env, b32 Do
  SetErrorF(&ErrorCapture, "unexpected token '%S', expected end of input", Token.OriginalString);
 #endif
  
- parametric_equation_expr *Parsed = &NilExpr;
+ parametric_equation_expr *Parsed = NilExpr;
  if (!EatIfMatch(&Parser, ParametricEquationToken_None))
  {
   Parsed = ParseExpr(Arena, &Parser, 0);
@@ -1218,7 +1218,7 @@ ParseEquation(arena *Arena, string Equation, parametric_equation_env Env, b32 Do
  }
  
  parametric_equation_parse_result Result = {};
- Result.ParsedExpr = (IsError(&ErrorCapture) ? &NilExpr : Parsed);
+ Result.ParsedExpr = (IsError(&ErrorCapture) ? NilExpr : Parsed);
  Result.Fail = IsError(&ErrorCapture);
  Result.ErrorMessage = ErrorCapture.ErrorMessage;
  

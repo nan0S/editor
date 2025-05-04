@@ -1192,8 +1192,8 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->CurveDefaultParams.SamplesPerControlPoint = 50;
  Editor->CurveDefaultParams.TotalSamples = 1000;
  Editor->CurveDefaultParams.Parametric.MaxT = 1.0f;
- Editor->CurveDefaultParams.Parametric.X_Equation = &NilExpr;
- Editor->CurveDefaultParams.Parametric.Y_Equation = &NilExpr;
+ Editor->CurveDefaultParams.Parametric.X_Equation = &Editor->NilParametricExpr;
+ Editor->CurveDefaultParams.Parametric.Y_Equation = &Editor->NilParametricExpr;
  Editor->CurveDefaultParams.B_Spline.KnotPointRadius = 0.010f;
  Editor->CurveDefaultParams.B_Spline.KnotPointColor = RGBA_Color(138, 0, 0, 148);
  
@@ -4421,6 +4421,7 @@ EditorOnCodeReload_(editor_memory *Memory)
 {
  Platform = Memory->PlatformAPI;
  ProfilerEquip(Memory->Profiler);
+ NilExpr = &Memory->Editor->NilParametricExpr;
 }
 
 DLL_EXPORT

@@ -252,11 +252,11 @@ Platform_PrintDebugInputEvents(platform_input_ouput *Input)
       ++EventIndex)
  {
   platform_event *Event = Input->Events + EventIndex;
-  char const *Name = PlatformEventTypeNames[Event->Type];
-  char const *KeyName = PlatformKeyNames[Event->Key];
+  string Name = PlatformEventTypeNames[Event->Type];
+  string KeyName = PlatformKeyNames[Event->Key];
   //if (Event->Type != PlatformEvent_MouseMove)
   {
-   OS_PrintDebugF("%s %s\n", Name, KeyName);
+   OS_PrintDebugF("%S %S\n", Name, KeyName);
   }
  }
 }

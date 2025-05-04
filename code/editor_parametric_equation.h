@@ -130,7 +130,7 @@ struct parametric_equation_expr
   parametric_equation_application_expr Application;
  };
 };
-read_only global parametric_equation_expr NilExpr;
+global parametric_equation_expr *NilExpr;
 
 enum parametric_equation_t_mode
 {

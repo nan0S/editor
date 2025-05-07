@@ -1712,85 +1712,6 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
      UI_Checkbox(&Visible, StrLit("Visible"));
      SetEntityVisibility(Entity, Visible);
      
-     if (UI_Button(StrLit("Copy")))
-     {
-      DuplicateEntity(Entity, Editor);
-     }
-     if (UI_IsItemHovered())
-     {
-      UI_Tooltip(StrLit("Duplicate entity, self explanatory"));
-     }
-     
-     UI_SameRow();
-     
-     DeleteEntity = UI_Button(StrLit("Delete"));
-     if (UI_IsItemHovered())
-     {
-      UI_Tooltip(StrLit("Delete entity, self explanatory"));
-     }
-     
-     UI_SameRow();
-     
-     if (UI_Button(StrLit("Focus")))
-     {
-      FocusCameraOnEntity(Editor, Entity);
-     }
-     if (UI_IsItemHovered())
-     {
-      UI_Tooltip(StrLit("Focus the camera on entity"));
-     }
-     
-     if (Curve)
-     {
-      // TODO(hbr): Most of those buttons shouldn't be here in case of Entity_Image.
-      // But they will not be buttons in the first place as well.
-      UI_Disabled(!IsControlPointSelected(Curve))
-      {
-       if (UI_Button(StrLit("Split")))
-       {
-        SplitCurveOnControlPoint(&EntityWitness, Editor);
-       }
-       if (UI_IsItemHovered())
-       {
-        UI_Tooltip(StrLit("Split curve into two parts, based on the currently selected control point"));
-       }
-      }
-      
-      UI_SameRow();
-      
-      if (UI_ButtonF("Swap Side"))
-      {
-       Entity->Flags ^= EntityFlag_CurveAppendFront;
-      }
-      if (UI_IsItemHovered())
-      {
-       UI_Tooltip(StrLit("Swap the side to which append new control points"));
-      }
-      
-      UI_Disabled(!IsRegularBezierCurve(Curve))
-      {
-       if (UI_Button(StrLit("Elevate Degree")))
-       {
-        ElevateBezierCurveDegree(&EntityWitness);
-       }
-       if (UI_IsItemHovered())
-       {
-        UI_Tooltip(StrLit("Elevate Bezier curve degree, while maintaining its shape"));
-       }
-       
-       UI_SameRow();
-       
-       if (UI_Button(StrLit("Lower Degree")))
-       {
-        LowerBezierCurveDegree(&EntityWitness);
-       }
-       if (UI_IsItemHovered())
-       {
-        UI_Tooltip(StrLit("Lower Bezier curve degree, while maintaining its shape (if possible)"));
-       }
-      }
-     }
-     
      if (Curve)
      {
       UI_SeparatorTextF("Curve");
@@ -2033,15 +1954,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
           CrucialEntityParamChanged = true;
          }
          
-         if (UI_BeginTreeF("Knots"))
-         {
-          UI_Checkbox(&B_Spline->ShowPartitionKnotPoints, StrLit("Show Partition Knots"));
-          UI_DragFloat(&B_Spline->KnotPointRadius, 0.0f, FLT_MAX, 0, StrLit("Radius"));
-          UI_ColorPicker(&B_Spline->KnotPointColor, StrLit("Color"));
-          
-          // TODO(hbr): Add way to customize knots directly
-          UI_EndTree();
-         }
+         UI_Checkbox(&B_Spline->ShowPartitionKnotPoints, StrLit("Partition Knots Visible"));
         }break;
         
         case Curve_Count: InvalidPath;
@@ -2103,26 +2016,108 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
        }
       }
       
-      if (IsCurveEligibleForPointTracking(Curve))
+      UI_SeparatorText(StrLit("Actions"));
+      UI_Label(StrLit("Actions"));
       {
-       UI_SeparatorText(StrLit("Misc"));
-       UI_Label(StrLit("Misc"))
+       if (UI_Button(StrLit("Copy")))
        {
-        UI_Label(StrLit("PointTracking"))
+        DuplicateEntity(Entity, Editor);
+       }
+       if (UI_IsItemHovered())
+       {
+        UI_Tooltip(StrLit("Duplicate entity, self explanatory"));
+       }
+       
+       UI_SameRow();
+       
+       DeleteEntity = UI_Button(StrLit("Delete"));
+       if (UI_IsItemHovered())
+       {
+        UI_Tooltip(StrLit("Delete entity, self explanatory"));
+       }
+       
+       UI_SameRow();
+       
+       if (UI_Button(StrLit("Focus")))
+       {
+        FocusCameraOnEntity(Editor, Entity);
+       }
+       if (UI_IsItemHovered())
+       {
+        UI_Tooltip(StrLit("Focus the camera on entity"));
+       }
+       
+       if (Curve)
+       {
+        // TODO(hbr): Most of those buttons shouldn't be here in case of Entity_Image.
+        // But they will not be buttons in the first place as well.
+        UI_Disabled(!IsControlPointSelected(Curve))
         {
-         point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
-         f32 Fraction = Tracking->Fraction;
-         
-         b32 BezierTrackingActive = false;
-         b32 SplittingTrackingActive = false;
-         switch (Tracking->Type)
+         if (UI_Button(StrLit("Split")))
          {
-          case PointTrackingAlongCurve_DeCasteljauVisualization: {BezierTrackingActive = Tracking->Active;}break;
-          case PointTrackingAlongCurve_BezierCurveSplit: {SplittingTrackingActive = Tracking->Active;}break;
+          SplitCurveOnControlPoint(&EntityWitness, Editor);
+         }
+         if (UI_IsItemHovered())
+         {
+          UI_Tooltip(StrLit("Split curve into two parts, based on the currently selected control point"));
+         }
+        }
+        
+        UI_SameRow();
+        
+        if (UI_ButtonF("Swap Side"))
+        {
+         Entity->Flags ^= EntityFlag_CurveAppendFront;
+        }
+        if (UI_IsItemHovered())
+        {
+         UI_Tooltip(StrLit("Swap the side to which append new control points"));
+        }
+        
+        UI_Disabled(!IsRegularBezierCurve(Curve))
+        {
+         if (UI_Button(StrLit("Elevate Degree")))
+         {
+          ElevateBezierCurveDegree(&EntityWitness);
+         }
+         if (UI_IsItemHovered())
+         {
+          UI_Tooltip(StrLit("Elevate Bezier curve degree, while maintaining its shape"));
          }
          
-         if (UI_CheckboxF(&BezierTrackingActive, "##DeCasteljauEnabled"))
+         UI_SameRow();
+         
+         if (UI_Button(StrLit("Lower Degree")))
          {
+          LowerBezierCurveDegree(&EntityWitness);
+         }
+         if (UI_IsItemHovered())
+         {
+          UI_Tooltip(StrLit("Lower Bezier curve degree, while maintaining its shape (if possible)"));
+         }
+        }
+       }
+       
+       if (IsCurveEligibleForPointTracking(Curve))
+       {
+        point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
+        f32 Fraction = Tracking->Fraction;
+        b32 Changed = false;
+        
+        b32 BezierTrackingActive = false;
+        b32 SplittingTrackingActive = false;
+        switch (Tracking->Type)
+        {
+         case PointTrackingAlongCurve_DeCasteljauVisualization: {BezierTrackingActive = Tracking->Active;}break;
+         case PointTrackingAlongCurve_BezierCurveSplit: {SplittingTrackingActive = Tracking->Active;}break;
+        }
+        
+        UI_Label(StrLit("DeCasteljauVisualization"))
+        {
+         
+         if (UI_Checkbox(&BezierTrackingActive, StrLit("##DeCasteljauEnabled")))
+         {
+          Changed = true;
           Tracking->Active = BezierTrackingActive;
           if (Tracking->Active)
           {
@@ -2130,14 +2125,19 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
           }
          }
          UI_SameRow();
-         UI_SeparatorTextF("De Casteljau's Algorithm");
+         UI_SeparatorText(StrLit("De Casteljau's Algorithm"));
+         
          if (BezierTrackingActive)
          {
-          UI_SliderFloatF(&Fraction, 0.0f, 1.0f, "t");
+          Changed |= UI_SliderFloat(&Fraction, 0.0f, 1.0f, StrLit("t"));
          }
-         
-         if (UI_CheckboxF(&SplittingTrackingActive, "##SplittingEnabled"))
+        }
+        
+        UI_Label(StrLit("BezierSplitting"))
+        {
+         if (UI_Checkbox(&SplittingTrackingActive, StrLit("##SplittingEnabled")))
          {
+          Changed = true;
           Tracking->Active = SplittingTrackingActive;
           if (Tracking->Active)
           {
@@ -2145,21 +2145,22 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
           }
          }
          UI_SameRow();
-         UI_SeparatorTextF("Split Bezier Curve");
+         UI_SeparatorText(StrLit("Split Bezier Curve"));
+         
          if (SplittingTrackingActive)
          {
-          UI_SliderFloatF(&Fraction, 0.0f, 1.0f, "t");
+          Changed |= UI_SliderFloat(&Fraction, 0.0f, 1.0f, StrLit("t"));
           UI_SameRow();
-          if (UI_ButtonF("Split!"))
+          if (UI_Button(StrLit("Split!")))
           {
            PerformBezierCurveSplit(&EntityWitness, Editor);
           }
          }
-         
-         if (Fraction != Tracking->Fraction)
-         {
-          SetTrackingPointFraction(&EntityWitness, Fraction);
-         }
+        }
+        
+        if (Tracking->Active && Changed)
+        {
+         SetTrackingPointFraction(&EntityWitness, Fraction);
         }
        }
       }
@@ -2228,6 +2229,29 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
        if (ResetCtxMenu(StrLit("PointRadiusReset")))
        {
         CurveParams->PointRadius = DefaultParams->PointRadius;
+       }
+      }
+     }
+     
+     if (CurveParams->Type == Curve_B_Spline)
+     {
+      b_spline_params *B_Spline = &CurveParams->B_Spline;
+      
+      UI_SeparatorText(StrLit("B-Spline Knots"));
+      UI_Label(StrLit("B-Spline Knots"))
+      {
+       UI_Checkbox(&B_Spline->ShowPartitionKnotPoints, StrLit("Visible"));
+       
+       UI_ColorPicker(&B_Spline->KnotPointColor, StrLit("Color"));
+       if (ResetCtxMenu(StrLit("ColorReset")))
+       {
+        B_Spline->KnotPointColor= DefaultParams->B_Spline.KnotPointColor;
+       }
+       
+       UI_DragFloat(&B_Spline->KnotPointRadius, 0.0f, FLT_MAX, 0, StrLit("Radius"));
+       if (ResetCtxMenu(StrLit("RadiusReset")))
+       {
+        B_Spline->KnotPointRadius = DefaultParams->B_Spline.KnotPointRadius;
        }
       }
      }

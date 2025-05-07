@@ -722,10 +722,7 @@ UI_Tooltip(string Contents)
 {
  temp_arena Temp = TempArena(0);
  string CContents = CStrFromStr(Temp.Arena, Contents);
- if (Platform.ImGui.IsItemHovered(0))
- {
-  Platform.ImGui.SetTooltip(CContents.Data);
- }
+ Platform.ImGui.SetTooltip(CContents.Data);
  EndTemp(Temp);
 }
 

@@ -2114,7 +2114,6 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
         
         UI_Label(StrLit("DeCasteljauVisualization"))
         {
-         
          if (UI_Checkbox(&BezierTrackingActive, StrLit("##DeCasteljauEnabled")))
          {
           Changed = true;

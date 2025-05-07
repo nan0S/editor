@@ -912,6 +912,64 @@ UI_BeginTreeF(char const *Format, ...)
 
 internal void UI_EndTree(void) { Platform.ImGui.TreePop(); }
 
+internal b32
+UI_BeginTabBar(string Label)
+{
+ temp_arena Temp = TempArena(0);
+ string CLabel = CStrFromStr(Temp.Arena, Label);
+ b32 Active = Cast(b32)Platform.ImGui.BeginTabBar(CLabel.Data);
+ EndTemp(Temp);
+ return Active;
+}
+
+internal b32
+UI_BeginTabBarF(char const *Format, ...)
+{
+ temp_arena Temp = TempArena(0);
+ va_list Args;
+ va_start(Args, Format);
+ string Label = StrFV(Temp.Arena, Format, Args);
+ b32 Result = UI_BeginTabBar(Label);
+ va_end(Args);
+ EndTemp(Temp);
+ return Result;
+}
+
+internal void
+UI_EndTabBar(void)
+{
+ Platform.ImGui.EndTabBar();
+}
+
+internal b32
+UI_BeginTabItem(string Label)
+{
+ temp_arena Temp = TempArena(0);
+ string CLabel = CStrFromStr(Temp.Arena, Label);
+ b32 Selected = Cast(b32)Platform.ImGui.BeginTabItem(CLabel.Data);
+ EndTemp(Temp);
+ return Selected;
+}
+
+internal b32
+UI_BeginTabItemF(char const *Format, ...)
+{
+ temp_arena Temp = TempArena(0);
+ va_list Args;
+ va_start(Args, Format);
+ string Label = StrFV(Temp.Arena, Format, Args);
+ b32 Result = UI_BeginTabItem(Label);
+ va_end(Args);
+ EndTemp(Temp);
+ return Result;
+}
+
+internal void
+UI_EndTabItem(void)
+{
+ Platform.ImGui.EndTabItem();
+}
+
 internal v2 UI_GetWindowSize(void)
 {
  ImVec2 Size = Platform.ImGui.GetWindowSize();

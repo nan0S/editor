@@ -121,15 +121,15 @@ IsEntityVisible(entity *Entity)
 }
 
 internal void
-SetEntityVisibility(entity *Entity, b32 Hidden)
+SetEntityVisibility(entity *Entity, b32 Visible)
 {
- if (Hidden)
+ if (Visible)
  {
-  Entity->Flags |= EntityFlag_Hidden;
+  Entity->Flags &= ~EntityFlag_Hidden;
  }
  else
  {
-  Entity->Flags &= ~EntityFlag_Hidden;
+  Entity->Flags |= EntityFlag_Hidden;
  }
 }
 

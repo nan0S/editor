@@ -335,6 +335,9 @@ struct editor
  
  //////////////////////////////
  
+ // TODO(hbr): remove this
+ render_group *RenderGroup;
+ 
  arena *MovingPointArena;
  
  v4 DefaultBackgroundColor;

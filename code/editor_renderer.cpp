@@ -197,6 +197,7 @@ BeginRenderGroup(render_frame *Frame,
  
  Result.CollisionTolerance = CollisionToleranceClip / CameraZoom;
  Result.RotationRadius = CollisionToleranceClip / CameraZoom;
+ Result.AspectRatio = AspectRatio;
  
  Frame->Proj = Result.ProjXForm.Forward;
  Frame->ClearColor = ClearColor;

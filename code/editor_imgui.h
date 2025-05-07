@@ -13,269 +13,96 @@
 #pragma pop_macro("Min")
 
 #define IMGUI_NEW_FRAME(Name) void Name(void)
-typedef IMGUI_NEW_FRAME(imgui_new_frame);
+typedef IMGUI_NEW_FRAME(imgui_NewFrame);
 
 #define IMGUI_RENDER(Name) void Name(void)
-typedef IMGUI_RENDER(imgui_render);
+typedef IMGUI_RENDER(imgui_Render);
 
-#define IMGUI_IS_ITEM_HOVERED(Name) bool Name(ImGuiHoveredFlags flags)
-typedef IMGUI_IS_ITEM_HOVERED(imgui_IsItemHovered);
+#define ImGuiNonVariadicFunctions \
+X_Macro(IsItemHovered, IsItemHovered, bool, ImGuiHoveredFlags flags, flags) \
+X_Macro(IsMouseClicked, IsMouseClicked, bool, ImGuiMouseButton button, button) \
+X_Macro(IsWindowHovered, IsWindowHovered, bool, void, Nothing) \
+X_Macro(SetCursorPos, SetCursorPos, void, ImVec2 local_pos, local_pos) \
+X_Macro(SetNextItemOpen, SetNextItemOpen, void, bool is_open Comma ImGuiCond cond, cond) \
+X_Macro(SetNextWindowSizeConstraints, SetNextWindowSizeConstraints, void, ImVec2 min_size Comma ImVec2 max_size, min_size Comma max_size) \
+X_Macro(BringWindowToDisplayFront, BringWindowToDisplayFront, void, ImGuiWindow *window, window) \
+X_Macro(GetCurrentWindow, GetCurrentWindow, ImGuiWindow *, void, Nothing) \
+X_Macro(Combo, Combo, bool, const char* label Comma int* current_item Comma const char* const items[] Comma int items_count, label Comma current_item Comma items Comma items_count) \
+X_Macro(Checkbox, Checkbox, bool, const char* label Comma bool* v, label Comma v) \
+X_Macro(ColorEdit4, ColorEdit4, bool, const char* label Comma float col[4], label Comma col) \
+X_Macro(Button, Button, bool, const char* label Comma ImVec2 size, label Comma size) \
+X_Macro(SliderAngle, SliderAngle, bool, const char* label Comma float* v_rad, label Comma v_rad) \
+X_Macro(GetFontSize, GetFontSize, float, void, Nothing) \
+X_Macro(PushItemWidth, PushItemWidth, void, float item_width, item_width) \
+X_Macro(PopItemWidth, PopItemWidth, void, void, Nothing) \
+X_Macro(InputText, InputText, bool, const char* label Comma char* buf Comma size_t buf_size, label Comma buf Comma buf_size) \
+X_Macro(InputTextMultiline, InputTextMultiline, bool, const char* label Comma char* buf Comma size_t buf_size Comma ImVec2 size Comma ImGuiInputTextFlags flags, label Comma buf Comma buf_size Comma size Comma flags) \
+X_Macro(PopID, PopID, void, void, Nothing) \
+X_Macro(BeginDisabled, BeginDisabled, void, bool disabled, disabled) \
+X_Macro(EndDisabled, EndDisabled, void, void, Nothing) \
+X_Macro(PushStyleColor, PushStyleColor, void, ImGuiCol idx Comma ImVec4 col, idx Comma col) \
+X_Macro(PopStyleColor, PopStyleColor, void, int count, count) \
+X_Macro(PushStyleVar, PushStyleVar, void, ImGuiStyleVar idx Comma float val, idx Comma val) \
+X_Macro(PopStyleVar, PopStyleVar, void, void, Nothing) \
+X_Macro(DragFloat, DragFloat, bool, const char* label Comma float* v Comma float v_speed Comma float v_min Comma float v_max Comma const char* format Comma ImGuiSliderFlags flags, label Comma v Comma v_speed Comma v_min Comma v_max Comma format Comma flags) \
+X_Macro(DragFloat2, DragFloat2, bool, const char* label Comma float v[2] Comma float v_speed Comma float v_min Comma float v_max Comma const char* format Comma ImGuiSliderFlags flags, label Comma v Comma v_speed Comma v_min Comma v_max Comma format Comma flags) \
+X_Macro(SliderFloat, SliderFloat, bool, const char* label Comma float* v Comma float v_min Comma float v_max, label Comma v Comma v_min Comma v_max) \
+X_Macro(NewLine, NewLine, void, void, Nothing) \
+X_Macro(SameLine, SameLine, void, void, Nothing) \
+X_Macro(SeparatorText, SeparatorText, void, const char* label, label) \
+X_Macro(SliderInt, SliderInt, bool, const char* label Comma int* v Comma int v_min Comma int v_max, label Comma v Comma v_min Comma v_max) \
+X_Macro(Begin, Begin, bool, const char* name Comma bool* p_open Comma ImGuiWindowFlags flags, name Comma p_open Comma flags) \
+X_Macro(End, End, void, void, Nothing) \
+X_Macro(CollapsingHeader, CollapsingHeader, bool, const char* label, label) \
+X_Macro(Selectable, Selectable, bool, const char* label Comma bool selectable, label Comma selectable) \
+X_Macro(Separator, Separator, void, void, Nothing) \
+X_Macro(OpenPopup, OpenPopup, void, const char* str_id, str_id) \
+X_Macro(BeginPopup, BeginPopup, bool, const char* str_id Comma ImGuiWindowFlags flags, str_id Comma flags) \
+X_Macro(EndPopup, EndPopup, void, void, Nothing) \
+X_Macro(MenuItem, MenuItem, bool, const char* label Comma const char* shortcut Comma bool* p_selected, label Comma shortcut Comma p_selected) \
+X_Macro(BeginMainMenuBar, BeginMainMenuBar, bool, void, Nothing) \
+X_Macro(EndMainMenuBar, EndMainMenuBar, void, void, Nothing) \
+X_Macro(BeginMenu, BeginMenu, bool, const char* label, label) \
+X_Macro(EndMenu, EndMenu, void, void, Nothing) \
+X_Macro(BeginCombo, BeginCombo, bool, const char* label Comma const char* preview_value, label Comma preview_value) \
+X_Macro(EndCombo, EndCombo, void, void, Nothing) \
+X_Macro(BeginPopupModal, BeginPopupModal, bool, const char* name Comma bool* p_open Comma ImGuiWindowFlags flags, name Comma p_open Comma flags) \
+X_Macro(CloseCurrentPopup, CloseCurrentPopup, void, void, Nothing) \
+X_Macro(TreeNode, TreeNode, bool, const char* label, label) \
+X_Macro(TreePop, TreePop, void, void, Nothing) \
+X_Macro(GetWindowSize, GetWindowSize, ImVec2, void, Nothing) \
+X_Macro(GetCursorPos, GetCursorPos, ImVec2, void, Nothing) \
+X_Macro(GetWindowContentRegionMax, GetWindowContentRegionMax, ImVec2, void, Nothing) \
+X_Macro(GetContentRegionAvail, GetContentRegionAvail, ImVec2, void, Nothing) \
+X_Macro(ShowDemoWindow, ShowDemoWindow, void, void, Nothing) \
+X_Macro(SetNextWindowPos, SetNextWindowPos, void, ImVec2 pos Comma ImGuiCond cond Comma ImVec2 pivot, pos Comma cond Comma pivot) \
+X_Macro(PushID_Str, PushID, void, const char* str_id, str_id) \
+X_Macro(PushID_Int, PushID, void, int int_id, int_id) \
+X_Macro(BeginTabBar, BeginTabBar, bool, const char* str_id, str_id) \
+X_Macro(EndTabBar, EndTabBar, void, void, Nothing) \
+X_Macro(BeginTabItem, BeginTabItem, bool, char const *label, label) \
+X_Macro(EndTabItem, EndTabItem, void, void, Nothing) \
 
-#define IMGUI_IS_MOUSE_CLICKED(Name) bool Name(ImGuiMouseButton button)
-typedef IMGUI_IS_MOUSE_CLICKED(imgui_IsMouseClicked);
+#define ImGuiVariadicFunctions \
+X_Macro(Text, Text, void, const char* fmt Comma ..., fmt) \
+X_Macro(SetTooltip, SetTooltip, void, const char* fmt Comma ..., fmt) \
+X_Macro(BulletText, BulletText, void, const char* fmt Comma ..., fmt) \
+X_Macro(TextWrapped, TextWrapped, void, const char* fmt Comma ..., fmt) \
 
-#define IMGUI_IS_WINDOW_HOVERED(Name) bool Name(void)
-typedef IMGUI_IS_WINDOW_HOVERED(imgui_IsWindowHovered);
+#define ImGuiFunctions \
+ImGuiNonVariadicFunctions \
+ImGuiVariadicFunctions \
 
-#define IMGUI_SET_CURSOR_POS(Name) void Name(ImVec2 local_pos)
-typedef IMGUI_SET_CURSOR_POS(imgui_SetCursorPos);
-
-#define IMGUI_SET_NEXT_ITEM_OPEN(Name) void Name(bool is_open, ImGuiCond cond)
-typedef IMGUI_SET_NEXT_ITEM_OPEN(imgui_SetNextItemOpen);
-
-#define IMGUI_SET_NEXT_WINDOW_SIZE_CONSRAINTS(Name) void Name(ImVec2 min_size, ImVec2 max_size)
-typedef IMGUI_SET_NEXT_WINDOW_SIZE_CONSRAINTS(imgui_SetNextWindowSizeConstraints);
-
-#define IMGUI_BRING_WINDOW_TO_DISPLAY_FRONT(Name) void Name(ImGuiWindow *window)
-typedef IMGUI_BRING_WINDOW_TO_DISPLAY_FRONT(imgui_BringWindowToDisplayFront);
-
-#define IMGUI_GET_CURRENT_WINDOW(Name) ImGuiWindow *Name(void)
-typedef IMGUI_GET_CURRENT_WINDOW(imgui_GetCurrentWindow);
-
-#define IMGUI_COMBO(Name) bool Name(const char* label, int* current_item, const char* const items[], int items_count)
-typedef IMGUI_COMBO(imgui_Combo);
-
-#define IMGUI_CHECKBOX(Name) bool Name(const char* label, bool* v)
-typedef IMGUI_CHECKBOX(imgui_Checkbox);
-
-#define IMGUI_COLOR_EDIT4(Name) bool Name(const char* label, float col[4])
-typedef IMGUI_COLOR_EDIT4(imgui_ColorEdit4);
-
-#define IMGUI_BUTTON(Name) bool Name(const char* label, ImVec2 size)
-typedef IMGUI_BUTTON(imgui_Button);
-
-#define IMGUI_SLIDER_ANGLE(Name) bool Name(const char* label, float* v_rad)
-typedef IMGUI_SLIDER_ANGLE(imgui_SliderAngle);
-
-#define IMGUI_GET_FONT_SIZE(Name) float Name(void)
-typedef IMGUI_GET_FONT_SIZE(imgui_GetFontSize);
-
-#define IMGUI_PUSH_ITEM_WIDTH(Name) void Name(float item_width)
-typedef IMGUI_PUSH_ITEM_WIDTH(imgui_PushItemWidth);
-
-#define IMGUI_POP_ITEM_WIDTH(Name) void Name(void)
-typedef IMGUI_POP_ITEM_WIDTH(imgui_PopItemWidth);
-
-#define IMGUI_INPUT_TEXT(Name) bool Name(const char* label, char* buf, size_t buf_size)
-typedef IMGUI_INPUT_TEXT(imgui_InputText);
-
-#define IMGUI_INPUT_TEXT_MULTILINE(Name) bool Name(const char* label, char* buf, size_t buf_size, ImVec2 size, ImGuiInputTextFlags flags)
-typedef IMGUI_INPUT_TEXT_MULTILINE(imgui_InputTextMultiline);
-
-#define IMGUI_PUSH_ID__STR(Name) void Name(const char* str_id)
-typedef IMGUI_PUSH_ID__STR(imgui_PushID_Str);
-
-#define IMGUI_PUSH_ID__INT(Name) void Name(int int_id)
-typedef IMGUI_PUSH_ID__INT(imgui_PushID_Int);
-
-#define IMGUI_POP_ID(Name) void Name(void)
-typedef IMGUI_POP_ID(imgui_PopID);
-
-#define IMGUI_BEGIN_DISABLED(Name) void Name(bool disabled)
-typedef IMGUI_BEGIN_DISABLED(imgui_BeginDisabled);
-
-#define IMGUI_END_DISABLED(Name) void Name(void)
-typedef IMGUI_END_DISABLED(imgui_EndDisabled);
-
-#define IMGUI_PUSH_STYLE_COLOR(Name) void Name(ImGuiCol idx, ImVec4 col)
-typedef IMGUI_PUSH_STYLE_COLOR(imgui_PushStyleColor);
-
-#define IMGUI_POP_STYLE_COLOR(Name) void Name(int count)
-typedef IMGUI_POP_STYLE_COLOR(imgui_PopStyleColor);
-
-#define IMGUI_PUSH_STYLE_VAR(Name) void Name(ImGuiStyleVar idx, float val)
-typedef IMGUI_PUSH_STYLE_VAR(imgui_PushStyleVar);
-
-#define IMGUI_POP_STYLE_VAR(Name) void Name(void)
-typedef IMGUI_POP_STYLE_VAR(imgui_PopStyleVar);
-
-#define IMGUI_DRAG_FLOAT(Name) bool Name(const char* label, float* v, float v_speed, float v_min, float v_max, const char* format, ImGuiSliderFlags flags)
-typedef IMGUI_DRAG_FLOAT(imgui_DragFloat);
-
-#define IMGUI_DRAG_FLOAT2(Name) bool Name(const char* label, float v[2], float v_speed, float v_min, float v_max, const char* format, ImGuiSliderFlags flags)
-typedef IMGUI_DRAG_FLOAT2(imgui_DragFloat2);
-
-#define IMGUI_SLIDER_FLOAT(Name) bool Name(const char* label, float* v, float v_min, float v_max)
-typedef IMGUI_SLIDER_FLOAT(imgui_SliderFloat);
-
-#define IMGUI_NEW_LINE(Name) void Name(void)
-typedef IMGUI_NEW_LINE(imgui_NewLine);
-
-#define IMGUI_SAME_LINE(Name) void Name(void)
-typedef IMGUI_SAME_LINE(imgui_SameLine);
-
-#define IMGUI_SEPARATOR_TEXT(Name) void Name(const char* label)
-typedef IMGUI_SEPARATOR_TEXT(imgui_SeparatorText);
-
-#define IMGUI_SLIDER_INT(Name) bool Name(const char* label, int* v, int v_min, int v_max)
-typedef IMGUI_SLIDER_INT(imgui_SliderInt);
-
-#define IMGUI_TEXT_WRAPPED(Name) void Name(const char* fmt, ...)
-typedef IMGUI_TEXT_WRAPPED(imgui_TextWrapped);
-
-#define IMGUI_TEXT(Name) void Name(const char* fmt, ...)
-typedef IMGUI_TEXT(imgui_Text);
-
-#define IMGUI_BEGIN(Name) bool Name(const char* name, bool* p_open, ImGuiWindowFlags flags)
-typedef IMGUI_BEGIN(imgui_Begin);
-
-#define IMGUI_END(Name) void Name(void)
-typedef IMGUI_END(imgui_End);
-
-#define IMGUI_COLLAPSING_HEADER(Name) bool Name(const char* label)
-typedef IMGUI_COLLAPSING_HEADER(imgui_CollapsingHeader);
-
-#define IMGUI_SELECTABLE(Name) bool Name(const char* label, bool selectable)
-typedef IMGUI_SELECTABLE(imgui_Selectable);
-
-#define IMGUI_SET_TOOLTIP(Name) void Name(const char* fmt, ...)
-typedef IMGUI_SET_TOOLTIP(imgui_SetTooltip);
-
-#define IMGUI_SEPARATOR(Name) void Name(void)
-typedef IMGUI_SEPARATOR(imgui_Separator);
-
-#define IMGUI_OPEN_POPUP(Name) void Name(const char* str_id)
-typedef IMGUI_OPEN_POPUP(imgui_OpenPopup);
-
-#define IMGUI_BEGIN_POPUP(Name) bool Name(const char* str_id, ImGuiWindowFlags flags)
-typedef IMGUI_BEGIN_POPUP(imgui_BeginPopup);
-
-#define IMGUI_END_POPUP(Name) void Name(void)
-typedef IMGUI_END_POPUP(imgui_EndPopup);
-
-#define IMGUI_MENU_ITEM(Name) bool Name(const char* label, const char* shortcut, bool* p_selected)
-typedef IMGUI_MENU_ITEM(imgui_MenuItem);
-
-#define IMGUI_BEGIN_MAIN_MENU_BAR(Name) bool Name(void)
-typedef IMGUI_BEGIN_MAIN_MENU_BAR(imgui_BeginMainMenuBar);
-
-#define IMGUI_END_MAIN_MENU_BAR(Name) void Name(void)
-typedef IMGUI_END_MAIN_MENU_BAR(imgui_EndMainMenuBar);
-
-#define IMGUI_BEGIN_MENU(Name) bool Name(const char* label)
-typedef IMGUI_BEGIN_MENU(imgui_BeginMenu);
-
-#define IMGUI_END_MENU(Name) void Name(void)
-typedef IMGUI_END_MENU(imgui_EndMenu);
-
-#define IMGUI_BEGIN_COMBO(Name) bool Name(const char* label, const char* preview_value)
-typedef IMGUI_BEGIN_COMBO(imgui_BeginCombo);
-
-#define IMGUI_END_COMBO(Name) void Name(void)
-typedef IMGUI_END_COMBO(imgui_EndCombo);
-
-#define IMGUI_BEGIN_POPUP_MODAL(Name) bool Name(const char* name, bool* p_open, ImGuiWindowFlags flags)
-typedef IMGUI_BEGIN_POPUP_MODAL(imgui_BeginPopupModal);
-
-#define IMGUI_CLOSE_CURRENT_POPUP(Name) void Name(void)
-typedef IMGUI_CLOSE_CURRENT_POPUP(imgui_CloseCurrentPopup);
-
-#define IMGUI_TREE_NODE(Name) bool Name(const char* label)
-typedef IMGUI_TREE_NODE(imgui_TreeNode);
-
-#define IMGUI_TREE_POP(Name) void Name(void)
-typedef IMGUI_TREE_POP(imgui_TreePop);
-
-#define IMGUI_GET_WINDOW_SIZE(Name) ImVec2 Name(void)
-typedef IMGUI_GET_WINDOW_SIZE(imgui_GetWindowSize);
-
-#define IMGUI_GET_CURSOR_POS(Name) ImVec2 Name(void)
-typedef IMGUI_GET_CURSOR_POS(imgui_GetCursorPos);
-
-#define IMGUI_GET_WINDOW_CONTENT_REGION_MAX(Name) ImVec2 Name(void)
-typedef IMGUI_GET_WINDOW_CONTENT_REGION_MAX(imgui_GetWindowContentRegionMax);
-
-#define IMGUI_GET_CONTENT_REGION_AVAIL(Name) ImVec2 Name(void)
-typedef IMGUI_GET_CONTENT_REGION_AVAIL(imgui_GetContentRegionAvail);
-
-#define IMGUI_SHOW_DEMO_WINDOW(Name) void Name(void)
-typedef IMGUI_SHOW_DEMO_WINDOW(imgui_ShowDemoWindow);
-
-#define IMGUI_SET_NEXT_WINDOW_POS(Name) void Name(ImVec2 pos, ImGuiCond cond, ImVec2 pivot)
-typedef IMGUI_SET_NEXT_WINDOW_POS(imgui_SetNextWindowPos);
-
-#define IMGUI_BULLET_TEXT(Name) void Name(const char* fmt, ...)
-typedef IMGUI_BULLET_TEXT(imgui_BulletText);
+//- define function types
+#define X_Macro(Name, ImGuiName, ReturnType, Args, ArgNames) typedef ReturnType imgui_##Name(Args);
+ImGuiFunctions
+#undef X_Macro
 
 struct imgui_bindings
 {
-#define ImGuiFunc(Name) imgui_##Name *Name
- 
- ImGuiFunc(IsItemHovered);
- ImGuiFunc(IsMouseClicked);
- ImGuiFunc(IsWindowHovered);
- ImGuiFunc(SetCursorPos);
- ImGuiFunc(SetNextItemOpen);
- ImGuiFunc(SetNextWindowSizeConstraints);
- ImGuiFunc(BringWindowToDisplayFront);
- ImGuiFunc(GetCurrentWindow);
- ImGuiFunc(Combo);
- ImGuiFunc(Checkbox);
- ImGuiFunc(ColorEdit4);
- ImGuiFunc(Button);
- ImGuiFunc(SliderAngle);
- ImGuiFunc(GetFontSize);
- ImGuiFunc(PushItemWidth);
- ImGuiFunc(PopItemWidth);
- ImGuiFunc(InputText);
- ImGuiFunc(InputTextMultiline);
- ImGuiFunc(PushID_Str);
- ImGuiFunc(PushID_Int);
- ImGuiFunc(PopID);
- ImGuiFunc(BeginDisabled);
- ImGuiFunc(EndDisabled);
- ImGuiFunc(PushStyleColor);
- ImGuiFunc(PopStyleColor);
- ImGuiFunc(PushStyleVar);
- ImGuiFunc(PopStyleVar);
- ImGuiFunc(DragFloat);
- ImGuiFunc(DragFloat2);
- ImGuiFunc(SliderFloat);
- ImGuiFunc(NewLine);
- ImGuiFunc(SameLine);
- ImGuiFunc(SeparatorText);
- ImGuiFunc(SliderInt);
- ImGuiFunc(TextWrapped);
- ImGuiFunc(Text);
- ImGuiFunc(Begin);
- ImGuiFunc(End);
- ImGuiFunc(CollapsingHeader);
- ImGuiFunc(Selectable);
- ImGuiFunc(SetTooltip);
- ImGuiFunc(Separator);
- ImGuiFunc(OpenPopup);
- ImGuiFunc(BeginPopup);
- ImGuiFunc(EndPopup);
- ImGuiFunc(MenuItem);
- ImGuiFunc(BeginMainMenuBar);
- ImGuiFunc(EndMainMenuBar);
- ImGuiFunc(BeginMenu);
- ImGuiFunc(EndMenu);
- ImGuiFunc(BeginCombo);
- ImGuiFunc(EndCombo);
- ImGuiFunc(BeginPopupModal);
- ImGuiFunc(CloseCurrentPopup);
- ImGuiFunc(TreeNode);
- ImGuiFunc(TreePop);
- ImGuiFunc(GetWindowSize);
- ImGuiFunc(GetCursorPos);
- ImGuiFunc(GetWindowContentRegionMax);
- ImGuiFunc(GetContentRegionAvail);
- ImGuiFunc(ShowDemoWindow);
- ImGuiFunc(SetNextWindowPos);
- ImGuiFunc(BulletText);
- 
-#undef ImGuiFunc
+#define X_Macro(Name, ImGuiName, ReturnType, Args, ArgNames) imgui_##Name *Name;
+ ImGuiFunctions
+#undef X_Macro
 };
 
 #endif //EDITOR_IMGUI_BINDINGS_H

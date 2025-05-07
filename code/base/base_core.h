@@ -225,6 +225,8 @@ union mat4
 #define AssertAlways(Expr) do { if (!(Expr)) { Trap; } } while (0)
 #define StaticAssert(Expr, Label) typedef int Static_Assert_Failed_##Label[(Expr) ? 1 : -1]
 #define AssertMsg(Expr, Msg) Assert(Expr)
+#define NotImplemented Assert(!"Not Implemented")
+#define InvalidPath Assert(!"Invalid Path");
 #define MarkUnused(Var) (void)Var
 #define Cast(Type) (Type)
 // this is done in this weird way because I cannot write multiple statements ended with expression
@@ -234,13 +236,13 @@ inline void *_SafeCastToPtr(void *Expr, u64 SizeOf1, u64 SizeOf2) { Assert(SizeO
 #define SizeOf(Expr) sizeof(Expr)
 #define MemberOf(Type, Member) ((Cast(Type *)0)->Member)
 #define AlignOf(Type) alignof(Type)
-#define NotImplemented Assert(!"Not Implemented")
-#define InvalidPath Assert(!"Invalid Path");
 #define DeferBlock(Start, End) for (int _i_ = ((Start), 0); _i_ == 0; ++_i_, (End))
 #define NameConcat_(A, B) A##B
 #define NameConcat(A, B) NameConcat_(A, B)
 #define ConvertNameToString_(Name) #Name
 #define ConvertNameToString(Name) ConvertNameToString_(Name) // convert CustomName -> "CustomName"
+#define Comma ,
+#define Nothing
 
 #if !defined(COMPILATION_UNIT_INDEX) && !defined(COMPILATION_UNIT_COUNT)
 # define COMPILATION_UNIT_INDEX 0

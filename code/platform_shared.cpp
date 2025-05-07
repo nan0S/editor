@@ -42,8 +42,8 @@ Platform_MakeEditorMemory(arena *PermamentArena, renderer_memory *RendererMemory
 internal renderer_memory
 Platform_MakeRendererMemory(arena *PermamentArena,
                             profiler *Profiler,
-                            imgui_new_frame *ImGuiNewFrame,
-                            imgui_render *ImGuiRender)
+                            imgui_NewFrame *ImGuiNewFrame,
+                            imgui_Render *ImGuiRender)
 {
  renderer_memory RendererMemory = {};
  RendererMemory.PlatformAPI = Platform;
@@ -103,147 +103,6 @@ Platform_ClockFrame(platform_clock *Clock)
  return dtForFrame;
 }
 
-#if 1
-
-IMGUI_IS_ITEM_HOVERED(ImGuiIsItemHovered){return ImGui::IsItemHovered(flags);}
-IMGUI_IS_MOUSE_CLICKED(ImGuiIsMouseClicked){return ImGui::IsMouseClicked(button);}
-IMGUI_IS_WINDOW_HOVERED(ImGuiIsWindowHovered){return ImGui::IsWindowHovered(0);}
-IMGUI_SET_CURSOR_POS(ImGuiSetCursorPos){ImGui::SetCursorPos(local_pos);}
-IMGUI_SET_NEXT_ITEM_OPEN(ImGuiSetNextItemOpen){ImGui::SetNextItemOpen(is_open, cond);}
-IMGUI_SET_NEXT_WINDOW_SIZE_CONSRAINTS(ImGuiSetNextWindowSizeConstraints){ImGui::SetNextWindowSizeConstraints(min_size, max_size);}
-IMGUI_BRING_WINDOW_TO_DISPLAY_FRONT(ImGuiBringWindowToDisplayFront){ImGui::BringWindowToDisplayFront(window);}
-IMGUI_GET_CURRENT_WINDOW(ImGuiGetCurrentWindow){return ImGui::GetCurrentWindow();}
-IMGUI_COMBO(ImGuiCombo){return ImGui::Combo(label, current_item, items, items_count);}
-IMGUI_CHECKBOX(ImGuiCheckbox){return ImGui::Checkbox(label, v);}
-IMGUI_COLOR_EDIT4(ImGuiColorEdit4){return ImGui::ColorEdit4(label, col);}
-IMGUI_BUTTON(ImGuiButton){return ImGui::Button(label, size);}
-IMGUI_SLIDER_ANGLE(ImGuiSliderAngle){return ImGui::SliderAngle(label, v_rad);}
-IMGUI_GET_FONT_SIZE(ImGuiGetFontSize){return ImGui::GetFontSize();}
-IMGUI_PUSH_ITEM_WIDTH(ImGuiPushItemWidth){return ImGui::PushItemWidth(item_width);}
-IMGUI_POP_ITEM_WIDTH(ImGuiPopItemWidth){return ImGui::PopItemWidth();}
-IMGUI_INPUT_TEXT(ImGuiInputText){return ImGui::InputText(label, buf, buf_size);}
-IMGUI_INPUT_TEXT_MULTILINE(ImGuiInputTextMultiline){return ImGui::InputTextMultiline(label, buf, buf_size, size, flags);}
-IMGUI_PUSH_ID__STR(ImGuiPushID_Str){return ImGui::PushID(str_id);}
-IMGUI_PUSH_ID__INT(ImGuiPushID_Int){return ImGui::PushID(int_id);}
-IMGUI_POP_ID(ImGuiPopID){return ImGui::PopID();}
-IMGUI_BEGIN_DISABLED(ImGuiBeginDisabled){return ImGui::BeginDisabled(disabled);}
-IMGUI_END_DISABLED(ImGuiEndDisabled){return ImGui::EndDisabled();}
-IMGUI_PUSH_STYLE_COLOR(ImGuiPushStyleColor){return ImGui::PushStyleColor(idx, col);}
-IMGUI_POP_STYLE_COLOR(ImGuiPopStyleColor){return ImGui::PopStyleColor(count);}
-IMGUI_PUSH_STYLE_VAR(ImGuiPushStyleVar){return ImGui::PushStyleVar(idx, val);}
-IMGUI_POP_STYLE_VAR(ImGuiPopStyleVar){return ImGui::PopStyleVar();}
-IMGUI_DRAG_FLOAT(ImGuiDragFloat){return ImGui::DragFloat(label, v, v_speed, v_min, v_max, format, flags);}
-IMGUI_DRAG_FLOAT2(ImGuiDragFloat2){return ImGui::DragFloat2(label, v, v_speed, v_min, v_max, format, flags);}
-IMGUI_SLIDER_FLOAT(ImGuiSliderFloat){return ImGui::SliderFloat(label, v, v_min, v_max);}
-IMGUI_NEW_LINE(ImGuiNewLine){ImGui::NewLine();}
-IMGUI_SAME_LINE(ImGuiSameLine){ImGui::SameLine();}
-IMGUI_SEPARATOR_TEXT(ImGuiSeparatorText){ImGui::SeparatorText(label);}
-IMGUI_SLIDER_INT(ImGuiSliderInt){return ImGui::SliderInt(label, v, v_min, v_max);}
-IMGUI_COLLAPSING_HEADER(ImGuiCollapsingHeader){return ImGui::CollapsingHeader(label);}
-IMGUI_SELECTABLE(ImGuiSelectable){return ImGui::Selectable(label, selectable);}
-IMGUI_OPEN_POPUP(ImGuiOpenPopup){ImGui::OpenPopup(str_id);}
-IMGUI_MENU_ITEM(ImGuiMenuItem){return ImGui::MenuItem(label, shortcut, p_selected);}
-IMGUI_BEGIN_MENU(ImGuiBeginMenu){return ImGui::BeginMenu(label);}
-IMGUI_BEGIN_COMBO(ImGuiBeginCombo){return ImGui::BeginCombo(label, preview_value);}
-IMGUI_SET_NEXT_WINDOW_POS(ImGuiSetNextWindowPos){ImGui::SetNextWindowPos(pos, cond, pivot);}
-
-IMGUI_SHOW_DEMO_WINDOW(ImGuiShowDemoWindow)
-{
-#if BUILD_DEBUG
- ImGui::ShowDemoWindow();
-#endif
-}
-
-#define ImGuiTextWrapped ImGui::TextWrapped
-#define ImGuiText ImGui::Text
-#define ImGuiBegin ImGui::Begin
-#define ImGuiEnd ImGui::End
-#define ImGuiSetTooltip ImGui::SetTooltip
-#define ImGuiSeparator ImGui::Separator
-#define ImGuiBeginPopup ImGui::BeginPopup
-#define ImGuiEndPopup ImGui::EndPopup
-#define ImGuiBeginMainMenuBar ImGui::BeginMainMenuBar
-#define ImGuiEndMainMenuBar ImGui::EndMainMenuBar
-#define ImGuiEndMenu ImGui::EndMenu
-#define ImGuiEndCombo ImGui::EndCombo
-#define ImGuiBeginPopupModal ImGui::BeginPopupModal
-#define ImGuiCloseCurrentPopup ImGui::CloseCurrentPopup
-#define ImGuiTreeNode ImGui::TreeNode
-#define ImGuiTreePop ImGui::TreePop
-#define ImGuiGetWindowSize ImGui::GetWindowSize
-#define ImGuiGetCursorPos ImGui::GetCursorPos
-#define ImGuiGetWindowContentRegionMax ImGui::GetWindowContentRegionMax
-#define ImGuiGetContentRegionAvail  ImGui::GetContentRegionAvail
-#define ImGuiBulletText ImGui::BulletText
-
-#else
-
-IMGUI_IS_ITEM_HOVERED(ImGuiIsItemHovered){return 0;}
-IMGUI_IS_MOUSE_CLICKED(ImGuiIsMouseClicked){return 0;}
-IMGUI_IS_WINDOW_HOVERED(ImGuiIsWindowHovered){return 0;}
-IMGUI_SET_CURSOR_POS(ImGuiSetCursorPos){}
-IMGUI_SET_NEXT_ITEM_OPEN(ImGuiSetNextItemOpen){}
-IMGUI_SET_NEXT_WINDOW_SIZE_CONSRAINTS(ImGuiSetNextWindowSizeConstraints){}
-IMGUI_BRING_WINDOW_TO_DISPLAY_FRONT(ImGuiBringWindowToDisplayFront){}
-IMGUI_GET_CURRENT_WINDOW(ImGuiGetCurrentWindow){return 0;}
-IMGUI_COMBO(ImGuiCombo){return 0;}
-IMGUI_CHECKBOX(ImGuiCheckbox){return 0;}
-IMGUI_COLOR_EDIT4(ImGuiColorEdit4){return 0;}
-IMGUI_BUTTON(ImGuiButton){return 0;}
-IMGUI_SLIDER_ANGLE(ImGuiSliderAngle){return 0;}
-IMGUI_GET_FONT_SIZE(ImGuiGetFontSize){return 0;}
-IMGUI_PUSH_ITEM_WIDTH(ImGuiPushItemWidth){}
-IMGUI_POP_ITEM_WIDTH(ImGuiPopItemWidth){}
-IMGUI_INPUT_TEXT(ImGuiInputText){return 0;}
-IMGUI_INPUT_TEXT_MULTILINE(ImGuiInputTextMultiline){return 0;}
-IMGUI_PUSH_ID__STR(ImGuiPushID_Str){}
-IMGUI_PUSH_ID__INT(ImGuiPushID_Int){}
-IMGUI_POP_ID(ImGuiPopID){}
-IMGUI_BEGIN_DISABLED(ImGuiBeginDisabled){}
-IMGUI_END_DISABLED(ImGuiEndDisabled){}
-IMGUI_PUSH_STYLE_COLOR(ImGuiPushStyleColor){}
-IMGUI_POP_STYLE_COLOR(ImGuiPopStyleColor){}
-IMGUI_PUSH_STYLE_VAR(ImGuiPushStyleVar){}
-IMGUI_POP_STYLE_VAR(ImGuiPopStyleVar){}
-IMGUI_DRAG_FLOAT(ImGuiDragFloat){return 0;}
-IMGUI_DRAG_FLOAT2(ImGuiDragFloat2){return 0;}
-IMGUI_SLIDER_FLOAT(ImGuiSliderFloat){return 0;}
-IMGUI_NEW_LINE(ImGuiNewLine){}
-IMGUI_SAME_LINE(ImGuiSameLine){}
-IMGUI_SEPARATOR_TEXT(ImGuiSeparatorText){}
-IMGUI_SLIDER_INT(ImGuiSliderInt){return 0;}
-IMGUI_COLLAPSING_HEADER(ImGuiCollapsingHeader){return 0;}
-IMGUI_SELECTABLE(ImGuiSelectable){return 0;}
-IMGUI_OPEN_POPUP(ImGuiOpenPopup){}
-IMGUI_MENU_ITEM(ImGuiMenuItem){return 0;}
-IMGUI_BEGIN_MENU(ImGuiBeginMenu){return 0;}
-IMGUI_BEGIN_COMBO(ImGuiBeginCombo){return 0;}
-IMGUI_SHOW_DEMO_WINDOW(ImGuiShowDemoWindow){}
-IMGUI_SET_NEXT_WINDOW_POS(ImGuiSetNextWindowPos){}
-IMGUI_TEXT_WRAPPED(ImGuiTextWrapped){}
-IMGUI_TEXT(ImGuiText){}
-IMGUI_BEGIN(ImGuiBegin){return 0;}
-IMGUI_END(ImGuiEnd){}
-IMGUI_SET_TOOLTIP(ImGuiSetTooltip){}
-IMGUI_SEPARATOR(ImGuiSeparator){}
-IMGUI_BEGIN_POPUP(ImGuiBeginPopup){return 0;}
-IMGUI_END_POPUP(ImGuiEndPopup){}
-IMGUI_BEGIN_MAIN_MENU_BAR(ImGuiBeginMainMenuBar){return 0;}
-IMGUI_END_MAIN_MENU_BAR(ImGuiEndMainMenuBar){}
-IMGUI_END_MENU(ImGuiEndMenu){}
-IMGUI_END_COMBO(ImGuiEndCombo){}
-IMGUI_BEGIN_POPUP_MODAL(ImGuiBeginPopupModal){return 0;}
-IMGUI_CLOSE_CURRENT_POPUP(ImGuiCloseCurrentPopup){}
-IMGUI_TREE_NODE(ImGuiTreeNode){return 0;}
-IMGUI_TREE_POP(ImGuiTreePop){}
-IMGUI_GET_WINDOW_SIZE(ImGuiGetWindowSize){return {};}
-IMGUI_GET_CURSOR_POS(ImGuiGetCursorPos){return {};}
-IMGUI_GET_WINDOW_CONTENT_REGION_MAX(ImGuiGetWindowContentRegionMax){return {};}
-IMGUI_GET_CONTENT_REGION_AVAIL(ImGuiGetContentRegionAvail){return {};}
-IMGUI_BULLET_TEXT(ImGuiBulletText){}
-
-#endif
-
 internal void
 Platform_PrintDebugInputEvents(platform_input_ouput *Input)
 {
@@ -286,6 +145,10 @@ Platform_GetMainWindowInitialParams(u32 ScreenWidth, u32 ScreenHeight)
  return Result;
 }
 
+#define X_Macro(Name, ImGuiName, ReturnType, Args, ArgNames) internal ReturnType ImGui##Name(Args){return ImGui::ImGuiName(ArgNames);}
+ImGuiFunctions
+#undef X_Macro
+
 platform_api Platform = {
  OS_Reserve,
  OS_Release,
@@ -297,68 +160,11 @@ platform_api Platform = {
  WorkQueueCompleteAllWork,
  
  {
-  ImGuiIsItemHovered,
-  ImGuiIsMouseClicked,
-  ImGuiIsWindowHovered,
-  ImGuiSetCursorPos,
-  ImGuiSetNextItemOpen,
-  ImGuiSetNextWindowSizeConstraints,
-  ImGuiBringWindowToDisplayFront,
-  ImGuiGetCurrentWindow,
-  ImGuiCombo,
-  ImGuiCheckbox,
-  ImGuiColorEdit4,
-  ImGuiButton,
-  ImGuiSliderAngle,
-  ImGuiGetFontSize,
-  ImGuiPushItemWidth,
-  ImGuiPopItemWidth,
-  ImGuiInputText,
-  ImGuiInputTextMultiline,
-  ImGuiPushID_Str,
-  ImGuiPushID_Int,
-  ImGuiPopID,
-  ImGuiBeginDisabled,
-  ImGuiEndDisabled,
-  ImGuiPushStyleColor,
-  ImGuiPopStyleColor,
-  ImGuiPushStyleVar,
-  ImGuiPopStyleVar,
-  ImGuiDragFloat,
-  ImGuiDragFloat2,
-  ImGuiSliderFloat,
-  ImGuiNewLine,
-  ImGuiSameLine,
-  ImGuiSeparatorText,
-  ImGuiSliderInt,
-  ImGuiTextWrapped,
-  ImGuiText,
-  ImGuiBegin,
-  ImGuiEnd,
-  ImGuiCollapsingHeader,
-  ImGuiSelectable,
-  ImGuiSetTooltip,
-  ImGuiSeparator,
-  ImGuiOpenPopup,
-  ImGuiBeginPopup,
-  ImGuiEndPopup,
-  ImGuiMenuItem,
-  ImGuiBeginMainMenuBar,
-  ImGuiEndMainMenuBar,
-  ImGuiBeginMenu,
-  ImGuiEndMenu,
-  ImGuiBeginCombo,
-  ImGuiEndCombo,
-  ImGuiBeginPopupModal,
-  ImGuiCloseCurrentPopup,
-  ImGuiTreeNode,
-  ImGuiTreePop,
-  ImGuiGetWindowSize,
-  ImGuiGetCursorPos,
-  ImGuiGetWindowContentRegionMax,
-  ImGuiGetContentRegionAvail,
-  ImGuiShowDemoWindow,
-  ImGuiSetNextWindowPos,
-  ImGuiBulletText,
+#define X_Macro(Name, ImGuiName, ReturnType, Args, ArgNames) ImGui##Name,
+  ImGuiNonVariadicFunctions
+#undef X_Macro
+#define X_Macro(Name, ImGuiName, ReturnType, Args, ArgNames) ImGui::Name,
+  ImGuiVariadicFunctions
+#undef X_Macro
  },
 };

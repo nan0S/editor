@@ -1,6 +1,13 @@
 #ifndef EDITOR_PLATFORM_H
 #define EDITOR_PLATFORM_H
 
+struct arena;
+struct editor;
+struct renderer_transfer_queue;
+struct work_queue;
+struct profiler;
+struct render_frame;
+
 enum platform_event_type
 {
  PlatformEvent_None,
@@ -203,7 +210,7 @@ typedef PLATFORM_OPEN_FILE_DIALOG(platform_open_file_dialog);
 typedef PLATFORM_READ_ENTIRE_FILE(platform_read_entire_file);
 
 typedef void work_queue_func(void *UserData);
-#define PLATFORM_WORK_QUEUE_ADD_ENTRY(Name) void Name(struct work_queue *Queue, work_queue_func *Func, void *UserData)
+#define PLATFORM_WORK_QUEUE_ADD_ENTRY(Name) void Name(work_queue *Queue, work_queue_func *Func, void *UserData)
 typedef PLATFORM_WORK_QUEUE_ADD_ENTRY(platform_work_queue_add_entry);
 
 #define PLATFORM_WORK_QUEUE_COMPLETE_ALL_WORK(Name) void Name(work_queue *Queue)
@@ -232,12 +239,6 @@ extern platform_api Platform;
 #define DeallocVirtualMemory Platform.DeallocVirtualMemory
 #define CommitVirtualMemory Platform.CommitVirtualMemory
 
-struct arena;
-struct editor;
-struct renderer_transfer_queue;
-struct work_queue;
-struct profiler;
-
 struct editor_memory
 {
  arena *PermamentArena;
@@ -256,7 +257,7 @@ struct editor_memory
  profiler *Profiler;
 };
 
-#define EDITOR_UPDATE_AND_RENDER(Name) void Name(editor_memory *Memory, platform_input_ouput *Input, struct render_frame *Frame)
+#define EDITOR_UPDATE_AND_RENDER(Name) void Name(editor_memory *Memory, platform_input_ouput *Input, render_frame *Frame)
 typedef EDITOR_UPDATE_AND_RENDER(editor_update_and_render);
 
 #define EDITOR_ON_CODE_RELOAD(Name) void Name(editor_memory *Memory)

@@ -87,6 +87,8 @@ struct render_group
  
  f32 CollisionTolerance;
  f32 RotationRadius;
+ 
+ f32 AspectRatio;
 };
 
 enum renderer_transfer_op_type
@@ -171,8 +173,8 @@ struct renderer_memory
  
  profiler *Profiler;
  
- imgui_new_frame *ImGuiNewFrame;
- imgui_render *ImGuiRender;
+ imgui_NewFrame *ImGuiNewFrame;
+ imgui_Render *ImGuiRender;
 };
 
 #define RENDERER_BEGIN_FRAME(Name) render_frame *Name(renderer *Renderer, renderer_memory *Memory, v2u WindowDim)

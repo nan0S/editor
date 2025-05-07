@@ -623,11 +623,18 @@ ElevateBezierCurveDegree(entity_with_modify_witness *EntityWitness)
  EndTemp(Temp);
 }
 
+internal void
+Calculate(rect2 AABB, camera *Camera, f32 AspectRatio)
+{
+ 
+}
+
 // TODO(hbr): Optimize this function
 internal void
 FocusCameraOnEntity(editor *Editor, entity *Entity)
 {
  rect2 AABB = EmptyAABB();
+ 
  switch (Entity->Type)
  {
   case Entity_Curve: {
@@ -666,7 +673,7 @@ FocusCameraOnEntity(editor *Editor, entity *Entity)
   case Entity_Count: InvalidPath; break;
  }
  
- SetCameraTarget(&Editor->Camera, AABB);
+ SetCameraTarget(&Editor->Camera, AABB, Editor->RenderGroup->AspectRatio);
 }
 
 internal void
@@ -1201,7 +1208,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->Camera.Rotation = Rotation2DZero();
  Editor->Camera.Zoom = 1.0f;
  Editor->Camera.ZoomSensitivity = 0.05f;
- Editor->Camera.ReachingTargetSpeed = 10.0f;
+ Editor->Camera.ReachingTargetSpeed = 1.0f;
  
  Editor->FrameStats.Calculation.MinFrameTime = +F32_INF;
  Editor->FrameStats.Calculation.MaxFrameTime = -F32_INF;
@@ -1641,606 +1648,657 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
  
  if (Editor->SelectedEntityWindow && Entity)
  {
-  UI_PushLabelF("SelectedEntity");
-  if (UI_BeginWindowF(&Editor->SelectedEntityWindow, UIWindowFlag_AutoResize, "Selected Entity"))
+  curve *Curve = 0;
+  image *Image = 0;
+  switch (Entity->Type)
   {
-   curve *Curve = 0;
-   image *Image = 0;
-   switch (Entity->Type)
+   case Entity_Curve: {Curve = &Entity->Curve;}break;
+   case Entity_Image: {Image = &Entity->Image;}break;
+   case Entity_Count: InvalidPath; break;
+  }
+  
+  curve_params *CurveParams = &Curve->Params;
+  curve_params *DefaultParams = &Editor->CurveDefaultParams;
+  
+  UI_PushLabel(StrLit("SelectedEntity"));
+  if (UI_BeginWindow(&Editor->SelectedEntityWindow, UIWindowFlag_AutoResize, StrLit("Selected")))
+  {
+   if (UI_BeginTabBar(StrLit("SelectedEntityTabBar")))
    {
-    case Entity_Curve: {Curve = &Entity->Curve;}break;
-    case Entity_Image: {Image = &Entity->Image;}break;
-    case Entity_Count: InvalidPath; break;
-   }
-   
-   UI_SeparatorTextF("General");
-   UI_LabelF("General")
-   {
-    Entity->Name = UI_InputTextF(Entity->NameBuffer,
-                                 ArrayCount(Entity->NameBuffer),
-                                 0, "Name").Input;
-    
-    UI_DragFloat2F(Entity->P.E, 0.0f, 0.0f, 0, "Position");
-    if (ResetCtxMenu(StrLit("PositionReset")))
+    if (UI_BeginTabItem(StrLit("General")))
     {
-     Entity->P = V2(0.0f, 0.0f);
-    }
-    
-    UI_AngleSliderF(&Entity->Rotation, "Rotation");
-    if (ResetCtxMenu(StrLit("RotationReset")))
-    {
-     Entity->Rotation = Rotation2DZero();
-    }
-    
-    UI_DragFloat2F(Entity->Scale.E, 0.0f, 0.0f, 0, "Scale");
-    if (ResetCtxMenu(StrLit("ScaleReset")))
-    {
-     Entity->Scale = V2(1.0f, 1.0f);
-    }
-    
-    {
-     UI_PushLabelF("DragMe");
-     f32 UniformScale = 0.0f;
-     UI_DragFloatF(&UniformScale, 0.0f, 0.0f, "Drag Me!", "Uniform Scale");
-     f32 WidthOverHeight = Entity->Scale.X / Entity->Scale.Y;
-     Entity->Scale = Entity->Scale + V2(WidthOverHeight * UniformScale, UniformScale);
-     if (ResetCtxMenu(StrLit("DragMeReset")))
+     Entity->Name = UI_InputTextF(Entity->NameBuffer,
+                                  ArrayCount(Entity->NameBuffer),
+                                  0, "Name").Input;
+     
+     UI_DragFloat2F(Entity->P.E, 0.0f, 0.0f, 0, "Position");
+     if (ResetCtxMenu(StrLit("PositionReset")))
+     {
+      Entity->P = V2(0.0f, 0.0f);
+     }
+     
+     UI_AngleSliderF(&Entity->Rotation, "Rotation");
+     if (ResetCtxMenu(StrLit("RotationReset")))
+     {
+      Entity->Rotation = Rotation2DZero();
+     }
+     
+     UI_DragFloat2F(Entity->Scale.E, 0.0f, 0.0f, 0, "Scale");
+     if (ResetCtxMenu(StrLit("ScaleReset")))
      {
       Entity->Scale = V2(1.0f, 1.0f);
      }
-     UI_PopLabel();
-    }
-    
-    UI_SliderIntegerF(&Entity->SortingLayer, -10, 10, "Sorting Layer");
-    if (ResetCtxMenu(StrLit("SortingLayerReset")))
-    {
-     Entity->SortingLayer = 0;
-    }
-    
-    b32 Hidden = !IsEntityVisible(Entity);
-    UI_Checkbox(&Hidden, StrLit("Hidden"));
-    SetEntityVisibility(Entity, Hidden);
-    
-    DeleteEntity = UI_Button(StrLit("Delete"));
-    
-    if (UI_Button(StrLit("Focus")))
-    {
-     FocusCameraOnEntity(Editor, Entity);
-    }
-    
-    if (UI_Button(StrLit("Copy")))
-    {
-     DuplicateEntity(Entity, Editor);
-    }
-    
-    if (Curve)
-    {
-     // TODO(hbr): Most of those buttons shouldn't be here in case of Entity_Image.
-     // But they will not be buttons in the first place as well.
-     UI_Disabled(!IsControlPointSelected(Curve))
+     
      {
-      if (UI_Button(StrLit("Split on Control Point")))
+      UI_PushLabelF("DragMe");
+      f32 UniformScale = 0.0f;
+      UI_DragFloatF(&UniformScale, 0.0f, 0.0f, "Drag Me!", "Uniform Scale");
+      f32 WidthOverHeight = Entity->Scale.X / Entity->Scale.Y;
+      Entity->Scale = Entity->Scale + V2(WidthOverHeight * UniformScale, UniformScale);
+      if (ResetCtxMenu(StrLit("DragMeReset")))
       {
-       SplitCurveOnControlPoint(&EntityWitness, Editor);
+       Entity->Scale = V2(1.0f, 1.0f);
+      }
+      UI_PopLabel();
+     }
+     
+     UI_SliderIntegerF(&Entity->SortingLayer, -10, 10, "Sorting Layer");
+     if (ResetCtxMenu(StrLit("SortingLayerReset")))
+     {
+      Entity->SortingLayer = 0;
+     }
+     
+     b32 Visible = IsEntityVisible(Entity);
+     UI_Checkbox(&Visible, StrLit("Visible"));
+     SetEntityVisibility(Entity, Visible);
+     
+     if (UI_Button(StrLit("Copy")))
+     {
+      DuplicateEntity(Entity, Editor);
+     }
+     if (UI_IsItemHovered())
+     {
+      UI_Tooltip(StrLit("Duplicate entity, self explanatory"));
+     }
+     
+     UI_SameRow();
+     
+     DeleteEntity = UI_Button(StrLit("Delete"));
+     if (UI_IsItemHovered())
+     {
+      UI_Tooltip(StrLit("Delete entity, self explanatory"));
+     }
+     
+     UI_SameRow();
+     
+     if (UI_Button(StrLit("Focus")))
+     {
+      FocusCameraOnEntity(Editor, Entity);
+     }
+     if (UI_IsItemHovered())
+     {
+      UI_Tooltip(StrLit("Focus the camera on entity"));
+     }
+     
+     if (Curve)
+     {
+      // TODO(hbr): Most of those buttons shouldn't be here in case of Entity_Image.
+      // But they will not be buttons in the first place as well.
+      UI_Disabled(!IsControlPointSelected(Curve))
+      {
+       if (UI_Button(StrLit("Split")))
+       {
+        SplitCurveOnControlPoint(&EntityWitness, Editor);
+       }
+       if (UI_IsItemHovered())
+       {
+        UI_Tooltip(StrLit("Split curve into two parts, based on the currently selected control point"));
+       }
+      }
+      
+      UI_SameRow();
+      
+      if (UI_ButtonF("Swap Side"))
+      {
+       Entity->Flags ^= EntityFlag_CurveAppendFront;
+      }
+      if (UI_IsItemHovered())
+      {
+       UI_Tooltip(StrLit("Swap the side to which append new control points"));
+      }
+      
+      UI_Disabled(!IsRegularBezierCurve(Curve))
+      {
+       if (UI_Button(StrLit("Elevate Degree")))
+       {
+        ElevateBezierCurveDegree(&EntityWitness);
+       }
+       if (UI_IsItemHovered())
+       {
+        UI_Tooltip(StrLit("Elevate Bezier curve degree, while maintaining its shape"));
+       }
+       
+       UI_SameRow();
+       
+       if (UI_Button(StrLit("Lower Degree")))
+       {
+        LowerBezierCurveDegree(&EntityWitness);
+       }
+       if (UI_IsItemHovered())
+       {
+        UI_Tooltip(StrLit("Lower Bezier curve degree, while maintaining its shape (if possible)"));
+       }
       }
      }
      
-     UI_Disabled(!IsRegularBezierCurve(Curve))
+     if (Curve)
      {
-      if (UI_Button(StrLit("Elevate Degree")))
+      UI_SeparatorTextF("Curve");
+      UI_LabelF("Curve")
       {
-       // TODO(hbr): Work on this function
-       ElevateBezierCurveDegree(&EntityWitness);
-      }
-      
-      if (UI_Button(StrLit("Lower Degree")))
-      {
-       // TODO(hbr): Work on this function
-       LowerBezierCurveDegree(&EntityWitness);
-      }
-     }
-    }
-   }
-   
-   if (Curve)
-   {
-    curve_params *CurveParams = &Curve->Params;
-    curve_params *DefaultParams = &Editor->CurveDefaultParams;
-    
-    UI_SeparatorTextF("Curve");
-    UI_LabelF("Curve")
-    {
-     CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(CurveParams->Type, u32), Curve_Count, CurveTypeNames, "Interpolation");
-     if (ResetCtxMenu(StrLit("InterpolationReset")))
-     {
-      CurveParams->Type = DefaultParams->Type;
-      CrucialEntityParamChanged = true;
-     }
-     
-     switch (CurveParams->Type)
-     {
-      case Curve_Polynomial: {
-       polynomial_interpolation_params *Polynomial = &CurveParams->Polynomial;
-       
-       CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(Polynomial->Type, u32), PolynomialInterpolation_Count, PolynomialInterpolationTypeNames, "Variant");
-       if (ResetCtxMenu(StrLit("PolynomialReset")))
+       CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(CurveParams->Type, u32), Curve_Count, CurveTypeNames, "Interpolation");
+       if (ResetCtxMenu(StrLit("InterpolationReset")))
        {
-        Polynomial->Type = DefaultParams->Polynomial.Type;
+        CurveParams->Type = DefaultParams->Type;
         CrucialEntityParamChanged = true;
        }
        
-       CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(Polynomial->PointSpacing, u32), PointSpacing_Count, PointSpacingNames, "Point Spacing");
-       if (ResetCtxMenu(StrLit("PointSpacingReset")))
+       switch (CurveParams->Type)
        {
-        Polynomial->PointSpacing = DefaultParams->Polynomial.PointSpacing;
-        CrucialEntityParamChanged = true;
+        case Curve_Polynomial: {
+         polynomial_interpolation_params *Polynomial = &CurveParams->Polynomial;
+         
+         CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(Polynomial->Type, u32), PolynomialInterpolation_Count, PolynomialInterpolationTypeNames, "Variant");
+         if (ResetCtxMenu(StrLit("PolynomialReset")))
+         {
+          Polynomial->Type = DefaultParams->Polynomial.Type;
+          CrucialEntityParamChanged = true;
+         }
+         
+         CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(Polynomial->PointSpacing, u32), PointSpacing_Count, PointSpacingNames, "Point Spacing");
+         if (ResetCtxMenu(StrLit("PointSpacingReset")))
+         {
+          Polynomial->PointSpacing = DefaultParams->Polynomial.PointSpacing;
+          CrucialEntityParamChanged = true;
+         }
+        }break;
+        
+        case Curve_CubicSpline: {
+         CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(CurveParams->CubicSpline, u32), CubicSpline_Count, CubicSplineNames, "Variant");
+         if (ResetCtxMenu(StrLit("SplineReset")))
+         {
+          CurveParams->CubicSpline = DefaultParams->CubicSpline;
+          CrucialEntityParamChanged = true;
+         }
+        }break;
+        
+        case Curve_Bezier: {
+         CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(CurveParams->Bezier, u32), Bezier_Count, BezierNames, "Variant");
+         if (ResetCtxMenu(StrLit("BezierReset")))
+         {
+          CurveParams->Bezier = DefaultParams->Bezier;
+          CrucialEntityParamChanged = true;
+         }
+        }break;
+        
+        case Curve_Parametric: {
+         UI_SetNextItemOpen(true, UICond_Once);
+         if (UI_BeginTreeF("Equation"))
+         {
+          parametric_curve_params *Parametric = &CurveParams->Parametric;
+          parametric_curve_resources *Resources = &Curve->ParametricResources;
+          arena *EquationArena = Resources->Arena;
+          temp_arena Temp = TempArena(EquationArena);
+          b32 EquationChanged = false;
+          
+          b32 ArenaCleared = false;
+          if (Resources->ShouldClearArena)
+          {
+           ArenaCleared = true;
+           Resources->ShouldClearArena = false;
+           ClearArena(EquationArena);
+          }
+          
+          //- additional vars
+          UI_TextF(false, "Additional Vars");
+          UI_SameRow();
+          
+          
+          UI_Disabled(!HasFreeAdditionalVar(Resources))
+          {
+           if (UI_ButtonF("+"))
+           {
+            ActivateNewAdditionalVar(Resources);
+           }
+          }
+          
+          string *VarNames = PushArrayNonZero(Temp.Arena, Resources->AdditionalVarCount, string);
+          f32 *VarValues = PushArrayNonZero(Temp.Arena, Resources->AdditionalVarCount, f32);
+          u32 VarCount = 0;
+          b32 VarChanged = false;
+          
+          for (u32 VarIndex = 0;
+               VarIndex < Resources->AdditionalVarCount;
+               ++VarIndex)
+          {
+           parametric_curve_var *Var = Resources->AdditionalVars + VarIndex;
+           
+           UI_PushId(Var->Id);
+           
+           ui_input_result VarName = UI_InputText(Var->VarNameBuffer, MAX_VAR_NAME_BUFFER_LENGTH, 4, StrLit("##Var"));
+           if (VarName.Changed)
+           {
+            VarChanged = true;
+           }
+           UI_SameRow();
+           UI_TextF(false, " := ");
+           UI_SameRow();
+           update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena, Var,
+                                                                                  ArenaCleared || VarChanged,
+                                                                                  VarNames, VarValues, VarCount,
+                                                                                  UpdateParametricCurveVar_Dynamic);
+           VarChanged |= Update.Changed;
+           if (Update.Remove)
+           {
+            DeactiveAdditionalVar(Resources, VarIndex);
+           }
+           else
+           {
+            VarValues[VarCount] = Update.Value;
+            VarNames[VarCount] = VarName.Input;
+            ++VarCount;
+           }
+           
+           UI_PopId();
+          }
+          
+          //- min/max bounds
+          UI_Label(StrLit("t_min"))
+          {
+           UI_Disabled(true)
+           {
+            UI_InputText("t_min", 0, 4, StrLit("##t_min_label"));
+           }
+           UI_SameRow();
+           UI_Text(false, StrLit(" := "));
+           UI_SameRow();
+           update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
+                                                                                  &Resources->MinT_Var,
+                                                                                  ArenaCleared || VarChanged,
+                                                                                  VarNames, VarValues, VarCount,
+                                                                                  UpdateParametricCurveVar_Static);
+           EquationChanged |= Update.Changed;
+           Parametric->MinT = Update.Value;
+          }
+          
+          UI_Label(StrLit("t_max"))
+          {
+           UI_Disabled(true)
+           {
+            UI_InputText("t_max", 0, 4, StrLit("##t_max_label"));
+           }
+           UI_SameRow();
+           UI_Text(false, StrLit(" := "));
+           UI_SameRow();
+           update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
+                                                                                  &Resources->MaxT_Var,
+                                                                                  ArenaCleared || VarChanged,
+                                                                                  VarNames, VarValues, VarCount,
+                                                                                  UpdateParametricCurveVar_Static);
+           EquationChanged |= Update.Changed;
+           Parametric->MaxT = Update.Value;
+          }
+          
+          //- (x,y) equations
+          UI_Disabled(true) UI_InputText("x(t)", 0, 4, StrLit("##x(t)_label"));
+          UI_SameRow();
+          UI_Text(false, StrLit(" := "));
+          UI_SameRow();
+          ui_input_result X_Equation = UI_InputTextF(Resources->X_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##x(t)");
+          if (ArenaCleared || VarChanged || X_Equation.Changed)
+          {
+           EquationChanged = true;
+           
+           parametric_equation_parse_result X_Parse = ParametricEquationParse(EquationArena, X_Equation.Input, VarCount, VarNames, VarValues);
+           Parametric->X_Equation = X_Parse.ParsedExpr;
+           Resources->X_Fail = X_Parse.Fail;
+           Resources->X_ErrorMessage = X_Parse.ErrorMessage;
+          }
+          if (Resources->X_Fail)
+          {
+           UI_SameRow();
+           UI_Colored(UI_Color_Text, RedColor)
+           {
+            UI_Text(false, Resources->X_ErrorMessage);
+           }
+          }
+          
+          UI_Disabled(true)
+          {
+           UI_InputText("y(t)", 0, 4, StrLit("##y(t)_label"));
+          }
+          UI_SameRow();
+          UI_Text(false, StrLit(" := "));
+          UI_SameRow();
+          ui_input_result Y_Equation = UI_InputTextF(Resources->Y_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##y(t)");
+          if (ArenaCleared || VarChanged || Y_Equation.Changed)
+          {
+           EquationChanged = true;
+           
+           parametric_equation_parse_result Y_Parse = ParametricEquationParse(EquationArena, Y_Equation.Input, VarCount, VarNames, VarValues);
+           Parametric->Y_Equation = Y_Parse.ParsedExpr;
+           Resources->Y_Fail = Y_Parse.Fail;
+           Resources->Y_ErrorMessage = Y_Parse.ErrorMessage;
+          }
+          if (Resources->Y_Fail)
+          {
+           UI_SameRow();
+           UI_Colored(UI_Color_Text, RedColor)
+           {
+            UI_Text(false, Resources->Y_ErrorMessage);
+           }
+          }
+          
+          if (EquationChanged)
+          {
+           CrucialEntityParamChanged = true;
+          }
+          
+          if (EquationChanged && !ArenaCleared)
+          {
+           Resources->ShouldClearArena = true;
+          }
+          
+          EndTemp(Temp);
+          
+          UI_EndTree();
+         }
+        }break;
+        
+        case Curve_B_Spline: {
+         b_spline_params *B_Spline = &CurveParams->B_Spline;
+         b_spline_degree_bounds Bounds = B_SplineDegreeBounds(Curve->ControlPointCount);
+         
+         CrucialEntityParamChanged |= UI_SliderIntegerF(SafeCastToPtr(B_Spline->Degree, i32), Bounds.MinDegree, Bounds.MaxDegree, "Degree");
+         if (ResetCtxMenu(StrLit("Degree")))
+         {
+          B_Spline->Degree = DefaultParams->B_Spline.Degree;
+          CrucialEntityParamChanged = true;
+         }
+         
+         CrucialEntityParamChanged |= UI_Combo(SafeCastToPtr(B_Spline->Partition, u32), B_SplinePartition_Count, B_SplinePartitionNames, StrLit("Partition"));
+         if (ResetCtxMenu(StrLit("Partition")))
+         {
+          B_Spline->Partition = DefaultParams->B_Spline.Partition;
+          CrucialEntityParamChanged = true;
+         }
+         
+         if (UI_BeginTreeF("Knots"))
+         {
+          UI_Checkbox(&B_Spline->ShowPartitionKnotPoints, StrLit("Show Partition Knots"));
+          UI_DragFloat(&B_Spline->KnotPointRadius, 0.0f, FLT_MAX, 0, StrLit("Radius"));
+          UI_ColorPicker(&B_Spline->KnotPointColor, StrLit("Color"));
+          
+          // TODO(hbr): Add way to customize knots directly
+          UI_EndTree();
+         }
+        }break;
+        
+        case Curve_Count: InvalidPath;
        }
-      }break;
-      
-      case Curve_CubicSpline: {
-       CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(CurveParams->CubicSpline, u32), CubicSpline_Count, CubicSplineNames, "Variant");
-       if (ResetCtxMenu(StrLit("SplineReset")))
+       
+       if (CurveHasWeights(Curve))
        {
-        CurveParams->CubicSpline = DefaultParams->CubicSpline;
-        CrucialEntityParamChanged = true;
-       }
-      }break;
-      
-      case Curve_Bezier: {
-       CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(CurveParams->Bezier, u32), Bezier_Count, BezierNames, "Variant");
-       if (ResetCtxMenu(StrLit("BezierReset")))
-       {
-        CurveParams->Bezier = DefaultParams->Bezier;
-        CrucialEntityParamChanged = true;
-       }
-      }break;
-      
-      case Curve_Parametric: {
-       UI_SetNextItemOpen(true, UICond_Once);
-       if (UI_BeginTreeF("Equation"))
-       {
-        parametric_curve_params *Parametric = &CurveParams->Parametric;
-        parametric_curve_resources *Resources = &Curve->ParametricResources;
-        arena *EquationArena = Resources->Arena;
-        temp_arena Temp = TempArena(EquationArena);
-        b32 EquationChanged = false;
+        UI_SeparatorText(StrLit("Control Points"));
         
-        b32 ArenaCleared = false;
-        if (Resources->ShouldClearArena)
+        b32 WeightChanged = false;
+        u32 PointCount = Curve->ControlPointCount;
+        f32 *Weights = Curve->ControlPointWeights;
+        
+        u32 Selected = 0;
+        if (IsControlPointSelected(Curve))
         {
-         ArenaCleared = true;
-         Resources->ShouldClearArena = false;
-         ClearArena(EquationArena);
-        }
-        
-        //- additional vars
-        UI_TextF(false, "Additional Vars");
-        UI_SameRow();
-        
-        
-        UI_Disabled(!HasFreeAdditionalVar(Resources))
-        {
-         if (UI_ButtonF("+"))
+         Selected = Curve->SelectedIndex.Index;
+         WeightChanged |= UI_DragFloatF(&Weights[Selected], 0.0f, FLT_MAX, 0, "Weight (%u)", Selected);
+         if (ResetCtxMenu(StrLit("WeightReset")))
          {
-          ActivateNewAdditionalVar(Resources);
+          Weights[Selected] = 1.0f;
+          WeightChanged = true;
          }
         }
         
-        string *VarNames = PushArrayNonZero(Temp.Arena, Resources->AdditionalVarCount, string);
-        f32 *VarValues = PushArrayNonZero(Temp.Arena, Resources->AdditionalVarCount, f32);
-        u32 VarCount = 0;
-        b32 VarChanged = false;
-        
-        for (u32 VarIndex = 0;
-             VarIndex < Resources->AdditionalVarCount;
-             ++VarIndex)
+        if (UI_BeginTree(StrLit("List of all weights")))
         {
-         parametric_curve_var *Var = Resources->AdditionalVars + VarIndex;
+         // NOTE(hbr): Limit the number of points displayed in the case
+         // curve has A LOT of them
+         u32 ShowCount = 100;
+         u32 ToIndex = ClampTop(Selected + ShowCount/2, PointCount);
+         u32 FromIndex = Selected - Min(Selected, ShowCount/2);
+         u32 LeftCount = ShowCount - (ToIndex - FromIndex);
+         ToIndex = ClampTop(ToIndex + LeftCount, PointCount);
+         FromIndex = FromIndex - Min(FromIndex, LeftCount);
          
-         UI_PushId(Var->Id);
-         
-         ui_input_result VarName = UI_InputText(Var->VarNameBuffer, MAX_VAR_NAME_BUFFER_LENGTH, 4, StrLit("##Var"));
-         if (VarName.Changed)
+         for (u32 PointIndex = FromIndex;
+              PointIndex < ToIndex;
+              ++PointIndex)
          {
-          VarChanged = true;
-         }
-         UI_SameRow();
-         UI_TextF(false, " := ");
-         UI_SameRow();
-         update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena, Var,
-                                                                                ArenaCleared || VarChanged,
-                                                                                VarNames, VarValues, VarCount,
-                                                                                UpdateParametricCurveVar_Dynamic);
-         VarChanged |= Update.Changed;
-         if (Update.Remove)
-         {
-          DeactiveAdditionalVar(Resources, VarIndex);
-         }
-         else
-         {
-          VarValues[VarCount] = Update.Value;
-          VarNames[VarCount] = VarName.Input;
-          ++VarCount;
+          UI_Id(PointIndex)
+          {                              
+           WeightChanged |= UI_DragFloatF(&Weights[PointIndex], 0.0f, FLT_MAX, 0, "Point (%u)", PointIndex);
+           if (ResetCtxMenu(StrLit("WeightReset")))
+           {
+            Weights[PointIndex] = 1.0f;
+            WeightChanged = true;
+           }
+          }
          }
          
-         UI_PopId();
+         UI_EndTree();
         }
         
-        //- min/max bounds
-        UI_Label(StrLit("t_min"))
-        {
-         UI_Disabled(true)
-         {
-          UI_InputText("t_min", 0, 4, StrLit("##t_min_label"));
-         }
-         UI_SameRow();
-         UI_Text(false, StrLit(" := "));
-         UI_SameRow();
-         update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
-                                                                                &Resources->MinT_Var,
-                                                                                ArenaCleared || VarChanged,
-                                                                                VarNames, VarValues, VarCount,
-                                                                                UpdateParametricCurveVar_Static);
-         EquationChanged |= Update.Changed;
-         Parametric->MinT = Update.Value;
-        }
-        
-        UI_Label(StrLit("t_max"))
-        {
-         UI_Disabled(true)
-         {
-          UI_InputText("t_max", 0, 4, StrLit("##t_max_label"));
-         }
-         UI_SameRow();
-         UI_Text(false, StrLit(" := "));
-         UI_SameRow();
-         update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
-                                                                                &Resources->MaxT_Var,
-                                                                                ArenaCleared || VarChanged,
-                                                                                VarNames, VarValues, VarCount,
-                                                                                UpdateParametricCurveVar_Static);
-         EquationChanged |= Update.Changed;
-         Parametric->MaxT = Update.Value;
-        }
-        
-        //- (x,y) equations
-        UI_Disabled(true) UI_InputText("x(t)", 0, 4, StrLit("##x(t)_label"));
-        UI_SameRow();
-        UI_Text(false, StrLit(" := "));
-        UI_SameRow();
-        ui_input_result X_Equation = UI_InputTextF(Resources->X_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##x(t)");
-        if (ArenaCleared || VarChanged || X_Equation.Changed)
-        {
-         EquationChanged = true;
-         
-         parametric_equation_parse_result X_Parse = ParametricEquationParse(EquationArena, X_Equation.Input, VarCount, VarNames, VarValues);
-         Parametric->X_Equation = X_Parse.ParsedExpr;
-         Resources->X_Fail = X_Parse.Fail;
-         Resources->X_ErrorMessage = X_Parse.ErrorMessage;
-        }
-        if (Resources->X_Fail)
-        {
-         UI_SameRow();
-         UI_Colored(UI_Color_Text, RedColor)
-         {
-          UI_Text(false, Resources->X_ErrorMessage);
-         }
-        }
-        
-        UI_Disabled(true)
-        {
-         UI_InputText("y(t)", 0, 4, StrLit("##y(t)_label"));
-        }
-        UI_SameRow();
-        UI_Text(false, StrLit(" := "));
-        UI_SameRow();
-        ui_input_result Y_Equation = UI_InputTextF(Resources->Y_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##y(t)");
-        if (ArenaCleared || VarChanged || Y_Equation.Changed)
-        {
-         EquationChanged = true;
-         
-         parametric_equation_parse_result Y_Parse = ParametricEquationParse(EquationArena, Y_Equation.Input, VarCount, VarNames, VarValues);
-         Parametric->Y_Equation = Y_Parse.ParsedExpr;
-         Resources->Y_Fail = Y_Parse.Fail;
-         Resources->Y_ErrorMessage = Y_Parse.ErrorMessage;
-        }
-        if (Resources->Y_Fail)
-        {
-         UI_SameRow();
-         UI_Colored(UI_Color_Text, RedColor)
-         {
-          UI_Text(false, Resources->Y_ErrorMessage);
-         }
-        }
-        
-        if (EquationChanged)
+        if (WeightChanged)
         {
          CrucialEntityParamChanged = true;
         }
-        
-        if (EquationChanged && !ArenaCleared)
+       }
+      }
+      
+      if (IsCurveEligibleForPointTracking(Curve))
+      {
+       UI_SeparatorText(StrLit("Misc"));
+       UI_Label(StrLit("Misc"))
+       {
+        UI_Label(StrLit("PointTracking"))
         {
-         Resources->ShouldClearArena = true;
-        }
-        
-        EndTemp(Temp);
-        
-        UI_EndTree();
-       }
-      }break;
-      
-      case Curve_B_Spline: {
-       b_spline_params *B_Spline = &CurveParams->B_Spline;
-       b_spline_degree_bounds Bounds = B_SplineDegreeBounds(Curve->ControlPointCount);
-       
-       CrucialEntityParamChanged |= UI_SliderIntegerF(SafeCastToPtr(B_Spline->Degree, i32), Bounds.MinDegree, Bounds.MaxDegree, "Degree");
-       if (ResetCtxMenu(StrLit("Degree")))
-       {
-        B_Spline->Degree = DefaultParams->B_Spline.Degree;
-        CrucialEntityParamChanged = true;
-       }
-       
-       CrucialEntityParamChanged |= UI_Combo(SafeCastToPtr(B_Spline->Partition, u32), B_SplinePartition_Count, B_SplinePartitionNames, StrLit("Partition"));
-       if (ResetCtxMenu(StrLit("Partition")))
-       {
-        B_Spline->Partition = DefaultParams->B_Spline.Partition;
-        CrucialEntityParamChanged = true;
-       }
-       
-       if (UI_BeginTreeF("Knots"))
-       {
-        UI_Checkbox(&B_Spline->ShowPartitionKnotPoints, StrLit("Show Partition Knots"));
-        UI_DragFloat(&B_Spline->KnotPointRadius, 0.0f, FLT_MAX, 0, StrLit("Radius"));
-        UI_ColorPicker(&B_Spline->KnotPointColor, StrLit("Color"));
-        
-        // TODO(hbr): Add way to customize knots directly
-        UI_EndTree();
-       }
-      }break;
-      
-      case Curve_Count: InvalidPath;
-     }
-    }
-    
-    UI_SetNextItemOpen(true, UICond_Once);
-    CurveParams->LineDisabled = !UI_BeginTreeF("Line");
-    if (!CurveParams->LineDisabled)
-    {
-     UI_ColorPickerF(&CurveParams->LineColor, "Color");
-     if (ResetCtxMenu(StrLit("ColorReset")))
-     {
-      CurveParams->LineColor = DefaultParams->LineColor;
-     }
-     
-     CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->LineWidth, 0.0f, FLT_MAX, 0, "Width");
-     if (ResetCtxMenu(StrLit("WidthReset")))
-     {
-      CurveParams->LineWidth = DefaultParams->LineWidth;
-      CrucialEntityParamChanged = true;
-     }
-     
-     if (IsCurveTotalSamplesMode(Curve))
-     {
-      CrucialEntityParamChanged |= UI_SliderIntegerF(SafeCastToPtr(CurveParams->TotalSamples, i32), 1, 5000, "Total Samples");
-      if (ResetCtxMenu(StrLit("Samples")))
-      {
-       CurveParams->TotalSamples = DefaultParams->TotalSamples;
-       CrucialEntityParamChanged = true;
-      }
-     }
-     else
-     {
-      CrucialEntityParamChanged |= UI_SliderIntegerF(SafeCastToPtr(CurveParams->SamplesPerControlPoint, i32), 1, 500, "Samples per Control Point");
-      if (ResetCtxMenu(StrLit("Samples")))
-      {
-       CurveParams->SamplesPerControlPoint = DefaultParams->SamplesPerControlPoint;
-       CrucialEntityParamChanged = true;
-      }
-     }
-     
-     UI_EndTree();
-    }
-    
-    if (UsesControlPoints(Curve))
-    {
-     UI_SetNextItemOpen(true, UICond_Once);
-     CurveParams->PointsDisabled = !UI_BeginTreeF("Control Points");
-     if (!CurveParams->PointsDisabled)
-     {
-      UI_ColorPickerF(&CurveParams->PointColor, "Color");
-      if (ResetCtxMenu(StrLit("PointColorReset")))
-      {
-       CurveParams->PointColor = DefaultParams->PointColor;
-      }
-      
-      UI_DragFloatF(&CurveParams->PointRadius, 0.0f, FLT_MAX, 0, "Radius");
-      if (ResetCtxMenu(StrLit("PointRadiusReset")))
-      {
-       CurveParams->PointRadius = DefaultParams->PointRadius;
-      }
-      
-      if (CurveHasWeights(Curve))
-      {
-       b32 WeightChanged = false;
-       u32 PointCount = Curve->ControlPointCount;
-       f32 *Weights = Curve->ControlPointWeights;
-       
-       u32 Selected = 0;
-       if (IsControlPointSelected(Curve))
-       {
-        Selected = Curve->SelectedIndex.Index;
-        WeightChanged |= UI_DragFloatF(&Weights[Selected], 0.0f, FLT_MAX, 0, "Weight (%u)", Selected);
-        if (ResetCtxMenu(StrLit("WeightReset")))
-        {
-         Weights[Selected] = 1.0f;
-         WeightChanged = true;
-        }
-       }
-       
-       if (UI_BeginTreeF("Weights"))
-       {
-        // NOTE(hbr): Limit the number of points displayed in the case
-        // curve has A LOT of them
-        u32 ShowCount = 100;
-        u32 ToIndex = ClampTop(Selected + ShowCount/2, PointCount);
-        u32 FromIndex = Selected - Min(Selected, ShowCount/2);
-        u32 LeftCount = ShowCount - (ToIndex - FromIndex);
-        ToIndex = ClampTop(ToIndex + LeftCount, PointCount);
-        FromIndex = FromIndex - Min(FromIndex, LeftCount);
-        
-        for (u32 PointIndex = FromIndex;
-             PointIndex < ToIndex;
-             ++PointIndex)
-        {
-         UI_Id(PointIndex)
-         {                              
-          WeightChanged |= UI_DragFloatF(&Weights[PointIndex], 0.0f, FLT_MAX, 0, "Point (%u)", PointIndex);
-          if (ResetCtxMenu(StrLit("WeightReset")))
+         point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
+         f32 Fraction = Tracking->Fraction;
+         
+         b32 BezierTrackingActive = false;
+         b32 SplittingTrackingActive = false;
+         switch (Tracking->Type)
+         {
+          case PointTrackingAlongCurve_DeCasteljauVisualization: {BezierTrackingActive = Tracking->Active;}break;
+          case PointTrackingAlongCurve_BezierCurveSplit: {SplittingTrackingActive = Tracking->Active;}break;
+         }
+         
+         if (UI_CheckboxF(&BezierTrackingActive, "##DeCasteljauEnabled"))
+         {
+          Tracking->Active = BezierTrackingActive;
+          if (Tracking->Active)
           {
-           Weights[PointIndex] = 1.0f;
-           WeightChanged = true;
+           Tracking->Type = PointTrackingAlongCurve_DeCasteljauVisualization;
           }
          }
+         UI_SameRow();
+         UI_SeparatorTextF("De Casteljau's Algorithm");
+         if (BezierTrackingActive)
+         {
+          UI_SliderFloatF(&Fraction, 0.0f, 1.0f, "t");
+         }
+         
+         if (UI_CheckboxF(&SplittingTrackingActive, "##SplittingEnabled"))
+         {
+          Tracking->Active = SplittingTrackingActive;
+          if (Tracking->Active)
+          {
+           Tracking->Type = PointTrackingAlongCurve_BezierCurveSplit;
+          }
+         }
+         UI_SameRow();
+         UI_SeparatorTextF("Split Bezier Curve");
+         if (SplittingTrackingActive)
+         {
+          UI_SliderFloatF(&Fraction, 0.0f, 1.0f, "t");
+          UI_SameRow();
+          if (UI_ButtonF("Split!"))
+          {
+           PerformBezierCurveSplit(&EntityWitness, Editor);
+          }
+         }
+         
+         if (Fraction != Tracking->Fraction)
+         {
+          SetTrackingPointFraction(&EntityWitness, Fraction);
+         }
         }
-        
-        UI_EndTree();
        }
-       
-       if (WeightChanged)
+      }
+     }
+     
+     UI_EndTabItem();
+    }
+    
+    if (UI_BeginTabItem(StrLit("Settings")))
+    {
+     UI_SeparatorText(StrLit("Line"));
+     {
+      b32 LineEnabled = !CurveParams->LineDisabled;
+      UI_Checkbox(&LineEnabled, StrLit("Visible"));
+      CurveParams->LineDisabled = !LineEnabled;
+      
+      UI_ColorPickerF(&CurveParams->LineColor, "Color");
+      if (ResetCtxMenu(StrLit("ColorReset")))
+      {
+       CurveParams->LineColor = DefaultParams->LineColor;
+      }
+      
+      CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->LineWidth, 0.0f, FLT_MAX, 0, "Width");
+      if (ResetCtxMenu(StrLit("WidthReset")))
+      {
+       CurveParams->LineWidth = DefaultParams->LineWidth;
+       CrucialEntityParamChanged = true;
+      }
+      
+      if (IsCurveTotalSamplesMode(Curve))
+      {
+       CrucialEntityParamChanged |= UI_SliderIntegerF(SafeCastToPtr(CurveParams->TotalSamples, i32), 1, 5000, "Total Samples");
+       if (ResetCtxMenu(StrLit("Samples")))
        {
+        CurveParams->TotalSamples = DefaultParams->TotalSamples;
         CrucialEntityParamChanged = true;
        }
       }
-      
-      UI_EndTree();
-     }
-    }
-    
-    CurveParams->PolylineEnabled = UI_BeginTreeF("Polyline");
-    if (CurveParams->PolylineEnabled)
-    {
-     UI_ColorPickerF(&CurveParams->PolylineColor, "Color");
-     if (ResetCtxMenu(StrLit("PolylineColorReset")))
-     {
-      CurveParams->PolylineColor = DefaultParams->PolylineColor;
-     }
-     
-     // TODO(hbr): This isn't really crucial in a sense that we have to recompute everything.
-     // Consider distinguishing between that.
-     CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->PolylineWidth, 0.0f, FLT_MAX, 0, "Width");
-     if (ResetCtxMenu(StrLit("PolylineWidthReset")))
-     {
-      CurveParams->PolylineWidth = DefaultParams->PolylineWidth;
-      CrucialEntityParamChanged = true;
-     }
-     UI_EndTree();
-    }
-    
-    CurveParams->ConvexHullEnabled = UI_BeginTreeF("Convex Hull");
-    if (CurveParams->ConvexHullEnabled)
-    {
-     UI_ColorPickerF(&CurveParams->ConvexHullColor, "Color");
-     if (ResetCtxMenu(StrLit("ConvexHullColorReset")))
-     {
-      CurveParams->ConvexHullColor = DefaultParams->ConvexHullColor;
-     }
-     
-     CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->ConvexHullWidth, 0.0f, FLT_MAX, 0, "Width");
-     if (ResetCtxMenu(StrLit("ConvexHullWidthReset")))
-     {
-      CurveParams->ConvexHullWidth = DefaultParams->ConvexHullWidth;
-      CrucialEntityParamChanged = true;
-     }
-     
-     UI_EndTree();
-    }
-    
-    // TODO(hbr): I don't know if misc is a good name here
-    UI_LabelF("Misc")
-    {
-     UI_SeparatorTextF("Misc");
-     if (UI_ButtonF("Swap Append Side"))
-     {
-      Entity->Flags ^= EntityFlag_CurveAppendFront;
-     }
-     
-     if (IsCurveEligibleForPointTracking(Curve))
-     {
-      UI_LabelF("PointTracking")
+      else
       {
-       point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
-       f32 Fraction = Tracking->Fraction;
-       
-       b32 BezierTrackingActive = false;
-       b32 SplittingTrackingActive = false;
-       switch (Tracking->Type)
+       CrucialEntityParamChanged |= UI_SliderIntegerF(SafeCastToPtr(CurveParams->SamplesPerControlPoint, i32), 1, 500, "Samples per Control Point");
+       if (ResetCtxMenu(StrLit("Samples")))
        {
-        case PointTrackingAlongCurve_DeCasteljauVisualization: {BezierTrackingActive = Tracking->Active;}break;
-        case PointTrackingAlongCurve_BezierCurveSplit: {SplittingTrackingActive = Tracking->Active;}break;
-       }
-       
-       if (UI_CheckboxF(&BezierTrackingActive, "##DeCasteljauEnabled"))
-       {
-        Tracking->Active = BezierTrackingActive;
-        if (Tracking->Active)
-        {
-         Tracking->Type = PointTrackingAlongCurve_DeCasteljauVisualization;
-        }
-       }
-       UI_SameRow();
-       UI_SeparatorTextF("De Casteljau's Algorithm");
-       if (BezierTrackingActive)
-       {
-        UI_SliderFloatF(&Fraction, 0.0f, 1.0f, "t");
-       }
-       
-       if (UI_CheckboxF(&SplittingTrackingActive, "##SplittingEnabled"))
-       {
-        Tracking->Active = SplittingTrackingActive;
-        if (Tracking->Active)
-        {
-         Tracking->Type = PointTrackingAlongCurve_BezierCurveSplit;
-        }
-       }
-       UI_SameRow();
-       UI_SeparatorTextF("Split Bezier Curve");
-       if (SplittingTrackingActive)
-       {
-        UI_SliderFloatF(&Fraction, 0.0f, 1.0f, "t");
-        UI_SameRow();
-        if (UI_ButtonF("Split!"))
-        {
-         PerformBezierCurveSplit(&EntityWitness, Editor);
-        }
-       }
-       
-       if (Fraction != Tracking->Fraction)
-       {
-        SetTrackingPointFraction(&EntityWitness, Fraction);
+        CurveParams->SamplesPerControlPoint = DefaultParams->SamplesPerControlPoint;
+        CrucialEntityParamChanged = true;
        }
       }
      }
-    }
-    
-    if (Curve)
-    {
-     // TODO(hbr): Move this into tab
-     UI_Label(StrLit("Info"))
+     
+     if (UsesControlPoints(Curve))
      {
-      UI_SeparatorTextF("Info");
-      UI_TextF(false, "Number of control points: %u", Curve->ControlPointCount);
-      UI_TextF(false, "Number of samples:        %u", Curve->CurveSampleCount);
+      UI_SeparatorText(StrLit("Control Points"));
+      UI_Label(StrLit("Control Points"))
+      {
+       b32 PointsEnabled = !CurveParams->PointsDisabled;
+       UI_Checkbox(&PointsEnabled, StrLit("Visible"));
+       CurveParams->PointsDisabled = !PointsEnabled;
+       
+       UI_ColorPickerF(&CurveParams->PointColor, "Color");
+       if (ResetCtxMenu(StrLit("PointColorReset")))
+       {
+        CurveParams->PointColor = DefaultParams->PointColor;
+       }
+       
+       UI_DragFloatF(&CurveParams->PointRadius, 0.0f, FLT_MAX, 0, "Radius");
+       if (ResetCtxMenu(StrLit("PointRadiusReset")))
+       {
+        CurveParams->PointRadius = DefaultParams->PointRadius;
+       }
+      }
      }
+     
+     UI_SeparatorText(StrLit("Polyline"));
+     UI_Label(StrLit("Polyline"))
+     {
+      UI_Checkbox(&CurveParams->PolylineEnabled, StrLit("Visible"));
+      
+      UI_ColorPickerF(&CurveParams->PolylineColor, "Color");
+      if (ResetCtxMenu(StrLit("PolylineColorReset")))
+      {
+       CurveParams->PolylineColor = DefaultParams->PolylineColor;
+      }
+      
+      // TODO(hbr): This isn't really crucial in a sense that we have to recompute everything.
+      // Consider distinguishing between that.
+      CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->PolylineWidth, 0.0f, FLT_MAX, 0, "Width");
+      if (ResetCtxMenu(StrLit("PolylineWidthReset")))
+      {
+       CurveParams->PolylineWidth = DefaultParams->PolylineWidth;
+       CrucialEntityParamChanged = true;
+      }
+     }
+     
+     UI_SeparatorText(StrLit("Convex Hull"));
+     UI_Label(StrLit("Convex Hull"))
+     {
+      UI_Checkbox(&CurveParams->ConvexHullEnabled, StrLit("Visible"));
+      
+      UI_ColorPickerF(&CurveParams->ConvexHullColor, "Color");
+      if (ResetCtxMenu(StrLit("ConvexHullColorReset")))
+      {
+       CurveParams->ConvexHullColor = DefaultParams->ConvexHullColor;
+      }
+      
+      CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->ConvexHullWidth, 0.0f, FLT_MAX, 0, "Width");
+      if (ResetCtxMenu(StrLit("ConvexHullWidthReset")))
+      {
+       CurveParams->ConvexHullWidth = DefaultParams->ConvexHullWidth;
+       CrucialEntityParamChanged = true;
+      }
+     }
+     
+     UI_EndTabItem();
     }
     
-    if (CrucialEntityParamChanged)
+    if (UI_BeginTabItem(StrLit("Info")))
     {
-     MarkEntityModified(&EntityWitness);
+     if (Curve)
+     {
+      UI_Label(StrLit("Info"))
+      {
+       UI_TextF(false, "Number of control points  %u", Curve->ControlPointCount);
+       UI_TextF(false, "Number of samples         %u", Curve->CurveSampleCount);
+      }
+     }
+     
+     UI_EndTabItem();
     }
+    
+    UI_EndTabBar();
    }
   }
   UI_EndWindow();
   UI_PopLabel();
+ }
+ 
+ if (CrucialEntityParamChanged)
+ {
+  MarkEntityModified(&EntityWitness);
  }
  
  EndEntityModify(EntityWitness);
@@ -2775,8 +2833,8 @@ UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing, editor *Editor)
   {
    Assert(Curve0);
    Assert(Curve1);
-   SetEntityVisibility(Curve0, Hidden);
-   SetEntityVisibility(Curve1, Hidden);
+   SetEntityVisibility(Curve0, !Hidden);
+   SetEntityVisibility(Curve1, !Hidden);
   }
  }
 }
@@ -3668,14 +3726,17 @@ UpdateAndRenderMergingCurvesUI(editor *Editor)
    
    UI_Disabled(!Compatibility.Compatible)
    {
-    if (UI_ButtonF("Merge"))
+    if (UI_Button(StrLit("Merge")))
     {
      EndMergingCurves(Editor, true);
     }
-    if (!Compatibility.Compatible && UI_IsItemHovered())
-    {
-     UI_Tooltip(Compatibility.WhyIncompatible);
-    }
+   }
+   
+   UI_SameRow();
+   
+   UI_Colored(UI_Color_Text, RedColor)
+   {
+    UI_Text(true, Compatibility.WhyIncompatible);
    }
   }
   else
@@ -4256,6 +4317,7 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input_ouput *Input, struc
                                   Editor->CollisionToleranceClip,
                                   Editor->RotationRadiusClip);
  }
+ Editor->RenderGroup = RenderGroup;
  
  ProcessAsyncEvents(Editor);
  

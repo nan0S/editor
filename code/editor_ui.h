@@ -6,6 +6,7 @@ typedef b32 clicked_b32;
 typedef b32 changed_b32;
 typedef b32 open_b32;
 typedef b32 expanded_b32;
+typedef b32 selected_b32;
 
 enum
 {
@@ -102,6 +103,15 @@ internal void              UI_EndCombo(void);
 internal expanded_b32      UI_BeginTree(string Label);
 internal expanded_b32      UI_BeginTreeF(char const *Format, ...);
 internal void              UI_EndTree(void);
+
+// TODO(hbr): what does the returned b32 mean? label it with typedef'ed b32 like the rest of the functions
+internal b32               UI_BeginTabBar(string Label);
+internal b32               UI_BeginTabBarF(char const *Format, ...);
+internal void              UI_EndTabBar(void);
+
+internal selected_b32      UI_BeginTabItem(string Label);
+internal selected_b32      UI_BeginTabItemF(char const *Format, ...);
+internal void              UI_EndTabItem(void);
 
 internal void              UI_NewRow(void);
 internal void              UI_SameRow(void);

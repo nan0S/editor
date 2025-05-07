@@ -6,14 +6,34 @@ TranslateCamera(camera *Camera, v2 Translate)
 }
 
 internal void
-SetCameraTarget(camera *Camera, rect2 AABB)
+SetCameraTarget(camera *Camera, rect2 AABB, f32 AspectRatio)
 {
  if (IsNonEmpty(&AABB))
  {
   v2 TargetP = 0.5f * (AABB.Min + AABB.Max);
   Camera->TargetP = TargetP;
+  
+#if 0
   v2 Extents = AABB.Max - TargetP;
   Camera->TargetZoom = Min(SafeDiv1(1.0f, Extents.X), SafeDiv1(1.0f, Extents.Y));
+#endif
+  
+  {
+   mat3_inv CameraT = CameraTransform(TargetP, Camera->Rotation, 1.0f);
+   mat3_inv ClipT = ClipTransform(AspectRatio);
+   
+   v2 MaxP = V2(1.0f, 1.0f);
+   
+   v2 P = ClipT.Forward * CameraT.Forward * MaxP;
+   
+   f32 ZoomX = 1.0f / P.X;
+   f32 ZoomY = 1.0f / P.Y;
+   
+   f32 NewZoom = Min(ZoomX, ZoomY);
+   Camera->TargetZoom = NewZoom;
+  }
+  
+  
   Camera->ReachingTarget = true;
  }
 }

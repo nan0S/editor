@@ -1323,6 +1323,8 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->ProfilerWindow = true;
  Editor->Profiler.ReferenceMs = Editor->Profiler.DefaultReferenceMs = 1000.0f / 120;
  Editor->Profiler.Profiler = Memory->Profiler;
+ 
+ NilExpr = &Editor->NilParametricExpr;
 }
 
 internal void
@@ -1425,7 +1427,7 @@ RenderEntity(rendering_entity_handle Handle)
                     GetCurvePartZOffset(CurvePart_CurveLine));
    }
    
-   if (CurveParams->PolylineEnabled)
+   if (CurveParams->PolylineEnabled && UsesControlPoints(Curve))
    {
     PushVertexArray(RenderGroup,
                     Curve->PolylineVertices.Vertices,
@@ -1435,7 +1437,7 @@ RenderEntity(rendering_entity_handle Handle)
                     GetCurvePartZOffset(CurvePart_CurvePolyline));
    }
    
-   if (CurveParams->ConvexHullEnabled)
+   if (CurveParams->ConvexHullEnabled && UsesControlPoints(Curve))
    {
     PushVertexArray(RenderGroup,
                     Curve->ConvexHullVertices.Vertices,
@@ -1604,11 +1606,31 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
  if (Mode == UpdateParametricCurveVar_Dynamic)
  {
   UI_SameRow();
-  Remove = UI_ButtonF("-");
+  Remove = UI_Button(StrLit("-"));
  }
  
- UI_SameRow();
- b32 SwapMode = UI_ButtonF(Var->EquationMode ? "D" : "C");
+ b32 SwapMode = false;
+ { 
+  string ButtonLabel = {};
+  string TooltipContents = {};
+  if (Var->EquationMode)
+  {
+   ButtonLabel = StrLit("S");
+   TooltipContents = StrLit("Switch to slider");
+  }
+  else
+  {
+   ButtonLabel = StrLit("E");
+   TooltipContents = StrLit("Switch to equation");
+  }
+  
+  UI_SameRow();
+  SwapMode = UI_Button(ButtonLabel);
+  if (UI_IsItemHovered())
+  {
+   UI_Tooltip(TooltipContents);
+  }
+ }
  
  if (Var->EquationMode && Var->EquationFail)
  {
@@ -1763,115 +1785,113 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
         }break;
         
         case Curve_Parametric: {
-         UI_SetNextItemOpen(true, UICond_Once);
-         if (UI_BeginTreeF("Equation"))
+         parametric_curve_params *Parametric = &CurveParams->Parametric;
+         parametric_curve_resources *Resources = &Curve->ParametricResources;
+         arena *EquationArena = Resources->Arena;
+         temp_arena Temp = TempArena(EquationArena);
+         b32 EquationChanged = false;
+         
+         b32 ArenaCleared = false;
+         if (Resources->ShouldClearArena)
          {
-          parametric_curve_params *Parametric = &CurveParams->Parametric;
-          parametric_curve_resources *Resources = &Curve->ParametricResources;
-          arena *EquationArena = Resources->Arena;
-          temp_arena Temp = TempArena(EquationArena);
-          b32 EquationChanged = false;
-          
-          b32 ArenaCleared = false;
-          if (Resources->ShouldClearArena)
+          ArenaCleared = true;
+          Resources->ShouldClearArena = false;
+          ClearArena(EquationArena);
+         }
+         
+         //- additional vars
+         UI_Text(false, StrLit("Additional Vars"));
+         UI_SameRow();
+         
+         UI_Disabled(!CanAddAdditionalVar(Resources))
+         {
+          if (UI_Button(StrLit("+")))
           {
-           ArenaCleared = true;
-           Resources->ShouldClearArena = false;
-           ClearArena(EquationArena);
+           AddNewAdditionalVar(Resources);
           }
+         }
+         
+         u32 VarCount = 0;
+         string *VarNames = PushArrayNonZero(Temp.Arena, MAX_ADDITIONAL_VAR_COUNT, string);
+         f32 *VarValues = PushArrayNonZero(Temp.Arena, MAX_ADDITIONAL_VAR_COUNT, f32);
+         b32 VarChanged = false;
+         
+         ListIter(Var, Resources->AdditionalVarsHead, parametric_curve_var)
+         {
+          UI_PushId(Var->Id);
           
-          //- additional vars
-          UI_TextF(false, "Additional Vars");
+          ui_input_result VarName = UI_InputText(Var->VarNameBuffer, MAX_VAR_NAME_BUFFER_LENGTH, 4, StrLit("##Var"));
+          if (VarName.Changed)
+          {
+           VarChanged = true;
+          }
           UI_SameRow();
-          
-          
-          UI_Disabled(!HasFreeAdditionalVar(Resources))
+          UI_Text(false, StrLit(" := "));
+          UI_SameRow();
+          update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena, Var,
+                                                                                 ArenaCleared || VarChanged,
+                                                                                 VarNames, VarValues, VarCount,
+                                                                                 UpdateParametricCurveVar_Dynamic);
+          VarChanged |= Update.Changed;
+          if (Update.Remove)
           {
-           if (UI_ButtonF("+"))
-           {
-            ActivateNewAdditionalVar(Resources);
-           }
+           RemoveAdditionalVar(Resources, Var);
+          }
+          else
+          {
+           Assert(VarCount < MAX_ADDITIONAL_VAR_COUNT);
+           VarValues[VarCount] = Update.Value;
+           VarNames[VarCount] = VarName.Input;
+           ++VarCount;
           }
           
-          string *VarNames = PushArrayNonZero(Temp.Arena, Resources->AdditionalVarCount, string);
-          f32 *VarValues = PushArrayNonZero(Temp.Arena, Resources->AdditionalVarCount, f32);
-          u32 VarCount = 0;
-          b32 VarChanged = false;
-          
-          for (u32 VarIndex = 0;
-               VarIndex < Resources->AdditionalVarCount;
-               ++VarIndex)
+          UI_PopId();
+         }
+         
+         //- min/max bounds
+         UI_Label(StrLit("t_min"))
+         {
+          UI_Disabled(true)
           {
-           parametric_curve_var *Var = Resources->AdditionalVars + VarIndex;
-           
-           UI_PushId(Var->Id);
-           
-           ui_input_result VarName = UI_InputText(Var->VarNameBuffer, MAX_VAR_NAME_BUFFER_LENGTH, 4, StrLit("##Var"));
-           if (VarName.Changed)
-           {
-            VarChanged = true;
-           }
-           UI_SameRow();
-           UI_TextF(false, " := ");
-           UI_SameRow();
-           update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena, Var,
-                                                                                  ArenaCleared || VarChanged,
-                                                                                  VarNames, VarValues, VarCount,
-                                                                                  UpdateParametricCurveVar_Dynamic);
-           VarChanged |= Update.Changed;
-           if (Update.Remove)
-           {
-            DeactiveAdditionalVar(Resources, VarIndex);
-           }
-           else
-           {
-            VarValues[VarCount] = Update.Value;
-            VarNames[VarCount] = VarName.Input;
-            ++VarCount;
-           }
-           
-           UI_PopId();
+           UI_InputText("t_min", 0, 4, StrLit("##t_min_label"));
           }
-          
-          //- min/max bounds
-          UI_Label(StrLit("t_min"))
+          UI_SameRow();
+          UI_Text(false, StrLit(" := "));
+          UI_SameRow();
+          update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
+                                                                                 &Resources->MinT_Var,
+                                                                                 ArenaCleared || VarChanged,
+                                                                                 VarNames, VarValues, VarCount,
+                                                                                 UpdateParametricCurveVar_Static);
+          EquationChanged |= Update.Changed;
+          Parametric->MinT = Update.Value;
+         }
+         
+         UI_Label(StrLit("t_max"))
+         {
+          UI_Disabled(true)
           {
-           UI_Disabled(true)
-           {
-            UI_InputText("t_min", 0, 4, StrLit("##t_min_label"));
-           }
-           UI_SameRow();
-           UI_Text(false, StrLit(" := "));
-           UI_SameRow();
-           update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
-                                                                                  &Resources->MinT_Var,
-                                                                                  ArenaCleared || VarChanged,
-                                                                                  VarNames, VarValues, VarCount,
-                                                                                  UpdateParametricCurveVar_Static);
-           EquationChanged |= Update.Changed;
-           Parametric->MinT = Update.Value;
+           UI_InputText("t_max", 0, 4, StrLit("##t_max_label"));
           }
-          
-          UI_Label(StrLit("t_max"))
+          UI_SameRow();
+          UI_Text(false, StrLit(" := "));
+          UI_SameRow();
+          update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
+                                                                                 &Resources->MaxT_Var,
+                                                                                 ArenaCleared || VarChanged,
+                                                                                 VarNames, VarValues, VarCount,
+                                                                                 UpdateParametricCurveVar_Static);
+          EquationChanged |= Update.Changed;
+          Parametric->MaxT = Update.Value;
+         }
+         
+         //- (x,y) equations
+         UI_Label(StrLit("x(t)"))
+         {
+          UI_Disabled(true)
           {
-           UI_Disabled(true)
-           {
-            UI_InputText("t_max", 0, 4, StrLit("##t_max_label"));
-           }
-           UI_SameRow();
-           UI_Text(false, StrLit(" := "));
-           UI_SameRow();
-           update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
-                                                                                  &Resources->MaxT_Var,
-                                                                                  ArenaCleared || VarChanged,
-                                                                                  VarNames, VarValues, VarCount,
-                                                                                  UpdateParametricCurveVar_Static);
-           EquationChanged |= Update.Changed;
-           Parametric->MaxT = Update.Value;
+           UI_InputText("x(t)", 0, 4, StrLit("##x(t)_label"));
           }
-          
-          //- (x,y) equations
-          UI_Disabled(true) UI_InputText("x(t)", 0, 4, StrLit("##x(t)_label"));
           UI_SameRow();
           UI_Text(false, StrLit(" := "));
           UI_SameRow();
@@ -1893,7 +1913,10 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
             UI_Text(false, Resources->X_ErrorMessage);
            }
           }
-          
+         }
+         
+         UI_Label(StrLit("y(t)"))
+         {
           UI_Disabled(true)
           {
            UI_InputText("y(t)", 0, 4, StrLit("##y(t)_label"));
@@ -1919,21 +1942,19 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
             UI_Text(false, Resources->Y_ErrorMessage);
            }
           }
-          
-          if (EquationChanged)
-          {
-           CrucialEntityParamChanged = true;
-          }
-          
-          if (EquationChanged && !ArenaCleared)
-          {
-           Resources->ShouldClearArena = true;
-          }
-          
-          EndTemp(Temp);
-          
-          UI_EndTree();
          }
+         
+         if (EquationChanged)
+         {
+          CrucialEntityParamChanged = true;
+         }
+         
+         if (EquationChanged && !ArenaCleared)
+         {
+          Resources->ShouldClearArena = true;
+         }
+         
+         EndTemp(Temp);
         }break;
         
         case Curve_B_Spline: {
@@ -2049,8 +2070,6 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
        
        if (Curve)
        {
-        // TODO(hbr): Most of those buttons shouldn't be here in case of Entity_Image.
-        // But they will not be buttons in the first place as well.
         UI_Disabled(!IsControlPointSelected(Curve))
         {
          if (UI_Button(StrLit("Split")))
@@ -2255,43 +2274,44 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
       }
      }
      
-     UI_SeparatorText(StrLit("Polyline"));
-     UI_Label(StrLit("Polyline"))
+     if (UsesControlPoints(Curve))
      {
-      UI_Checkbox(&CurveParams->PolylineEnabled, StrLit("Visible"));
-      
-      UI_ColorPickerF(&CurveParams->PolylineColor, "Color");
-      if (ResetCtxMenu(StrLit("PolylineColorReset")))
+      UI_SeparatorText(StrLit("Polyline"));
+      UI_Label(StrLit("Polyline"))
       {
-       CurveParams->PolylineColor = DefaultParams->PolylineColor;
+       UI_Checkbox(&CurveParams->PolylineEnabled, StrLit("Visible"));
+       
+       UI_ColorPickerF(&CurveParams->PolylineColor, "Color");
+       if (ResetCtxMenu(StrLit("PolylineColorReset")))
+       {
+        CurveParams->PolylineColor = DefaultParams->PolylineColor;
+       }
+       
+       CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->PolylineWidth, 0.0f, FLT_MAX, 0, "Width");
+       if (ResetCtxMenu(StrLit("PolylineWidthReset")))
+       {
+        CurveParams->PolylineWidth = DefaultParams->PolylineWidth;
+        CrucialEntityParamChanged = true;
+       }
       }
       
-      // TODO(hbr): This isn't really crucial in a sense that we have to recompute everything.
-      // Consider distinguishing between that.
-      CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->PolylineWidth, 0.0f, FLT_MAX, 0, "Width");
-      if (ResetCtxMenu(StrLit("PolylineWidthReset")))
+      UI_SeparatorText(StrLit("Convex Hull"));
+      UI_Label(StrLit("Convex Hull"))
       {
-       CurveParams->PolylineWidth = DefaultParams->PolylineWidth;
-       CrucialEntityParamChanged = true;
-      }
-     }
-     
-     UI_SeparatorText(StrLit("Convex Hull"));
-     UI_Label(StrLit("Convex Hull"))
-     {
-      UI_Checkbox(&CurveParams->ConvexHullEnabled, StrLit("Visible"));
-      
-      UI_ColorPickerF(&CurveParams->ConvexHullColor, "Color");
-      if (ResetCtxMenu(StrLit("ConvexHullColorReset")))
-      {
-       CurveParams->ConvexHullColor = DefaultParams->ConvexHullColor;
-      }
-      
-      CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->ConvexHullWidth, 0.0f, FLT_MAX, 0, "Width");
-      if (ResetCtxMenu(StrLit("ConvexHullWidthReset")))
-      {
-       CurveParams->ConvexHullWidth = DefaultParams->ConvexHullWidth;
-       CrucialEntityParamChanged = true;
+       UI_Checkbox(&CurveParams->ConvexHullEnabled, StrLit("Visible"));
+       
+       UI_ColorPickerF(&CurveParams->ConvexHullColor, "Color");
+       if (ResetCtxMenu(StrLit("ConvexHullColorReset")))
+       {
+        CurveParams->ConvexHullColor = DefaultParams->ConvexHullColor;
+       }
+       
+       CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->ConvexHullWidth, 0.0f, FLT_MAX, 0, "Width");
+       if (ResetCtxMenu(StrLit("ConvexHullWidthReset")))
+       {
+        CurveParams->ConvexHullWidth = DefaultParams->ConvexHullWidth;
+        CrucialEntityParamChanged = true;
+       }
       }
      }
      

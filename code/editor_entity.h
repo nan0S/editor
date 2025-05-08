@@ -189,6 +189,9 @@ enum
 #define MAX_EQUATION_BUFFER_LENGTH 64
 struct parametric_curve_var
 {
+ parametric_curve_var *Next;
+ parametric_curve_var *Prev;
+ 
  u32 Id;
  
  b32 EquationMode;
@@ -219,9 +222,12 @@ struct parametric_curve_resources
  b32 Y_Fail;
  string Y_ErrorMessage;
  
-#define MAX_ADDITIONAL_VARS_COUNT 16
- u32 AdditionalVarCount;
- parametric_curve_var AdditionalVars[MAX_ADDITIONAL_VARS_COUNT];
+#define MAX_ADDITIONAL_VAR_COUNT 16
+ u32 AllocatedAdditionalVarCount;
+ parametric_curve_var AdditionalVars[MAX_ADDITIONAL_VAR_COUNT];
+ parametric_curve_var *FirstFreeAdditionalVar;
+ parametric_curve_var *AdditionalVarsHead;
+ parametric_curve_var *AdditionalVarsTail;
 };
 
 struct curve

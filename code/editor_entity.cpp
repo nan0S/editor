@@ -1442,39 +1442,46 @@ EndEntityModify(entity_with_modify_witness Witness)
 }
 
 internal b32
-HasFreeAdditionalVar(parametric_curve_resources *Resources)
+CanAddAdditionalVar(parametric_curve_resources *Resources)
 {
- b32 Result = (Resources->AdditionalVarCount < MAX_ADDITIONAL_VARS_COUNT);
+ b32 Result = (Resources->FirstFreeAdditionalVar != 0 ||
+               Resources->AllocatedAdditionalVarCount < MAX_ADDITIONAL_VAR_COUNT);
  return Result;
 }
 
 internal void
-ActivateNewAdditionalVar(parametric_curve_resources *Resources)
+AddNewAdditionalVar(parametric_curve_resources *Resources)
 {
- Assert(HasFreeAdditionalVar(Resources));
+ parametric_curve_var *Var = Resources->FirstFreeAdditionalVar;
  
- parametric_curve_var *Var = Resources->AdditionalVars + Resources->AdditionalVarCount;
- ++Resources->AdditionalVarCount;
- 
- u32 Id = Var->Id;
- if (Id == 0)
+ if (Var)
  {
-  Id = Resources->AdditionalVarCount;
+  StackPop(Resources->FirstFreeAdditionalVar);
+ }
+ else if (Resources->AllocatedAdditionalVarCount < MAX_ADDITIONAL_VAR_COUNT)
+ {
+  Var = Resources->AdditionalVars + Resources->AllocatedAdditionalVarCount;
+  Var->Id = Resources->AllocatedAdditionalVarCount;
+  ++Resources->AllocatedAdditionalVarCount;
  }
  
- StructZero(Var);
- Var->Id = Id;
+ if (Var)
+ {
+  u32 Id = Var->Id;
+  StructZero(Var);
+  Var->Id = Id;
+  
+  DLLPushBack(Resources->AdditionalVarsHead,
+              Resources->AdditionalVarsTail,
+              Var);
+ }
 }
 
 internal void
-DeactiveAdditionalVar(parametric_curve_resources *Resources, u32 VarIndex)
+RemoveAdditionalVar(parametric_curve_resources *Resources, parametric_curve_var *Var)
 {
- Assert(VarIndex < Resources->AdditionalVarCount);
- 
- parametric_curve_var *Remove = Resources->AdditionalVars + VarIndex;
- parametric_curve_var *From = Resources->AdditionalVars + (Resources->AdditionalVarCount - 1);
- 
- ArrayMove(Remove, Remove + 1, (Resources->AdditionalVarCount - 1) - VarIndex);
- 
- --Resources->AdditionalVarCount;
+ DLLRemove(Resources->AdditionalVarsHead,
+           Resources->AdditionalVarsTail,
+           Var);
+ StackPush(Resources->FirstFreeAdditionalVar, Var);
 }

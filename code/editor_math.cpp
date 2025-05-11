@@ -858,46 +858,36 @@ GaussianElimination(f32 *A, f32 *B, u32 Rows, u32 Cols)
  return Result;
 }
 
-internal b_spline_knots
-B_SplineBaseKnots(arena *Arena, u32 PartitionSize, u32 Degree)
+internal void
+B_SplineBaseKnots(b_spline_knot_params KnotParams, f32 *Knots)
 {
- f32 *Knots = PushArrayNonZero(Arena, 2*Degree + PartitionSize, f32);
- 
- f32 A = 0.0f;
- f32 B = 1.0f;
- EquidistantPoints(Knots + Degree, PartitionSize, A, B);
- 
- b_spline_knots Result = {};
- Result.Knots = Knots;
- Result.PartitionSize = PartitionSize;
- Result.Degree = Degree;
- Result.A = A;
- Result.B = B;
- 
- return Result;
+ EquidistantPoints(Knots + KnotParams.Degree,
+                   KnotParams.PartitionSize,
+                   KnotParams.A,
+                   KnotParams.B);
 }
 
 internal void
-B_SplineKnotsNaturalExtension(b_spline_knots Knots)
+B_SplineKnotsNaturalExtension(b_spline_knot_params KnotParams, f32 *Knots)
 {
- for (u32 I = 0; I < Knots.Degree; ++I)
+ for (u32 I = 0; I < KnotParams.Degree; ++I)
  {
-  Knots.Knots[I] = Knots.A;
+  Knots[I] = KnotParams.A;
  }
- for (u32 I = 0; I < Knots.Degree; ++I)
+ for (u32 I = 0; I < KnotParams.Degree; ++I)
  {
-  Knots.Knots[Knots.Degree + Knots.PartitionSize + I] = Knots.B;
+  Knots[KnotParams.Degree + KnotParams.PartitionSize + I] = KnotParams.B;
  }
 }
 
 internal void
-B_SplineKnotsPeriodicExtension(b_spline_knots Knots)
+B_SplineKnotsPeriodicExtension(b_spline_knot_params KnotParams, f32 *Knots)
 {
- f32 A = Knots.A;
- f32 B = Knots.B;
- f32 *t = Knots.Knots + Knots.Degree;
- i32 n = Knots.PartitionSize - 1;
- i32 m = Knots.Degree;
+ f32 A = KnotParams.A;
+ f32 B = KnotParams.B;
+ f32 *t = Knots + KnotParams.Degree;
+ i32 n = KnotParams.PartitionSize - 1;
+ i32 m = KnotParams.Degree;
  
  for (i32 i = 1; i <= m; ++i)
  {
@@ -910,7 +900,7 @@ B_SplineKnotsPeriodicExtension(b_spline_knots Knots)
 
 // NOTE(hbr): Reference implementation
 internal v2
-B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knots Knots)
+B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *Knots)
 {
  temp_arena Temp = TempArena(0);
  
@@ -969,15 +959,15 @@ B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knots Knots)
 
 // TODO(hbr): This can be ppb optimized to use only O(m) memory
 internal v2
-B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knots Knots)
+B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *Knots)
 {
  temp_arena Temp = TempArena(0);
  
  // NOTE(hbr): This is unfortunately necessary. Otherwise it freaks out on tail.
- T = Clamp(T, Knots.A, Knots.B - F32_EPS);
+ T = Clamp(T, KnotParams.A, KnotParams.B - F32_EPS);
  
- u32 Degree = Knots.Degree;
- u32 PartitionSize = Knots.PartitionSize;
+ u32 Degree = KnotParams.Degree;
+ u32 PartitionSize = KnotParams.PartitionSize;
  
  u32 Rows = Degree;
  u32 Cols = Degree;
@@ -991,7 +981,7 @@ B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knots Knots)
  i32 m = Degree;
  i32 n = PartitionSize - 1;
  
- f32 *t = Knots.Knots + Knots.Degree;
+ f32 *t = Knots + KnotParams.Degree;
  
  i32 j = -m;
  for (; j+1 < n+m; ++j)
@@ -1070,6 +1060,40 @@ CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u32 N)
   
   EndTemp(Temp);
  }
+}
+
+internal b_spline_degree_bounds
+B_SplineDegreeBounds(u32 ControlPointCount)
+{
+ b_spline_degree_bounds Result = {};
+ if (ControlPointCount > 1)
+ {
+  Result.MinDegree = 1;
+  Result.MaxDegree = ControlPointCount - 1;
+ }
+ return Result;
+}
+
+internal b_spline_knot_params
+B_SplineKnotsParamsFromDegree(u32 Degree, u32 ControlPointCount)
+{
+ u32 PartitionSize = ControlPointCount - Degree + 1;
+ if (ControlPointCount == 0)
+ {
+  PartitionSize = 0;
+ }
+ Assert(Cast(i32)PartitionSize >= 0);
+ 
+ u32 KnotCount = 2*Degree + PartitionSize;
+ 
+ b_spline_knot_params Result = {};
+ Result.Degree = Degree;
+ Result.PartitionSize = PartitionSize;
+ Result.KnotCount = KnotCount;
+ Result.A = 0.0f;
+ Result.B = 1.0f;
+ 
+ return Result;
 }
 
 // NOTE(hbr): Those should be local conveniance internal, but impossible in C.

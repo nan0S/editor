@@ -126,7 +126,7 @@ CheckCollisionWithMultiLine(v2 LocalAtP, v2 *CurveSamples, u32 PointCount, f32 W
 }
 
 internal collision
-CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
+CheckCollisionWithEntities(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
 {
  ProfileFunctionBegin();
  
@@ -281,7 +281,7 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
      
      // NOTE(hbr): !Collision.Entity - small optimization because this collision doesn't add
      // anything to Flags.
-     if (Curve->Params.ConvexHullEnabled && !Result.Entity)
+     if (IsConvexHullVisible(Curve) && !Result.Entity)
      {
       multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP,
                                                              Curve->ConvexHullPoints, Curve->ConvexHullCount,
@@ -294,7 +294,7 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
      
      // NOTE(hbr): !Collision.Entity - small optimization because this collision doesn't add
      // anything to Flags.
-     if (Curve->Params.PolylineEnabled && !Result.Entity)
+     if (IsPolylineVisible(Curve) && !Result.Entity)
      {
       multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP,
                                                              ControlPoints, ControlPointCount,
@@ -302,6 +302,28 @@ CheckCollisionWith(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
       if (Line.Collided)
       {
        Result.Entity = Entity;
+      }
+     }
+     
+     if (Are_B_SplineKnotsVisible(Curve))
+     {
+      //b_spline_knots Knots = Curve->B_SplineKnots;
+      u32 PartitionSize = Curve->B_SplineKnotParams.PartitionSize;
+      v2 *PartitionKnotPoints = Curve->B_SplinePartitionKnotPoints;
+      point_info KnotPointInfo = Get_B_SplineKnotPointInfo(Entity);
+      
+      for (u32 KnotIndex = 0;
+           KnotIndex < PartitionSize;
+           ++KnotIndex)
+      {
+       v2 Knot = PartitionKnotPoints[KnotIndex];
+       if (PointCollision(LocalAtP, Knot, KnotPointInfo.Radius))
+       {
+        Result.Entity = Entity;
+        Result.Flags |= Collision_B_SplineKnot;
+        Result.KnotIndex = KnotIndex;
+        break;
+       }
       }
      }
     } break;
@@ -1427,7 +1449,7 @@ RenderEntity(rendering_entity_handle Handle)
                     GetCurvePartZOffset(CurvePart_CurveLine));
    }
    
-   if (CurveParams->PolylineEnabled && UsesControlPoints(Curve))
+   if (IsPolylineVisible(Curve))
    {
     PushVertexArray(RenderGroup,
                     Curve->PolylineVertices.Vertices,
@@ -1437,7 +1459,7 @@ RenderEntity(rendering_entity_handle Handle)
                     GetCurvePartZOffset(CurvePart_CurvePolyline));
    }
    
-   if (CurveParams->ConvexHullEnabled && UsesControlPoints(Curve))
+   if (IsConvexHullVisible(Curve))
    {
     PushVertexArray(RenderGroup,
                     Curve->ConvexHullVertices.Vertices,
@@ -1496,13 +1518,13 @@ RenderEntity(rendering_entity_handle Handle)
    
    if (Are_B_SplineKnotsVisible(Curve))
    {
-    b_spline_knots Knots = Curve->B_SplineKnots;
+    u32 PartitionSize = Curve->B_SplineKnotParams.PartitionSize;
     v2 *PartitionKnotPoints = Curve->B_SplinePartitionKnotPoints;
     b_spline_params B_Spline = CurveParams->B_Spline;
     point_info KnotPointInfo = Get_B_SplineKnotPointInfo(Entity);
     
     for (u32 KnotIndex = 0;
-         KnotIndex < Knots.PartitionSize;
+         KnotIndex < PartitionSize;
          ++KnotIndex)
     {
      v2 Knot = PartitionKnotPoints[KnotIndex];
@@ -1961,10 +1983,11 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
          b_spline_params *B_Spline = &CurveParams->B_Spline;
          b_spline_degree_bounds Bounds = B_SplineDegreeBounds(Curve->ControlPointCount);
          
-         CrucialEntityParamChanged |= UI_SliderIntegerF(SafeCastToPtr(B_Spline->Degree, i32), Bounds.MinDegree, Bounds.MaxDegree, "Degree");
+         // TODO(hbr): I shouldn't just directly modify degree value
+         CrucialEntityParamChanged |= UI_SliderInteger(SafeCastToPtr(Curve->B_SplineKnotParams.Degree, i32), Bounds.MinDegree, Bounds.MaxDegree, StrLit("Degree"));
          if (ResetCtxMenu(StrLit("Degree")))
          {
-          B_Spline->Degree = DefaultParams->B_Spline.Degree;
+          Curve->B_SplineKnotParams.Degree = 1;
           CrucialEntityParamChanged = true;
          }
          
@@ -3033,6 +3056,15 @@ BeginMovingTrackingPoint(editor_left_click_state *Left, entity_id Target)
 }
 
 internal void
+BeginMovingBSplineKnot(editor_left_click_state *Left, entity_id Target, u32 B_SplineKnotIndex)
+{
+ Left->Active = true;
+ Left->Mode = EditorLeftClick_MovingBSplineKnot;
+ Left->TargetEntity = Target;
+ Left->B_SplineKnotIndex = B_SplineKnotIndex;
+}
+
+internal void
 EndLeftClick(editor_left_click_state *Left)
 {
  arena *OriginalVerticesArena = Left->OriginalVerticesArena;
@@ -3094,6 +3126,8 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
   if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_LeftMouseButton &&
       (!LeftClick->Active || DoesAnimationWantInput || DoesMergingWantInput))
   {
+   Eat = true;
+   
    collision Collision = {};
    if (Event->Flags & PlatformEventFlag_Alt)
    {
@@ -3101,16 +3135,16 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
    }
    else
    {
-    Collision = CheckCollisionWith(MAX_ENTITY_COUNT,
-                                   Editor->Entities,
-                                   MouseP,
-                                   RenderGroup->CollisionTolerance);
+    Collision = CheckCollisionWithEntities(MAX_ENTITY_COUNT,
+                                           Editor->Entities,
+                                           MouseP,
+                                           RenderGroup->CollisionTolerance);
    }
    
    if ((DoesAnimationWantInput || DoesMergingWantInput) &&
        Collision.Entity && Collision.Entity->Type == Entity_Curve)
    {
-    Eat = true;
+    
     
     if (DoesAnimationWantInput)
     {
@@ -3127,8 +3161,6 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
    }
    else
    {     
-    Eat = true;
-    
     LeftClick->OriginalVerticesCaptured = false;
     LeftClick->LastMouseP = MouseP;
     
@@ -3151,6 +3183,10 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
      
      f32 Fraction = SafeDiv0(Cast(f32)Collision.CurveLinePointIndex, (CollisionCurve->CurveSampleCount- 1));
      SetTrackingPointFraction(&CollisionEntityWitness, Fraction);
+    }
+    else if (Collision.Flags & Collision_B_SplineKnot)
+    {
+     BeginMovingBSplineKnot(LeftClick, MakeEntityId(Collision.Entity), Collision.KnotIndex);
     }
     else if (Collision.Flags & Collision_CurvePoint)
     {
@@ -3256,6 +3292,23 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
       SetTrackingPointFraction(&EntityWitness, Fraction);
      }break;
      
+     case EditorLeftClick_MovingBSplineKnot: {
+      u32 KnotIndex = LeftClick->B_SplineKnotIndex;
+      
+      curve *Curve = SafeGetCurve(Entity);
+      b_spline_knot_params KnotParams = Curve->B_SplineKnotParams;
+      f32 *Knots = Curve->B_SplineKnots;
+      
+      f32 KnotFraction = Knots[KnotParams.Degree + KnotIndex];
+      MovePointAlongCurve(Curve, &TranslateLocal, &KnotFraction, true);
+      MovePointAlongCurve(Curve, &TranslateLocal, &KnotFraction, false);
+      
+      // TODO(hbr): Move this out to a function
+      OS_PrintDebugF("index: %u, before: %f, after: %f\n", KnotIndex, Knots[KnotIndex], KnotFraction);
+      Knots[KnotParams.Degree + KnotIndex] = KnotFraction;
+      MarkEntityModified(&EntityWitness);
+     }break;
+     
      case EditorLeftClick_MovingCurvePoint: {
       if (!LeftClick->OriginalVerticesCaptured)
       {
@@ -3294,10 +3347,10 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
   {
    Eat = true;
    
-   collision Collision = CheckCollisionWith(MAX_ENTITY_COUNT,
-                                            Editor->Entities,
-                                            MouseP,
-                                            RenderGroup->CollisionTolerance);
+   collision Collision = CheckCollisionWithEntities(MAX_ENTITY_COUNT,
+                                                    Editor->Entities,
+                                                    MouseP,
+                                                    RenderGroup->CollisionTolerance);
    
    BeginRightClick(RightClick, MouseP, Collision);
    

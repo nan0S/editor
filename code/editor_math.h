@@ -114,24 +114,30 @@ internal mat4 Translate4x4(mat4 A, v3 P);
 internal mat4 Transpose4x4(mat4 A);
 internal v4 Transform4x4(mat4 A, v4 P);
 
+internal i32 GaussianElimination(f32 *A, f32 *B, u32 Rows, u32 Cols); // returns number of free variables (or -1 if no solution)
+
 //~ Interpolation
 internal void EquidistantPoints(f32 *Ti, u32 N, f32 A, f32 B);
 internal void ChebychevPoints(f32 *Ti, u32 N);
 
+//- Barycentric form polynomial
 internal void BarycentricOmega(f32 *Omega, f32 *Ti, u32 N);
 internal void BarycentricOmegaWerner(f32 *Omega, f32 *Ti, u32 N);
 internal void BarycentricOmegaEquidistant(f32 *Omega, f32 *Ti, u32 N);
 internal void BarycentricOmegaChebychev(f32 *Omega, u32 N);
 internal f32  BarycentricEvaluate(f32 T, f32 *Omega, f32 *Ti, f32 *Y, u32 N);
 
+//- Newton form polynomial
 internal void NewtonBeta(f32 *Beta, f32 *Ti, f32 *Y, u32 N);
 internal void NewtonBetaFast(f32 *Beta, f32 *Ti, f32 *Y, u32 N);
 internal f32  NewtonEvaluate(f32 T, f32 *Beta, f32 *Ti, u32 N);
 
+//- Cubic Spline interpolation
 internal void CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u32 N);
 internal void CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u32 N);
 internal f32  CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N);
 
+//- Bezier curve
 struct bezier_lower_degree
 {
  b32 Failure;
@@ -175,20 +181,28 @@ struct all_de_casteljau_intermediate_results
 };
 internal all_de_casteljau_intermediate_results DeCasteljauAlgorithm(arena *Arena, f32 T, v2 *P, f32 *W, u32 N);
 
-internal i32 GaussianElimination(f32 *A, f32 *B, u32 Rows, u32 Cols); // returns number of free variables (or -1 if no solution)
-
-struct b_spline_knots
+//- B-Spline curve
+struct b_spline_degree_bounds
 {
- f32 A;
- f32 B;
+ u32 MinDegree;
+ u32 MaxDegree;
+};
+
+struct b_spline_knot_params
+{
  u32 Degree;
  u32 PartitionSize;
- f32 *Knots;
+ u32 KnotCount;
+ f32 A;
+ f32 B;
 };
-internal b_spline_knots B_SplineBaseKnots(arena *Arena, u32 PartitionSize, u32 Degree);
-internal void           B_SplineKnotsNaturalExtension(b_spline_knots Knots);
-internal void           B_SplineKnotsPeriodicExtension(b_spline_knots Knots);
-internal v2             B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knots Knots);
+
+internal void                   B_SplineBaseKnots(b_spline_knot_params KnotParams, f32 *Knots);
+internal void                   B_SplineKnotsNaturalExtension(b_spline_knot_params KnotParams, f32 *Knots);
+internal void                   B_SplineKnotsPeriodicExtension(b_spline_knot_params KnotParams, f32 *Knots);
+internal v2                     B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *Knots);
+internal b_spline_degree_bounds B_SplineDegreeBounds(u32 ControlPointCount);
+internal b_spline_knot_params   B_SplineKnotsParamsFromDegree(u32 Degree, u32 ControlPointCount);
 
 //~ Collisions, intersections, geometry
 struct line_intersection

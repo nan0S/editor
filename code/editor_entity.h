@@ -80,8 +80,6 @@ StaticAssert(ArrayCount(B_SplinePartitionNames) == B_SplinePartition_Count, B_Sp
 struct b_spline_params
 {
  b_spline_partition_type Partition;
- u32 Degree;
- 
  b32 ShowPartitionKnotPoints;
  f32 KnotPointRadius;
  v4 KnotPointColor;
@@ -241,6 +239,10 @@ struct curve
  f32 ControlPointWeights[MAX_CONTROL_POINT_COUNT];
  cubic_bezier_point CubicBezierPoints[MAX_CONTROL_POINT_COUNT];
  
+ b_spline_knot_params B_SplineKnotParams;
+#define MAX_B_SPLINE_KNOT_COUNT (2 * MAX_CONTROL_POINT_COUNT)
+ f32 B_SplineKnots[MAX_B_SPLINE_KNOT_COUNT];
+ 
  control_point_index SelectedIndex;
  
  u32 CurveSampleCount;
@@ -249,12 +251,11 @@ struct curve
  u32 ConvexHullCount;
  v2 *ConvexHullPoints;
  
+ v2 *B_SplinePartitionKnotPoints;
+ 
  vertex_array CurveVertices;
  vertex_array PolylineVertices;
  vertex_array ConvexHullVertices;
- 
- b_spline_knots B_SplineKnots;
- v2 *B_SplinePartitionKnotPoints;
  
  point_tracking_along_curve_state PointTracking;
  curve_degree_lowering_state DegreeLowering;
@@ -315,6 +316,7 @@ internal entity_with_modify_witness BeginEntityModify(entity *Entity);
 internal void                       EndEntityModify(entity_with_modify_witness Witness);
 internal void                       MarkEntityModified(entity_with_modify_witness *Witness);
 
+// TODO(hbr): rename to entity_handle
 struct entity_id
 {
  entity *Entity;
@@ -467,6 +469,8 @@ internal b32 IsEntitySelected(entity *Entity);
 internal b32 IsControlPointSelected(curve *Curve);
 internal b32 AreCurvePointsVisible(curve *Curve);
 internal b32 UsesControlPoints(curve *Curve);
+internal b32 IsPolylineVisible(curve *Curve);
+internal b32 IsConvexHullVisible(curve *Curve);
 internal point_info GetCurveControlPointInfo(entity *Curve, u32 PointIndex);
 internal point_info Get_B_SplineKnotPointInfo(entity *Entity);
 internal f32 GetCurveTrackedPointRadius(curve *Curve);
@@ -498,12 +502,5 @@ struct curve_merge_compatibility
  string WhyIncompatible;
 };
 internal curve_merge_compatibility AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method Method);
-
-struct b_spline_degree_bounds
-{
- u32 MinDegree;
- u32 MaxDegree;
-};
-internal b_spline_degree_bounds B_SplineDegreeBounds(u32 ControlPointCount);
 
 #endif //EDITOR_ENTITY_H

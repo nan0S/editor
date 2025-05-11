@@ -85,6 +85,7 @@ enum
  Collision_CurvePoint   = (1<<0),
  Collision_CurveLine    = (1<<1),
  Collision_TrackedPoint = (1<<2),
+ Collision_B_SplineKnot = (1<<3),
 };
 struct collision
 {
@@ -92,6 +93,7 @@ struct collision
  collision_flags Flags;
  curve_point_index CurvePointIndex;
  u32 CurveLinePointIndex;
+ u32 KnotIndex;
 };
 
 enum notification_type
@@ -161,6 +163,7 @@ struct frame_stats
 enum editor_left_click_mode
 {
  EditorLeftClick_MovingTrackingPoint,
+ EditorLeftClick_MovingBSplineKnot,
  EditorLeftClick_MovingCurvePoint,
  EditorLeftClick_MovingEntity,
 };
@@ -172,6 +175,7 @@ struct editor_left_click_state
  editor_left_click_mode Mode;
  curve_point_index CurvePointIndex;
  v2 LastMouseP;
+ u32 B_SplineKnotIndex;
  
  arena *OriginalVerticesArena;
  b32 OriginalVerticesCaptured;

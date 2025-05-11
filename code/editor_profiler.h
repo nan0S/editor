@@ -114,11 +114,11 @@ internal void ProfilerReset(profiler *Profiler); // useful when some code hot-re
 
 #endif
 
-// NOTE(hbr): Don't look at this, just forward declaration for things to compile more independently
+internal b32          ProfilerIsAnchorActive(anchor_index Index);
+internal anchor_index MakeAnchorIndex(u32 Index);
+
+//- ignore
 internal void __ProfileBegin(char const *Label, u16 AnchorIndex);
 internal void __ProfileEnd(void);
-
-internal b32 ProfilerIsAnchorActive(anchor_index Index);
-internal anchor_index MakeAnchorIndex(u32 Index);
 
 #endif //EDITOR_PROFILER_H

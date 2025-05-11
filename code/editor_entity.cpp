@@ -95,6 +95,22 @@ AreCurvePointsVisible(curve *Curve)
 }
 
 internal b32
+IsPolylineVisible(curve *Curve)
+{
+ curve_params *CurveParams = &Curve->Params;
+ b32 Result = (CurveParams->PolylineEnabled && UsesControlPoints(Curve));
+ return Result;
+}
+
+internal b32
+IsConvexHullVisible(curve *Curve)
+{
+ curve_params *CurveParams = &Curve->Params;
+ b32 Result = (CurveParams->ConvexHullEnabled && UsesControlPoints(Curve));
+ return Result;
+}
+
+internal b32
 UsesControlPoints(curve *Curve)
 {
  b32 Result = false;
@@ -553,10 +569,35 @@ SelectControlPointFromCurvePointIndex(curve *Curve, curve_point_index Index)
 }
 
 internal void
+RecomputeCurveB_SplineKnots(curve *Curve)
+{
+ u32 ControlPointCount = Curve->ControlPointCount;
+ curve_params *CurveParams = &Curve->Params;
+ b_spline_params *B_SplineParams = &CurveParams->B_Spline;
+ f32 *Knots = Curve->B_SplineKnots;
+ 
+ b_spline_degree_bounds DegreeBounds = B_SplineDegreeBounds(ControlPointCount);
+ u32 Degree = Clamp(Curve->B_SplineKnotParams.Degree, DegreeBounds.MinDegree, DegreeBounds.MaxDegree);
+ b_spline_knot_params KnotParams = B_SplineKnotsParamsFromDegree(Degree, ControlPointCount);
+ 
+ Assert(KnotParams.KnotCount <= MAX_B_SPLINE_KNOT_COUNT);
+ B_SplineBaseKnots(KnotParams, Knots);
+ switch (B_SplineParams->Partition)
+ {
+  case B_SplinePartition_Natural: {B_SplineKnotsNaturalExtension(KnotParams, Knots);}break;
+  case B_SplinePartition_Periodic: {B_SplineKnotsPeriodicExtension(KnotParams, Knots);}break;
+  case B_SplinePartition_Count: InvalidPath;
+ }
+ 
+ Curve->B_SplineKnotParams = KnotParams;
+}
+
+internal void
 RemoveControlPoint(entity_with_modify_witness *EntityWitness, control_point_index Index)
 {
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
+ 
  if (Index.Index < Curve->ControlPointCount)
  {
 #define ArrayRemoveOrdered(Array, At, Count) \
@@ -1192,33 +1233,21 @@ CalcCubicBezier(cubic_bezier_point *Beziers, u32 PointCount,
  }
 }
 
-internal b_spline_degree_bounds
-B_SplineDegreeBounds(u32 ControlPointCount)
-{
- b_spline_degree_bounds Result = {};
- if (ControlPointCount > 1)
- {
-  Result.MinDegree = 1;
-  Result.MaxDegree = ControlPointCount - 1;
- }
- return Result;
-}
-
 internal void
 Calc_B_Spline(v2 *Controls, u32 PointCount,
-              b_spline_knots Knots, b_spline_params B_Spline,
+              b_spline_knot_params KnotParams, f32 *Knots,
               u32 SampleCount, v2 *OutSamples)
 {
  temp_arena Temp = TempArena(0);
  
- f32 T = Knots.A;
- f32 Delta_T = (Knots.B - Knots.A) / (SampleCount - 1);
+ f32 T = KnotParams.A;
+ f32 Delta_T = (KnotParams.B - KnotParams.A) / (SampleCount - 1);
  
  for (u32 SampleIndex = 0;
       SampleIndex < SampleCount;
       ++SampleIndex)
  {
-  OutSamples[SampleIndex] = B_SplineEvaluate(T, Controls, Knots);
+  OutSamples[SampleIndex] = B_SplineEvaluate(T, Controls, KnotParams, Knots);
   T += Delta_T;
  }
  
@@ -1263,6 +1292,7 @@ CalcCurve(arena *EntityArena, curve *Curve, u32 SampleCount, v2 *OutSamples)
  f32 *Weights = Curve->ControlPointWeights;
  cubic_bezier_point *Beziers = Curve->CubicBezierPoints;
  curve_params *Params = &Curve->Params;
+ f32 *B_SplineKnots = Curve->B_SplineKnots;
  
  switch (Params->Type)
  {
@@ -1279,40 +1309,25 @@ CalcCurve(arena *EntityArena, curve *Curve, u32 SampleCount, v2 *OutSamples)
   } break;
   
   case Curve_B_Spline: {
-   b_spline_params *B_Spline = &Params->B_Spline;
-   b_spline_degree_bounds DegreeBounds = B_SplineDegreeBounds(PointCount);
-   u32 Degree = Clamp(B_Spline->Degree, DegreeBounds.MinDegree, DegreeBounds.MaxDegree);
+   RecomputeCurveB_SplineKnots(Curve);
    
-   u32 PartitionSize = PointCount - Degree + 1;
-   if (PointCount == 0)
-   {
-    PartitionSize = 0;
-   }
-   Assert(Cast(i32)PartitionSize >= 0);
+   b_spline_knot_params KnotParams = Curve->B_SplineKnotParams;
+   u32 PartitionSize = KnotParams.PartitionSize;
+   u32 Degree = KnotParams.Degree;
    
-   b_spline_knots Knots = B_SplineBaseKnots(EntityArena, PartitionSize, Degree);
-   switch (B_Spline->Partition)
-   {
-    case B_SplinePartition_Natural: {B_SplineKnotsNaturalExtension(Knots);}break;
-    case B_SplinePartition_Periodic: {B_SplineKnotsPeriodicExtension(Knots);}break;
-    case B_SplinePartition_Count: InvalidPath;
-   }
+   v2 *PartitionKnotPoints = PushArrayNonZero(EntityArena, PartitionSize, v2);
    
-   B_Spline->Degree = Degree;
-   Curve->B_SplineKnots = Knots;
-   
-   v2 *PartitionKnotPoints = PushArrayNonZero(EntityArena, Knots.PartitionSize, v2);
    for (u32 PartitionKnotIndex = 0;
-        PartitionKnotIndex < Knots.PartitionSize;
+        PartitionKnotIndex < PartitionSize;
         ++PartitionKnotIndex)
    {
-    f32 T = Knots.Knots[Knots.Degree + PartitionKnotIndex];
-    v2 KnotPoint = B_SplineEvaluate(T, Controls, Knots);
+    f32 T = B_SplineKnots[Degree + PartitionKnotIndex];
+    v2 KnotPoint = B_SplineEvaluate(T, Controls, KnotParams, B_SplineKnots);
     PartitionKnotPoints[PartitionKnotIndex] = KnotPoint;
    }
    Curve->B_SplinePartitionKnotPoints = PartitionKnotPoints;
    
-   Calc_B_Spline(Controls, PointCount, Curve->B_SplineKnots, Params->B_Spline, SampleCount, OutSamples);
+   Calc_B_Spline(Controls, PointCount, KnotParams, B_SplineKnots, SampleCount, OutSamples);
   }break;
   case Curve_Parametric: {CalcParametric(Params->Parametric, SampleCount, OutSamples);}break;
   

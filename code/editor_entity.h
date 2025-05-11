@@ -1,10 +1,6 @@
 #ifndef EDITOR_ENTITY_H
 #define EDITOR_ENTITY_H
 
-// TODO(hbr): Consider flattening this struct - that is, the curves seem to be so distinct
-// between the types that there should be BezierRegular vs BezierCubicSpline separate types.
-// Or maybe if that's not a good idea, consider compressing this type even more - spline functions: cubic spline, bezier spline, B-spline,
-// interpolating functions: polynomial interpolation, parametric equation function.
 enum curve_type : u32
 {
  Curve_CubicSpline,
@@ -14,7 +10,13 @@ enum curve_type : u32
  Curve_B_Spline,
  Curve_Count
 };
-global read_only string CurveTypeNames[] = { StrLitComp("Cubic Spline"), StrLitComp("Bezier"), StrLitComp("Polynomial"), StrLitComp("Parametric"), StrLitComp("B-Spline") };
+global read_only string CurveTypeNames[] = {
+ StrLitComp("Cubic Spline"),
+ StrLitComp("Bezier"),
+ StrLitComp("Polynomial"),
+ StrLitComp("Parametric"),
+ StrLitComp("B-Spline")
+};
 StaticAssert(ArrayCount(CurveTypeNames) == Curve_Count, CurveTypeNamesDefined);
 
 enum polynomial_interpolation_type : u32
@@ -23,7 +25,10 @@ enum polynomial_interpolation_type : u32
  PolynomialInterpolation_Newton,
  PolynomialInterpolation_Count,
 };
-global read_only string PolynomialInterpolationTypeNames[] = { StrLitComp("Barycentric"), StrLitComp("Newton") };
+global read_only string PolynomialInterpolationTypeNames[] = {
+ StrLitComp("Barycentric"),
+ StrLitComp("Newton")
+};
 StaticAssert(ArrayCount(PolynomialInterpolationTypeNames) == PolynomialInterpolation_Count, PolynomialInterpolationTypeNamesDefined);
 
 enum point_spacing : u32
@@ -32,7 +37,10 @@ enum point_spacing : u32
  PointSpacing_Equidistant,
  PointSpacing_Count,
 };
-global read_only string PointSpacingNames[] = { StrLitComp("Chebychev"), StrLitComp("Equidistant") };
+global read_only string PointSpacingNames[] = {
+ StrLitComp("Chebychev"),
+ StrLitComp("Equidistant")
+};
 StaticAssert(ArrayCount(PointSpacingNames) == PointSpacing_Count, PointSpacingNamesDefined);
 
 struct polynomial_interpolation_params
@@ -47,7 +55,10 @@ enum cubic_spline_type : u32
  CubicSpline_Periodic,
  CubicSpline_Count,
 };
-global read_only string CubicSplineNames[] = { StrLitComp("Natural"), StrLitComp("Periodic") };
+global read_only string CubicSplineNames[] = {
+ StrLitComp("Natural"),
+ StrLitComp("Periodic")
+};
 StaticAssert(ArrayCount(CubicSplineNames) == CubicSpline_Count, CubicSplineNamesDefined);
 
 enum bezier_type : u32
@@ -56,7 +67,10 @@ enum bezier_type : u32
  Bezier_Cubic,
  Bezier_Count,
 };
-global read_only string BezierNames[] = { StrLitComp("Regular"), StrLitComp("Cubic") };
+global read_only string BezierNames[] = {
+ StrLitComp("Regular"),
+ StrLitComp("Cubic")
+};
 StaticAssert(ArrayCount(BezierNames) == Bezier_Count, BezierNamesDefined);
 
 struct parametric_curve_params
@@ -74,7 +88,10 @@ enum b_spline_partition_type : u32
  B_SplinePartition_Periodic,
  B_SplinePartition_Count,
 };
-global read_only string B_SplinePartitionNames[] = { StrLitComp("Natural"), StrLitComp("Periodic") };
+global read_only string B_SplinePartitionNames[] = {
+ StrLitComp("Natural"),
+ StrLitComp("Periodic")
+};
 StaticAssert(ArrayCount(B_SplinePartitionNames) == B_SplinePartition_Count, B_SplinePartitionNamesDefined);
 
 struct b_spline_params
@@ -277,9 +294,9 @@ enum entity_type
 
 enum
 {
- EntityFlag_Active   = (1<<0),
- EntityFlag_Hidden   = (1<<1),
- EntityFlag_Selected = (1<<2),
+ EntityFlag_Active           = (1<<0),
+ EntityFlag_Hidden           = (1<<1),
+ EntityFlag_Selected         = (1<<2),
  EntityFlag_CurveAppendFront = (1<<3),
 };
 typedef u32 entity_flags;
@@ -317,31 +334,31 @@ internal void                       EndEntityModify(entity_with_modify_witness W
 internal void                       MarkEntityModified(entity_with_modify_witness *Witness);
 
 // TODO(hbr): rename to entity_handle
-struct entity_id
+struct entity_handle
 {
  entity *Entity;
  u32 Generation;
 };
 
-inline internal entity_id
-MakeEntityId(entity *Entity)
+inline internal entity_handle
+MakeEntityHandle(entity *Entity)
 {
- entity_id Id = {};
+ entity_handle Handle = {};
  if (Entity)
  {
-  Id.Entity = Entity;
-  Id.Generation = Entity->Generation;
+  Handle.Entity = Entity;
+  Handle.Generation = Entity->Generation;
  }
- return Id;
+ return Handle;
 }
 
 inline internal entity *
-EntityFromId(entity_id Id)
+EntityFromHandle(entity_handle Handle)
 {
  entity *Result = 0;
- if (Id.Entity && (Id.Generation == Id.Entity->Generation))
+ if (Handle.Entity && (Handle.Generation == Handle.Entity->Generation))
  {
-  Result = Id.Entity;
+  Result = Handle.Entity;
  }
  return Result;
 }
@@ -493,7 +510,13 @@ enum curve_merge_method : u32
  
  CurveMerge_Count,
 };
-global read_only string CurveMergeNames[] = { StrLitComp("Concat"), StrLitComp("C0"), StrLitComp("C1"), StrLitComp("C2"), StrLitComp("G1") };
+global read_only string CurveMergeNames[] = {
+ StrLitComp("Concat"),
+ StrLitComp("C0"),
+ StrLitComp("C1"),
+ StrLitComp("C2"),
+ StrLitComp("G1")
+};
 StaticAssert(ArrayCount(CurveMergeNames) == CurveMerge_Count, CurveMergeNamesDefined);
 
 struct curve_merge_compatibility

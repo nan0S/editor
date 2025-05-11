@@ -408,7 +408,7 @@ DeallocEntity(editor *Editor, entity *Entity)
 internal void
 SelectEntity(editor *Editor, entity *Entity)
 {
- entity *SelectedEntity = EntityFromId(Editor->SelectedEntityId);
+ entity *SelectedEntity = EntityFromHandle(Editor->SelectedEntityId);
  if (SelectedEntity)
  {
   SelectedEntity->Flags &= ~EntityFlag_Selected;
@@ -417,7 +417,7 @@ SelectEntity(editor *Editor, entity *Entity)
  {
   Entity->Flags |= EntityFlag_Selected;
  }
- Editor->SelectedEntityId = MakeEntityId(Entity);
+ Editor->SelectedEntityId = MakeEntityHandle(Entity);
 }
 
 internal void
@@ -1126,12 +1126,12 @@ SupplyCurve(choose_2_curves_state *Choosing, entity *Curve)
 {
  b32 AllSupplied = false;
  
- Choosing->Curves[Choosing->ChoosingCurveIndex] = MakeEntityId(Curve);
- if (EntityFromId(Choosing->Curves[0]) == 0)
+ Choosing->Curves[Choosing->ChoosingCurveIndex] = MakeEntityHandle(Curve);
+ if (EntityFromHandle(Choosing->Curves[0]) == 0)
  {
   Choosing->ChoosingCurveIndex = 0;
  }
- else if (EntityFromId(Choosing->Curves[1]) == 0)
+ else if (EntityFromHandle(Choosing->Curves[1]) == 0)
  {
   Choosing->ChoosingCurveIndex = 1;
  }
@@ -1352,8 +1352,8 @@ InitEditor(editor *Editor, editor_memory *Memory)
 internal void
 UpdateAndRenderAnimatingCurves(animating_curves_state *Animation, platform_input_ouput *Input, render_group *RenderGroup)
 {
- entity *Entity0 = EntityFromId(Animation->Choose2Curves.Curves[0]);
- entity *Entity1 = EntityFromId(Animation->Choose2Curves.Curves[1]);
+ entity *Entity0 = EntityFromHandle(Animation->Choose2Curves.Curves[0]);
+ entity *Entity1 = EntityFromHandle(Animation->Choose2Curves.Curves[1]);
  
  if ((Animation->Flags & AnimatingCurves_Active) && Entity0 && Entity1)
  {
@@ -1685,7 +1685,7 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
 internal void
 UpdateAndRenderSelectedEntityUI(editor *Editor)
 {
- entity *Entity = EntityFromId(Editor->SelectedEntityId);
+ entity *Entity = EntityFromHandle(Editor->SelectedEntityId);
  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
  b32 DeleteEntity = false;
  b32 CrucialEntityParamChanged = false;
@@ -2782,8 +2782,8 @@ UpdateAndRenderNotifications(editor *Editor, platform_input_ouput *Input, render
 internal void
 UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing, editor *Editor)
 {
- entity *Curve0 = EntityFromId(Choosing->Curves[0]);
- entity *Curve1 = EntityFromId(Choosing->Curves[1]);
+ entity *Curve0 = EntityFromHandle(Choosing->Curves[0]);
+ entity *Curve1 = EntityFromHandle(Choosing->Curves[1]);
  
  b32 ChoosingCurve = Choosing->WaitingForChoice;
  
@@ -2918,8 +2918,8 @@ UpdateAndRenderAnimatingCurvesUI(editor *Editor)
   {
    UpdateAndRenderChoose2CurvesUI(&Animation->Choose2Curves, Editor);
    
-   entity *Curve0 = EntityFromId(Animation->Choose2Curves.Curves[0]);
-   entity *Curve1 = EntityFromId(Animation->Choose2Curves.Curves[1]);
+   entity *Curve0 = EntityFromHandle(Animation->Choose2Curves.Curves[0]);
+   entity *Curve1 = EntityFromHandle(Animation->Choose2Curves.Curves[1]);
    
    if (UI_SliderFloatF(&Animation->Bouncing.T, 0.0f, 1.0f, "t"))
    {
@@ -3031,7 +3031,7 @@ UpdateFrameStats(frame_stats *Stats, platform_input_ouput *Input)
 }
 
 internal void
-BeginMovingEntity(editor_left_click_state *Left, entity_id Target)
+BeginMovingEntity(editor_left_click_state *Left, entity_handle Target)
 {
  Left->Active = true;
  Left->Mode = EditorLeftClick_MovingEntity;
@@ -3039,7 +3039,7 @@ BeginMovingEntity(editor_left_click_state *Left, entity_id Target)
 }
 
 internal void
-BeginMovingCurvePoint(editor_left_click_state *Left, entity_id Target, curve_point_index CurvePoint)
+BeginMovingCurvePoint(editor_left_click_state *Left, entity_handle Target, curve_point_index CurvePoint)
 {
  Left->Active = true;
  Left->Mode = EditorLeftClick_MovingCurvePoint;
@@ -3048,7 +3048,7 @@ BeginMovingCurvePoint(editor_left_click_state *Left, entity_id Target, curve_poi
 }
 
 internal void
-BeginMovingTrackingPoint(editor_left_click_state *Left, entity_id Target)
+BeginMovingTrackingPoint(editor_left_click_state *Left, entity_handle Target)
 {
  Left->Active = true;
  Left->Mode = EditorLeftClick_MovingTrackingPoint;
@@ -3056,7 +3056,7 @@ BeginMovingTrackingPoint(editor_left_click_state *Left, entity_id Target)
 }
 
 internal void
-BeginMovingBSplineKnot(editor_left_click_state *Left, entity_id Target, u32 B_SplineKnotIndex)
+BeginMovingBSplineKnot(editor_left_click_state *Left, entity_handle Target, u32 B_SplineKnotIndex)
 {
  Left->Active = true;
  Left->Mode = EditorLeftClick_MovingBSplineKnot;
@@ -3168,29 +3168,29 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
     curve *CollisionCurve = &Collision.Entity->Curve;
     point_tracking_along_curve_state *CollisionTracking = &CollisionCurve->PointTracking;
     
-    entity *SelectedEntity = EntityFromId(Editor->SelectedEntityId);
+    entity *SelectedEntity = EntityFromHandle(Editor->SelectedEntityId);
     curve *SelectedCurve = &SelectedEntity->Curve;
     
     if ((Collision.Entity || SelectedEntity) && (Event->Flags & PlatformEventFlag_Ctrl))
     {
      entity *Entity = (Collision.Entity ? Collision.Entity : SelectedEntity);
      // NOTE(hbr): just move entity if ctrl is pressed
-     BeginMovingEntity(LeftClick, MakeEntityId(Entity));
+     BeginMovingEntity(LeftClick, MakeEntityHandle(Entity));
     }
     else if ((Collision.Flags & Collision_CurveLine) && CollisionTracking->Active)
     {
-     BeginMovingTrackingPoint(LeftClick, MakeEntityId(Collision.Entity));
+     BeginMovingTrackingPoint(LeftClick, MakeEntityHandle(Collision.Entity));
      
      f32 Fraction = SafeDiv0(Cast(f32)Collision.CurveLinePointIndex, (CollisionCurve->CurveSampleCount- 1));
      SetTrackingPointFraction(&CollisionEntityWitness, Fraction);
     }
     else if (Collision.Flags & Collision_B_SplineKnot)
     {
-     BeginMovingBSplineKnot(LeftClick, MakeEntityId(Collision.Entity), Collision.KnotIndex);
+     BeginMovingBSplineKnot(LeftClick, MakeEntityHandle(Collision.Entity), Collision.KnotIndex);
     }
     else if (Collision.Flags & Collision_CurvePoint)
     {
-     BeginMovingCurvePoint(LeftClick, MakeEntityId(Collision.Entity), Collision.CurvePointIndex);
+     BeginMovingCurvePoint(LeftClick, MakeEntityHandle(Collision.Entity), Collision.CurvePointIndex);
     }
     else if (Collision.Flags & Collision_CurveLine)
     {
@@ -3199,7 +3199,7 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
       control_point_index Index = CurveLinePointIndexToControlPointIndex(CollisionCurve, Collision.CurveLinePointIndex);
       u32 InsertAt = Index.Index + 1;
       InsertControlPoint(&CollisionEntityWitness, MouseP, InsertAt);
-      BeginMovingCurvePoint(LeftClick, MakeEntityId(Collision.Entity),
+      BeginMovingCurvePoint(LeftClick, MakeEntityHandle(Collision.Entity),
                             CurvePointIndexFromControlPointIndex(MakeControlPointIndex(InsertAt)));
      }
      else
@@ -3240,11 +3240,11 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
      
      entity_with_modify_witness TargetEntityWitness = BeginEntityModify(TargetEntity);
      control_point_index Appended = AppendControlPoint(&TargetEntityWitness, MouseP);
-     BeginMovingCurvePoint(LeftClick, MakeEntityId(TargetEntity), CurvePointIndexFromControlPointIndex(Appended));
+     BeginMovingCurvePoint(LeftClick, MakeEntityHandle(TargetEntity), CurvePointIndexFromControlPointIndex(Appended));
      EndEntityModify(TargetEntityWitness);
     }
     
-    entity *TargetEntity = EntityFromId(LeftClick->TargetEntity);
+    entity *TargetEntity = EntityFromHandle(LeftClick->TargetEntity);
     if (TargetEntity)
     {
      SelectEntity(Editor, TargetEntity);
@@ -3270,7 +3270,7 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
   {
    // NOTE(hbr): don't eat mouse move event
    
-   entity *Entity = EntityFromId(LeftClick->TargetEntity);
+   entity *Entity = EntityFromHandle(LeftClick->TargetEntity);
    if (Entity)
    {
     entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
@@ -3505,7 +3505,7 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
   
   if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_Delete)
   {
-   entity *Entity = EntityFromId(Editor->SelectedEntityId);
+   entity *Entity = EntityFromHandle(Editor->SelectedEntityId);
    entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
    
    if (Entity)
@@ -3784,8 +3784,8 @@ UpdateAndRenderMergingCurvesUI(editor *Editor)
    
    b32 MergeMethodChanged = UI_Combo(SafeCastToPtr(Merging->Method, u32), CurveMerge_Count, CurveMergeNames, StrLit("Merge Method"));
    
-   entity *Entity0 = EntityFromId(Merging->Choose2Curves.Curves[0]);
-   entity *Entity1 = EntityFromId(Merging->Choose2Curves.Curves[1]);
+   entity *Entity0 = EntityFromHandle(Merging->Choose2Curves.Curves[0]);
+   entity *Entity1 = EntityFromHandle(Merging->Choose2Curves.Curves[1]);
    
    curve *Curve0 = ((Entity0 && Entity0->Type == Entity_Curve) ? &Entity0->Curve : 0);
    curve *Curve1 = ((Entity1 && Entity1->Type == Entity_Curve) ? &Entity1->Curve : 0);
@@ -4434,7 +4434,7 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input_ouput *Input, struc
  {
   // TODO(hbr): This looks like a mess, probably use functions that already exist
   editor_left_click_state *LeftClick = &Editor->LeftClick;
-  entity *Entity = EntityFromId(LeftClick->TargetEntity);
+  entity *Entity = EntityFromHandle(LeftClick->TargetEntity);
   if (LeftClick->Active && Entity && LeftClick->OriginalVerticesCaptured && !Entity->Curve.Params.LineDisabled)
   {
    v4 ShadowColor = FadeColor(Entity->Curve.Params.LineColor, 0.15f);

@@ -171,7 +171,7 @@ struct editor_left_click_state
 {
  b32 Active;
  
- entity_id TargetEntity;
+ entity_handle TargetEntity;
  editor_left_click_mode Mode;
  curve_point_index CurvePointIndex;
  v2 LastMouseP;
@@ -241,7 +241,7 @@ struct async_task
 struct choose_2_curves_state
 {
  b32 WaitingForChoice;
- entity_id Curves[2];
+ entity_handle Curves[2];
  u32 ChoosingCurveIndex;
 };
 
@@ -299,7 +299,7 @@ struct editor
  camera Camera;
  frame_stats FrameStats;
  
- entity_id SelectedEntityId;
+ entity_handle SelectedEntityId;
  
 #define MAX_ENTITY_COUNT 1024
  entity Entities[MAX_ENTITY_COUNT];

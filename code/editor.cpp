@@ -1426,8 +1426,9 @@ RenderEntity(rendering_entity_handle Handle)
 }
 
 internal void
-UpdateAndRenderEntities(entity_array Entities, render_group *RenderGroup)
+UpdateAndRenderEntities(editor *Editor, render_group *RenderGroup)
 {
+ entity_array Entities = EntityArrayFromStore(&Editor->EntityStore);
  for (u32 EntityIndex = 0;
       EntityIndex < Entities.Count;
       ++EntityIndex)
@@ -1557,7 +1558,7 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
 }
 
 internal void
-UpdateAndRenderSelectedEntityUI(editor *Editor)
+RenderSelectedEntityUI(editor *Editor)
 {
  entity *Entity = EntityFromHandle(Editor->SelectedEntityId);
  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
@@ -1626,9 +1627,11 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
       Entity->SortingLayer = 0;
      }
      
-     b32 Visible = IsEntityVisible(Entity);
-     UI_Checkbox(&Visible, StrLit("Visible"));
-     SetEntityVisibility(Entity, Visible);
+     {     
+      b32 Visible = IsEntityVisible(Entity);
+      UI_Checkbox(&Visible, StrLit("Visible"));
+      SetEntityVisibility(Entity, Visible);
+     }
      
      if (Curve)
      {
@@ -2252,8 +2255,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
 internal void
 RenderMenuBarUI(editor *Editor,
                 b32 *NewProject, b32 *OpenFileDialog, b32 *SaveProject,
-                b32 *SaveProjectAs, b32 *QuitProject, b32 *AnimateCurves,
-                b32 *MergeCurves)
+                b32 *SaveProjectAs, b32 *QuitProject)
 {
  if (UI_BeginMainMenuBar())
  {
@@ -2269,8 +2271,14 @@ RenderMenuBarUI(editor *Editor,
   
   if(UI_BeginMenu(StrLit("Actions")))
   {
-   *AnimateCurves = UI_MenuItem(0, 0, StrLit("Animate Curves"));
-   *MergeCurves = UI_MenuItem(0, 0, StrLit("Merge Curves"));
+   if (UI_MenuItem(0, 0, StrLit("Animate Curves")))
+   {
+    BeginAnimatingCurves(&Editor->AnimatingCurves);
+   }
+   if (UI_MenuItem(0, 0, StrLit("Merge Curves")))
+   {
+    BeginMergingCurves(&Editor->MergingCurves);
+   }
    UI_EndMenu();
   }
   
@@ -2408,15 +2416,15 @@ RenderEntityListUI(editor *Editor)
 }
 
 internal void
-RenderDiagnosticsUI(editor *Editor, platform_input_output *Input)
+RenderDiagnosticsUI(editor *Editor, f32 dtForFrame)
 {
  //- render diagnostics UI
  if (Editor->DiagnosticsWindow)
  {
-  if (UI_BeginWindowF(&Editor->DiagnosticsWindow, UIWindowFlag_AutoResize, "Diagnostics"))
+  if (UI_BeginWindow(&Editor->DiagnosticsWindow, UIWindowFlag_AutoResize, StrLit("Diagnostics")))
   {
    frame_stats *Stats = &Editor->FrameStats;
-   UI_TextF(false, "%-20s %.2f ms", "Frame time", 1000.0f * Input->dtForFrame);
+   UI_TextF(false, "%-20s %.2f ms", "Frame time", 1000.0f * dtForFrame);
    UI_TextF(false, "%-20s %.0f", "FPS", Stats->FPS);
    UI_TextF(false, "%-20s %.2f ms", "Min frame time", 1000.0f * Stats->MinFrameTime);
    UI_TextF(false, "%-20s %.2f ms", "Max frame time", 1000.0f * Stats->MaxFrameTime);
@@ -2546,9 +2554,9 @@ RenderHelpUI(editor *Editor)
 }
 
 internal void
-UpdateAndRenderNotificationsUI(editor *Editor, platform_input_output *Input, render_group *RenderGroup)
+UpdateAndRenderNotifications(editor *Editor, platform_input_output *Input, render_group *RenderGroup)
 {
- UI_LabelF("Notifications")
+ UI_Label(StrLit("Notifications"))
  {
   v2u WindowDim = RenderGroup->Frame->WindowDim;
   f32 Padding = 0.01f * WindowDim.X;
@@ -2571,12 +2579,6 @@ UpdateAndRenderNotificationsUI(editor *Editor, platform_input_output *Input, ren
                         TargetPosY,
                         1.0f - PowF32(2.0f, -MoveSpeed * Input->dtForFrame));
     Notification->ScreenPosY = NextPosY;
-    
-    v2 WindowP = V2(WindowDim.X - Padding, NextPosY);
-    v2 WindowMinSize = V2(WindowWidth, 0.0f);
-    v2 WindowMaxSize = V2(WindowWidth, FLT_MAX);
-    UI_SetNextWindowPos(WindowP, UIPlacement_BotRightCorner);
-    UI_SetNextWindowSizeConstraints(WindowMinSize, WindowMaxSize);
     
     enum notification_phase
     {
@@ -2614,39 +2616,48 @@ UpdateAndRenderNotificationsUI(editor *Editor, platform_input_output *Input, ren
     // NOTE(hbr): Quadratic interpolation instead of linear.
     Fade = 1.0f - Square(1.0f - Fade);
     
-    UI_Alpha(Fade)
-    {
-     DeferBlock(UI_BeginWindowF(0, UIWindowFlag_AutoResize | UIWindowFlag_NoTitleBar | UIWindowFlag_NoFocusOnAppearing,
-                                "Notification%lu", NotificationIndex),
-                UI_EndWindow())
+    if (!Editor->HideUI)
+    {    
+     v2 WindowP = V2(WindowDim.X - Padding, NextPosY);
+     v2 WindowMinSize = V2(WindowWidth, 0.0f);
+     v2 WindowMaxSize = V2(WindowWidth, FLT_MAX);
+     UI_SetNextWindowPos(WindowP, UIPlacement_BotRightCorner);
+     UI_SetNextWindowSizeConstraints(WindowMinSize, WindowMaxSize);
+     
+     UI_Alpha(Fade)
      {
-      UI_BringCurrentWindowToDisplayFront();
-      if (UI_IsWindowHovered() && (UI_IsMouseClicked(UIMouseButton_Left) ||
-                                   UI_IsMouseClicked(UIMouseButton_Right)))
+      DeferBlock(UI_BeginWindowF(0, UIWindowFlag_AutoResize | UIWindowFlag_NoTitleBar | UIWindowFlag_NoFocusOnAppearing,
+                                 "Notification%lu", NotificationIndex),
+                 UI_EndWindow())
       {
-       Remove = true;
+       UI_BringCurrentWindowToDisplayFront();
+       if (UI_IsWindowHovered() && (UI_IsMouseClicked(UIMouseButton_Left) ||
+                                    UI_IsMouseClicked(UIMouseButton_Right)))
+       {
+        Remove = true;
+       }
+       
+       string Title = {};
+       v4 TitleColor = {};
+       switch (Notification->Type)
+       {
+        case Notification_Success: { Title = StrLit("Success"); TitleColor = GreenColor; } break;
+        case Notification_Error:   { Title = StrLit("Error");   TitleColor = RedColor; } break;
+        case Notification_Warning: { Title = StrLit("Warning"); TitleColor = YellowColor; } break;
+        case Notification_None: InvalidPath; break;
+       }
+       
+       UI_Colored(UI_Color_Text, TitleColor)
+       {
+        UI_Text(false, Title);
+       }
+       
+       UI_HorizontalSeparator();
+       UI_Text(true, Notification->Content);
+       
+       f32 WindowHeight = UI_GetWindowHeight();
+       TargetPosY -= WindowHeight + Padding;
       }
-      
-      string Title = {};
-      v4 TitleColor = {};
-      switch (Notification->Type)
-      {
-       case Notification_Success: { Title = StrLit("Success"); TitleColor = GreenColor; } break;
-       case Notification_Error:   { Title = StrLit("Error");   TitleColor = RedColor; } break;
-       case Notification_Warning: { Title = StrLit("Warning"); TitleColor = YellowColor; } break;
-       case Notification_None: InvalidPath; break;
-      }
-      
-      UI_Colored(UI_Color_Text, TitleColor)
-      {
-       UI_Text(false, Title);
-      }
-      
-      UI_HorizontalSeparator();
-      UI_Text(true, Notification->Content);
-      
-      f32 WindowHeight = UI_GetWindowHeight();
-      TargetPosY -= WindowHeight + Padding;
      }
     }
     
@@ -2657,6 +2668,33 @@ UpdateAndRenderNotificationsUI(editor *Editor, platform_input_output *Input, ren
    }
   }
  }
+}
+
+internal void
+UpdateNotifications(editor *Editor, platform_input_output *Input, render_group *RenderGroup)
+{
+ v2u WindowDim = RenderGroup->Frame->WindowDim;
+ f32 Padding = 0.01f * WindowDim.X;
+ f32 TargetPosY = WindowDim.Y - Padding;
+ f32 WindowWidth = 0.1f * WindowDim.X;
+ 
+ for (u32 NotificationIndex = 0;
+      NotificationIndex < MAX_NOTIFICATION_COUNT;
+      ++NotificationIndex)
+ {
+  notification *Notification = Editor->Notifications + NotificationIndex;
+  if (Notification->Type != Notification_None)
+  {
+   b32 Remove = false;
+   Notification->LifeTime += Input->dtForFrame;
+   
+   if (Remove)
+   {
+    Notification->Type = Notification_None;
+   }
+  }
+ }
+ 
 }
 
 internal void
@@ -2786,7 +2824,7 @@ UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing, editor *Editor)
 }
 
 internal void
-UpdateAndRenderAnimatingCurvesUI(editor *Editor)
+RenderAnimatingCurvesUI(editor *Editor)
 {
  animating_curves_state *Animation = &Editor->AnimatingCurves;
  if (Animation->Flags & AnimatingCurves_Active)
@@ -3649,7 +3687,7 @@ Merge2Curves(entity_with_modify_witness *MergeWitness, entity *Entity0, entity *
 }
 
 internal void
-UpdateAndRenderMergingCurvesUI(editor *Editor)
+RenderMergingCurvesUI(editor *Editor)
 {
  merging_curves_state *Merging = &Editor->MergingCurves;
  if (Merging->Active)
@@ -4237,7 +4275,7 @@ RenderProfilerWindowContents(editor *Editor)
  EndTemp(Temp);
 }
 internal void
-RenderProfilerUI(editor *Editor, platform_input_output *Input)
+RenderProfilerUI(editor *Editor)
 {
  ProfileFunctionBegin();
  if (Editor->ProfilerWindow)
@@ -4301,8 +4339,6 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input_output *Input, stru
  b32 SaveProject = false;
  b32 SaveProjectAs = false;
  b32 QuitProject = false;
- b32 AnimateCurves = false;
- b32 MergeCurves = false;
  
  ProcessInputEvents(Editor, Input, RenderGroup,
                     &NewProject, &OpenFileDialog, &SaveProject,
@@ -4362,25 +4398,19 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input_output *Input, stru
   }
  }
  
- UpdateCamera(&Editor->Camera, Input);
- UpdateFrameStats(&Editor->FrameStats, Input);
- 
  if (!Editor->HideUI)
  {
   ProfileBegin("UI Update");
   
-  UpdateAndRenderSelectedEntityUI(Editor);
-  RenderMenuBarUI(Editor, &NewProject, &OpenFileDialog, &SaveProject,
-                  &SaveProjectAs, &QuitProject, &AnimateCurves, &MergeCurves);
+  RenderSelectedEntityUI(Editor);
+  RenderMenuBarUI(Editor, &NewProject, &OpenFileDialog, &SaveProject, &SaveProjectAs, &QuitProject);
   RenderEntityListUI(Editor);
-  RenderDiagnosticsUI(Editor, Input);
+  RenderDiagnosticsUI(Editor, Input->dtForFrame);
   RenderHelpUI(Editor);
-  UpdateAndRenderNotificationsUI(Editor, Input, RenderGroup);
-  UpdateAndRenderAnimatingCurvesUI(Editor);
-  UpdateAndRenderMergingCurvesUI(Editor);
+  RenderAnimatingCurvesUI(Editor);
+  RenderMergingCurvesUI(Editor);
   RenderDevConsoleUI(Editor);
-  RenderProfilerUI(Editor, Input);
-  
+  RenderProfilerUI(Editor);
   
 #if BUILD_DEBUG
   UI_RenderDemoWindow();
@@ -4388,6 +4418,13 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input_output *Input, stru
   
   ProfileEnd();
  }
+ 
+ UpdateCamera(&Editor->Camera, Input);
+ UpdateFrameStats(&Editor->FrameStats, Input);
+ UpdateAndRenderEntities(Editor, RenderGroup);
+ UpdateAndRenderAnimatingCurves(&Editor->AnimatingCurves, Input, RenderGroup);
+ UpdateAndRenderNotifications(Editor, Input, RenderGroup);
+ RenderMergingCurves(&Editor->MergingCurves, RenderGroup);
  
  if (OpenFileDialog)
  {
@@ -4431,24 +4468,6 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input_output *Input, stru
   Input->QuitRequested = true;
  }
  Input->ProfilingStopped = Editor->Profiler.Stopped;
- 
- if (AnimateCurves)
- {
-  BeginAnimatingCurves(&Editor->AnimatingCurves);
- }
- 
- if (MergeCurves)
- {
-  BeginMergingCurves(&Editor->MergingCurves);
- }
- 
- { 
-  entity_array Entities = EntityArrayFromStore(&Editor->EntityStore);
-  UpdateAndRenderEntities(Entities, RenderGroup);
- }
- 
- UpdateAndRenderAnimatingCurves(&Editor->AnimatingCurves, Input, RenderGroup);
- RenderMergingCurves(&Editor->MergingCurves, RenderGroup);
  
  // TODO(hbr): Only in debug???
  //#if BUILD_DEBUG

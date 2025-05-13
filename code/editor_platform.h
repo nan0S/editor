@@ -170,7 +170,7 @@ struct platform_event
  string *FilePaths; // absolute paths
 };
 
-struct platform_input_ouput
+struct platform_input_output
 {
  u32 EventCount;
  platform_event *Events;
@@ -257,7 +257,7 @@ struct editor_memory
  profiler *Profiler;
 };
 
-#define EDITOR_UPDATE_AND_RENDER(Name) void Name(editor_memory *Memory, platform_input_ouput *Input, render_frame *Frame)
+#define EDITOR_UPDATE_AND_RENDER(Name) void Name(editor_memory *Memory, platform_input_output *Input, render_frame *Frame)
 typedef EDITOR_UPDATE_AND_RENDER(editor_update_and_render);
 
 #define EDITOR_ON_CODE_RELOAD(Name) void Name(editor_memory *Memory)

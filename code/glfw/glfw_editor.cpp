@@ -388,7 +388,7 @@ Table[GLFWButton] = PlatformButton
     
     //- process input events
     v2u WindowDim = {};
-    platform_input_ouput Input = {};
+    platform_input_output Input = {};
     {
      StructZero(&GLFWState->GLFWInput);
      ClearArena(GLFWState->InputArena);

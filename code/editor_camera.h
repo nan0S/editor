@@ -14,4 +14,12 @@ struct camera
  f32 TargetZoom;
 };
 
+internal void InitCamera(camera *Camera);
+internal void TranslateCamera(camera *Camera, v2 Translate);
+internal void SetCameraTarget(camera *Camera, rect2 AABB, f32 AspectRatio);
+internal void SetCameraZoom(camera *Camera, f32 Zoom);
+internal void RotateCameraAround(camera *Camera, v2 Rotate, v2 Around);
+internal void ZoomCamera(camera *Camera, f32 By);
+internal void UpdateCamera(camera *Camera, platform_input_output *Input);
+
 #endif //EDITOR_CAMERA_H

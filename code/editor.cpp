@@ -15,6 +15,7 @@
 #include "editor_debug.cpp"
 #include "editor_camera.cpp"
 #include "editor_sort.cpp"
+#include "editor_editor.cpp"
 
 platform_api Platform;
 
@@ -66,26 +67,6 @@ MovePointAlongCurve(curve *Curve, v2 *TranslateInput, f32 *PointFractionInput, b
  *PointFractionInput = Fraction;
 }
 
-internal renderer_index *
-AllocateTextureIndex(editor_assets *Assets)
-{
- renderer_index *Result = Assets->FirstFreeTextureIndex;
- if (Result)
- {
-  Assets->FirstFreeTextureIndex = Result->Next;
- }
- return Result;
-}
-
-internal void
-DeallocateTextureIndex(editor_assets *Assets, renderer_index *Index)
-{
- if (Index)
- {
-  Index->Next = Assets->FirstFreeTextureIndex;
-  Assets->FirstFreeTextureIndex = Index;
- }
-}
 //////////////////////
 
 struct multiline_collision
@@ -126,25 +107,20 @@ CheckCollisionWithMultiLine(v2 LocalAtP, v2 *CurveSamples, u32 PointCount, f32 W
 }
 
 internal collision
-CheckCollisionWithEntities(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolerance)
+CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
 {
  ProfileFunctionBegin();
  
  collision Result = {};
  temp_arena Temp = TempArena(0);
- 
- entity_array EntityArray = {};
- EntityArray.Count = EntityCount;
- EntityArray.Entities = Entities;
- 
- sort_entry_array Sorted = SortEntities(Temp.Arena, EntityArray);
+ sort_entry_array Sorted = SortEntities(Temp.Arena, Entities);
  
  for (u64 SortedIndex = 0;
       SortedIndex < Sorted.Count;
       ++SortedIndex)
  {
   u64 InverseIndex = Sorted.Count-1 - SortedIndex;
-  entity *Entity = EntityArray.Entities + Sorted.Entries[InverseIndex].Index;
+  entity *Entity = Entities.Entities + Sorted.Entries[InverseIndex].Index;
   
   if (IsEntityVisible(Entity))
   {
@@ -355,56 +331,6 @@ CheckCollisionWithEntities(u32 EntityCount, entity *Entities, v2 AtP, f32 Tolera
  return Result;
 }
 
-internal entity *
-AllocEntity(editor *Editor)
-{
- entity *Entity = 0;
- 
- entity *Entities = Editor->Entities;
- for (u32 EntityIndex = 0;
-      EntityIndex < MAX_ENTITY_COUNT;
-      ++EntityIndex)
- {
-  entity *Current = Entities + EntityIndex;
-  if (!(Current->Flags & EntityFlag_Active))
-  {
-   Entity = Current;
-   
-   arena *EntityArena = Entity->Arena;
-   arena *DegreeLoweringArena = Entity->Curve.DegreeLowering.Arena;
-   arena *ParametricArena = Entity->Curve.ParametricResources.Arena;
-   u32 Generation = Entity->Generation;
-   
-   StructZero(Entity);
-   
-   Entity->Arena = EntityArena;
-   Entity->Curve.DegreeLowering.Arena = DegreeLoweringArena;
-   Entity->Curve.ParametricResources.Arena = ParametricArena;
-   Entity->Generation = Generation;
-   
-   Entity->Flags |= EntityFlag_Active;
-   ClearArena(Entity->Arena);
-   
-   break;
-  }
- }
- 
- return Entity;
-}
-
-internal void
-DeallocEntity(editor *Editor, entity *Entity)
-{
- if (Entity->Type == Entity_Image)
- {
-  image *Image = &Entity->Image;
-  DeallocateTextureIndex(&Editor->Assets, Image->TextureIndex);
- }
- 
- Entity->Flags &= ~EntityFlag_Active;
- ++Entity->Generation;
-}
-
 internal void
 SelectEntity(editor *Editor, entity *Entity)
 {
@@ -469,7 +395,7 @@ PerformBezierCurveSplit(entity_with_modify_witness *EntityWitness, editor *Edito
  u32 ControlPointCount = Curve->ControlPointCount;
  
  entity *LeftEntity = Entity;
- entity *RightEntity = AllocEntity(Editor);
+ entity *RightEntity = AllocEntity(&Editor->EntityStore);
  
  entity_with_modify_witness LeftWitness = BeginEntityModify(LeftEntity);
  entity_with_modify_witness RightWitness = BeginEntityModify(RightEntity);
@@ -508,7 +434,7 @@ DuplicateEntity(entity *Entity, editor *Editor)
 {
  temp_arena Temp = TempArena(0);
  
- entity *Copy = AllocEntity(Editor);
+ entity *Copy = AllocEntity(&Editor->EntityStore);
  entity_with_modify_witness CopyWitness = BeginEntityModify(Copy);
  string CopyName = StrF(Temp.Arena, "%S(copy)", Entity->Name);
  
@@ -538,7 +464,7 @@ ResetCtxMenu(string Label)
  }
  if (UI_BeginPopup(Label, UIWindowFlag_NoMove))
  {
-  Reset = UI_MenuItemF(0, 0, "Reset");
+  Reset = UI_MenuItem(0, 0, StrLit("Reset"));
   UI_EndPopup();
  }
  
@@ -712,7 +638,7 @@ SplitCurveOnControlPoint(entity_with_modify_witness *EntityWitness, editor *Edit
   u32 TailPointCount = Curve->ControlPointCount - Curve->SelectedIndex.Index;
   
   entity *HeadEntity = Entity;
-  entity *TailEntity = AllocEntity(Editor);
+  entity *TailEntity = AllocEntity(&Editor->EntityStore);
   
   entity_with_modify_witness *HeadWitness = EntityWitness;
   entity_with_modify_witness TailWitness = BeginEntityModify(TailEntity);
@@ -859,15 +785,15 @@ UpdateAndRenderDegreeLowering(rendering_entity_handle Handle)
    b32 Ok = false;
    b32 Revert = false;
    
-   if (UI_BeginWindowF(&IsDegreeLoweringWindowOpen, 0, "Degree Lowering"))
+   if(UI_BeginWindow(&IsDegreeLoweringWindowOpen, 0, StrLit("Degree Lowering")))
    {          
     UI_Text(true, StrLit("Degree lowering failed. Tweak the middle point to fit the curve manually."));
     UI_SeparatorText(NilStr);
-    MixChanged = UI_SliderFloatF(&Lowering->MixParameter, 0.0f, 1.0f, "Middle Point Mix");
+    MixChanged = UI_SliderFloat(&Lowering->MixParameter, 0.0f, 1.0f, StrLit("Middle Point Mix"));
     
-    Ok = UI_ButtonF("OK");
+    Ok = UI_Button(StrLit("OK"));
     UI_SameRow();
-    Revert = UI_ButtonF("Revert");
+    Revert = UI_Button(StrLit("Revert"));
    }
    UI_EndWindow();
    
@@ -918,38 +844,6 @@ UpdateAndRenderDegreeLowering(rendering_entity_handle Handle)
  }
 }
 
-internal task_with_memory *
-BeginTaskWithMemory(editor *Editor)
-{
- task_with_memory *Result = 0;
- for (u32 TaskIndex = 0;
-      TaskIndex < MAX_TASK_COUNT;
-      ++TaskIndex)
- {
-  task_with_memory *Task = Editor->Tasks + TaskIndex;
-  if (!Task->Allocated)
-  {
-   Task->Allocated = true;
-   if (!Task->Arena)
-   {
-    Task->Arena = AllocArena(Megabytes(1));
-   }
-   Result = Task;
-   break;
-  }
- }
- 
- return Result;
-}
-
-internal void
-EndTaskWithMemory(task_with_memory *Task)
-{
- Assert(Task->Allocated);
- Task->Allocated = false;
- ClearArena(Task->Arena);
-}
-
 internal void
 LoadImageWork(void *UserData)
 {
@@ -987,39 +881,6 @@ LoadImageWork(void *UserData)
  EndTaskWithMemory(Task);
 }
 
-internal async_task *
-AllocateAsyncTask(editor *Editor)
-{
- async_task *Result = 0;
- 
- for (u32 TaskIndex = 0;
-      TaskIndex < MAX_TASK_COUNT;
-      ++TaskIndex)
- {
-  async_task *Task = Editor->AsyncTasks + TaskIndex;
-  if (!Task->Active)
-  {
-   Result = Task;
-   Task->Active = true;
-   if (!Task->Arena)
-   {
-    Task->Arena = AllocArena(Megabytes(1));
-   }
-   Task->State = Image_Loading;
-   break;
-  }
- }
- 
- return Result;
-}
-
-internal void
-DeallocateAsyncTask(editor *Editor, async_task *Task)
-{
- Task->Active = false;
- ClearArena(Task->Arena);
-}
-
 internal void
 TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
 {
@@ -1038,9 +899,9 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
   // TODO(hbr): Make it always suceeed??????
   renderer_transfer_op *TextureOp = PushTextureTransfer(Assets->RendererQueue, RequestSize);
   // TODO(hbr): Make it always succeed
-  renderer_index *TextureIndex = AllocateTextureIndex(Assets);
-  async_task *AsyncTask = AllocateAsyncTask(Editor);
-  task_with_memory *Task = BeginTaskWithMemory(Editor);
+  renderer_index *TextureIndex = AllocTextureIndex(Assets);
+  async_task *AsyncTask = AllocAsyncTask(&Editor->AsyncTaskStore);
+  task_with_memory *Task = BeginTaskWithMemory(&Editor->TaskWithMemoryStore);
   
   load_image_work *Work = 0;
   if (TextureOp && TextureIndex && Task && AsyncTask)
@@ -1073,11 +934,11 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
    }
    if (TextureIndex)
    {
-    DeallocateTextureIndex(Assets, TextureIndex);
+    DeallocTextureIndex(Assets, TextureIndex);
    }
    if (AsyncTask)
    {
-    DeallocateAsyncTask(Editor, AsyncTask);
+    DeallocAsyncTask(AsyncTask);
    }
    if (Task)
    {
@@ -1183,10 +1044,10 @@ EndMergingCurves(editor *Editor, b32 Merged)
  
  if (Merged)
  {
-  entity *Entity = AllocEntity(Editor);
+  entity *Entity = AllocEntity(&Editor->EntityStore);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
   
-  InitEntityFromEntity(&EntityWitness, &Merging->MergeEntity);
+  InitEntityFromEntity(&EntityWitness, Merging->MergeEntity);
   
   EndEntityModify(EntityWitness);
  }
@@ -1202,60 +1063,124 @@ MergingWantsInput(merging_curves_state *Merging)
 }
 
 internal void
-InitEditor(editor *Editor, editor_memory *Memory)
+InitLeftClickState(editor_left_click_state *LeftClick)
 {
- Editor->BackgroundColor = Editor->DefaultBackgroundColor = RGBA_Color(21, 21, 21);
- Editor->CollisionToleranceClip = 0.04f;
- Editor->RotationRadiusClip = 0.1f;
+ LeftClick->OriginalVerticesArena = AllocArena(Megabytes(128));
+}
+
+internal void
+InitFrameStats(frame_stats *FrameStats)
+{
+ FrameStats->Calculation.MinFrameTime = +F32_INF;
+ FrameStats->Calculation.MaxFrameTime = -F32_INF;
+}
+
+internal curve_params
+DefaultCurveParams(void)
+{
+ curve_params Params = {};
  
  f32 LineWidth = 0.009f;
  v4 PolylineColor = RGBA_Color(16, 31, 31, 200);
- Editor->CurveDefaultParams.LineColor = RGBA_Color(21, 69, 98);
- Editor->CurveDefaultParams.LineWidth = LineWidth;
- Editor->CurveDefaultParams.PointColor = RGBA_Color(0, 138, 138, 148);
- Editor->CurveDefaultParams.PointRadius = 0.014f;
- Editor->CurveDefaultParams.PolylineColor = PolylineColor;
- Editor->CurveDefaultParams.PolylineWidth = LineWidth;
- Editor->CurveDefaultParams.ConvexHullColor = PolylineColor;
- Editor->CurveDefaultParams.ConvexHullWidth = LineWidth;
- Editor->CurveDefaultParams.SamplesPerControlPoint = 50;
- Editor->CurveDefaultParams.TotalSamples = 1000;
- Editor->CurveDefaultParams.Parametric.MaxT = 1.0f;
- Editor->CurveDefaultParams.Parametric.X_Equation = &Editor->NilParametricExpr;
- Editor->CurveDefaultParams.Parametric.Y_Equation = &Editor->NilParametricExpr;
- Editor->CurveDefaultParams.B_Spline.KnotPointRadius = 0.010f;
- Editor->CurveDefaultParams.B_Spline.KnotPointColor = RGBA_Color(138, 0, 0, 148);
  
- Editor->Camera.P = V2(0.0f, 0.0f);
- Editor->Camera.Rotation = Rotation2DZero();
- Editor->Camera.Zoom = 1.0f;
- Editor->Camera.ZoomSensitivity = 0.05f;
- Editor->Camera.ReachingTargetSpeed = 1.0f;
+ Params.LineColor = RGBA_Color(21, 69, 98);
+ Params.LineWidth = LineWidth;
+ Params.PointColor = RGBA_Color(0, 138, 138, 148);
+ Params.PointRadius = 0.014f;
+ Params.PolylineColor = PolylineColor;
+ Params.PolylineWidth = LineWidth;
+ Params.ConvexHullColor = PolylineColor;
+ Params.ConvexHullWidth = LineWidth;
+ Params.SamplesPerControlPoint = 50;
+ Params.TotalSamples = 1000;
+ Params.Parametric.MaxT = 1.0f;
+ Params.Parametric.X_Equation = NilExpr;
+ Params.Parametric.Y_Equation = NilExpr;
+ Params.B_Spline.KnotPointRadius = 0.010f;
+ Params.B_Spline.KnotPointColor = RGBA_Color(138, 0, 0, 148);
  
- Editor->FrameStats.Calculation.MinFrameTime = +F32_INF;
- Editor->FrameStats.Calculation.MaxFrameTime = -F32_INF;
- 
- Editor->MovingPointArena = AllocArena(Megabytes(32));
- 
- for (u32 EntityIndex = 0;
-      EntityIndex < MAX_ENTITY_COUNT;
-      ++EntityIndex)
+ return Params;
+}
+
+internal void
+InitMergingCurvesState(merging_curves_state *State,
+                       entity_store *EntityStore)
+{
+ State->MergeEntity = AllocEntity(EntityStore);
+}
+
+internal void
+InitEditorAssets(editor_assets *Assets, editor_memory *Memory)
+{
+ u32 TextureCount = Memory->MaxTextureCount;
+ for (u32 Index = 0;
+      Index < TextureCount;
+      ++Index)
  {
-  entity *Entity = Editor->Entities + EntityIndex;
-  AllocEntityResources(Entity);
+  renderer_index *TextureIndex = PushStruct(Memory->PermamentArena, renderer_index);
+  TextureIndex->Index = TextureCount-1 - Index;
+  TextureIndex->Next = Assets->FirstFreeTextureIndex;
+  Assets->FirstFreeTextureIndex = TextureIndex;
  }
  
+ u32 BufferCount = Memory->MaxBufferCount;
+ for (u32 Index = 0;
+      Index < BufferCount;
+      ++Index)
+ {
+  renderer_index *BufferIndex = PushStruct(Memory->PermamentArena, renderer_index);
+  BufferIndex->Index = BufferCount-1 - Index;
+  BufferIndex->Next = Assets->FirstFreeBufferIndex;
+  Assets->FirstFreeBufferIndex = BufferIndex;
+ }
+ 
+ Assets->RendererQueue = Memory->RendererQueue;
+}
+
+internal void
+InitVisualProfiler(visual_profiler_state *VisualProfiler, profiler *Profiler)
+{
+ VisualProfiler->ReferenceMs = VisualProfiler->DefaultReferenceMs = 1000.0f / 120;
+ VisualProfiler->Profiler = Profiler;
+}
+
+internal void
+InitAnimatingCurvesState(animating_curves_state *State)
+{
+ State->Arena = AllocArena(Megabytes(32));
+}
+
+internal void
+InitEditor(editor *Editor, editor_memory *Memory)
+{
+ NilExpr = &Editor->NilParametricExpr;
+ 
+ Editor->BackgroundColor = Editor->DefaultBackgroundColor = RGBA_Color(21, 21, 21);
+ Editor->CollisionToleranceClip = 0.04f;
+ Editor->RotationRadiusClip = 0.1f;
+ Editor->CurveDefaultParams = DefaultCurveParams();
  Editor->EntityListWindow = true;
  // TODO(hbr): Change to false by default
  Editor->DiagnosticsWindow = true;
  Editor->SelectedEntityWindow = true;
+ // TODO(hbr): Change to false by default
+ Editor->ProfilerWindow = true;
+ Editor->LowPriorityQueue = Memory->LowPriorityQueue;
+ Editor->HighPriorityQueue = Memory->HighPriorityQueue;
  
- Editor->LeftClick.OriginalVerticesArena = AllocArena(Megabytes(128));
- 
- AllocEntityResources(&Editor->MergingCurves.MergeEntity);
+ InitEntityStore(&Editor->EntityStore);
+ InitCamera(&Editor->Camera);
+ InitFrameStats(&Editor->FrameStats);
+ InitLeftClickState(&Editor->LeftClick);
+ InitMergingCurvesState(&Editor->MergingCurves, &Editor->EntityStore);
+ InitEditorAssets(&Editor->Assets, Memory);
+ InitVisualProfiler(&Editor->Profiler, Memory->Profiler);
+ InitAnimatingCurvesState(&Editor->AnimatingCurves);
+ InitTaskWithMemoryStore(&Editor->TaskWithMemoryStore);
+ InitAsyncTaskStore(&Editor->AsyncTaskStore);
  
  {
-  entity *Entity = AllocEntity(Editor);
+  entity *Entity = AllocEntity(&Editor->EntityStore);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
   
   InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("de-casteljau"), 0);
@@ -1275,7 +1200,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
  }
  
  {
-  entity *Entity = AllocEntity(Editor);
+  entity *Entity = AllocEntity(&Editor->EntityStore);
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
   
   InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("b-spline"), 0);
@@ -1296,61 +1221,10 @@ InitEditor(editor *Editor, editor_memory *Memory)
   
   EndEntityModify(Witness);
  }
- 
- editor_assets *Assets = &Editor->Assets;
- u32 TextureCount = Memory->MaxTextureCount;
- for (u32 Index = 0;
-      Index < TextureCount;
-      ++Index)
- {
-  renderer_index *TextureIndex = PushStruct(Memory->PermamentArena, renderer_index);
-  TextureIndex->Index = TextureCount-1 - Index;
-  TextureIndex->Next = Assets->FirstFreeTextureIndex;
-  Assets->FirstFreeTextureIndex = TextureIndex;
- }
- u32 BufferCount = Memory->MaxBufferCount;
- for (u32 Index = 0;
-      Index < BufferCount;
-      ++Index)
- {
-  renderer_index *BufferIndex = PushStruct(Memory->PermamentArena, renderer_index);
-  BufferIndex->Index = BufferCount-1 - Index;
-  BufferIndex->Next = Assets->FirstFreeBufferIndex;
-  Assets->FirstFreeBufferIndex = BufferIndex;
- }
- Assets->RendererQueue = Memory->RendererQueue;
- 
- Editor->LowPriorityQueue = Memory->LowPriorityQueue;
- Editor->HighPriorityQueue = Memory->HighPriorityQueue;
- 
- // NOTE(hbr): Initialize just a few, others will probably never be initialized
- // but if they do, then they will be initialized lazily.
- for (u32 TaskIndex = 0;
-      TaskIndex < Min(MAX_TASK_COUNT, 4);
-      ++TaskIndex)
- {
-  task_with_memory *Task = Editor->Tasks + TaskIndex;
-  Task->Arena = AllocArena(Megabytes(1));
- }
- for (u32 TaskIndex = 0;
-      TaskIndex < Min(MAX_TASK_COUNT, 4);
-      ++TaskIndex)
- {
-  async_task *Task = Editor->AsyncTasks + TaskIndex;
-  Task->Arena = AllocArena(Megabytes(1));
- }
- 
- Editor->AnimatingCurves.Arena = AllocArena(Megabytes(32));
- 
- Editor->ProfilerWindow = true;
- Editor->Profiler.ReferenceMs = Editor->Profiler.DefaultReferenceMs = 1000.0f / 120;
- Editor->Profiler.Profiler = Memory->Profiler;
- 
- NilExpr = &Editor->NilParametricExpr;
 }
 
 internal void
-UpdateAndRenderAnimatingCurves(animating_curves_state *Animation, platform_input_ouput *Input, render_group *RenderGroup)
+UpdateAndRenderAnimatingCurves(animating_curves_state *Animation, platform_input_output *Input, render_group *RenderGroup)
 {
  entity *Entity0 = EntityFromHandle(Animation->Choose2Curves.Curves[0]);
  entity *Entity1 = EntityFromHandle(Animation->Choose2Curves.Curves[1]);
@@ -1552,13 +1426,13 @@ RenderEntity(rendering_entity_handle Handle)
 }
 
 internal void
-UpdateAndRenderEntities(u32 EntityCount, entity *Entities, render_group *RenderGroup)
+UpdateAndRenderEntities(entity_array Entities, render_group *RenderGroup)
 {
  for (u32 EntityIndex = 0;
-      EntityIndex < EntityCount;
+      EntityIndex < Entities.Count;
       ++EntityIndex)
  {
-  entity *Entity = Entities + EntityIndex;
+  entity *Entity = Entities.Entities + EntityIndex;
   if ((Entity->Flags & EntityFlag_Active))
   {
    if (IsEntityVisible(Entity))
@@ -1600,7 +1474,7 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
  b32 VarEquationChanged = false;
  if (Var->EquationMode)
  {
-  VarEquationChanged = UI_InputTextF(Var->VarEquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##Equation").Changed;
+  VarEquationChanged = UI_InputText(Var->VarEquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, StrLit("##Equation")).Changed;
  }
  else
  {
@@ -1711,32 +1585,32 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
    {
     if (UI_BeginTabItem(StrLit("General")))
     {
-     Entity->Name = UI_InputTextF(Entity->NameBuffer,
-                                  ArrayCount(Entity->NameBuffer),
-                                  0, "Name").Input;
+     Entity->Name = UI_InputText(Entity->NameBuffer,
+                                 ArrayCount(Entity->NameBuffer),
+                                 0, StrLit("Name")).Input;
      
-     UI_DragFloat2F(Entity->P.E, 0.0f, 0.0f, 0, "Position");
+     UI_DragFloat2(Entity->P.E, 0.0f, 0.0f, 0, StrLit("Position"));
      if (ResetCtxMenu(StrLit("PositionReset")))
      {
       Entity->P = V2(0.0f, 0.0f);
      }
      
-     UI_AngleSliderF(&Entity->Rotation, "Rotation");
+     UI_AngleSlider(&Entity->Rotation, StrLit("Rotation"));
      if (ResetCtxMenu(StrLit("RotationReset")))
      {
       Entity->Rotation = Rotation2DZero();
      }
      
-     UI_DragFloat2F(Entity->Scale.E, 0.0f, 0.0f, 0, "Scale");
+     UI_DragFloat2(Entity->Scale.E, 0.0f, 0.0f, 0, StrLit("Scale"));
      if (ResetCtxMenu(StrLit("ScaleReset")))
      {
       Entity->Scale = V2(1.0f, 1.0f);
      }
      
      {
-      UI_PushLabelF("DragMe");
+      UI_PushLabel(StrLit("DragMe"));
       f32 UniformScale = 0.0f;
-      UI_DragFloatF(&UniformScale, 0.0f, 0.0f, "Drag Me!", "Uniform Scale");
+      UI_DragFloat(&UniformScale, 0.0f, 0.0f, "Drag Me!", StrLit("Uniform Scale"));
       f32 WidthOverHeight = Entity->Scale.X / Entity->Scale.Y;
       Entity->Scale = Entity->Scale + V2(WidthOverHeight * UniformScale, UniformScale);
       if (ResetCtxMenu(StrLit("DragMeReset")))
@@ -1746,7 +1620,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
       UI_PopLabel();
      }
      
-     UI_SliderIntegerF(&Entity->SortingLayer, -10, 10, "Sorting Layer");
+     UI_SliderInteger(&Entity->SortingLayer, -10, 10, StrLit("Sorting Layer"));
      if (ResetCtxMenu(StrLit("SortingLayerReset")))
      {
       Entity->SortingLayer = 0;
@@ -1758,10 +1632,10 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
      
      if (Curve)
      {
-      UI_SeparatorTextF("Curve");
+      UI_SeparatorText(StrLit("Curve"));
       UI_LabelF("Curve")
       {
-       CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(CurveParams->Type, u32), Curve_Count, CurveTypeNames, "Interpolation");
+       CrucialEntityParamChanged |= UI_Combo(SafeCastToPtr(CurveParams->Type, u32), Curve_Count, CurveTypeNames, StrLit("Interpolation"));
        if (ResetCtxMenu(StrLit("InterpolationReset")))
        {
         CurveParams->Type = DefaultParams->Type;
@@ -1773,14 +1647,14 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
         case Curve_Polynomial: {
          polynomial_interpolation_params *Polynomial = &CurveParams->Polynomial;
          
-         CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(Polynomial->Type, u32), PolynomialInterpolation_Count, PolynomialInterpolationTypeNames, "Variant");
+         CrucialEntityParamChanged |= UI_Combo(SafeCastToPtr(Polynomial->Type, u32), PolynomialInterpolation_Count, PolynomialInterpolationTypeNames, StrLit("Variant"));
          if (ResetCtxMenu(StrLit("PolynomialReset")))
          {
           Polynomial->Type = DefaultParams->Polynomial.Type;
           CrucialEntityParamChanged = true;
          }
          
-         CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(Polynomial->PointSpacing, u32), PointSpacing_Count, PointSpacingNames, "Point Spacing");
+         CrucialEntityParamChanged |= UI_Combo(SafeCastToPtr(Polynomial->PointSpacing, u32), PointSpacing_Count, PointSpacingNames, StrLit("Point Spacing"));
          if (ResetCtxMenu(StrLit("PointSpacingReset")))
          {
           Polynomial->PointSpacing = DefaultParams->Polynomial.PointSpacing;
@@ -1789,7 +1663,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
         }break;
         
         case Curve_CubicSpline: {
-         CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(CurveParams->CubicSpline, u32), CubicSpline_Count, CubicSplineNames, "Variant");
+         CrucialEntityParamChanged |= UI_Combo(SafeCastToPtr(CurveParams->CubicSpline, u32), CubicSpline_Count, CubicSplineNames, StrLit("Variant"));
          if (ResetCtxMenu(StrLit("SplineReset")))
          {
           CurveParams->CubicSpline = DefaultParams->CubicSpline;
@@ -1798,7 +1672,7 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
         }break;
         
         case Curve_Bezier: {
-         CrucialEntityParamChanged |= UI_ComboF(SafeCastToPtr(CurveParams->Bezier, u32), Bezier_Count, BezierNames, "Variant");
+         CrucialEntityParamChanged |= UI_Combo(SafeCastToPtr(CurveParams->Bezier, u32), Bezier_Count, BezierNames, StrLit("Variant"));
          if (ResetCtxMenu(StrLit("BezierReset")))
          {
           CurveParams->Bezier = DefaultParams->Bezier;
@@ -2371,62 +2245,62 @@ UpdateAndRenderSelectedEntityUI(editor *Editor)
  
  if (DeleteEntity)
  {
-  DeallocEntity(Editor, Entity);
+  DeallocEntity(&Editor->Assets, Entity);
  }
 }
 
 internal void
-UpdateAndRenderMenuBarUI(editor *Editor,
-                         b32 *NewProject, b32 *OpenFileDialog, b32 *SaveProject,
-                         b32 *SaveProjectAs, b32 *QuitProject, b32 *AnimateCurves,
-                         b32 *MergeCurves)
+RenderMenuBarUI(editor *Editor,
+                b32 *NewProject, b32 *OpenFileDialog, b32 *SaveProject,
+                b32 *SaveProjectAs, b32 *QuitProject, b32 *AnimateCurves,
+                b32 *MergeCurves)
 {
  if (UI_BeginMainMenuBar())
  {
-  if (UI_BeginMenuF("File"))
+  if (UI_BeginMenu(StrLit("File")))
   {
-   *NewProject     = UI_MenuItemF(0, "Ctrl+N",       "New");
-   *OpenFileDialog = UI_MenuItemF(0, "Ctrl+O",       "Open");
-   *SaveProject    = UI_MenuItemF(0, "Ctrl+S",       "Save");
-   *SaveProjectAs  = UI_MenuItemF(0, "Ctrl+Shift+S", "Save As");
-   *QuitProject    = UI_MenuItemF(0, "Escape",     "Quit");
+   *NewProject     = UI_MenuItem(0, "Ctrl+N",       StrLit("New"));
+   *OpenFileDialog = UI_MenuItem(0, "Ctrl+O",       StrLit("Open"));
+   *SaveProject    = UI_MenuItem(0, "Ctrl+S",       StrLit("Save"));
+   *SaveProjectAs  = UI_MenuItem(0, "Ctrl+Shift+S", StrLit("Save As"));
+   *QuitProject    = UI_MenuItem(0, "Escape",       StrLit("Quit"));
    UI_EndMenu();
   }
   
-  if (UI_BeginMenuF("Actions"))
+  if(UI_BeginMenu(StrLit("Actions")))
   {
-   *AnimateCurves = UI_MenuItemF(0, 0, "Animate Curves");
-   *MergeCurves = UI_MenuItemF(0, 0, "Merge Curves");
+   *AnimateCurves = UI_MenuItem(0, 0, StrLit("Animate Curves"));
+   *MergeCurves = UI_MenuItem(0, 0, StrLit("Merge Curves"));
    UI_EndMenu();
   }
   
-  if (UI_BeginMenuF("View"))
+  if (UI_BeginMenu(StrLit("View")))
   {
-   UI_MenuItemF(&Editor->EntityListWindow, 0, "Entity List");
-   UI_MenuItemF(&Editor->SelectedEntityWindow, 0, "Selected Entity");
-   UI_MenuItemF(&Editor->ProfilerWindow, 0, "Profiler");
+   UI_MenuItem(&Editor->EntityListWindow, 0, StrLit("Entity List"));
+   UI_MenuItem(&Editor->SelectedEntityWindow, 0, StrLit("Selected Entity"));
+   UI_MenuItem(&Editor->ProfilerWindow, 0, StrLit("Profiler"));
    UI_EndMenu();
   }
   
-  if (UI_BeginMenuF("Settings"))
+  if(UI_BeginMenu(StrLit("Settings")))
   {
-   if (UI_BeginMenuF("Camera"))
+   if(UI_BeginMenu(StrLit("Camera")))
    {
     camera *Camera = &Editor->Camera;
     
-    UI_DragFloat2F(Camera->P.E, 0.0f, 0.0f, 0, "Position");
+    UI_DragFloat2(Camera->P.E, 0.0f, 0.0f, 0, StrLit("Position"));
     if (ResetCtxMenu(StrLit("PositionReset")))
     {
      TranslateCamera(Camera, -Camera->P);
     }
     
-    UI_AngleSliderF(&Camera->Rotation, "Rotation");
+    UI_AngleSlider(&Camera->Rotation, StrLit("Rotation"));
     if (ResetCtxMenu(StrLit("RotationReset")))
     {
      RotateCameraAround(Camera, Rotation2DInverse(Camera->Rotation), Camera->P);
     }
     
-    UI_DragFloatF(&Camera->Zoom, 0.0f, 0.0f, 0, "Zoom");
+    UI_DragFloat(&Camera->Zoom, 0.0f, 0.0f, 0, StrLit("Zoom"));
     if (ResetCtxMenu(StrLit("ZoomReset")))
     {
      SetCameraZoom(Camera, 1.0f);
@@ -2434,7 +2308,7 @@ UpdateAndRenderMenuBarUI(editor *Editor,
     
     UI_EndMenu();
    }
-   UI_ColorPickerF(&Editor->BackgroundColor, "Background Color");
+   UI_ColorPicker(&Editor->BackgroundColor, StrLit("Background Color"));
    if (ResetCtxMenu(StrLit("BackgroundColorReset")))
    {
     Editor->BackgroundColor = Editor->DefaultBackgroundColor;
@@ -2442,93 +2316,99 @@ UpdateAndRenderMenuBarUI(editor *Editor,
    UI_EndMenu();
   }
   
-  UI_MenuItemF(&Editor->HelpWindow, 0, "Help");
+  UI_MenuItem(&Editor->HelpWindow, 0, StrLit("Help"));
   
   UI_EndMainMenuBar();
  }
 }
 
 internal void
-UpdateAndRenderEntityListUI(editor *Editor)
+RenderEntityListWindowContents(editor *Editor)
+{
+ entity_array Entities = EntityArrayFromStore(&Editor->EntityStore);
+ 
+ for (u32 EntityTypeIndex = 0;
+      EntityTypeIndex < Entity_Count;
+      ++EntityTypeIndex)
+ {
+  entity_type EntityType = Cast(entity_type)EntityTypeIndex;
+  string EntityTypeLabel = {};
+  switch (EntityType)
+  {
+   case Entity_Curve: {EntityTypeLabel = StrLit("Curve"); }break;
+   case Entity_Image: {EntityTypeLabel = StrLit("Image"); }break;
+   case Entity_Count: InvalidPath; break;
+  }
+  
+  if (UI_CollapsingHeader(EntityTypeLabel))
+  {
+   for (u32 EntityIndex = 0;
+        EntityIndex < Entities.Count;
+        ++EntityIndex)
+   {
+    entity *Entity = Entities.Entities + EntityIndex;
+    if ((Entity->Flags & EntityFlag_Active) && Entity->Type == EntityType)
+    {
+     UI_PushId(EntityIndex);
+     b32 Selected = IsEntitySelected(Entity);
+     
+     if (UI_SelectableItem(Selected, Entity->Name))
+     {
+      SelectEntity(Editor, Entity);
+     }
+     
+     string CtxMenu = StrLit("EntityContextMenu");
+     if (UI_IsItemHovered() && UI_IsMouseClicked(UIMouseButton_Right))
+     {
+      UI_OpenPopup(CtxMenu);
+     }
+     if (UI_BeginPopup(CtxMenu, 0))
+     {
+      if(UI_MenuItem(0, 0, StrLit("Delete")))
+      {
+       DeallocEntity(&Editor->Assets, Entity);
+      }
+      if(UI_MenuItem(0, 0, StrLit("Copy")))
+      {
+       DuplicateEntity(Entity, Editor);
+      }
+      if(UI_MenuItem(0, 0, (Entity->Flags & EntityFlag_Hidden) ? StrLit("Show") : StrLit("Hide")))
+      {
+       Entity->Flags ^= EntityFlag_Hidden;
+      }
+      if (UI_MenuItem(0, 0, (Selected ? StrLit("Deselect") : StrLit("Select"))))
+      {
+       SelectEntity(Editor, (Selected ? 0 : Entity));
+      }
+      if(UI_MenuItem(0, 0, StrLit("Focus")))
+      {
+       FocusCameraOnEntity(Editor, Entity);
+      }
+      
+      UI_EndPopup();
+     }
+     
+     UI_PopId();
+    }
+   }
+  }
+ }
+}
+internal void
+RenderEntityListUI(editor *Editor)
 {
  if (Editor->EntityListWindow)
  {
-  if (UI_BeginWindowF(&Editor->EntityListWindow, 0, "Entities"))
+  if (UI_BeginWindow(&Editor->EntityListWindow, 0, StrLit("Entities")))
   {
-   entity *Entities = Editor->Entities;
-   for (u32 EntityTypeIndex = 0;
-        EntityTypeIndex < Entity_Count;
-        ++EntityTypeIndex)
-   {
-    entity_type EntityType = Cast(entity_type)EntityTypeIndex;
-    string EntityTypeLabel = {};
-    switch (EntityType)
-    {
-     case Entity_Curve: {EntityTypeLabel = StrLit("Curve"); }break;
-     case Entity_Image: {EntityTypeLabel = StrLit("Image"); }break;
-     case Entity_Count: InvalidPath; break;
-    }
-    
-    if (UI_CollapsingHeader(EntityTypeLabel))
-    {
-     for (u32 EntityIndex = 0;
-          EntityIndex < MAX_ENTITY_COUNT;
-          ++EntityIndex)
-     {
-      entity *Entity = Entities + EntityIndex;
-      if ((Entity->Flags & EntityFlag_Active) && Entity->Type == EntityType)
-      {
-       UI_PushId(EntityIndex);
-       b32 Selected = IsEntitySelected(Entity);
-       
-       if (UI_SelectableItem(Selected, Entity->Name))
-       {
-        SelectEntity(Editor, Entity);
-       }
-       
-       string CtxMenu = StrLit("EntityContextMenu");
-       if (UI_IsItemHovered() && UI_IsMouseClicked(UIMouseButton_Right))
-       {
-        UI_OpenPopup(CtxMenu);
-       }
-       if (UI_BeginPopup(CtxMenu, 0))
-       {
-        if (UI_MenuItemF(0, 0, "Delete"))
-        {
-         DeallocEntity(Editor, Entity);
-        }
-        if (UI_MenuItemF(0, 0, "Copy"))
-        {
-         DuplicateEntity(Entity, Editor);
-        }
-        if (UI_MenuItemF(0, 0, (Entity->Flags & EntityFlag_Hidden) ? "Show" : "Hide"))
-        {
-         Entity->Flags ^= EntityFlag_Hidden;
-        }
-        if (UI_MenuItemF(0, 0, (Selected ? "Deselect" : "Select")))
-        {
-         SelectEntity(Editor, (Selected ? 0 : Entity));
-        }
-        if (UI_MenuItemF(0, 0, "Focus"))
-        {
-         FocusCameraOnEntity(Editor, Entity);
-        }
-        
-        UI_EndPopup();
-       }
-       
-       UI_PopId();
-      }
-     }
-    }
-   }
+   RenderEntityListWindowContents(Editor);
   }
   UI_EndWindow();
  }
 }
 
 internal void
-UpdateAndRenderDiagnosticsUI(editor *Editor, platform_input_ouput *Input)
+RenderDiagnosticsUI(editor *Editor, platform_input_output *Input)
 {
  //- render diagnostics UI
  if (Editor->DiagnosticsWindow)
@@ -2547,7 +2427,7 @@ UpdateAndRenderDiagnosticsUI(editor *Editor, platform_input_ouput *Input)
 }
 
 internal void
-UpdateAndRenderHelpWindowUI(editor *Editor)
+RenderHelpUI(editor *Editor)
 {
  if (Editor->HelpWindow)
  {
@@ -2666,7 +2546,7 @@ UpdateAndRenderHelpWindowUI(editor *Editor)
 }
 
 internal void
-UpdateAndRenderNotifications(editor *Editor, platform_input_ouput *Input, render_group *RenderGroup)
+UpdateAndRenderNotificationsUI(editor *Editor, platform_input_output *Input, render_group *RenderGroup)
 {
  UI_LabelF("Notifications")
  {
@@ -2858,7 +2738,7 @@ UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing, editor *Editor)
  
  UI_Id(1)
  {
-  UI_TextF(false, "Curve 1: ");
+  UI_Text(false, StrLit("Curve 1: "));
   
   UI_SameRow();
   
@@ -2912,7 +2792,7 @@ UpdateAndRenderAnimatingCurvesUI(editor *Editor)
  if (Animation->Flags & AnimatingCurves_Active)
  {
   b32 WindowOpen = true;
-  UI_BeginWindowF(&WindowOpen, 0, "Curve Animation");
+  UI_BeginWindow(&WindowOpen, 0, StrLit("Curve Animation"));
   
   if (WindowOpen)
   {
@@ -2921,14 +2801,14 @@ UpdateAndRenderAnimatingCurvesUI(editor *Editor)
    entity *Curve0 = EntityFromHandle(Animation->Choose2Curves.Curves[0]);
    entity *Curve1 = EntityFromHandle(Animation->Choose2Curves.Curves[1]);
    
-   if (UI_SliderFloatF(&Animation->Bouncing.T, 0.0f, 1.0f, "t"))
+   if (UI_SliderFloat(&Animation->Bouncing.T, 0.0f, 1.0f, StrLit("t")))
    {
     Animation->Flags &= ~AnimatingCurves_Animating;
    }
    UI_SameRow();
    if (Animation->Flags & AnimatingCurves_Animating)
    {
-    if (UI_ButtonF("Stop"))
+    if (UI_Button(StrLit("Stop")))
     {
      Animation->Flags &= ~AnimatingCurves_Animating;
     }
@@ -2937,16 +2817,16 @@ UpdateAndRenderAnimatingCurvesUI(editor *Editor)
    {
     UI_Disabled((Curve0 == 0) || (Curve1 == 0))
     {
-     if (UI_ButtonF("Start"))
+     if (UI_Button(StrLit("Start")))
      {
       Animation->Flags |= AnimatingCurves_Animating;
      }
     }
    }
    
-   if (UI_BeginTreeF("More"))
+   if (UI_BeginTree(StrLit("More")))
    {
-    UI_SliderFloatF(&Animation->Bouncing.Speed, 0.0f, 4.0f, "Speed");
+    UI_SliderFloat(&Animation->Bouncing.Speed, 0.0f, 4.0f, StrLit("Speed"));
     UI_EndTree();
    }
   }
@@ -2960,54 +2840,7 @@ UpdateAndRenderAnimatingCurvesUI(editor *Editor)
 }
 
 internal void
-ProcessAsyncEvents(editor *Editor)
-{
- for (u32 TaskIndex = 0;
-      TaskIndex < MAX_TASK_COUNT;
-      ++TaskIndex)
- {
-  async_task *Task = Editor->AsyncTasks + TaskIndex;
-  if (Task->Active)
-  {
-   if (Task->State == Image_Loading)
-   {
-    // NOTE(hbr): nothing to do
-   }
-   else
-   {
-    if (Task->State == Image_Loaded)
-    {
-     entity *Entity = AllocEntity(Editor);
-     if (Entity)
-     {
-      string FileName = PathLastPart(Task->ImageFilePath);
-      string FileNameNoExt = StrChopLastDot(FileName);
-      
-      InitEntity(Entity, Task->AtP, V2(1, 1), Rotation2DZero(), FileNameNoExt, 0);
-      Entity->Type = Entity_Image;
-      
-      image *Image = &Entity->Image;
-      Image->Dim.X = Cast(f32)Task->ImageWidth / Task->ImageHeight;
-      Image->Dim.Y = 1.0f;
-      Image->TextureIndex = Task->TextureIndex;
-      
-      SelectEntity(Editor, Entity);
-     }
-    }
-    else
-    {
-     Assert(Task->State == Image_Failed);
-     AddNotificationF(Editor, Notification_Error, "failed to load image from %S", Task->ImageFilePath);
-    }
-    
-    DeallocateAsyncTask(Editor, Task);
-   }
-  }
- }
-}
-
-internal void
-UpdateFrameStats(frame_stats *Stats, platform_input_ouput *Input)
+UpdateFrameStats(frame_stats *Stats, platform_input_output *Input)
 {
  f32 dt = Input->dtForFrame;
  
@@ -3101,7 +2934,56 @@ EndRightClick(editor_right_click_state *Right)
 }
 
 internal void
-ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *RenderGroup,
+ProcessAsyncEvents(editor *Editor)
+{
+ async_task_array AsyncTasks = AsyncTaskArrayFromStore(&Editor->AsyncTaskStore);
+ 
+ for (u32 TaskIndex = 0;
+      TaskIndex < AsyncTasks.Count;
+      ++TaskIndex)
+ {
+  async_task *Task = AsyncTasks.Tasks + TaskIndex;
+  if (Task->Active)
+  {
+   if (Task->State == Image_Loading)
+   {
+    // NOTE(hbr): nothing to do
+   }
+   else
+   {
+    if (Task->State == Image_Loaded)
+    {
+     entity *Entity = AllocEntity(&Editor->EntityStore);
+     if (Entity)
+     {
+      string FileName = PathLastPart(Task->ImageFilePath);
+      string FileNameNoExt = StrChopLastDot(FileName);
+      
+      InitEntity(Entity, Task->AtP, V2(1, 1), Rotation2DZero(), FileNameNoExt, 0);
+      Entity->Type = Entity_Image;
+      
+      image *Image = &Entity->Image;
+      Image->Dim.X = Cast(f32)Task->ImageWidth / Task->ImageHeight;
+      Image->Dim.Y = 1.0f;
+      Image->TextureIndex = Task->TextureIndex;
+      
+      SelectEntity(Editor, Entity);
+     }
+    }
+    else
+    {
+     Assert(Task->State == Image_Failed);
+     AddNotificationF(Editor, Notification_Error, "failed to load image from %S", Task->ImageFilePath);
+    }
+    
+    DeallocAsyncTask(Task);
+   }
+  }
+ }
+}
+
+internal void
+ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *RenderGroup,
                    b32 *NewProject, b32 *OpenFileDialog, b32 *SaveProject,
                    b32 *SaveProjectAs, b32 *QuitProject)
 {
@@ -3128,6 +3010,8 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
   {
    Eat = true;
    
+   entity_array Entities = EntityArrayFromStore(&Editor->EntityStore);
+   
    collision Collision = {};
    if (Event->Flags & PlatformEventFlag_Alt)
    {
@@ -3135,10 +3019,7 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
    }
    else
    {
-    Collision = CheckCollisionWithEntities(MAX_ENTITY_COUNT,
-                                           Editor->Entities,
-                                           MouseP,
-                                           RenderGroup->CollisionTolerance);
+    Collision = CheckCollisionWithEntities(Entities, MouseP, RenderGroup->CollisionTolerance);
    }
    
    if ((DoesAnimationWantInput || DoesMergingWantInput) &&
@@ -3223,7 +3104,7 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
      {
       temp_arena Temp = TempArena(0);
       
-      entity *Entity = AllocEntity(Editor);
+      entity *Entity = AllocEntity(&Editor->EntityStore);
       entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
       
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
@@ -3347,10 +3228,8 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
   {
    Eat = true;
    
-   collision Collision = CheckCollisionWithEntities(MAX_ENTITY_COUNT,
-                                                    Editor->Entities,
-                                                    MouseP,
-                                                    RenderGroup->CollisionTolerance);
+   entity_array Entities = EntityArrayFromStore(&Editor->EntityStore);
+   collision Collision = CheckCollisionWithEntities(Entities, MouseP, RenderGroup->CollisionTolerance);
    
    BeginRightClick(RightClick, MouseP, Collision);
    
@@ -3405,7 +3284,7 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
     }
     else if (Entity)
     {
-     DeallocEntity(Editor, Entity);
+     DeallocEntity(&Editor->Assets, Entity);
     }
     else
     {
@@ -3521,12 +3400,12 @@ ProcessInputEvents(editor *Editor, platform_input_ouput *Input, render_group *Re
       }
       else
       {
-       DeallocEntity(Editor, Entity);
+       DeallocEntity(&Editor->Assets, Entity);
       }
      }break;
      
      case Entity_Image: {
-      DeallocEntity(Editor, Entity);
+      DeallocEntity(&Editor->Assets, Entity);
      }break;
      
      case Entity_Count: InvalidPath;
@@ -3805,7 +3684,7 @@ UpdateAndRenderMergingCurvesUI(editor *Editor)
    
    if (Changed0 || Changed1 || MergeMethodChanged)
    {
-    entity_with_modify_witness MergeWitness = BeginEntityModify(&Merging->MergeEntity);
+    entity_with_modify_witness MergeWitness = BeginEntityModify(Merging->MergeEntity);
     if (Compatibility.Compatible)
     {
      Merge2Curves(&MergeWitness, Entity0, Entity1, Merging->Method);
@@ -3849,7 +3728,7 @@ RenderMergingCurves(merging_curves_state *Merging, render_group *RenderGroup)
 {
  if (Merging->Active)
  {
-  entity *Entity = &Merging->MergeEntity;
+  entity *Entity = Merging->MergeEntity;
   rendering_entity_handle RenderingHandle = BeginRenderingEntity(Entity, RenderGroup);
   
   entity_colors Colors = ExtractEntityColors(Entity);
@@ -4357,9 +4236,8 @@ RenderProfilerWindowContents(editor *Editor)
  
  EndTemp(Temp);
 }
-
 internal void
-RenderProfilerWindowUI(editor *Editor, platform_input_ouput *Input)
+RenderProfilerUI(editor *Editor, platform_input_output *Input)
 {
  ProfileFunctionBegin();
  if (Editor->ProfilerWindow)
@@ -4374,7 +4252,7 @@ RenderProfilerWindowUI(editor *Editor, platform_input_ouput *Input)
 }
 
 internal void
-RenderDevConsole(editor *Editor)
+RenderDevConsoleUI(editor *Editor)
 {
  if (Editor->DevConsole)
  {
@@ -4394,7 +4272,7 @@ RenderDevConsole(editor *Editor)
 }
 
 internal void
-EditorUpdateAndRender_(editor_memory *Memory, platform_input_ouput *Input, struct render_frame *Frame)
+EditorUpdateAndRender_(editor_memory *Memory, platform_input_output *Input, struct render_frame *Frame)
 {
  editor *Editor = Memory->Editor;
  if (!Editor)
@@ -4492,16 +4370,16 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input_ouput *Input, struc
   ProfileBegin("UI Update");
   
   UpdateAndRenderSelectedEntityUI(Editor);
-  UpdateAndRenderMenuBarUI(Editor, &NewProject, &OpenFileDialog, &SaveProject,
-                           &SaveProjectAs, &QuitProject, &AnimateCurves, &MergeCurves);
-  UpdateAndRenderEntityListUI(Editor);
-  UpdateAndRenderDiagnosticsUI(Editor, Input);
-  UpdateAndRenderHelpWindowUI(Editor);
-  UpdateAndRenderNotifications(Editor, Input, RenderGroup);
+  RenderMenuBarUI(Editor, &NewProject, &OpenFileDialog, &SaveProject,
+                  &SaveProjectAs, &QuitProject, &AnimateCurves, &MergeCurves);
+  RenderEntityListUI(Editor);
+  RenderDiagnosticsUI(Editor, Input);
+  RenderHelpUI(Editor);
+  UpdateAndRenderNotificationsUI(Editor, Input, RenderGroup);
   UpdateAndRenderAnimatingCurvesUI(Editor);
   UpdateAndRenderMergingCurvesUI(Editor);
-  RenderDevConsole(Editor);
-  RenderProfilerWindowUI(Editor, Input);
+  RenderDevConsoleUI(Editor);
+  RenderProfilerUI(Editor, Input);
   
   
 #if BUILD_DEBUG
@@ -4564,7 +4442,11 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input_ouput *Input, struc
   BeginMergingCurves(&Editor->MergingCurves);
  }
  
- UpdateAndRenderEntities(MAX_ENTITY_COUNT, Editor->Entities, RenderGroup);
+ { 
+  entity_array Entities = EntityArrayFromStore(&Editor->EntityStore);
+  UpdateAndRenderEntities(Entities, RenderGroup);
+ }
+ 
  UpdateAndRenderAnimatingCurves(&Editor->AnimatingCurves, Input, RenderGroup);
  RenderMergingCurves(&Editor->MergingCurves, RenderGroup);
  

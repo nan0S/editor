@@ -104,7 +104,7 @@ Platform_ClockFrame(platform_clock *Clock)
 }
 
 internal void
-Platform_PrintDebugInputEvents(platform_input_ouput *Input)
+Platform_PrintDebugInputEvents(platform_input_output *Input)
 {
  for (u32 EventIndex = 0;
       EventIndex < Input->EventCount;

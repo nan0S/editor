@@ -1,4 +1,14 @@
 internal void
+InitCamera(camera *Camera)
+{
+ Camera->P = V2(0.0f, 0.0f);
+ Camera->Rotation = Rotation2DZero();
+ Camera->Zoom = 1.0f;
+ Camera->ZoomSensitivity = 0.05f;
+ Camera->ReachingTargetSpeed = 1.0f;
+}
+
+internal void
 TranslateCamera(camera *Camera, v2 Translate)
 {
  Camera->P += Translate;
@@ -62,7 +72,7 @@ ZoomCamera(camera *Camera, f32 By)
 }
 
 internal void
-UpdateCamera(camera *Camera, platform_input_ouput *Input)
+UpdateCamera(camera *Camera, platform_input_output *Input)
 {
  if (Camera->ReachingTarget)
  {

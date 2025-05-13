@@ -790,16 +790,6 @@ InitImage(entity *Entity)
 }
 
 internal void
-AllocEntityResources(entity *Entity)
-{
- Entity->Arena = AllocArena(Megabytes(32));
- Entity->Curve.DegreeLowering.Arena = AllocArena(Megabytes(32));
- 
- curve *Curve = &Entity->Curve;
- Curve->ParametricResources.Arena = AllocArena(Megabytes(32));
-}
-
-internal void
 InitEntity(entity *Entity,
            v2 P,
            v2 Scale,

@@ -221,7 +221,7 @@ union mat4
 #define Million(N)  (Cast(u64)(N) * 1000000)
 #define Billion(N)  (Cast(u64)(N) * 1000000000ull)
 
-#define ArrayCount(Arr) (SizeOf(Arr)/SizeOf((Arr)[0]))
+#define ArrayCount(Arr) (SizeOf(Arr) / SizeOf((Arr)[0]))
 #define AssertAlways(Expr) do { if (!(Expr)) { Trap; } } while (0)
 #define StaticAssert(Expr, Label) typedef int Static_Assert_Failed_##Label[(Expr) ? 1 : -1]
 #define AssertMsg(Expr, Msg) Assert(Expr)
@@ -243,6 +243,16 @@ inline void *_SafeCastToPtr(void *Expr, u64 SizeOf1, u64 SizeOf2) { Assert(SizeO
 #define ConvertNameToString(Name) ConvertNameToString_(Name) // convert CustomName -> "CustomName"
 #define Comma ,
 #define Nothing
+
+#define ForEachElementUnsafe(Index, Array) for (u64 Index = 0; Index < ArrayCount(Array); ++Index)
+#if BUILD_DEBUG
+#define ForEachElement(Index, Array) StaticAssert(SizeOf(Array) != SizeOf(void *), CheckArrayIsStatic); ForEachElementUnsafe(Index, Array)
+#else
+#define ForEachElement ForEachElementUnsafe
+#endif
+#define ForEachIndex(Index, Count) for (u64 Index = 0; Index < (Count); ++Index)
+#define ForEachEnumVal(Val, Count, Type) for (Type Val= Cast(Type)0; Val < (Count); Index = Cast(Type)(Val + 1))
+#define ForEachEnumValNonZero(Val, Count, Type) for (Type Val= Cast(Type)1; Val < (Count); Index = Cast(Type)(Val + 1))
 
 #if !defined(COMPILATION_UNIT_INDEX) && !defined(COMPILATION_UNIT_COUNT)
 # define COMPILATION_UNIT_INDEX 0

@@ -16,7 +16,7 @@ struct image_info
 {
  u32 Width;
  u32 Height;
- u32 Components;
+ u32 Channels;
 };
 
 internal loaded_image LoadImageFromFile(arena *Arena, string FilePath);

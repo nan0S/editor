@@ -1,3 +1,31 @@
+inline internal render_texture_handle
+TextureHandleZero(void)
+{
+ render_texture_handle Result = {};
+ return Result;
+}
+
+inline internal b32
+TextureHandleMatch(render_texture_handle T1, render_texture_handle T2)
+{
+ b32 Result = (T1.U32[0] == T2.U32[1]);
+ return Result;
+}
+
+inline internal render_texture_handle
+TextureHandleFromIndex(u32 Index)
+{
+ render_texture_handle Result = {};
+ Result.U32[0] = Index + 1;
+ return Result;
+}
+
+inline internal u32
+TextureIndexFromHandle(render_texture_handle Handle)
+{
+ u32 Index = Handle.U32[0] - 1;
+ return Index;
+}
 
 internal void
 PushVertexArray(render_group *Group,
@@ -160,7 +188,7 @@ PushTriangle(render_group *Group,
 }
 
 internal void
-PushImage(render_group *Group, v2 Dim, u32 TextureIndex)
+PushImage(render_group *Group, v2 Dim, render_texture_handle TextureHandle)
 {
  render_frame *Frame = Group->Frame;
  if (Frame->ImageCount < Frame->MaxImageCount)
@@ -171,7 +199,7 @@ PushImage(render_group *Group, v2 Dim, u32 TextureIndex)
   Model = Transpose3x3(Model);
   
   RenderImage->Model = Model;
-  RenderImage->TextureIndex = TextureIndex;
+  RenderImage->TextureHandle = TextureHandle;
   RenderImage->Z = Group->ZOffset;
  }
 }
@@ -206,13 +234,15 @@ BeginRenderGroup(render_frame *Frame,
 }
 
 internal renderer_transfer_op *
-PushTextureTransfer(renderer_transfer_queue *Queue, u64 RequestSize)
+PushTextureTransfer(renderer_transfer_queue *Queue,
+                    u32 TextureWidth, u32 TextureHeight, u32 TextureChannels,
+                    render_texture_handle TextureHandle)
 {
- renderer_transfer_op *Result = 0;
- 
+ renderer_transfer_op *Op = 0;
  if (Queue->OpCount < MAX_RENDERER_TRANFER_QUEUE_COUNT)
  {
   u64 PreviousAllocateOffset = Queue->AllocateOffset;
+  u64 RequestSize = Cast(u64)TextureWidth * TextureHeight * TextureChannels;
   
   if (Queue->AllocateOffset >= Queue->FreeOffset &&
       (Queue->TransferMemorySize - Queue->AllocateOffset) < RequestSize &&
@@ -239,13 +269,17 @@ PushTextureTransfer(renderer_transfer_queue *Queue, u64 RequestSize)
   if (RequestSize <= FreeSpace)
   {
    u64 OpIndex = (Queue->FirstOpIndex + Queue->OpCount) % MAX_RENDERER_TRANFER_QUEUE_COUNT;
-   Result = Queue->Ops + OpIndex;
+   Op = Queue->Ops + OpIndex;
    ++Queue->OpCount;
-   Result->Pixels = Queue->TransferMemory + Queue->AllocateOffset;
-   Result->State = RendererOp_PendingLoad;
-   Result->PreviousAllocateOffset = PreviousAllocateOffset;
+   
+   Op->Pixels = Queue->TransferMemory + Queue->AllocateOffset;
+   Op->State = RendererOp_PendingLoad;
+   Op->PreviousAllocateOffset = PreviousAllocateOffset;
    Queue->AllocateOffset += RequestSize;
-   Result->SavedAllocateOffset = Queue->AllocateOffset;
+   Op->SavedAllocateOffset = Queue->AllocateOffset;
+   Op->Width = TextureWidth;
+   Op->Height = TextureHeight;
+   Op->TextureHandle = TextureHandle;
   }
   else
   {
@@ -253,7 +287,7 @@ PushTextureTransfer(renderer_transfer_queue *Queue, u64 RequestSize)
   }
  }
  
- return Result;
+ return Op;
 }
 
 internal void

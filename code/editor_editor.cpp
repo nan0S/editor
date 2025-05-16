@@ -1,32 +1,31 @@
-internal renderer_index *
-AllocTextureIndex(editor_assets *Assets)
+internal render_texture_handle
+AllocTextureHandle(editor_assets *Assets)
 {
- renderer_index *Result = Assets->FirstFreeTextureIndex;
- if (Result)
+ render_texture_handle Result = TextureHandleZero();
+ for (u32 Index = 0;
+      Index < Assets->TextureCount;
+      ++Index)
  {
-  Assets->FirstFreeTextureIndex = Result->Next;
+  if (!Assets->IsTextureHandleAllocated[Index])
+  {
+   Result = TextureHandleFromIndex(Index);
+   Assets->IsTextureHandleAllocated[Index] = true;
+   break;
+  }
  }
  return Result;
 }
 
 internal void
-DeallocTextureIndex(editor_assets *Assets, renderer_index *Index)
+DeallocTextureHandle(editor_assets *Assets, render_texture_handle Handle)
 {
- if (Index)
+ if (!TextureHandleMatch(Handle, TextureHandleZero()))
  {
-  Index->Next = Assets->FirstFreeTextureIndex;
-  Assets->FirstFreeTextureIndex = Index;
+  u32 Index = TextureIndexFromHandle(Handle);
+  Assert(Index < Assets->TextureCount);
+  Assert(Assets->IsTextureHandleAllocated[Index]);
+  Assets->IsTextureHandleAllocated[Index] = false;
  }
-}
-
-internal void
-AllocEntityResources(entity *Entity)
-{
- Entity->Arena = AllocArena(Megabytes(32));
- Entity->Curve.DegreeLowering.Arena = AllocArena(Megabytes(32));
- 
- curve *Curve = &Entity->Curve;
- Curve->ParametricResources.Arena = AllocArena(Megabytes(32));
 }
 
 internal void
@@ -37,13 +36,19 @@ InitEntityStore(entity_store *Store)
       ++EntityIndex)
  {
   entity *Entity = Store->EntityBuffer + EntityIndex;
-  AllocEntityResources(Entity);
+  
+  Entity->Arena = AllocArena(Megabytes(32));
+  Entity->Curve.DegreeLowering.Arena = AllocArena(Megabytes(32));
+  
+  curve *Curve = &Entity->Curve;
+  Curve->ParametricResources.Arena = AllocArena(Megabytes(32));
  }
 }
 
 internal entity *
 AllocEntity(entity_store *Store)
 {
+ entity *Entity = Store->Free;
  entity *Entity = 0;
  
  for (u32 EntityIndex = 0;
@@ -83,7 +88,7 @@ DeallocEntity(editor_assets *Assets, entity *Entity)
  if (Entity->Type == Entity_Image)
  {
   image *Image = &Entity->Image;
-  DeallocTextureIndex(Assets, Image->TextureIndex);
+  DeallocTextureHandle(Assets, Image->TextureHandle);
  }
  
  Entity->Flags &= ~EntityFlag_Active;
@@ -99,104 +104,66 @@ EntityArrayFromStore(entity_store *Store)
  return Array;
 }
 
-internal task_with_memory *
-BeginTaskWithMemory(task_with_memory_store *Store)
-{
- task_with_memory *Result = 0;
- for (u32 TaskIndex = 0;
-      TaskIndex < ArrayCount(Store->Tasks);
-      ++TaskIndex)
- {
-  task_with_memory *Task = Store->Tasks + TaskIndex;
-  if (!Task->Allocated)
-  {
-   Task->Allocated = true;
-   if (!Task->Arena)
-   {
-    Task->Arena = AllocArena(Megabytes(1));
-   }
-   Result = Task;
-   break;
-  }
- }
- 
- return Result;
-}
-
-internal void
-EndTaskWithMemory(task_with_memory *Task)
-{
- Assert(Task->Allocated);
- Task->Allocated = false;
- ClearArena(Task->Arena);
-}
-
-internal async_task *
-AllocAsyncTask(async_task_store *Store)
-{
- async_task *Result = 0;
- 
- for (u32 TaskIndex = 0;
-      TaskIndex < ArrayCount(Store->Tasks);
-      ++TaskIndex)
- {
-  async_task *Task = Store->Tasks + TaskIndex;
-  if (!Task->Active)
-  {
-   Result = Task;
-   Task->Active = true;
-   if (!Task->Arena)
-   {
-    Task->Arena = AllocArena(Megabytes(1));
-   }
-   Task->State = Image_Loading;
-   break;
-  }
- }
- 
- return Result;
-}
-
-internal void
-DeallocAsyncTask(async_task *Task)
-{
- Task->Active = false;
- ClearArena(Task->Arena);
-}
-
 internal void
 InitTaskWithMemoryStore(task_with_memory_store *Store)
 {
- // NOTE(hbr): Initialize just a few, others will probably never be initialized
- // but if they do, then they will be initialized lazily.
- for (u32 TaskIndex = 0;
-      TaskIndex < Min(ArrayCount(Store->Tasks), 4);
-      ++TaskIndex)
+ Store->Arena = AllocArena(Gigabytes(1));
+}
+
+internal task_with_memory *
+BeginTaskWithMemory(task_with_memory_store *Store)
+{
+ task_with_memory *Task = Store->Free;
+ if (Task)
  {
-  task_with_memory *Task = Store->Tasks + TaskIndex;
-  Task->Arena = AllocArena(Megabytes(1));
+  StackPop(Store->Free);
  }
+ else
+ {
+  Task = PushStructNonZero(Store->Arena, task_with_memory);
+ }
+ StructZero(Task);
+ Task->Arena = AllocArena(Gigabytes(1));
+ return Task;
+}
+
+internal void
+EndTaskWithMemory(task_with_memory_store *Store, task_with_memory *Task)
+{
+ DeallocArena(Task->Arena);
+ StackPush(Store->Free, Task);
 }
 
 internal void
 InitAsyncTaskStore(async_task_store *Store)
 {
- // NOTE(hbr): Initialize just a few, others will probably never be initialized
- // but if they do, then they will be initialized lazily.
- for (u32 TaskIndex = 0;
-      TaskIndex < Min(ArrayCount(Store->Tasks), 4);
-      ++TaskIndex)
- {
-  async_task *Task = Store->Tasks + TaskIndex;
-  Task->Arena = AllocArena(Megabytes(1));
- }
+ Store->Arena = AllocArena(Gigabytes(1));
 }
 
-internal async_task_array
-AsyncTaskArrayFromStore(async_task_store *Store)
+internal async_task *
+AllocAsyncTask(async_task_store *Store)
 {
- async_task_array Array = {};
- Array.Tasks = Store->Tasks;
- Array.Count = ArrayCount(Store->Tasks);
- return Array;
+ async_task *Task = Store->Free;
+ if (Task)
+ {
+  StackPop(Store->Free);
+ }
+ else
+ {
+  Task = PushStructNonZero(Store->Arena, async_task);
+ }
+ StructZero(Task);
+ 
+ Task->Arena = AllocArena(Gigabytes(1));
+ DLLPushBack(Store->Head, Store->Tail, Task);
+ 
+ return Task;
+}
+
+internal void
+DeallocAsyncTask(async_task_store *Store, async_task *Task)
+{
+ DeallocArena(Task->Arena);
+ DLLRemove(Store->Head, Store->Tail, Task);
+ StackPush(Store->Free, Task);
 }

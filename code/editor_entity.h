@@ -282,7 +282,7 @@ struct curve
 struct image
 {
  v2 Dim;
- struct renderer_index *TextureIndex;
+ render_texture_handle TextureHandle;
 };
 
 enum entity_type
@@ -414,7 +414,6 @@ struct entity_array
  entity *Entities;
 };
 
-internal void AllocEntityResources(entity *Entity);
 internal void InitEntity(entity *Entity, v2 P, v2 Scale, v2 Rotation, string Name, i32 SortingLayer);
 internal void InitCurve(entity_with_modify_witness *Entity, curve_params Params);
 internal void InitImage(entity *Entity);

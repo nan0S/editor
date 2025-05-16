@@ -7,7 +7,6 @@ enum render_primitive_type
  Primitive_TriangleStrip,
 };
 
-struct renderer_index;
 struct vertex_array
 {
  u32 VertexCount;
@@ -39,11 +38,20 @@ struct render_circle
  v4 OutlineColor;
 };
 
+struct render_texture_handle
+{
+ u32 U32[1];
+};
+inline internal render_texture_handle TextureHandleZero(void);
+internal b32 TextureHandleMatch(render_texture_handle T1, render_texture_handle T2);
+internal render_texture_handle TextureHandleFromIndex(u32 Index);
+internal u32 TextureIndexFromHandle(render_texture_handle Handle);
+
 struct render_image
 {
  f32 Z;
  mat3 Model;
- u32 TextureIndex;
+ render_texture_handle TextureHandle;
 };
 
 struct render_vertex
@@ -111,7 +119,7 @@ struct renderer_transfer_op
  
  union {
   struct {
-   u32 TextureIndex;
+   render_texture_handle TextureHandle;
    u32 Width;
    u32 Height;
    char *Pixels;

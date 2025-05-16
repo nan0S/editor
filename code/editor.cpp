@@ -849,6 +849,7 @@ LoadImageWork(void *UserData)
 {
  load_image_work *Work = Cast(load_image_work *)UserData;
  
+ task_with_memory_store *Store = Work->Store;
  task_with_memory *Task = Work->Task;
  renderer_transfer_op *TextureOp = Work->TextureOp;
  string ImagePath = Work->ImagePath;
@@ -878,45 +879,39 @@ LoadImageWork(void *UserData)
  TextureOp->State = OpState;
  AsyncTask->State = AsyncTaskState;
  
- EndTaskWithMemory(Task);
+ EndTaskWithMemory(Store, Task);
 }
 
 internal void
 TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
 {
  work_queue *WorkQueue = Editor->LowPriorityQueue;
+ task_with_memory_store *TaskWithMemoryStore = &Editor->TaskWithMemoryStore;
+ async_task_store *AsyncTaskStore = &Editor->AsyncTaskStore;
+ editor_assets *Assets = &Editor->Assets;
  
- for (u32 FileIndex = 0;
-      FileIndex < FileCount;
-      ++FileIndex)
+ ForEachIndex(FileIndex, FileCount)
  {
   string FilePath = FilePaths[FileIndex];
   
   image_info ImageInfo = LoadImageInfo(FilePath);
-  u64 RequestSize = Cast(u64)4 * ImageInfo.Width * ImageInfo.Height;
-  
-  editor_assets *Assets = &Editor->Assets;
+  render_texture_handle TextureHandle = AllocTextureHandle(Assets);
   // TODO(hbr): Make it always suceeed??????
-  renderer_transfer_op *TextureOp = PushTextureTransfer(Assets->RendererQueue, RequestSize);
-  // TODO(hbr): Make it always succeed
-  renderer_index *TextureIndex = AllocTextureIndex(Assets);
-  async_task *AsyncTask = AllocAsyncTask(&Editor->AsyncTaskStore);
-  task_with_memory *Task = BeginTaskWithMemory(&Editor->TaskWithMemoryStore);
+  renderer_transfer_op *TextureOp = PushTextureTransfer(Assets->RendererQueue, ImageInfo.Width, ImageInfo.Height, ImageInfo.Channels, TextureHandle);
+  async_task *AsyncTask = AllocAsyncTask(AsyncTaskStore);
+  task_with_memory *Task = BeginTaskWithMemory(TaskWithMemoryStore);
   
   load_image_work *Work = 0;
-  if (TextureOp && TextureIndex && Task && AsyncTask)
+  if (TextureOp && Task && AsyncTask)
   {
-   TextureOp->Width = ImageInfo.Width;
-   TextureOp->Height = ImageInfo.Height;
-   TextureOp->TextureIndex = TextureIndex->Index;
-   
    AsyncTask->ImageWidth = ImageInfo.Width;
    AsyncTask->ImageHeight = ImageInfo.Height;
    AsyncTask->ImageFilePath = StrCopy(AsyncTask->Arena, FilePath);
    AsyncTask->AtP = AtP;
-   AsyncTask->TextureIndex = TextureIndex;
+   AsyncTask->TextureHandle = TextureHandle;
    
    Work = PushStruct(Task->Arena, load_image_work);
+   Work->Store = &Editor->TaskWithMemoryStore;
    Work->Task = Task;
    Work->TextureOp = TextureOp;
    Work->ImagePath = StrCopy(Task->Arena, FilePath);
@@ -932,17 +927,14 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
    {
     PopTextureTransfer(Assets->RendererQueue, TextureOp);
    }
-   if (TextureIndex)
-   {
-    DeallocTextureIndex(Assets, TextureIndex);
-   }
+   DeallocTextureHandle(Assets, TextureHandle);
    if (AsyncTask)
    {
-    DeallocAsyncTask(AsyncTask);
+    DeallocAsyncTask(AsyncTaskStore, AsyncTask);
    }
    if (Task)
    {
-    EndTaskWithMemory(Task);
+    EndTaskWithMemory(TaskWithMemoryStore, Task);
    }
   }
  }
@@ -1112,29 +1104,17 @@ InitMergingCurvesState(merging_curves_state *State,
 internal void
 InitEditorAssets(editor_assets *Assets, editor_memory *Memory)
 {
- u32 TextureCount = Memory->MaxTextureCount;
- for (u32 Index = 0;
-      Index < TextureCount;
-      ++Index)
- {
-  renderer_index *TextureIndex = PushStruct(Memory->PermamentArena, renderer_index);
-  TextureIndex->Index = TextureCount-1 - Index;
-  TextureIndex->Next = Assets->FirstFreeTextureIndex;
-  Assets->FirstFreeTextureIndex = TextureIndex;
- }
- 
- u32 BufferCount = Memory->MaxBufferCount;
- for (u32 Index = 0;
-      Index < BufferCount;
-      ++Index)
- {
-  renderer_index *BufferIndex = PushStruct(Memory->PermamentArena, renderer_index);
-  BufferIndex->Index = BufferCount-1 - Index;
-  BufferIndex->Next = Assets->FirstFreeBufferIndex;
-  Assets->FirstFreeBufferIndex = BufferIndex;
- }
+ arena *Arena = Memory->PermamentArena;
  
  Assets->RendererQueue = Memory->RendererQueue;
+ 
+ u32 TextureCount = Memory->MaxTextureCount;
+ Assets->TextureCount = TextureCount;
+ Assets->IsTextureHandleAllocated = PushArray(Arena, TextureCount, b32);
+ 
+ u32 BufferCount = Memory->MaxBufferCount;
+ Assets->BufferCount = BufferCount;
+ Assets->IsBufferIndexFree = PushArray(Arena, BufferCount, b32);
 }
 
 internal void
@@ -1418,7 +1398,7 @@ RenderEntity(rendering_entity_handle Handle)
   
   case Entity_Image: {
    image *Image = &Entity->Image;
-   PushImage(RenderGroup, Image->Dim, Image->TextureIndex->Index);
+   PushImage(RenderGroup, Image->Dim, Image->TextureHandle);
   }break;
   
   case Entity_Count: InvalidPath; break;
@@ -2974,48 +2954,41 @@ EndRightClick(editor_right_click_state *Right)
 internal void
 ProcessAsyncEvents(editor *Editor)
 {
- async_task_array AsyncTasks = AsyncTaskArrayFromStore(&Editor->AsyncTaskStore);
- 
- for (u32 TaskIndex = 0;
-      TaskIndex < AsyncTasks.Count;
-      ++TaskIndex)
+ async_task_store *AsyncTaskStore = &Editor->AsyncTaskStore;
+ ListIter(Task, AsyncTaskStore->Head, async_task)
  {
-  async_task *Task = AsyncTasks.Tasks + TaskIndex;
-  if (Task->Active)
+  if (Task->State == Image_Loading)
   {
-   if (Task->State == Image_Loading)
+   // NOTE(hbr): nothing to do
+  }
+  else
+  {
+   if (Task->State == Image_Loaded)
    {
-    // NOTE(hbr): nothing to do
+    entity *Entity = AllocEntity(&Editor->EntityStore);
+    if (Entity)
+    {
+     string FileName = PathLastPart(Task->ImageFilePath);
+     string FileNameNoExt = StrChopLastDot(FileName);
+     
+     InitEntity(Entity, Task->AtP, V2(1, 1), Rotation2DZero(), FileNameNoExt, 0);
+     Entity->Type = Entity_Image;
+     
+     image *Image = &Entity->Image;
+     Image->Dim.X = Cast(f32)Task->ImageWidth / Task->ImageHeight;
+     Image->Dim.Y = 1.0f;
+     Image->TextureHandle = Task->TextureHandle;
+     
+     SelectEntity(Editor, Entity);
+    }
    }
    else
    {
-    if (Task->State == Image_Loaded)
-    {
-     entity *Entity = AllocEntity(&Editor->EntityStore);
-     if (Entity)
-     {
-      string FileName = PathLastPart(Task->ImageFilePath);
-      string FileNameNoExt = StrChopLastDot(FileName);
-      
-      InitEntity(Entity, Task->AtP, V2(1, 1), Rotation2DZero(), FileNameNoExt, 0);
-      Entity->Type = Entity_Image;
-      
-      image *Image = &Entity->Image;
-      Image->Dim.X = Cast(f32)Task->ImageWidth / Task->ImageHeight;
-      Image->Dim.Y = 1.0f;
-      Image->TextureIndex = Task->TextureIndex;
-      
-      SelectEntity(Editor, Entity);
-     }
-    }
-    else
-    {
-     Assert(Task->State == Image_Failed);
-     AddNotificationF(Editor, Notification_Error, "failed to load image from %S", Task->ImageFilePath);
-    }
-    
-    DeallocAsyncTask(Task);
+    Assert(Task->State == Image_Failed);
+    AddNotificationF(Editor, Notification_Error, "failed to load image from %S", Task->ImageFilePath);
    }
+   
+   DeallocAsyncTask(AsyncTaskStore, Task);
   }
  }
 }

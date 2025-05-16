@@ -197,17 +197,13 @@ struct editor_middle_click_state
  v2 ClipSpaceLastMouseP;
 };
 
-struct renderer_index
-{
- renderer_index *Next;
- u32 Index;
-};
-
 struct editor_assets
 {
  renderer_transfer_queue *RendererQueue;
- renderer_index *FirstFreeTextureIndex;
- renderer_index *FirstFreeBufferIndex;
+ u32 TextureCount;
+ b32 *IsTextureHandleAllocated;
+ u32 BufferCount;
+ b32 *IsBufferIndexFree;
 };
 
 struct choose_2_curves_state
@@ -285,6 +281,7 @@ struct editor
  b32 SelectedEntityWindow;
  b32 HelpWindow;
  b32 ProfilerWindow;
+ b32 DevConsole;
  
  editor_left_click_state LeftClick;
  editor_right_click_state RightClick;
@@ -304,8 +301,6 @@ struct editor
  merging_curves_state MergingCurves;
  visual_profiler_state Profiler;
  
- b32 DevConsole;
- 
  //////////////////////////////
  
  // TODO(hbr): remove this
@@ -320,6 +315,7 @@ struct editor
 
 struct load_image_work
 {
+ task_with_memory_store *Store;
  task_with_memory *Task;
  renderer_transfer_op *TextureOp;
  string ImagePath;

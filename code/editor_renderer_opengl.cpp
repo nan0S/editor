@@ -625,7 +625,7 @@ in v2 VertUV;
 in f32 VertZ;
 in mat3 VertModel;
 
-flat out i32 FragTextureIndex;
+flat out i32 FragTextureHandle;
   out v2 FragUV;
 
 uniform mat3 Projection;
@@ -633,13 +633,13 @@ uniform mat3 Projection;
 void main(void) {
 v3 P = Projection * VertModel * v3(VertP, 1);
 gl_Position = V4(P.xy, VertZ, P.z);
-FragTextureIndex = gl_InstanceID;
+FragTextureHandle = gl_InstanceID;
 FragUV = VertUV;
 }
 )FOO";
  
  char const *FragmentShader = R"FOO(
-flat in i32 FragTextureIndex;
+flat in i32 FragTextureHandle;
   in v2 FragUV;
 
 out v4 OutColor;
@@ -654,7 +654,7 @@ uniform sampler2D Sampler6;
 uniform sampler2D Sampler7;
 
 void main(void) {
-switch (FragTextureIndex) {
+switch (FragTextureHandle) {
 case 0: {OutColor = texture(Sampler0, FragUV);} break;
 case 1: {OutColor = texture(Sampler1, FragUV);} break;
 case 2: {OutColor = texture(Sampler2, FragUV);} break;
@@ -791,11 +791,11 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
   OpenGL->Textures = Textures;
   
   GL_CALL(glGenTextures(Cast(GLsizei)TextureCount, Textures));
-  for (u32 TextureIndex = 0;
-       TextureIndex < TextureCount;
-       ++TextureIndex)
+  for (u32 TextureHandle = 0;
+       TextureHandle < TextureCount;
+       ++TextureHandle)
   {
-   GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[TextureIndex]));
+   GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[TextureHandle]));
    GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR));
    GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
    GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP));
@@ -938,19 +938,28 @@ OpenGLManageTransferQueue(opengl *OpenGL, renderer_transfer_queue *Queue)
    switch (Op->Type)
    {
     case RendererTransferOp_Texture: {
-     Assert(Op->TextureIndex < OpenGL->MaxTextureCount);
-     GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[Op->TextureIndex]));
-     GL_CALL(glTexImage2D(GL_TEXTURE_2D,
-                          0,
-                          GL_RGBA,
-                          Cast(u32)Op->Width,
-                          Cast(u32)Op->Height,
-                          0,
-                          GL_RGBA,
-                          GL_UNSIGNED_BYTE,
-                          Op->Pixels));
-     GL_CALL(OpenGL->glGenerateMipmap(GL_TEXTURE_2D));
-     GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
+     render_texture_handle TextureHandle = Op->TextureHandle;
+     if (TextureHandleMatch(TextureHandle, TextureHandleZero()))
+     {
+      
+     }
+     else
+     {
+      u32 TextureIndex = TextureIndexFromHandle(TextureHandle);
+      Assert(TextureIndex < OpenGL->MaxTextureCount);
+      GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[TextureIndex]));
+      GL_CALL(glTexImage2D(GL_TEXTURE_2D,
+                           0,
+                           GL_RGBA,
+                           Cast(u32)Op->Width,
+                           Cast(u32)Op->Height,
+                           0,
+                           GL_RGBA,
+                           GL_UNSIGNED_BYTE,
+                           Op->Pixels));
+      GL_CALL(OpenGL->glGenerateMipmap(GL_TEXTURE_2D));
+      GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
+     }
     }break;
     
     case RendererTransferOp_Buffer: {
@@ -1030,7 +1039,8 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
         ++SlotIndex)
    {
     render_image *Image = ImageAt + SlotIndex;
-    GLuint TextureID = Textures[Image->TextureIndex];
+    u32 TextureIndex = TextureIndexFromHandle(Image->TextureHandle);
+    GLuint TextureID = Textures[TextureIndex];
     
     GL_CALL(OpenGL->glActiveTexture(GL_TEXTURE0 + SlotIndex));
     GL_CALL(glBindTexture(GL_TEXTURE_2D, TextureID));

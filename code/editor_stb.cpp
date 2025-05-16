@@ -34,13 +34,13 @@ LoadImageInfo(string FilePath)
  
  temp_arena Temp = TempArena(0);
  string CFilePath = CStrFromStr(Temp.Arena, FilePath);
- int X, Y, Comp;
- if (stbi_info(CFilePath.Data, &X, &Y, &Comp))
+ int X, Y, Channels;
+ if (stbi_info(CFilePath.Data, &X, &Y, &Channels))
  {
-  Assert(X >= 0 && Y >= 0 && Comp >= 0);
+  Assert(X >= 0 && Y >= 0 && Channels >= 0);
   Result.Width = Cast(u32)X;
   Result.Height = Cast(u32)Y;
-  Result.Components = Cast(u32)Comp;
+  Result.Channels = Cast(u32)Channels;
  }
  
  return Result;

@@ -5,17 +5,24 @@ struct entity_store
 {
  entity EntityBuffer[1024];
 };
+internal void InitEntityStore(entity_store *Store);
+internal entity *AllocEntity(entity_store *Store);
+internal void DeallocEntity(entity *Entity, struct editor_assets *Assets);
+internal entity_array EntityArrayFromStore(entity_store *Store);
 
 struct task_with_memory
 {
- b32 Allocated;
+ task_with_memory *Next;
  arena *Arena;
 };
-
 struct task_with_memory_store
 {
- task_with_memory Tasks[128];
+ arena *Arena;
+ task_with_memory *Free;
 };
+internal void InitTaskWithMemoryStore(task_with_memory_store *Store);
+internal task_with_memory *BeginTaskWithMemory(task_with_memory_store *Store);
+internal void EndTaskWithMemory(task_with_memory_store *Store, task_with_memory *Task);
 
 enum image_loading_state
 {
@@ -30,30 +37,31 @@ enum image_loading_state
 // bother renaming this.
 struct async_task
 {
- b32 Active;
+ async_task *Next;
+ async_task *Prev;
+ 
  arena *Arena;
  image_loading_state State;
  u32 ImageWidth;
  u32 ImageHeight;
  string ImageFilePath;
  v2 AtP;
- renderer_index *TextureIndex;
+ render_texture_handle TextureHandle;
 };
-
 struct async_task_array
 {
  async_task *Tasks;
  u32 Count;
 };
-
 struct async_task_store
 {
- async_task Tasks[128];
+ arena *Arena;
+ async_task *Head;
+ async_task *Tail;
+ async_task *Free;
 };
-
-internal void InitEntityStore(entity_store *Store);
-internal entity *AllocEntity(entity_store *Store);
-internal void DeallocEntity(entity *Entity, struct editor_assets *Assets);
-internal entity_array EntityArrayFromStore(entity_store *Store);
+internal void InitAsyncTaskStore(async_task_store *Store);
+internal async_task *AllocAsyncTask(async_task_store *Store);
+internal void DeallocAsyncTask(async_task_store *Store, async_task *Task);
 
 #endif //EDITOR_EDITOR_H

@@ -8,6 +8,7 @@
 
 #include "platform_shared.cpp"
 #include "editor_math.cpp"
+#include "editor_renderer.cpp"
 #include "glfw/glfw_editor_renderer_opengl.cpp"
 
 global glfw_state GlobalGLFWState;

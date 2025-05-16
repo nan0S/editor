@@ -29,6 +29,7 @@ Platform_MakeEditorMemory(arena *PermamentArena, renderer_memory *RendererMemory
 {
  editor_memory EditorMemory = {};
  EditorMemory.PermamentArena = PermamentArena;
+ EditorMemory.MaxBufferCount = RendererMemory->Limits.MaxBufferCount;
  EditorMemory.MaxTextureCount = RendererMemory->Limits.MaxTextureCount;
  EditorMemory.RendererQueue = &RendererMemory->RendererQueue;
  EditorMemory.LowPriorityQueue = LowPriorityQueue;

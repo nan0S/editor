@@ -303,6 +303,9 @@ typedef u32 entity_flags;
 
 struct entity
 {
+ entity *Next;
+ entity *Prev;
+ 
  arena *Arena;
  
  v2 P;
@@ -411,7 +414,7 @@ EntityModified(entity_snapshot_for_merging Versioned, entity *Entity)
 struct entity_array
 {
  u32 Count;
- entity *Entities;
+ entity **Entities;
 };
 
 internal void InitEntity(entity *Entity, v2 P, v2 Scale, v2 Rotation, string Name, i32 SortingLayer);

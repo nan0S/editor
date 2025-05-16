@@ -657,7 +657,7 @@ SortEntities(arena *Arena, entity_array Entities)
       EntityIndex < Entities.Count;
       ++EntityIndex)
  {
-  entity *Entity = Entities.Entities + EntityIndex;
+  entity *Entity = Entities.Entities[EntityIndex];
   if (Entity->Flags & EntityFlag_Active)
   {
    // NOTE(hbr): Equal sorting layer images should be below curves

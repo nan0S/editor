@@ -785,19 +785,35 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
  
  //- allocate texutre indices
  {
-  u32 TextureCount = Memory->Limits.MaxTextureCount;
+  u32 TextureCount = Memory->Limits.MaxTextureCount + 1;
   GLuint *Textures = PushArray(Arena, TextureCount, GLuint);
   OpenGL->MaxTextureCount = TextureCount;
   OpenGL->Textures = Textures;
   
   GL_CALL(glGenTextures(Cast(GLsizei)TextureCount, Textures));
-  for (u32 TextureHandle = 0;
-       TextureHandle < TextureCount;
-       ++TextureHandle)
+  for (u32 TextureIndex = 0;
+       TextureIndex < TextureCount;
+       ++TextureIndex)
   {
-   GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[TextureHandle]));
-   GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR));
-   GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+   GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[TextureIndex]));
+   if (TextureIndex == 0)
+   {
+    unsigned char WhitePixel[4] = { 255, 255, 255, 255 };
+    GL_CALL(glTexImage2D(GL_TEXTURE_2D,
+                         0,
+                         GL_RGBA,
+                         1, 1, 0,
+                         GL_RGBA,
+                         GL_UNSIGNED_BYTE,
+                         WhitePixel));
+    GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+    GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+   }
+   else
+   {
+    GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR));
+    GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+   }
    GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP));
    GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP));
    GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
@@ -938,28 +954,20 @@ OpenGLManageTransferQueue(opengl *OpenGL, renderer_transfer_queue *Queue)
    switch (Op->Type)
    {
     case RendererTransferOp_Texture: {
-     render_texture_handle TextureHandle = Op->TextureHandle;
-     if (TextureHandleMatch(TextureHandle, TextureHandleZero()))
-     {
-      
-     }
-     else
-     {
-      u32 TextureIndex = TextureIndexFromHandle(TextureHandle);
-      Assert(TextureIndex < OpenGL->MaxTextureCount);
-      GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[TextureIndex]));
-      GL_CALL(glTexImage2D(GL_TEXTURE_2D,
-                           0,
-                           GL_RGBA,
-                           Cast(u32)Op->Width,
-                           Cast(u32)Op->Height,
-                           0,
-                           GL_RGBA,
-                           GL_UNSIGNED_BYTE,
-                           Op->Pixels));
-      GL_CALL(OpenGL->glGenerateMipmap(GL_TEXTURE_2D));
-      GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
-     }
+     u32 TextureIndex = TextureIndexFromHandle(Op->TextureHandle);
+     Assert(TextureIndex < OpenGL->MaxTextureCount);
+     GL_CALL(glBindTexture(GL_TEXTURE_2D, Textures[TextureIndex]));
+     GL_CALL(glTexImage2D(GL_TEXTURE_2D,
+                          0,
+                          GL_RGBA,
+                          Cast(u32)Op->Width,
+                          Cast(u32)Op->Height,
+                          0,
+                          GL_RGBA,
+                          GL_UNSIGNED_BYTE,
+                          Op->Pixels));
+     GL_CALL(OpenGL->glGenerateMipmap(GL_TEXTURE_2D));
+     GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
     }break;
     
     case RendererTransferOp_Buffer: {

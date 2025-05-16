@@ -21,7 +21,7 @@ OS_Commit(void *Memory, u64 Size)
 internal void
 OS_Decommit(void *Memory, u64 Size)
 {
- VirtualAlloc(Memory, Size, MEM_RESET, PAGE_READWRITE);
+ VirtualAlloc(Memory, Size, MEM_RESET, PAGE_NOACCESS);
 }
 
 internal date_time

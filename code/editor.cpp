@@ -120,7 +120,8 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
       ++SortedIndex)
  {
   u64 InverseIndex = Sorted.Count-1 - SortedIndex;
-  entity *Entity = Entities.Entities + Sorted.Entries[InverseIndex].Index;
+  u32 EntityIndex = Sorted.Entries[InverseIndex].Index;
+  entity *Entity = Entities.Entities[EntityIndex];
   
   if (IsEntityVisible(Entity))
   {
@@ -1413,7 +1414,7 @@ UpdateAndRenderEntities(editor *Editor, render_group *RenderGroup)
       EntityIndex < Entities.Count;
       ++EntityIndex)
  {
-  entity *Entity = Entities.Entities + EntityIndex;
+  entity *Entity = Entities.Entities[EntityIndex];
   if ((Entity->Flags & EntityFlag_Active))
   {
    if (IsEntityVisible(Entity))
@@ -2228,7 +2229,7 @@ RenderSelectedEntityUI(editor *Editor)
  
  if (DeleteEntity)
  {
-  DeallocEntity(&Editor->Assets, Entity);
+  DeallocEntity(&Editor->EntityStore, &Editor->Assets, Entity);
  }
 }
 
@@ -2334,7 +2335,7 @@ RenderEntityListWindowContents(editor *Editor)
         EntityIndex < Entities.Count;
         ++EntityIndex)
    {
-    entity *Entity = Entities.Entities + EntityIndex;
+    entity *Entity = Entities.Entities[EntityIndex];
     if ((Entity->Flags & EntityFlag_Active) && Entity->Type == EntityType)
     {
      UI_PushId(EntityIndex);
@@ -2354,7 +2355,7 @@ RenderEntityListWindowContents(editor *Editor)
      {
       if(UI_MenuItem(0, 0, StrLit("Delete")))
       {
-       DeallocEntity(&Editor->Assets, Entity);
+       DeallocEntity(&Editor->EntityStore, &Editor->Assets, Entity);
       }
       if(UI_MenuItem(0, 0, StrLit("Copy")))
       {
@@ -3295,7 +3296,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
     }
     else if (Entity)
     {
-     DeallocEntity(&Editor->Assets, Entity);
+     DeallocEntity(&Editor->EntityStore, &Editor->Assets, Entity);
     }
     else
     {
@@ -3411,12 +3412,12 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
       }
       else
       {
-       DeallocEntity(&Editor->Assets, Entity);
+       DeallocEntity(&Editor->EntityStore, &Editor->Assets, Entity);
       }
      }break;
      
      case Entity_Image: {
-      DeallocEntity(&Editor->Assets, Entity);
+      DeallocEntity(&Editor->EntityStore, &Editor->Assets, Entity);
      }break;
      
      case Entity_Count: InvalidPath;

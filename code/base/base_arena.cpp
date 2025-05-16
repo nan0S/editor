@@ -3,7 +3,7 @@
 #endif
 
 #ifndef DeallocVirtualMemory
-# define DeallocVirtualMemory OS_Decommit
+# define DeallocVirtualMemory OS_Release
 #endif
 
 #ifndef CommitVirtualMemory

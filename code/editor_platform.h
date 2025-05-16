@@ -246,7 +246,7 @@ struct editor_memory
  editor *Editor;
  
  u32 MaxTextureCount;
- u32 MaxBufferCount;
+ u32 MaxBufferCount; 
  renderer_transfer_queue *RendererQueue;
  
  platform_api PlatformAPI;

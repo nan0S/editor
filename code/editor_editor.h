@@ -3,7 +3,15 @@
 
 struct entity_store
 {
- entity EntityBuffer[1024];
+ arena *Arena;
+ entity *Free;
+ entity *Head;
+ entity *Tail;
+ u32 Count;
+ arena *ArrayArena;
+ entity_array Array;
+ u32 AllocGeneration;
+ u32 ArrayGeneration;
 };
 internal void InitEntityStore(entity_store *Store);
 internal entity *AllocEntity(entity_store *Store);

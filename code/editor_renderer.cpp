@@ -16,14 +16,14 @@ inline internal render_texture_handle
 TextureHandleFromIndex(u32 Index)
 {
  render_texture_handle Result = {};
- Result.U32[0] = Index + 1;
+ Result.U32[0] = Index;
  return Result;
 }
 
 inline internal u32
 TextureIndexFromHandle(render_texture_handle Handle)
 {
- u32 Index = Handle.U32[0] - 1;
+ u32 Index = Handle.U32[0];
  return Index;
 }
 

@@ -335,7 +335,7 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
 internal void
 SelectEntity(editor *Editor, entity *Entity)
 {
- entity *SelectedEntity = EntityFromHandle(Editor->SelectedEntityId);
+ entity *SelectedEntity = EntityFromHandle(Editor->SelectedEntityHandle);
  if (SelectedEntity)
  {
   SelectedEntity->Flags &= ~EntityFlag_Selected;
@@ -344,7 +344,7 @@ SelectEntity(editor *Editor, entity *Entity)
  {
   Entity->Flags |= EntityFlag_Selected;
  }
- Editor->SelectedEntityId = MakeEntityHandle(Entity);
+ Editor->SelectedEntityHandle = MakeEntityHandle(Entity);
 }
 
 internal void
@@ -396,7 +396,7 @@ PerformBezierCurveSplit(entity_with_modify_witness *EntityWitness, editor *Edito
  u32 ControlPointCount = Curve->ControlPointCount;
  
  entity *LeftEntity = Entity;
- entity *RightEntity = AllocEntity(&Editor->EntityStore, false);
+ entity *RightEntity = AllocEntity(&Editor->EntityStore, Entity_Curve, false);
  
  entity_with_modify_witness LeftWitness = BeginEntityModify(LeftEntity);
  entity_with_modify_witness RightWitness = BeginEntityModify(RightEntity);
@@ -435,7 +435,7 @@ DuplicateEntity(entity *Entity, editor *Editor)
 {
  temp_arena Temp = TempArena(0);
  
- entity *Copy = AllocEntity(&Editor->EntityStore, false);
+ entity *Copy = AllocEntity(&Editor->EntityStore, Entity->Type, false);
  entity_with_modify_witness CopyWitness = BeginEntityModify(Copy);
  string CopyName = StrF(Temp.Arena, "%S(copy)", Entity->Name);
  
@@ -639,7 +639,7 @@ SplitCurveOnControlPoint(entity_with_modify_witness *EntityWitness, editor *Edit
   u32 TailPointCount = Curve->ControlPointCount - Curve->SelectedIndex.Index;
   
   entity *HeadEntity = Entity;
-  entity *TailEntity = AllocEntity(&Editor->EntityStore, false);
+  entity *TailEntity = AllocEntity(&Editor->EntityStore, Entity_Curve, false);
   
   entity_with_modify_witness *HeadWitness = EntityWitness;
   entity_with_modify_witness TailWitness = BeginEntityModify(TailEntity);
@@ -887,32 +887,32 @@ internal void
 TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
 {
  work_queue *WorkQueue = Editor->LowPriorityQueue;
+ entity_store *EntityStore = &Editor->EntityStore;
  task_with_memory_store *TaskWithMemoryStore = &Editor->TaskWithMemoryStore;
  async_task_store *AsyncTaskStore = &Editor->AsyncTaskStore;
- editor_assets *Assets = &Editor->Assets;
  
  ForEachIndex(FileIndex, FileCount)
  {
   string FilePath = FilePaths[FileIndex];
   
   image_info ImageInfo = LoadImageInfo(FilePath);
-  render_texture_handle TextureHandle = AllocTextureHandle(Assets);
+  entity *Entity = AllocEntity(EntityStore, Entity_Image, false);
   // TODO(hbr): Make it always suceeed??????
-  renderer_transfer_op *TextureOp = PushTextureTransfer(Assets->RendererQueue, ImageInfo.Width, ImageInfo.Height, ImageInfo.Channels, TextureHandle);
+  renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, ImageInfo.Channels, Entity->Image.TextureHandle);
   async_task *AsyncTask = AllocAsyncTask(AsyncTaskStore);
   task_with_memory *Task = BeginTaskWithMemory(TaskWithMemoryStore);
   
   load_image_work *Work = 0;
   if (TextureOp && Task && AsyncTask)
   {
+   AsyncTask->Entity = Entity;
    AsyncTask->ImageWidth = ImageInfo.Width;
    AsyncTask->ImageHeight = ImageInfo.Height;
    AsyncTask->ImageFilePath = StrCopy(AsyncTask->Arena, FilePath);
    AsyncTask->AtP = AtP;
-   AsyncTask->TextureHandle = TextureHandle;
    
    Work = PushStruct(Task->Arena, load_image_work);
-   Work->Store = &Editor->TaskWithMemoryStore;
+   Work->Store = TaskWithMemoryStore;
    Work->Task = Task;
    Work->TextureOp = TextureOp;
    Work->ImagePath = StrCopy(Task->Arena, FilePath);
@@ -926,9 +926,9 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
   {
    if (TextureOp)
    {
-    PopTextureTransfer(Assets->RendererQueue, TextureOp);
+    PopTextureTransfer(Editor->RendererQueue, TextureOp);
    }
-   DeallocTextureHandle(Assets, TextureHandle);
+   DeallocEntity(EntityStore, Entity);
    if (AsyncTask)
    {
     DeallocAsyncTask(AsyncTaskStore, AsyncTask);
@@ -1037,7 +1037,7 @@ EndMergingCurves(editor *Editor, b32 Merged)
  
  if (Merged)
  {
-  entity *Entity = AllocEntity(&Editor->EntityStore, false);
+  entity *Entity = AllocEntity(&Editor->EntityStore, Entity_Curve, false);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
   
   InitEntityFromEntity(&EntityWitness, Merging->MergeEntity);
@@ -1099,23 +1099,7 @@ internal void
 InitMergingCurvesState(merging_curves_state *State,
                        entity_store *EntityStore)
 {
- State->MergeEntity = AllocEntity(EntityStore, true);
-}
-
-internal void
-InitEditorAssets(editor_assets *Assets, editor_memory *Memory)
-{
- arena *Arena = Memory->PermamentArena;
- 
- Assets->RendererQueue = Memory->RendererQueue;
- 
- u32 TextureCount = Memory->MaxTextureCount;
- Assets->TextureCount = TextureCount;
- Assets->IsTextureHandleAllocated = PushArray(Arena, TextureCount, b32);
- 
- u32 BufferCount = Memory->MaxBufferCount;
- Assets->BufferCount = BufferCount;
- Assets->IsBufferIndexFree = PushArray(Arena, BufferCount, b32);
+ State->MergeEntity = AllocEntity(EntityStore, Entity_Curve, true);
 }
 
 internal void
@@ -1149,19 +1133,18 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->LowPriorityQueue = Memory->LowPriorityQueue;
  Editor->HighPriorityQueue = Memory->HighPriorityQueue;
  
- InitEntityStore(&Editor->EntityStore);
+ InitEntityStore(&Editor->EntityStore, Memory->MaxTextureCount, Memory->MaxBufferCount);
  InitCamera(&Editor->Camera);
  InitFrameStats(&Editor->FrameStats);
  InitLeftClickState(&Editor->LeftClick);
  InitMergingCurvesState(&Editor->MergingCurves, &Editor->EntityStore);
- InitEditorAssets(&Editor->Assets, Memory);
  InitVisualProfiler(&Editor->Profiler, Memory->Profiler);
  InitAnimatingCurvesState(&Editor->AnimatingCurves);
  InitTaskWithMemoryStore(&Editor->TaskWithMemoryStore);
  InitAsyncTaskStore(&Editor->AsyncTaskStore);
  
  {
-  entity *Entity = AllocEntity(&Editor->EntityStore, false);
+  entity *Entity = AllocEntity(&Editor->EntityStore, Entity_Curve, false);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
   
   InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("de-casteljau"), 0);
@@ -1181,7 +1164,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
  }
  
  {
-  entity *Entity = AllocEntity(&Editor->EntityStore, false);
+  entity *Entity = AllocEntity(&Editor->EntityStore, Entity_Curve, false);
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
   
   InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("b-spline"), 0);
@@ -1538,7 +1521,7 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
 internal void
 RenderSelectedEntityUI(editor *Editor)
 {
- entity *Entity = EntityFromHandle(Editor->SelectedEntityId);
+ entity *Entity = EntityFromHandle(Editor->SelectedEntityHandle);
  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
  b32 DeleteEntity = false;
  b32 CrucialEntityParamChanged = false;
@@ -2226,7 +2209,7 @@ RenderSelectedEntityUI(editor *Editor)
  
  if (DeleteEntity)
  {
-  DeallocEntity(&Editor->EntityStore, &Editor->Assets, Entity);
+  DeallocEntity(&Editor->EntityStore, Entity);
  }
 }
 
@@ -2349,7 +2332,7 @@ RenderEntityListWindowContents(editor *Editor)
     {
      if(UI_MenuItem(0, 0, StrLit("Delete")))
      {
-      DeallocEntity(&Editor->EntityStore, &Editor->Assets, Entity);
+      DeallocEntity(&Editor->EntityStore, Entity);
      }
      if(UI_MenuItem(0, 0, StrLit("Copy")))
      {
@@ -2961,22 +2944,19 @@ ProcessAsyncEvents(editor *Editor)
   {
    if (Task->State == Image_Loaded)
    {
-    entity *Entity = AllocEntity(&Editor->EntityStore, false);
-    if (Entity)
-    {
-     string FileName = PathLastPart(Task->ImageFilePath);
-     string FileNameNoExt = StrChopLastDot(FileName);
-     
-     InitEntity(Entity, Task->AtP, V2(1, 1), Rotation2DZero(), FileNameNoExt, 0);
-     Entity->Type = Entity_Image;
-     
-     image *Image = &Entity->Image;
-     Image->Dim.X = Cast(f32)Task->ImageWidth / Task->ImageHeight;
-     Image->Dim.Y = 1.0f;
-     Image->TextureHandle = Task->TextureHandle;
-     
-     SelectEntity(Editor, Entity);
-    }
+    entity *Entity = Task->Entity;
+    
+    string FileName = PathLastPart(Task->ImageFilePath);
+    string FileNameNoExt = StrChopLastDot(FileName);
+    
+    InitEntity(Entity, Task->AtP, V2(1, 1), Rotation2DZero(), FileNameNoExt, 0);
+    Entity->Type = Entity_Image;
+    
+    image *Image = &Entity->Image;
+    Image->Dim.X = Cast(f32)Task->ImageWidth / Task->ImageHeight;
+    Image->Dim.Y = 1.0f;
+    
+    SelectEntity(Editor, Entity);
    }
    else
    {
@@ -3056,7 +3036,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
     curve *CollisionCurve = &Collision.Entity->Curve;
     point_tracking_along_curve_state *CollisionTracking = &CollisionCurve->PointTracking;
     
-    entity *SelectedEntity = EntityFromHandle(Editor->SelectedEntityId);
+    entity *SelectedEntity = EntityFromHandle(Editor->SelectedEntityHandle);
     curve *SelectedCurve = &SelectedEntity->Curve;
     
     if ((Collision.Entity || SelectedEntity) && (Event->Flags & PlatformEventFlag_Ctrl))
@@ -3111,7 +3091,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
      {
       temp_arena Temp = TempArena(0);
       
-      entity *Entity = AllocEntity(&Editor->EntityStore, false);
+      entity *Entity = AllocEntity(&Editor->EntityStore, Entity_Curve, false);
       entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
       
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
@@ -3291,7 +3271,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
     }
     else if (Entity)
     {
-     DeallocEntity(&Editor->EntityStore, &Editor->Assets, Entity);
+     DeallocEntity(&Editor->EntityStore, Entity);
     }
     else
     {
@@ -3391,7 +3371,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
   
   if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_Delete)
   {
-   entity *Entity = EntityFromHandle(Editor->SelectedEntityId);
+   entity *Entity = EntityFromHandle(Editor->SelectedEntityHandle);
    entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
    
    if (Entity)
@@ -3407,12 +3387,12 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
       }
       else
       {
-       DeallocEntity(&Editor->EntityStore, &Editor->Assets, Entity);
+       DeallocEntity(&Editor->EntityStore, Entity);
       }
      }break;
      
      case Entity_Image: {
-      DeallocEntity(&Editor->EntityStore, &Editor->Assets, Entity);
+      DeallocEntity(&Editor->EntityStore, Entity);
      }break;
      
      case Entity_Count: InvalidPath;

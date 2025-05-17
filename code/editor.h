@@ -197,15 +197,6 @@ struct editor_middle_click_state
  v2 ClipSpaceLastMouseP;
 };
 
-struct editor_assets
-{
- renderer_transfer_queue *RendererQueue;
- u32 TextureCount;
- b32 *IsTextureHandleAllocated;
- u32 BufferCount;
- b32 *IsBufferIndexFree;
-};
-
 struct choose_2_curves_state
 {
  b32 WaitingForChoice;
@@ -267,7 +258,9 @@ struct editor
  camera Camera;
  frame_stats FrameStats;
  
- entity_handle SelectedEntityId;
+ renderer_transfer_queue *RendererQueue;
+ 
+ entity_handle SelectedEntityHandle;
  entity_store EntityStore;
  u64 EverIncreasingEntityCounter;
  
@@ -286,8 +279,6 @@ struct editor
  editor_left_click_state LeftClick;
  editor_right_click_state RightClick;
  editor_middle_click_state MiddleClick;
- 
- editor_assets Assets;
  
  task_with_memory_store TaskWithMemoryStore;
  async_task_store AsyncTaskStore;

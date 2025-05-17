@@ -12,9 +12,14 @@ struct entity_store
  entity_array ByTypeArrays[Entity_Count + 1];
  u32 ByTypeGenerations[Entity_Count + 1];
  u32 AllocGeneration;
+ 
+ u32 TextureCount;
+ b32 *IsTextureHandleAllocated;
+ u32 BufferCount;
+ b32 *IsBufferHandleAllocated;
 };
-internal void InitEntityStore(entity_store *Store);
-internal entity *AllocEntity(entity_store *Store, b32 DontTrack);
+internal void InitEntityStore(entity_store *Store, u32 MaxTextureCount, u32 MaxBufferCount);
+internal entity *AllocEntity(entity_store *Store, entity_type Type, b32 DontTrack);
 internal void DeallocEntity(entity *Entity, struct editor_assets *Assets);
 internal entity_array AllEntityArrayFromStore(entity_store *Store);
 internal entity_array EntityArrayFromType(entity_store *Store, entity_type Type);
@@ -51,11 +56,11 @@ struct async_task
  
  arena *Arena;
  image_loading_state State;
+ entity *Entity;
  u32 ImageWidth;
  u32 ImageHeight;
  string ImageFilePath;
  v2 AtP;
- render_texture_handle TextureHandle;
 };
 struct async_task_array
 {

@@ -1,15 +1,15 @@
 internal render_texture_handle
-AllocTextureHandle(editor_assets *Assets)
+AllocTextureHandle(entity_store *Store)
 {
  render_texture_handle Result = TextureHandleZero();
  for (u32 Index = 0;
-      Index < Assets->TextureCount;
+      Index < Store->TextureCount;
       ++Index)
  {
-  if (!Assets->IsTextureHandleAllocated[Index])
+  if (!Store->IsTextureHandleAllocated[Index])
   {
    Result = TextureHandleFromIndex(Index + 1);
-   Assets->IsTextureHandleAllocated[Index] = true;
+   Store->IsTextureHandleAllocated[Index] = true;
    break;
   }
  }
@@ -17,29 +17,38 @@ AllocTextureHandle(editor_assets *Assets)
 }
 
 internal void
-DeallocTextureHandle(editor_assets *Assets, render_texture_handle Handle)
+DeallocTextureHandle(entity_store *Store, render_texture_handle Handle)
 {
  if (!TextureHandleMatch(Handle, TextureHandleZero()))
  {
   u32 Index = TextureIndexFromHandle(Handle) - 1;
-  Assert(Index < Assets->TextureCount);
-  Assert(Assets->IsTextureHandleAllocated[Index]);
-  Assets->IsTextureHandleAllocated[Index] = false;
+  Assert(Index < Store->TextureCount);
+  Assert(Store->IsTextureHandleAllocated[Index]);
+  Store->IsTextureHandleAllocated[Index] = false;
  }
 }
 
 internal void
-InitEntityStore(entity_store *Store)
+InitEntityStore(entity_store *Store,
+                u32 MaxTextureCount,
+                u32 MaxBufferCount)
 {
- Store->Arena = AllocArena(Gigabytes(64));
+ arena *Arena = AllocArena(Gigabytes(64));
+ Store->Arena = Arena;
+ 
  ForEachElement(Index, Store->ByTypeArenas)
  {
   Store->ByTypeArenas[Index] = AllocArena(Megabytes(1));
  }
+ 
+ Store->TextureCount = MaxTextureCount;
+ Store->IsTextureHandleAllocated = PushArray(Arena, MaxTextureCount, b32);
+ Store->BufferCount = MaxBufferCount;
+ Store->IsBufferHandleAllocated = PushArray(Arena, MaxBufferCount, b32);
 }
 
 internal entity *
-AllocEntity(entity_store *Store, b32 DontTrack)
+AllocEntity(entity_store *Store, entity_type Type, b32 DontTrack)
 {
  entity *Entity = Store->Free;
  if (Entity)
@@ -53,12 +62,27 @@ AllocEntity(entity_store *Store, b32 DontTrack)
  u32 Generation = Entity->Generation;
  StructZero(Entity);
  
- curve *Curve = &Entity->Curve;
  Entity->Generation = Generation;
+ Entity->Type = Type;
  Entity->Arena = AllocArena(Megabytes(32));
  Entity->Flags = (DontTrack ? 0 : EntityFlag_Tracked);
- Curve->DegreeLowering.Arena = AllocArena(Megabytes(32));
- Curve->ParametricResources.Arena = AllocArena(Megabytes(32));
+ 
+ switch (Type)
+ {
+  case Entity_Curve: {
+   curve *Curve = &Entity->Curve;
+   Curve->DegreeLowering.Arena = AllocArena(Megabytes(32));
+   Curve->ParametricResources.Arena = AllocArena(Megabytes(32));
+  }break;
+  
+  case Entity_Image: {
+   image *Image = &Entity->Image;
+   render_texture_handle TextureHandle = AllocTextureHandle(Store);
+   Image->TextureHandle = TextureHandle;
+  }break;
+  
+  case Entity_Count: InvalidPath;
+ }
  
  if (Entity->Flags & EntityFlag_Tracked)
  {
@@ -71,18 +95,25 @@ AllocEntity(entity_store *Store, b32 DontTrack)
 }
 
 internal void
-DeallocEntity(entity_store *Store, editor_assets *Assets, entity *Entity)
+DeallocEntity(entity_store *Store, entity *Entity)
 {
- if (Entity->Type == Entity_Image)
+ switch (Entity->Type)
  {
-  image *Image = &Entity->Image;
-  DeallocTextureHandle(Assets, Image->TextureHandle);
+  case Entity_Curve: {
+   curve *Curve = &Entity->Curve;
+   DeallocArena(Entity->Arena);
+   DeallocArena(Curve->DegreeLowering.Arena);
+   DeallocArena(Curve->ParametricResources.Arena);
+  }break;
+  
+  case Entity_Image: {
+   image *Image = &Entity->Image;
+   DeallocTextureHandle(Store, Image->TextureHandle);
+  }break;
+  
+  case Entity_Count: InvalidPath;
  }
  
- curve *Curve = &Entity->Curve;
- DeallocArena(Entity->Arena);
- DeallocArena(Curve->DegreeLowering.Arena);
- DeallocArena(Curve->ParametricResources.Arena);
  ++Entity->Generation;
  
  if (Entity->Flags & EntityFlag_Tracked)

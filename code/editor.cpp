@@ -396,7 +396,7 @@ PerformBezierCurveSplit(entity_with_modify_witness *EntityWitness, editor *Edito
  u32 ControlPointCount = Curve->ControlPointCount;
  
  entity *LeftEntity = Entity;
- entity *RightEntity = AllocEntity(&Editor->EntityStore);
+ entity *RightEntity = AllocEntity(&Editor->EntityStore, false);
  
  entity_with_modify_witness LeftWitness = BeginEntityModify(LeftEntity);
  entity_with_modify_witness RightWitness = BeginEntityModify(RightEntity);
@@ -435,7 +435,7 @@ DuplicateEntity(entity *Entity, editor *Editor)
 {
  temp_arena Temp = TempArena(0);
  
- entity *Copy = AllocEntity(&Editor->EntityStore);
+ entity *Copy = AllocEntity(&Editor->EntityStore, false);
  entity_with_modify_witness CopyWitness = BeginEntityModify(Copy);
  string CopyName = StrF(Temp.Arena, "%S(copy)", Entity->Name);
  
@@ -639,7 +639,7 @@ SplitCurveOnControlPoint(entity_with_modify_witness *EntityWitness, editor *Edit
   u32 TailPointCount = Curve->ControlPointCount - Curve->SelectedIndex.Index;
   
   entity *HeadEntity = Entity;
-  entity *TailEntity = AllocEntity(&Editor->EntityStore);
+  entity *TailEntity = AllocEntity(&Editor->EntityStore, false);
   
   entity_with_modify_witness *HeadWitness = EntityWitness;
   entity_with_modify_witness TailWitness = BeginEntityModify(TailEntity);
@@ -1037,7 +1037,7 @@ EndMergingCurves(editor *Editor, b32 Merged)
  
  if (Merged)
  {
-  entity *Entity = AllocEntity(&Editor->EntityStore);
+  entity *Entity = AllocEntity(&Editor->EntityStore, false);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
   
   InitEntityFromEntity(&EntityWitness, Merging->MergeEntity);
@@ -1099,7 +1099,7 @@ internal void
 InitMergingCurvesState(merging_curves_state *State,
                        entity_store *EntityStore)
 {
- State->MergeEntity = AllocEntity(EntityStore);
+ State->MergeEntity = AllocEntity(EntityStore, true);
 }
 
 internal void
@@ -1161,7 +1161,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
  InitAsyncTaskStore(&Editor->AsyncTaskStore);
  
  {
-  entity *Entity = AllocEntity(&Editor->EntityStore);
+  entity *Entity = AllocEntity(&Editor->EntityStore, false);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
   
   InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("de-casteljau"), 0);
@@ -1181,7 +1181,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
  }
  
  {
-  entity *Entity = AllocEntity(&Editor->EntityStore);
+  entity *Entity = AllocEntity(&Editor->EntityStore, false);
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
   
   InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("b-spline"), 0);
@@ -1409,24 +1409,21 @@ RenderEntity(rendering_entity_handle Handle)
 internal void
 UpdateAndRenderEntities(editor *Editor, render_group *RenderGroup)
 {
- entity_array Entities = EntityArrayFromStore(&Editor->EntityStore);
+ entity_array Entities = AllEntityArrayFromStore(&Editor->EntityStore);
  for (u32 EntityIndex = 0;
       EntityIndex < Entities.Count;
       ++EntityIndex)
  {
   entity *Entity = Entities.Entities[EntityIndex];
-  if ((Entity->Flags & EntityFlag_Active))
+  if (IsEntityVisible(Entity))
   {
-   if (IsEntityVisible(Entity))
-   {
-    rendering_entity_handle Handle = BeginRenderingEntity(Entity, RenderGroup);
-    
-    RenderEntity(Handle);
-    UpdateAndRenderDegreeLowering(Handle);
-    UpdateAndRenderPointTracking(Handle);
-    
-    EndRenderingEntity(Handle);
-   }
+   rendering_entity_handle Handle = BeginRenderingEntity(Entity, RenderGroup);
+   
+   RenderEntity(Handle);
+   UpdateAndRenderDegreeLowering(Handle);
+   UpdateAndRenderPointTracking(Handle);
+   
+   EndRenderingEntity(Handle);
   }
  }
 }
@@ -2314,13 +2311,10 @@ RenderMenuBarUI(editor *Editor,
 internal void
 RenderEntityListWindowContents(editor *Editor)
 {
- entity_array Entities = EntityArrayFromStore(&Editor->EntityStore);
- 
- for (u32 EntityTypeIndex = 0;
-      EntityTypeIndex < Entity_Count;
-      ++EntityTypeIndex)
+ ForEachEnumVal(EntityType, Entity_Count, entity_type)
  {
-  entity_type EntityType = Cast(entity_type)EntityTypeIndex;
+  entity_array Entities = EntityArrayFromType(&Editor->EntityStore, EntityType);
+  
   string EntityTypeLabel = {};
   switch (EntityType)
   {
@@ -2329,6 +2323,8 @@ RenderEntityListWindowContents(editor *Editor)
    case Entity_Count: InvalidPath; break;
   }
   
+  UI_PushLabel(EntityTypeLabel);
+  
   if (UI_CollapsingHeader(EntityTypeLabel))
   {
    for (u32 EntityIndex = 0;
@@ -2336,51 +2332,50 @@ RenderEntityListWindowContents(editor *Editor)
         ++EntityIndex)
    {
     entity *Entity = Entities.Entities[EntityIndex];
-    if ((Entity->Flags & EntityFlag_Active) && Entity->Type == EntityType)
+    UI_PushId(EntityIndex);
+    b32 Selected = IsEntitySelected(Entity);
+    
+    if (UI_SelectableItem(Selected, Entity->Name))
     {
-     UI_PushId(EntityIndex);
-     b32 Selected = IsEntitySelected(Entity);
-     
-     if (UI_SelectableItem(Selected, Entity->Name))
-     {
-      SelectEntity(Editor, Entity);
-     }
-     
-     string CtxMenu = StrLit("EntityContextMenu");
-     if (UI_IsItemHovered() && UI_IsMouseClicked(UIMouseButton_Right))
-     {
-      UI_OpenPopup(CtxMenu);
-     }
-     if (UI_BeginPopup(CtxMenu, 0))
-     {
-      if(UI_MenuItem(0, 0, StrLit("Delete")))
-      {
-       DeallocEntity(&Editor->EntityStore, &Editor->Assets, Entity);
-      }
-      if(UI_MenuItem(0, 0, StrLit("Copy")))
-      {
-       DuplicateEntity(Entity, Editor);
-      }
-      if(UI_MenuItem(0, 0, (Entity->Flags & EntityFlag_Hidden) ? StrLit("Show") : StrLit("Hide")))
-      {
-       Entity->Flags ^= EntityFlag_Hidden;
-      }
-      if (UI_MenuItem(0, 0, (Selected ? StrLit("Deselect") : StrLit("Select"))))
-      {
-       SelectEntity(Editor, (Selected ? 0 : Entity));
-      }
-      if(UI_MenuItem(0, 0, StrLit("Focus")))
-      {
-       FocusCameraOnEntity(Editor, Entity);
-      }
-      
-      UI_EndPopup();
-     }
-     
-     UI_PopId();
+     SelectEntity(Editor, Entity);
     }
+    
+    string CtxMenu = StrLit("EntityContextMenu");
+    if (UI_IsItemHovered() && UI_IsMouseClicked(UIMouseButton_Right))
+    {
+     UI_OpenPopup(CtxMenu);
+    }
+    if (UI_BeginPopup(CtxMenu, 0))
+    {
+     if(UI_MenuItem(0, 0, StrLit("Delete")))
+     {
+      DeallocEntity(&Editor->EntityStore, &Editor->Assets, Entity);
+     }
+     if(UI_MenuItem(0, 0, StrLit("Copy")))
+     {
+      DuplicateEntity(Entity, Editor);
+     }
+     if(UI_MenuItem(0, 0, (Entity->Flags & EntityFlag_Hidden) ? StrLit("Show") : StrLit("Hide")))
+     {
+      Entity->Flags ^= EntityFlag_Hidden;
+     }
+     if (UI_MenuItem(0, 0, (Selected ? StrLit("Deselect") : StrLit("Select"))))
+     {
+      SelectEntity(Editor, (Selected ? 0 : Entity));
+     }
+     if(UI_MenuItem(0, 0, StrLit("Focus")))
+     {
+      FocusCameraOnEntity(Editor, Entity);
+     }
+     
+     UI_EndPopup();
+    }
+    
+    UI_PopId();
    }
   }
+  
+  UI_PopLabel();
  }
 }
 internal void
@@ -2966,7 +2961,7 @@ ProcessAsyncEvents(editor *Editor)
   {
    if (Task->State == Image_Loaded)
    {
-    entity *Entity = AllocEntity(&Editor->EntityStore);
+    entity *Entity = AllocEntity(&Editor->EntityStore, false);
     if (Entity)
     {
      string FileName = PathLastPart(Task->ImageFilePath);
@@ -3022,7 +3017,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
   {
    Eat = true;
    
-   entity_array Entities = EntityArrayFromStore(&Editor->EntityStore);
+   entity_array Entities = AllEntityArrayFromStore(&Editor->EntityStore);
    
    collision Collision = {};
    if (Event->Flags & PlatformEventFlag_Alt)
@@ -3116,7 +3111,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
      {
       temp_arena Temp = TempArena(0);
       
-      entity *Entity = AllocEntity(&Editor->EntityStore);
+      entity *Entity = AllocEntity(&Editor->EntityStore, false);
       entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
       
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
@@ -3240,7 +3235,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
   {
    Eat = true;
    
-   entity_array Entities = EntityArrayFromStore(&Editor->EntityStore);
+   entity_array Entities = AllEntityArrayFromStore(&Editor->EntityStore);
    collision Collision = CheckCollisionWithEntities(Entities, MouseP, RenderGroup->CollisionTolerance);
    
    BeginRightClick(RightClick, MouseP, Collision);

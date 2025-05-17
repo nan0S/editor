@@ -294,10 +294,10 @@ enum entity_type
 
 enum
 {
- EntityFlag_Active           = (1<<0),
- EntityFlag_Hidden           = (1<<1),
- EntityFlag_Selected         = (1<<2),
- EntityFlag_CurveAppendFront = (1<<3),
+ EntityFlag_Hidden           = (1<<0),
+ EntityFlag_Selected         = (1<<1),
+ EntityFlag_CurveAppendFront = (1<<2),
+ EntityFlag_Tracked          = (1<<3),
 };
 typedef u32 entity_flags;
 

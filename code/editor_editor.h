@@ -8,15 +8,16 @@ struct entity_store
  entity *Head;
  entity *Tail;
  u32 Count;
- arena *ArrayArena;
- entity_array Array;
+ arena *ByTypeArenas[Entity_Count + 1];
+ entity_array ByTypeArrays[Entity_Count + 1];
+ u32 ByTypeGenerations[Entity_Count + 1];
  u32 AllocGeneration;
- u32 ArrayGeneration;
 };
 internal void InitEntityStore(entity_store *Store);
-internal entity *AllocEntity(entity_store *Store);
+internal entity *AllocEntity(entity_store *Store, b32 DontTrack);
 internal void DeallocEntity(entity *Entity, struct editor_assets *Assets);
-internal entity_array EntityArrayFromStore(entity_store *Store);
+internal entity_array AllEntityArrayFromStore(entity_store *Store);
+internal entity_array EntityArrayFromType(entity_store *Store, entity_type Type);
 
 struct task_with_memory
 {

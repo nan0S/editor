@@ -32,11 +32,14 @@ internal void
 InitEntityStore(entity_store *Store)
 {
  Store->Arena = AllocArena(Gigabytes(64));
- Store->ArrayArena = AllocArena(Gigabytes(1));
+ ForEachElement(Index, Store->ByTypeArenas)
+ {
+  Store->ByTypeArenas[Index] = AllocArena(Megabytes(1));
+ }
 }
 
 internal entity *
-AllocEntity(entity_store *Store)
+AllocEntity(entity_store *Store, b32 DontTrack)
 {
  entity *Entity = Store->Free;
  if (Entity)
@@ -53,14 +56,16 @@ AllocEntity(entity_store *Store)
  curve *Curve = &Entity->Curve;
  Entity->Generation = Generation;
  Entity->Arena = AllocArena(Megabytes(32));
- Entity->Flags = EntityFlag_Active;
+ Entity->Flags = (DontTrack ? 0 : EntityFlag_Tracked);
  Curve->DegreeLowering.Arena = AllocArena(Megabytes(32));
  Curve->ParametricResources.Arena = AllocArena(Megabytes(32));
  
- DLLPushBack(Store->Head, Store->Tail, Entity);
- ++Store->Count;
- 
- ++Store->AllocGeneration;
+ if (Entity->Flags & EntityFlag_Tracked)
+ {
+  DLLPushBack(Store->Head, Store->Tail, Entity);
+  ++Store->Count;
+  ++Store->AllocGeneration;
+ }
  
  return Entity;
 }
@@ -78,39 +83,52 @@ DeallocEntity(entity_store *Store, editor_assets *Assets, entity *Entity)
  DeallocArena(Entity->Arena);
  DeallocArena(Curve->DegreeLowering.Arena);
  DeallocArena(Curve->ParametricResources.Arena);
- Entity->Flags &= ~EntityFlag_Active;
  ++Entity->Generation;
  
- DLLRemove(Store->Head, Store->Tail, Entity);
- --Store->Count;
+ if (Entity->Flags & EntityFlag_Tracked)
+ {
+  DLLRemove(Store->Head, Store->Tail, Entity);
+  --Store->Count;
+  ++Store->AllocGeneration;
+ }
  
  StackPush(Store->Free, Entity);
- 
- ++Store->AllocGeneration;
 }
 
 internal entity_array
-EntityArrayFromStore(entity_store *Store)
+AllEntityArrayFromStore(entity_store *Store)
 {
- if (Store->AllocGeneration != Store->ArrayGeneration)
+ entity_array Array = EntityArrayFromType(Store, Entity_Count);
+ return Array;
+}
+
+internal entity_array
+EntityArrayFromType(entity_store *Store, entity_type Type)
+{
+ if (Store->AllocGeneration != Store->ByTypeGenerations[Type])
  {
-  ClearArena(Store->ArrayArena);
+  arena *Arena = Store->ByTypeArenas[Type];
+  ClearArena(Arena);
   
   entity_array Array = {};
-  u32 Count = Store->Count;
-  Array.Count = Count;
-  Array.Entities = PushArrayNonZero(Store->ArrayArena, Count, entity *);
-  
+  u32 MaxCount = Store->Count;
+  Array.Entities = PushArrayNonZero(Arena, MaxCount, entity *);
   entity **At = Array.Entities;
   ListIter(Entity, Store->Head, entity)
   {
-   *At++ = Entity;
+   if (Type == Entity_Count || (Type == Entity->Type))
+   {
+    *At++ = Entity;
+   }
   }
+  u32 ActualCount = Cast(u32)(At - Array.Entities);
+  Assert(ActualCount <= MaxCount);
+  Array.Count = ActualCount;
   
-  Store->Array = Array;
-  Store->ArrayGeneration = Store->AllocGeneration;
+  Store->ByTypeArrays[Type] = Array;
+  Store->ByTypeGenerations[Type] = Store->AllocGeneration;
  }
- return Store->Array;
+ return Store->ByTypeArrays[Type];
 }
 
 internal void

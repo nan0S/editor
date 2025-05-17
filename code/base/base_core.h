@@ -251,8 +251,8 @@ inline void *_SafeCastToPtr(void *Expr, u64 SizeOf1, u64 SizeOf2) { Assert(SizeO
 #define ForEachElement ForEachElementUnsafe
 #endif
 #define ForEachIndex(Index, Count) for (u64 Index = 0; Index < (Count); ++Index)
-#define ForEachEnumVal(Val, Count, Type) for (Type Val= Cast(Type)0; Val < (Count); Index = Cast(Type)(Val + 1))
-#define ForEachEnumValNonZero(Val, Count, Type) for (Type Val= Cast(Type)1; Val < (Count); Index = Cast(Type)(Val + 1))
+#define ForEachEnumVal(Val, Count, Type) for (Type Val = Cast(Type)0; Val < (Count); Val = Cast(Type)(Val + 1))
+#define ForEachEnumValNonZero(Val, Count, Type) for (Type Val = Cast(Type)1; Val < (Count); Val = Cast(Type)(Val + 1))
 
 #if !defined(COMPILATION_UNIT_INDEX) && !defined(COMPILATION_UNIT_COUNT)
 # define COMPILATION_UNIT_INDEX 0

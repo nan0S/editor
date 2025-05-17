@@ -658,19 +658,16 @@ SortEntities(arena *Arena, entity_array Entities)
       ++EntityIndex)
  {
   entity *Entity = Entities.Entities[EntityIndex];
-  if (Entity->Flags & EntityFlag_Active)
+  // NOTE(hbr): Equal sorting layer images should be below curves
+  f32 Offset = 0.0f;
+  switch (Entity->Type)
   {
-   // NOTE(hbr): Equal sorting layer images should be below curves
-   f32 Offset = 0.0f;
-   switch (Entity->Type)
-   {
-    case Entity_Image: {Offset = 0.5f;} break;
-    case Entity_Curve: {Offset = 0.0f;} break;
-    case Entity_Count: InvalidPath; break;
-   }
-   
-   AddSortEntry(&SortArray, Entity->SortingLayer + Offset, EntityIndex);
+   case Entity_Image: {Offset = 0.5f;} break;
+   case Entity_Curve: {Offset = 0.0f;} break;
+   case Entity_Count: InvalidPath; break;
   }
+  
+  AddSortEntry(&SortArray, Entity->SortingLayer + Offset, EntityIndex);
  }
  
  Sort(SortArray.Entries, SortArray.Count, SortFlag_Stable);

@@ -24,19 +24,19 @@ internal void DeallocEntity(entity *Entity, struct editor_assets *Assets);
 internal entity_array AllEntityArrayFromStore(entity_store *Store);
 internal entity_array EntityArrayFromType(entity_store *Store, entity_type Type);
 
-struct task_with_memory
+struct thread_task_memory
 {
- task_with_memory *Next;
+ thread_task_memory *Next;
  arena *Arena;
 };
-struct task_with_memory_store
+struct thread_task_memory_store
 {
  arena *Arena;
- task_with_memory *Free;
+ thread_task_memory *Free;
 };
-internal void InitTaskWithMemoryStore(task_with_memory_store *Store);
-internal task_with_memory *BeginTaskWithMemory(task_with_memory_store *Store);
-internal void EndTaskWithMemory(task_with_memory_store *Store, task_with_memory *Task);
+internal void InitThreadTaskMemoryStore(thread_task_memory_store *Store);
+internal thread_task_memory *BeginThreadTaskMemory(thread_task_memory_store *Store);
+internal void EndThreadTaskMemory(thread_task_memory_store *Store, thread_task_memory *Task);
 
 enum image_loading_state
 {
@@ -49,33 +49,25 @@ enum image_loading_state
 // I'm happy to generalize this (for example store function pointers in here),
 // but for now I only have images use case and don't expect new stuff. I didn't
 // bother renaming this.
-struct async_task
+struct image_loading_task
 {
- async_task *Next;
- async_task *Prev;
+ image_loading_task *Next;
+ image_loading_task *Prev;
  
  arena *Arena;
  image_loading_state State;
  entity *Entity;
- u32 ImageWidth;
- u32 ImageHeight;
  string ImageFilePath;
- v2 AtP;
 };
-struct async_task_array
-{
- async_task *Tasks;
- u32 Count;
-};
-struct async_task_store
+struct image_loading_store
 {
  arena *Arena;
- async_task *Head;
- async_task *Tail;
- async_task *Free;
+ image_loading_task *Head;
+ image_loading_task *Tail;
+ image_loading_task *Free;
 };
-internal void InitAsyncTaskStore(async_task_store *Store);
-internal async_task *AllocAsyncTask(async_task_store *Store);
-internal void DeallocAsyncTask(async_task_store *Store, async_task *Task);
+internal void InitAsyncTaskStore(image_loading_store *Store);
+internal image_loading_task *BeginAsyncImageLoadingTask(image_loading_store *Store);
+internal void FinishAsyncImageLoadingTask(image_loading_store *Store, image_loading_task *Task);
 
 #endif //EDITOR_EDITOR_H

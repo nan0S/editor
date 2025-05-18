@@ -64,13 +64,13 @@ AllocEntity(entity_store *Store, entity_type Type, b32 DontTrack)
  
  Entity->Generation = Generation;
  Entity->Type = Type;
- Entity->Arena = AllocArena(Megabytes(32));
  Entity->Flags = (DontTrack ? 0 : EntityFlag_Tracked);
  
  switch (Type)
  {
   case Entity_Curve: {
    curve *Curve = &Entity->Curve;
+   Curve->ComputeArena = AllocArena(Megabytes(32));
    Curve->DegreeLowering.Arena = AllocArena(Megabytes(32));
    Curve->ParametricResources.Arena = AllocArena(Megabytes(32));
   }break;
@@ -101,7 +101,7 @@ DeallocEntity(entity_store *Store, entity *Entity)
  {
   case Entity_Curve: {
    curve *Curve = &Entity->Curve;
-   DeallocArena(Entity->Arena);
+   DeallocArena(Curve->ComputeArena);
    DeallocArena(Curve->DegreeLowering.Arena);
    DeallocArena(Curve->ParametricResources.Arena);
   }break;
@@ -163,22 +163,22 @@ EntityArrayFromType(entity_store *Store, entity_type Type)
 }
 
 internal void
-InitTaskWithMemoryStore(task_with_memory_store *Store)
+InitThreadTaskMemoryStore(thread_task_memory_store *Store)
 {
  Store->Arena = AllocArena(Gigabytes(1));
 }
 
-internal task_with_memory *
-BeginTaskWithMemory(task_with_memory_store *Store)
+internal thread_task_memory *
+BeginThreadTaskMemory(thread_task_memory_store *Store)
 {
- task_with_memory *Task = Store->Free;
+ thread_task_memory *Task = Store->Free;
  if (Task)
  {
   StackPop(Store->Free);
  }
  else
  {
-  Task = PushStructNonZero(Store->Arena, task_with_memory);
+  Task = PushStructNonZero(Store->Arena, thread_task_memory);
  }
  StructZero(Task);
  Task->Arena = AllocArena(Gigabytes(1));
@@ -186,29 +186,29 @@ BeginTaskWithMemory(task_with_memory_store *Store)
 }
 
 internal void
-EndTaskWithMemory(task_with_memory_store *Store, task_with_memory *Task)
+EndThreadTaskMemory(thread_task_memory_store *Store, thread_task_memory *Task)
 {
  DeallocArena(Task->Arena);
  StackPush(Store->Free, Task);
 }
 
 internal void
-InitAsyncTaskStore(async_task_store *Store)
+InitImageLoadingStore(image_loading_store *Store)
 {
  Store->Arena = AllocArena(Gigabytes(1));
 }
 
-internal async_task *
-AllocAsyncTask(async_task_store *Store)
+internal image_loading_task *
+BeginAsyncImageLoadingTask(image_loading_store *Store)
 {
- async_task *Task = Store->Free;
+ image_loading_task *Task = Store->Free;
  if (Task)
  {
   StackPop(Store->Free);
  }
  else
  {
-  Task = PushStructNonZero(Store->Arena, async_task);
+  Task = PushStructNonZero(Store->Arena, image_loading_task);
  }
  StructZero(Task);
  
@@ -219,7 +219,7 @@ AllocAsyncTask(async_task_store *Store)
 }
 
 internal void
-DeallocAsyncTask(async_task_store *Store, async_task *Task)
+FinishAsyncImageLoadingTask(image_loading_store *Store, image_loading_task *Task)
 {
  DeallocArena(Task->Arena);
  DLLRemove(Store->Head, Store->Tail, Task);

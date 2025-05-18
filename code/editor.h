@@ -280,8 +280,8 @@ struct editor
  editor_right_click_state RightClick;
  editor_middle_click_state MiddleClick;
  
- task_with_memory_store TaskWithMemoryStore;
- async_task_store AsyncTaskStore;
+ thread_task_memory_store ThreadTaskMemoryStore;
+ image_loading_store ImageLoadingStore;
  
  parametric_equation_expr NilParametricExpr;
  
@@ -306,11 +306,11 @@ struct editor
 
 struct load_image_work
 {
- task_with_memory_store *Store;
- task_with_memory *Task;
+ thread_task_memory_store *Store;
+ thread_task_memory *TaskMemory;
  renderer_transfer_op *TextureOp;
  string ImagePath;
- async_task *AsyncTask;
+ image_loading_task *ImageLoading;
 };
 
 #endif //EDITOR_H

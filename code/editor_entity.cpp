@@ -771,19 +771,34 @@ SetCurveControlPoints(entity_with_modify_witness *EntityWitness,
 }
 
 internal void
-InitCurve(entity_with_modify_witness *EntityWitness, curve_params Params)
+InitEntityPart(entity *Entity, v2 P, string Name)
+{
+ Entity->P = P;
+ Entity->Scale = V2(1, 1);
+ Entity->Rotation = Rotation2DZero();
+ SetEntityName(Entity, Name);
+}
+
+internal void
+InitImageEntity(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath)
+{
+ Assert(Entity->Type == Entity_Image);
+ 
+ string FileName = PathLastPart(FilePath);
+ string FileNameNoExt = StrChopLastDot(FileName);
+ InitEntityPart(Entity, P, FileNameNoExt);
+ 
+ image *Image = &Entity->Image;
+ Image->Dim = V2(Cast(f32)Width / Height, 1.0f);
+}
+
+internal void
+InitEntityCurve(entity_with_modify_witness *EntityWitness, curve_params Params)
 {
  entity *Entity = EntityWitness->Entity;
  Entity->Type = Entity_Curve;
  Entity->Curve.Params = Params;
  SetCurveControlPoints(EntityWitness, 0, 0, 0, 0);
-}
-
-internal void
-InitImage(entity *Entity)
-{
- Entity->Type = Entity_Image;
- ClearArena(Entity->Arena);
 }
 
 internal void
@@ -838,14 +853,13 @@ InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src)
    curve *SrcCurve = SafeGetCurve(Src);
    curve *DstCurve = SafeGetCurve(Dst);
    
-   InitCurve(DstWitness, SrcCurve->Params);
+   InitEntityCurve(DstWitness, SrcCurve->Params);
    SetCurveControlPoints(DstWitness, SrcCurve->ControlPointCount, SrcCurve->ControlPoints, SrcCurve->ControlPointWeights, SrcCurve->CubicBezierPoints);
    SelectControlPoint(DstCurve, SrcCurve->SelectedIndex);
   } break;
   
   case Entity_Image: {
    image *Image = SafeGetImage(Src);
-   InitImage(Dst);
   } break;
   
   case Entity_Count: InvalidPath; break;
@@ -1325,19 +1339,18 @@ CalcCurve(arena *EntityArena, curve *Curve, u32 SampleCount, v2 *OutSamples)
 }
 
 internal void
-RecomputeCurve(entity *Entity)
+RecomputeCurve(curve *Curve)
 {
  ProfileFunctionBegin();
  
- curve *Curve = SafeGetCurve(Entity);
  curve_params *Params = &Curve->Params;
- arena *EntityArena = Entity->Arena;
+ arena *ComputeArena = Curve->ComputeArena;
  u32 PointCount = Curve->ControlPointCount;
  v2 *Controls = Curve->ControlPoints;
  f32 *Weights = Curve->ControlPointWeights;
  f32 LineWidth = Params->LineWidth;
  
- ClearArena(EntityArena);
+ ClearArena(ComputeArena);
  
  u32 SampleCount = 0;
  if (IsCurveTotalSamplesMode(Curve))
@@ -1351,15 +1364,15 @@ RecomputeCurve(entity *Entity)
    SampleCount = (PointCount - 1) * Params->SamplesPerControlPoint + 1;
   }
  }
- v2 *Samples = PushArrayNonZero(EntityArena, SampleCount, v2);
- CalcCurve(EntityArena, Curve, SampleCount, Samples);
+ v2 *Samples = PushArrayNonZero(ComputeArena, SampleCount, v2);
+ CalcCurve(ComputeArena, Curve, SampleCount, Samples);
  
- vertex_array CurveVertices = ComputeVerticesOfThickLine(EntityArena, SampleCount, Samples, LineWidth, IsCurveLooped(Curve));
- vertex_array PolylineVertices = ComputeVerticesOfThickLine(EntityArena, PointCount, Controls, Params->PolylineWidth, false);
+ vertex_array CurveVertices = ComputeVerticesOfThickLine(ComputeArena, SampleCount, Samples, LineWidth, IsCurveLooped(Curve));
+ vertex_array PolylineVertices = ComputeVerticesOfThickLine(ComputeArena, PointCount, Controls, Params->PolylineWidth, false);
  
- v2 *ConvexHullPoints = PushArrayNonZero(EntityArena, PointCount, v2);
+ v2 *ConvexHullPoints = PushArrayNonZero(ComputeArena, PointCount, v2);
  u32 ConvexHullCount = CalcConvexHull(PointCount, Controls, ConvexHullPoints);
- vertex_array ConvexHullVertices = ComputeVerticesOfThickLine(EntityArena, ConvexHullCount, ConvexHullPoints, Params->ConvexHullWidth, true);
+ vertex_array ConvexHullVertices = ComputeVerticesOfThickLine(ComputeArena, ConvexHullCount, ConvexHullPoints, Params->ConvexHullWidth, true);
  
  point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
  if (IsCurveEligibleForPointTracking(Curve))
@@ -1373,8 +1386,8 @@ RecomputeCurve(entity *Entity)
    
    if (Tracking->Type == PointTrackingAlongCurve_DeCasteljauVisualization)
    {
-    all_de_casteljau_intermediate_results Intermediate = DeCasteljauAlgorithm(EntityArena, Fraction, Controls, Weights, PointCount);
-    vertex_array *LineVerticesPerIteration = PushArray(EntityArena, Intermediate.IterationCount, vertex_array);
+    all_de_casteljau_intermediate_results Intermediate = DeCasteljauAlgorithm(ComputeArena, Fraction, Controls, Weights, PointCount);
+    vertex_array *LineVerticesPerIteration = PushArray(ComputeArena, Intermediate.IterationCount, vertex_array);
     
     u32 IterationPointsOffset = 0;
     for (u32 Iteration = 0;
@@ -1382,7 +1395,7 @@ RecomputeCurve(entity *Entity)
          ++Iteration)
     {
      u32 CurrentIterationPointCount = Intermediate.IterationCount - Iteration;
-     LineVerticesPerIteration[Iteration] = ComputeVerticesOfThickLine(EntityArena,
+     LineVerticesPerIteration[Iteration] = ComputeVerticesOfThickLine(ComputeArena,
                                                                       CurrentIterationPointCount,
                                                                       Intermediate.P + IterationPointsOffset,
                                                                       LineWidth,
@@ -1434,7 +1447,7 @@ EndEntityModify(entity_with_modify_witness Witness)
  {
   switch (Entity->Type)
   {
-   case Entity_Curve: {RecomputeCurve(Entity);}break;
+   case Entity_Curve: {RecomputeCurve(&Entity->Curve);}break;
    case Entity_Image: {}break;
    case Entity_Count: InvalidPath;
   }

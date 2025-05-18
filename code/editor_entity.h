@@ -248,6 +248,7 @@ struct parametric_curve_resources
 struct curve
 {
  curve_params Params;
+ control_point_index SelectedIndex;
  
  // all points here are in local space
  u32 ControlPointCount;
@@ -260,7 +261,7 @@ struct curve
 #define MAX_B_SPLINE_KNOT_COUNT (2 * MAX_CONTROL_POINT_COUNT)
  f32 B_SplineKnots[MAX_B_SPLINE_KNOT_COUNT];
  
- control_point_index SelectedIndex;
+ arena *ComputeArena;
  
  u32 CurveSampleCount;
  v2 *CurveSamples;
@@ -305,8 +306,6 @@ struct entity
 {
  entity *Next;
  entity *Prev;
- 
- arena *Arena;
  
  v2 P;
  v2 Scale;
@@ -417,9 +416,9 @@ struct entity_array
  entity **Entities;
 };
 
+internal void InitImageEntity(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath);
 internal void InitEntity(entity *Entity, v2 P, v2 Scale, v2 Rotation, string Name, i32 SortingLayer);
-internal void InitCurve(entity_with_modify_witness *Entity, curve_params Params);
-internal void InitImage(entity *Entity);
+internal void InitEntityCurve(entity_with_modify_witness *Entity, curve_params Params);
 internal void InitEntityFromEntity(entity_with_modify_witness *Dst, entity *Src);
 
 internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);

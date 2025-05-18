@@ -1,3 +1,13 @@
+internal image_info
+MakeImageInfo(u32 Width, u32 Height, u32 Channels)
+{
+ image_info Info = {};
+ Info.Width = Width;
+ Info.Height = Height;
+ Info.Channels = Channels;
+ return Info;
+}
+
 internal loaded_image
 LoadImageFromMemory(arena *Arena, char *ImageData, u64 Count)
 {
@@ -6,19 +16,18 @@ LoadImageFromMemory(arena *Arena, char *ImageData, u64 Count)
  stbi_set_flip_vertically_on_load(1);
  int Width, Height;
  int Components;
- int RequestComponents = 4;
+ int RequestChannels = 4;
  char *Data = Cast(char *)stbi_load_from_memory(Cast(stbi_uc const *)ImageData,
                                                 Cast(int)Count,
-                                                &Width, &Height, &Components, RequestComponents);
+                                                &Width, &Height, &Components, RequestChannels);
  if (Data)
  {
-  u64 TotalSize = Cast(u64)Width * Height * RequestComponents;
+  u64 TotalSize = Cast(u64)Width * Height * RequestChannels;
   char *Pixels = PushArrayNonZero(Arena, TotalSize, char);
   MemoryCopy(Pixels, Data, TotalSize);
   
   Result.Success = true;
-  Result.Width = Width;
-  Result.Height = Height;
+  Result.Info = MakeImageInfo(Width, Height, RequestChannels);
   Result.Pixels = Pixels;
   
   stbi_image_free(Data);
@@ -38,9 +47,7 @@ LoadImageInfo(string FilePath)
  if (stbi_info(CFilePath.Data, &X, &Y, &Channels))
  {
   Assert(X >= 0 && Y >= 0 && Channels >= 0);
-  Result.Width = Cast(u32)X;
-  Result.Height = Cast(u32)Y;
-  Result.Channels = Cast(u32)Channels;
+  Result = MakeImageInfo(X, Y, Channels);
  }
  
  return Result;

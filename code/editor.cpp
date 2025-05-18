@@ -850,11 +850,11 @@ LoadImageWork(void *UserData)
 {
  load_image_work *Work = Cast(load_image_work *)UserData;
  
- task_with_memory_store *Store = Work->Store;
- task_with_memory *Task = Work->Task;
+ thread_task_memory_store *Store = Work->Store;
+ thread_task_memory *Task = Work->TaskMemory;
  renderer_transfer_op *TextureOp = Work->TextureOp;
  string ImagePath = Work->ImagePath;
- async_task *AsyncTask = Work->AsyncTask;
+ image_loading_task *ImageLoading = Work->ImageLoading;
  arena *Arena = Task->Arena;
  
  string ImageData = Platform.ReadEntireFile(Arena, Work->ImagePath);
@@ -864,7 +864,7 @@ LoadImageWork(void *UserData)
  renderer_transfer_op_state OpState;
  if (LoadedImage.Success)
  {
-  u64 ImageSize = 4 * LoadedImage.Width * LoadedImage.Height;
+  u64 ImageSize = 4 * LoadedImage.Info.Width * LoadedImage.Info.Height;
   // TODO(hbr): Don't do memory copy, just read into that memory directly
   MemoryCopy(TextureOp->Pixels, LoadedImage.Pixels, ImageSize);
   OpState = RendererOp_ReadyToTransfer;
@@ -878,9 +878,9 @@ LoadImageWork(void *UserData)
  
  CompilerWriteBarrier;
  TextureOp->State = OpState;
- AsyncTask->State = AsyncTaskState;
+ ImageLoading->State = AsyncTaskState;
  
- EndTaskWithMemory(Store, Task);
+ EndThreadTaskMemory(Store, Task);
 }
 
 internal void
@@ -888,8 +888,8 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
 {
  work_queue *WorkQueue = Editor->LowPriorityQueue;
  entity_store *EntityStore = &Editor->EntityStore;
- task_with_memory_store *TaskWithMemoryStore = &Editor->TaskWithMemoryStore;
- async_task_store *AsyncTaskStore = &Editor->AsyncTaskStore;
+ thread_task_memory_store *ThreadTaskMemoryStore = &Editor->ThreadTaskMemoryStore;
+ image_loading_store *ImageLoadingStore = &Editor->ImageLoadingStore;
  
  ForEachIndex(FileIndex, FileCount)
  {
@@ -897,26 +897,25 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
   
   image_info ImageInfo = LoadImageInfo(FilePath);
   entity *Entity = AllocEntity(EntityStore, Entity_Image, false);
+  InitImageEntity(Entity, AtP, ImageInfo.Width, ImageInfo.Height, FilePath);
+  
   // TODO(hbr): Make it always suceeed??????
-  renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, ImageInfo.Channels, Entity->Image.TextureHandle);
-  async_task *AsyncTask = AllocAsyncTask(AsyncTaskStore);
-  task_with_memory *Task = BeginTaskWithMemory(TaskWithMemoryStore);
+  renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, Entity->Image.TextureHandle);
+  image_loading_task *ImageLoading = BeginAsyncImageLoadingTask(ImageLoadingStore);
+  thread_task_memory *TaskMemory = BeginThreadTaskMemory(ThreadTaskMemoryStore);
   
   load_image_work *Work = 0;
-  if (TextureOp && Task && AsyncTask)
+  if (TextureOp && TaskMemory && ImageLoading)
   {
-   AsyncTask->Entity = Entity;
-   AsyncTask->ImageWidth = ImageInfo.Width;
-   AsyncTask->ImageHeight = ImageInfo.Height;
-   AsyncTask->ImageFilePath = StrCopy(AsyncTask->Arena, FilePath);
-   AsyncTask->AtP = AtP;
+   ImageLoading->Entity = Entity;
+   ImageLoading->ImageFilePath = StrCopy(ImageLoading->Arena, FilePath);
    
-   Work = PushStruct(Task->Arena, load_image_work);
-   Work->Store = TaskWithMemoryStore;
-   Work->Task = Task;
+   Work = PushStruct(TaskMemory->Arena, load_image_work);
+   Work->Store = ThreadTaskMemoryStore;
+   Work->TaskMemory = TaskMemory;
    Work->TextureOp = TextureOp;
-   Work->ImagePath = StrCopy(Task->Arena, FilePath);
-   Work->AsyncTask = AsyncTask;
+   Work->ImagePath = StrCopy(TaskMemory->Arena, FilePath);
+   Work->ImageLoading = ImageLoading;
    
    Platform.WorkQueueAddEntry(WorkQueue, LoadImageWork, Work);
   }
@@ -929,13 +928,13 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
     PopTextureTransfer(Editor->RendererQueue, TextureOp);
    }
    DeallocEntity(EntityStore, Entity);
-   if (AsyncTask)
+   if (ImageLoading)
    {
-    DeallocAsyncTask(AsyncTaskStore, AsyncTask);
+    FinishAsyncImageLoadingTask(ImageLoadingStore, ImageLoading);
    }
-   if (Task)
+   if (TaskMemory)
    {
-    EndTaskWithMemory(TaskWithMemoryStore, Task);
+    EndThreadTaskMemory(ThreadTaskMemoryStore, TaskMemory);
    }
   }
  }
@@ -1125,13 +1124,14 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->RotationRadiusClip = 0.1f;
  Editor->CurveDefaultParams = DefaultCurveParams();
  Editor->EntityListWindow = true;
- // TODO(hbr): Change to false by default
- Editor->DiagnosticsWindow = true;
  Editor->SelectedEntityWindow = true;
- // TODO(hbr): Change to false by default
+#if BUILD_DEBUG
+ Editor->DiagnosticsWindow = true;
  Editor->ProfilerWindow = true;
+#endif
  Editor->LowPriorityQueue = Memory->LowPriorityQueue;
  Editor->HighPriorityQueue = Memory->HighPriorityQueue;
+ Editor->RendererQueue = Memory->RendererQueue;
  
  InitEntityStore(&Editor->EntityStore, Memory->MaxTextureCount, Memory->MaxBufferCount);
  InitCamera(&Editor->Camera);
@@ -1140,8 +1140,8 @@ InitEditor(editor *Editor, editor_memory *Memory)
  InitMergingCurvesState(&Editor->MergingCurves, &Editor->EntityStore);
  InitVisualProfiler(&Editor->Profiler, Memory->Profiler);
  InitAnimatingCurvesState(&Editor->AnimatingCurves);
- InitTaskWithMemoryStore(&Editor->TaskWithMemoryStore);
- InitAsyncTaskStore(&Editor->AsyncTaskStore);
+ InitThreadTaskMemoryStore(&Editor->ThreadTaskMemoryStore);
+ InitImageLoadingStore(&Editor->ImageLoadingStore);
  
  {
   entity *Entity = AllocEntity(&Editor->EntityStore, Entity_Curve, false);
@@ -1150,7 +1150,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
   InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("de-casteljau"), 0);
   curve_params Params = Editor->CurveDefaultParams;
   Params.Type = Curve_Bezier;
-  InitCurve(&EntityWitness, Params);
+  InitEntityCurve(&EntityWitness, Params);
   
   AppendControlPoint(&EntityWitness, V2(-0.5f, -0.5f));
   AppendControlPoint(&EntityWitness, V2(+0.5f, -0.5f));
@@ -1170,7 +1170,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
   InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("b-spline"), 0);
   curve_params Params = Editor->CurveDefaultParams;
   Params.Type = Curve_B_Spline;
-  InitCurve(&Witness, Params);
+  InitEntityCurve(&Witness, Params);
   
   u32 PointCount = 30;
   curve_points_modify_handle Handle = BeginModifyCurvePoints(&Witness, PointCount, ModifyCurvePointsWhichPoints_JustControlPoints);
@@ -2931,40 +2931,31 @@ EndRightClick(editor_right_click_state *Right)
 }
 
 internal void
-ProcessAsyncEvents(editor *Editor)
+ProcessImageLoadingTasks(editor *Editor)
 {
- async_task_store *AsyncTaskStore = &Editor->AsyncTaskStore;
- ListIter(Task, AsyncTaskStore->Head, async_task)
+ image_loading_store *ImageLoadingStore = &Editor->ImageLoadingStore;
+ ListIter(ImageLoading, ImageLoadingStore->Head, image_loading_task)
  {
-  if (Task->State == Image_Loading)
+  if (ImageLoading->State == Image_Loading)
   {
    // NOTE(hbr): nothing to do
   }
   else
   {
-   if (Task->State == Image_Loaded)
+   if (ImageLoading->State == Image_Loaded)
    {
-    entity *Entity = Task->Entity;
-    
-    string FileName = PathLastPart(Task->ImageFilePath);
-    string FileNameNoExt = StrChopLastDot(FileName);
-    
-    InitEntity(Entity, Task->AtP, V2(1, 1), Rotation2DZero(), FileNameNoExt, 0);
-    Entity->Type = Entity_Image;
-    
-    image *Image = &Entity->Image;
-    Image->Dim.X = Cast(f32)Task->ImageWidth / Task->ImageHeight;
-    Image->Dim.Y = 1.0f;
-    
+    entity *Entity = ImageLoading->Entity;
     SelectEntity(Editor, Entity);
    }
    else
    {
-    Assert(Task->State == Image_Failed);
-    AddNotificationF(Editor, Notification_Error, "failed to load image from %S", Task->ImageFilePath);
+    Assert(ImageLoading->State == Image_Failed);
+    AddNotificationF(Editor, Notification_Error,
+                     "failed to load image from %S",
+                     ImageLoading->ImageFilePath);
    }
    
-   DeallocAsyncTask(AsyncTaskStore, Task);
+   FinishAsyncImageLoadingTask(ImageLoadingStore, ImageLoading);
   }
  }
 }
@@ -3096,7 +3087,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
       
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
       InitEntity(Entity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
-      InitCurve(&EntityWitness, Editor->CurveDefaultParams);
+      InitEntityCurve(&EntityWitness, Editor->CurveDefaultParams);
       
       TargetEntity = Entity;
       
@@ -3462,7 +3453,7 @@ Merge2Curves(entity_with_modify_witness *MergeWitness, entity *Entity0, entity *
  string Name = StrF(Temp.Arena, "%S+%S", Entity0->Name, Entity1->Name);
  
  InitEntity(MergeEntity, Entity0->P, Entity0->Scale, Entity0->Rotation, Name, Entity0->SortingLayer);
- InitCurve(MergeWitness, Curve0->Params);
+ InitEntityCurve(MergeWitness, Curve0->Params);
  
  MaybeReverseCurvePoints(Entity0);
  MaybeReverseCurvePoints(Entity1);
@@ -4280,7 +4271,7 @@ EditorUpdateAndRender_(editor_memory *Memory, platform_input_output *Input, stru
  }
  Editor->RenderGroup = RenderGroup;
  
- ProcessAsyncEvents(Editor);
+ ProcessImageLoadingTasks(Editor);
  
  //- process events and update click events
  b32 NewProject = false;

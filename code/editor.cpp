@@ -21,7 +21,13 @@
 
 platform_api Platform;
 
-// NOTE(hbr): this is code that is
+internal f32
+GetCurvePartZOffset(curve_part Part)
+{
+ Assert(Part < CurvePart_Count);
+ f32 Result = Cast(f32)(CurvePart_Count-1 - Part) / CurvePart_Count;
+ return Result;
+}
 
 internal void
 MovePointAlongCurve(curve *Curve, v2 *TranslateInput, f32 *PointFractionInput, b32 Forward)
@@ -69,10 +75,6 @@ MovePointAlongCurve(curve *Curve, v2 *TranslateInput, f32 *PointFractionInput, b
  *PointFractionInput = Fraction;
 }
 
-//////////////////////
-
-// NOTE(hbr): This should really be some highly local internal, don't expect to reuse.
-// It's highly specific.
 internal b32
 ResetCtxMenu(string Label)
 {
@@ -90,12 +92,6 @@ ResetCtxMenu(string Label)
  return Reset;
 }
 
-struct rendering_entity_handle
-{
- entity *Entity;
- render_group *RenderGroup;
-};
-// TODO(hbr): I would ideally get rid of these calls
 internal rendering_entity_handle
 BeginRenderingEntity(entity *Entity, render_group *RenderGroup)
 {
@@ -1816,33 +1812,6 @@ UpdateAndRenderNotifications(editor *Editor, platform_input_output *Input, rende
 }
 
 internal void
-UpdateNotifications(editor *Editor, platform_input_output *Input, render_group *RenderGroup)
-{
- v2u WindowDim = RenderGroup->Frame->WindowDim;
- f32 Padding = 0.01f * WindowDim.X;
- f32 TargetPosY = WindowDim.Y - Padding;
- f32 WindowWidth = 0.1f * WindowDim.X;
- 
- for (u32 NotificationIndex = 0;
-      NotificationIndex < MAX_NOTIFICATION_COUNT;
-      ++NotificationIndex)
- {
-  notification *Notification = Editor->Notifications + NotificationIndex;
-  if (Notification->Type != Notification_None)
-  {
-   b32 Remove = false;
-   Notification->LifeTime += Input->dtForFrame;
-   
-   if (Remove)
-   {
-    Notification->Type = Notification_None;
-   }
-  }
- }
- 
-}
-
-internal void
 UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing, editor *Editor)
 {
  entity *Curve0 = EntityFromHandle(Choosing->Curves[0]);
@@ -2639,22 +2608,6 @@ RenderMergingCurves(merging_curves_state *Merging, render_group *RenderGroup)
   
   EndRenderingEntity(RenderingHandle);
  }
-}
-
-internal void
-ProfilerInspectAllFrames(visual_profiler_state *Visual)
-{
- Visual->Mode = VisualProfilerMode_AllFrames;
-}
-
-internal void
-ProfilerInspectSingleFrame(visual_profiler_state *Visual, u32 FrameIndex)
-{
- profiler *Profiler = Visual->Profiler;
- Visual->Mode = VisualProfilerMode_SingleFrame;
- Assert(FrameIndex < MAX_PROFILER_FRAME_COUNT);
- Visual->FrameIndex = FrameIndex;
- Visual->FrameSnapshot = Profiler->Frames[FrameIndex];
 }
 
 struct sorted_profiler_frame_anchors

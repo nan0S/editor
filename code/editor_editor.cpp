@@ -820,3 +820,19 @@ EndRightClick(editor_right_click_state *Right)
 {
  StructZero(Right);
 }
+
+internal void
+ProfilerInspectAllFrames(visual_profiler_state *Visual)
+{
+ Visual->Mode = VisualProfilerMode_AllFrames;
+}
+
+internal void
+ProfilerInspectSingleFrame(visual_profiler_state *Visual, u32 FrameIndex)
+{
+ profiler *Profiler = Visual->Profiler;
+ Visual->Mode = VisualProfilerMode_SingleFrame;
+ Assert(FrameIndex < MAX_PROFILER_FRAME_COUNT);
+ Visual->FrameIndex = FrameIndex;
+ Visual->FrameSnapshot = Profiler->Frames[FrameIndex];
+}

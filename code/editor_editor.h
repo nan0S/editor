@@ -210,6 +210,10 @@ internal void EndMiddleClick(editor_middle_click_state *Middle);
 internal void BeginRightClick(editor_right_click_state *Right, v2 ClickP, collision CollisionAtP);
 internal void EndRightClick(editor_right_click_state *Right);
 
+//- visual profiler
+internal void ProfilerInspectAllFrames(visual_profiler_state *Visual);
+internal void ProfilerInspectSingleFrame(visual_profiler_state *Visual, u32 FrameIndex);
+
 //- notifications
 internal void AddNotificationF(editor *Editor, notification_type Type, char const *Format, ...);
 

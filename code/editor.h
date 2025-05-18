@@ -82,7 +82,7 @@ Testing:
 
 */
 
-// NOTE(hbr): defines visibility/draw order for different curve parts
+// defines visibility/draw order for different curve parts
 enum curve_part
 {
  // this is at the bottom
@@ -107,13 +107,12 @@ enum curve_part
  
  CurvePart_Count,
 };
-internal f32
-GetCurvePartZOffset(curve_part Part)
+
+struct rendering_entity_handle
 {
- Assert(Part < CurvePart_Count);
- f32 Result = Cast(f32)(CurvePart_Count-1 - Part) / CurvePart_Count;
- return Result;
-}
+ entity *Entity;
+ render_group *RenderGroup;
+};
 
 struct load_image_work
 {
@@ -123,5 +122,10 @@ struct load_image_work
  string ImagePath;
  image_loading_task *ImageLoading;
 };
+
+internal f32 GetCurvePartZOffset(curve_part Part);
+
+internal rendering_entity_handle BeginRenderingEntity(entity *Entity, render_group *RenderGroup);
+internal void EndRenderingEntity(rendering_entity_handle Handle);
 
 #endif //EDITOR_H

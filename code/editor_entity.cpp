@@ -793,12 +793,12 @@ InitImageEntity(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath)
 }
 
 internal void
-InitEntityCurve(entity_with_modify_witness *EntityWitness, curve_params Params)
+InitEntityCurve(entity *Entity, curve_params Params)
 {
- entity *Entity = EntityWitness->Entity;
- Entity->Type = Entity_Curve;
- Entity->Curve.Params = Params;
- SetCurveControlPoints(EntityWitness, 0, 0, 0, 0);
+ Assert(Entity->Type == Entity_Curve);
+ 
+ curve *Curve = &Entity->Curve;
+ Curve->Params = Params;
 }
 
 internal void
@@ -853,7 +853,7 @@ InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src)
    curve *SrcCurve = SafeGetCurve(Src);
    curve *DstCurve = SafeGetCurve(Dst);
    
-   InitEntityCurve(DstWitness, SrcCurve->Params);
+   InitEntityCurve(Dst, SrcCurve->Params);
    SetCurveControlPoints(DstWitness, SrcCurve->ControlPointCount, SrcCurve->ControlPoints, SrcCurve->ControlPointWeights, SrcCurve->CubicBezierPoints);
    SelectControlPoint(DstCurve, SrcCurve->SelectedIndex);
   } break;

@@ -417,8 +417,10 @@ struct entity_array
 };
 
 internal void InitImageEntity(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath);
+internal void InitEntityCurve(entity *Entity, curve_params Params);
+
 internal void InitEntity(entity *Entity, v2 P, v2 Scale, v2 Rotation, string Name, i32 SortingLayer);
-internal void InitEntityCurve(entity_with_modify_witness *Entity, curve_params Params);
+
 internal void InitEntityFromEntity(entity_with_modify_witness *Dst, entity *Src);
 
 internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);

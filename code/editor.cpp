@@ -1150,7 +1150,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
   InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("de-casteljau"), 0);
   curve_params Params = Editor->CurveDefaultParams;
   Params.Type = Curve_Bezier;
-  InitEntityCurve(&EntityWitness, Params);
+  InitEntityCurve(Entity, Params);
   
   AppendControlPoint(&EntityWitness, V2(-0.5f, -0.5f));
   AppendControlPoint(&EntityWitness, V2(+0.5f, -0.5f));
@@ -1170,7 +1170,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
   InitEntity(Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("b-spline"), 0);
   curve_params Params = Editor->CurveDefaultParams;
   Params.Type = Curve_B_Spline;
-  InitEntityCurve(&Witness, Params);
+  InitEntityCurve(Entity, Params);
   
   u32 PointCount = 30;
   curve_points_modify_handle Handle = BeginModifyCurvePoints(&Witness, PointCount, ModifyCurvePointsWhichPoints_JustControlPoints);
@@ -3087,7 +3087,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
       
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
       InitEntity(Entity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
-      InitEntityCurve(&EntityWitness, Editor->CurveDefaultParams);
+      InitEntityCurve(Entity, Editor->CurveDefaultParams);
       
       TargetEntity = Entity;
       
@@ -3453,7 +3453,7 @@ Merge2Curves(entity_with_modify_witness *MergeWitness, entity *Entity0, entity *
  string Name = StrF(Temp.Arena, "%S+%S", Entity0->Name, Entity1->Name);
  
  InitEntity(MergeEntity, Entity0->P, Entity0->Scale, Entity0->Rotation, Name, Entity0->SortingLayer);
- InitEntityCurve(MergeWitness, Curve0->Params);
+ InitEntityCurve(MergeEntity, Curve0->Params);
  
  MaybeReverseCurvePoints(Entity0);
  MaybeReverseCurvePoints(Entity1);

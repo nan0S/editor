@@ -17,6 +17,8 @@
 #include "editor_ui.h"
 #include "editor_stb.h"
 #include "editor_camera.h"
+#include "editor_collision.h"
+#include "editor_core.h"
 #include "editor_editor.h"
 
 /* TODO(hbr):
@@ -80,40 +82,7 @@ Testing:
 
 */
 
-typedef u32 collision_flags;
-enum
-{
- Collision_CurvePoint   = (1<<0),
- Collision_CurveLine    = (1<<1),
- Collision_TrackedPoint = (1<<2),
- Collision_B_SplineKnot = (1<<3),
-};
-struct collision
-{
- entity *Entity;
- collision_flags Flags;
- curve_point_index CurvePointIndex;
- u32 CurveLinePointIndex;
- u32 KnotIndex;
-};
-
-enum notification_type
-{
- Notification_None,
- Notification_Success,
- Notification_Error,
- Notification_Warning,
-};
-struct notification
-{
- notification_type Type;
- char ContentBuffer[256];
- string Content;
- f32 LifeTime;
- f32 ScreenPosY;
-};
-
-// defines visibility/draw order for different curve parts
+// NOTE(hbr): defines visibility/draw order for different curve parts
 enum curve_part
 {
  // this is at the bottom
@@ -145,164 +114,6 @@ GetCurvePartZOffset(curve_part Part)
  f32 Result = Cast(f32)(CurvePart_Count-1 - Part) / CurvePart_Count;
  return Result;
 }
-
-struct frame_stats
-{
- struct {
-  u64 FrameCount;
-  f32 MinFrameTime;
-  f32 MaxFrameTime;
-  f32 SumFrameTime;
- } Calculation;
- 
- f32 FPS;
- f32 MinFrameTime;
- f32 MaxFrameTime;
- f32 AvgFrameTime;
-};
-
-enum editor_left_click_mode
-{
- EditorLeftClick_MovingTrackingPoint,
- EditorLeftClick_MovingBSplineKnot,
- EditorLeftClick_MovingCurvePoint,
- EditorLeftClick_MovingEntity,
-};
-struct editor_left_click_state
-{
- b32 Active;
- 
- entity_handle TargetEntity;
- editor_left_click_mode Mode;
- curve_point_index CurvePointIndex;
- v2 LastMouseP;
- u32 B_SplineKnotIndex;
- 
- arena *OriginalVerticesArena;
- b32 OriginalVerticesCaptured;
- vertex_array OriginalCurveVertices;
-};
-
-struct editor_right_click_state
-{
- b32 Active;
- v2 ClickP;
- collision CollisionAtP;
-};
-
-struct editor_middle_click_state
-{
- b32 Active;
- b32 Rotate;
- v2 ClipSpaceLastMouseP;
-};
-
-struct choose_2_curves_state
-{
- b32 WaitingForChoice;
- entity_handle Curves[2];
- u32 ChoosingCurveIndex;
-};
-
-struct bouncing_parameter
-{
- f32 T;
- f32 Sign;
- f32 Speed;
-};
-enum
-{
- AnimatingCurves_Active = (1<<0),
- AnimatingCurves_Animating = (1<<1),
-};
-typedef u32 animating_curves_flags;
-struct animating_curves_state
-{
- animating_curves_flags Flags;
- choose_2_curves_state Choose2Curves;
- bouncing_parameter Bouncing;
- arena *Arena;
-};
-
-struct merging_curves_state
-{
- b32 Active;
- choose_2_curves_state Choose2Curves;
- curve_merge_method Method;
- entity *MergeEntity;
- entity_snapshot_for_merging EntityVersioned[2];
-};
-
-enum visual_profiler_mode
-{
- VisualProfilerMode_AllFrames,
- VisualProfilerMode_SingleFrame,
-};
-struct visual_profiler_state
-{
- b32 Stopped;
- 
- profiler *Profiler;
- 
- visual_profiler_mode Mode;
- 
- f32 DefaultReferenceMs;
- f32 ReferenceMs;
- 
- u32 FrameIndex;
- profiler_frame FrameSnapshot;
-};
-
-struct editor
-{
- camera Camera;
- frame_stats FrameStats;
- 
- renderer_transfer_queue *RendererQueue;
- 
- entity_handle SelectedEntityHandle;
- entity_store EntityStore;
- u64 EverIncreasingEntityCounter;
- 
-#define MAX_NOTIFICATION_COUNT 16
- u32 NotificationCount;
- notification Notifications[MAX_NOTIFICATION_COUNT];
- 
- b32 HideUI;
- b32 EntityListWindow;
- b32 DiagnosticsWindow;
- b32 SelectedEntityWindow;
- b32 HelpWindow;
- b32 ProfilerWindow;
- b32 DevConsole;
- 
- editor_left_click_state LeftClick;
- editor_right_click_state RightClick;
- editor_middle_click_state MiddleClick;
- 
- thread_task_memory_store ThreadTaskMemoryStore;
- image_loading_store ImageLoadingStore;
- 
- parametric_equation_expr NilParametricExpr;
- 
- struct work_queue *LowPriorityQueue;
- struct work_queue *HighPriorityQueue;
- 
- animating_curves_state AnimatingCurves;
- merging_curves_state MergingCurves;
- visual_profiler_state Profiler;
- 
- //////////////////////////////
- 
- // TODO(hbr): remove this
- render_group *RenderGroup;
- 
- v4 DefaultBackgroundColor;
- v4 BackgroundColor;
- f32 CollisionToleranceClip;
- f32 RotationRadiusClip;
- curve_params CurveDefaultParams;
-};
 
 struct load_image_work
 {

@@ -1,3 +1,58 @@
+inline internal entity_snapshot_for_merging
+MakeEntitySnapshotForMerging(entity *Entity)
+{
+ entity_snapshot_for_merging Result = {};
+ Result.Entity = Entity;
+ if (Entity)
+ {
+  Result.P = Entity->P;
+  Result.Scale = Entity->Scale;
+  Result.Rotation = Entity->Rotation;
+  Result.Flags = Entity->Flags;
+  Result.Version = Entity->Version;
+ }
+ return Result;
+}
+
+inline internal b32
+EntityModified(entity_snapshot_for_merging Versioned, entity *Entity)
+{
+ b32 Result = false;
+ if (Versioned.Entity != Entity ||
+     (Entity && (!StructsEqual(Entity->P, Versioned.P) ||
+                 !StructsEqual(Entity->Scale, Versioned.Scale) ||
+                 !StructsEqual(Entity->Rotation, Versioned.Rotation) ||
+                 !StructsEqual(Entity->Flags, Versioned.Flags) ||
+                 !StructsEqual(Entity->Version, Versioned.Version))))
+ {
+  Result = true;
+ }
+ return Result;
+}
+
+inline internal entity_handle
+MakeEntityHandle(entity *Entity)
+{
+ entity_handle Handle = {};
+ if (Entity)
+ {
+  Handle.Entity = Entity;
+  Handle.Generation = Entity->Generation;
+ }
+ return Handle;
+}
+
+inline internal entity *
+EntityFromHandle(entity_handle Handle)
+{
+ entity *Result = 0;
+ if (Handle.Entity && (Handle.Generation == Handle.Entity->Generation))
+ {
+  Result = Handle.Entity;
+ }
+ return Result;
+}
+
 inline internal curve *
 SafeGetCurve(entity *Entity)
 {
@@ -647,32 +702,6 @@ IsControlPointSelected(curve *Curve)
   Result = (Curve->SelectedIndex.Index < Curve->ControlPointCount);
  }
  return Result;
-}
-
-internal sort_entry_array
-SortEntities(arena *Arena, entity_array Entities)
-{
- sort_entry_array SortArray = AllocSortEntryArray(Arena, Entities.Count, SortOrder_Descending);
- for (u32 EntityIndex = 0;
-      EntityIndex < Entities.Count;
-      ++EntityIndex)
- {
-  entity *Entity = Entities.Entities[EntityIndex];
-  // NOTE(hbr): Equal sorting layer images should be below curves
-  f32 Offset = 0.0f;
-  switch (Entity->Type)
-  {
-   case Entity_Image: {Offset = 0.5f;} break;
-   case Entity_Curve: {Offset = 0.0f;} break;
-   case Entity_Count: InvalidPath; break;
-  }
-  
-  AddSortEntry(&SortArray, Entity->SortingLayer + Offset, EntityIndex);
- }
- 
- Sort(SortArray.Entries, SortArray.Count, SortFlag_Stable);
- 
- return SortArray;
 }
 
 internal control_point_index
@@ -1428,7 +1457,7 @@ RecomputeCurve(curve *Curve)
 internal void
 MarkEntityModified(entity_with_modify_witness *Witness)
 {
- Witness->EntityModified = true;
+ Witness->Modified = true;
 }
 
 internal entity_with_modify_witness
@@ -1443,7 +1472,7 @@ internal void
 EndEntityModify(entity_with_modify_witness Witness)
 {
  entity *Entity = Witness.Entity;
- if (Entity && Witness.EntityModified)
+ if (Entity && Witness.Modified)
  {
   switch (Entity->Type)
   {

@@ -30,6 +30,32 @@ CheckCollisionWithMultiLine(v2 LocalAtP, v2 *CurveSamples, u32 PointCount, f32 W
  return Result;
 }
 
+internal sort_entry_array
+SortEntities(arena *Arena, entity_array Entities)
+{
+ sort_entry_array SortArray = AllocSortEntryArray(Arena, Entities.Count, SortOrder_Descending);
+ for (u32 EntityIndex = 0;
+      EntityIndex < Entities.Count;
+      ++EntityIndex)
+ {
+  entity *Entity = Entities.Entities[EntityIndex];
+  // NOTE(hbr): Equal sorting layer images should be below curves
+  f32 Offset = 0.0f;
+  switch (Entity->Type)
+  {
+   case Entity_Image: {Offset = 0.5f;} break;
+   case Entity_Curve: {Offset = 0.0f;} break;
+   case Entity_Count: InvalidPath; break;
+  }
+  
+  AddSortEntry(&SortArray, Entity->SortingLayer + Offset, EntityIndex);
+ }
+ 
+ Sort(SortArray.Entries, SortArray.Count, SortFlag_Stable);
+ 
+ return SortArray;
+}
+
 internal collision
 CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
 {

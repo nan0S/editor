@@ -35,9 +35,18 @@ struct string_list_join_options
 
 struct arena;
 
+struct char_buffer
+{
+ char *Data;
+ u64 Count;
+ u64 Capacity;
+};
+
+//- formatting
 internal u64 Fmt(char *Buf, u64 BufSize, char const *Format, ...);
 internal u64 FmtV(char *Buf, u64 BufSize, char const *Format, va_list Args);
 
+//- char operations
 internal b32         CharIsLower(char C);
 internal b32         CharIsUpper(char C);
 internal char        CharToLower(char C);
@@ -46,6 +55,7 @@ internal b32         CharIsDigit(char C);
 internal b32         CharIsWhiteSpace(char C);
 internal b32         CharIsAlpha(char C);
 
+//- string creation
 internal string      MakeStr(char *Data, u64 Count);
 #define              StrLit(Lit) MakeStr(Cast(char *)Lit, ArrayCount(Lit) - 1)
 #define              StrLitComp(Lit) {Lit, ArrayCount(Lit)-1}
@@ -55,8 +65,10 @@ internal string      StrF(arena *Arena, char const *Format, ...);
 internal string      StrFV(arena *Arena, char const *Format, va_list Args);
 internal string      StrFromCStr(char const *Str);
 internal string      CStrFromStr(arena *Arena, string Str);
+internal string      StrFromCharBuffer(char_buffer Buffer);
 internal u64         CStrLen(char const *Str);
 
+//- string operations
 internal b32         StrMatch(string A, string B, b32 CaseInsensitive);
 internal b32         StrEqual(string A, string B);
 internal int         StrCmp(string A, string B);
@@ -74,11 +86,13 @@ internal b32         StrContains(string S, string Sub);
 internal string      StrSubstr(string S, u64 Pos, u64 Count);
 internal b32         StrIsEmpty(string S);
 
+//- path manipulation
 internal string      PathChopLastPart(string Path);
 internal string      PathLastPart(string Path);
 internal string      PathConcat(arena *Arena, string A, string B);
 internal string      PathListJoin(arena *Arena, string_list *Path);
 
+//- string list
 internal void        StrListPush(arena *Arena, string_list *List, string Str);
 internal void        StrListPushF(arena *Arena, string_list *List, char const *Format, ...);
 internal void        StrListPushFV(arena *Arena, string_list *List, char const *Format, va_list Args);

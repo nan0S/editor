@@ -4,6 +4,7 @@
 #include "base/base_string.cpp"
 #include "base/base_os.cpp"
 #include "base/base_arena.cpp"
+#include "base/base_memory.cpp"
 
 #include "editor_profiler.cpp"
 #include "editor_math.cpp"
@@ -301,6 +302,7 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
 {
  work_queue *WorkQueue = Editor->LowPriorityQueue;
  entity_store *EntityStore = &Editor->EntityStore;
+ string_cache *StrCache = &Editor->StrCache;
  thread_task_memory_store *ThreadTaskMemoryStore = &Editor->ThreadTaskMemoryStore;
  image_loading_store *ImageLoadingStore = &Editor->ImageLoadingStore;
  
@@ -310,7 +312,7 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
   
   image_info ImageInfo = LoadImageInfo(FilePath);
   entity *Entity = AllocEntity(EntityStore, Entity_Image, false);
-  InitImageEntity(Entity, AtP, ImageInfo.Width, ImageInfo.Height, FilePath);
+  InitImageEntity(StrCache, Entity, AtP, ImageInfo.Width, ImageInfo.Height, FilePath);
   
   // TODO(hbr): Make it always suceeed??????
   renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, Entity->Image.TextureHandle);
@@ -703,6 +705,7 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
 internal void
 RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
 {
+ entity_store *EntityStore = &Editor->EntityStore;
  entity *Entity = EntityFromHandle(Editor->SelectedEntityHandle);
  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
  b32 DeleteEntity = false;
@@ -722,16 +725,15 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
   curve_params *CurveParams = &Curve->Params;
   curve_params *DefaultParams = &Editor->CurveDefaultParams;
   
-  UI_PushLabel(StrLit("SelectedEntity"));
   if (UI_BeginWindow(&Editor->SelectedEntityWindow, UIWindowFlag_AutoResize, StrLit("Selected")))
   {
+   UI_PushLabelF("SelectedEntity %u", Entity->Id);
+   
    if (UI_BeginTabBar(StrLit("SelectedEntityTabBar")))
    {
     if (UI_BeginTabItem(StrLit("General")))
     {
-     Entity->Name = UI_InputText(Entity->NameBuffer,
-                                 ArrayCount(Entity->NameBuffer),
-                                 0, StrLit("Name")).Input;
+     UI_InputText2(&Entity->NameBuffer, 0, StrLit("Name"));
      
      UI_DragFloat2(Entity->P.E, 0.0f, 0.0f, 0, StrLit("Position"));
      if (ResetCtxMenu(StrLit("PositionReset")))
@@ -1377,9 +1379,10 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
     
     UI_EndTabBar();
    }
+   
+   UI_PopLabel();
   }
   UI_EndWindow();
-  UI_PopLabel();
  }
  
  if (CrucialEntityParamChanged)
@@ -1500,7 +1503,7 @@ RenderEntityListWindowContents(editor *Editor, render_group *RenderGroup)
     UI_PushId(EntityIndex);
     b32 Selected = IsEntitySelected(Entity);
     
-    if (UI_SelectableItem(Selected, Entity->Name))
+    if (UI_SelectableItem(Selected, GetEntityName(Entity)))
     {
      SelectEntity(Editor, Entity);
     }
@@ -1830,7 +1833,7 @@ UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing, editor *Editor)
  {
   if (Curve0)
   {
-   Button0 = Curve0->Name;
+   Button0 = GetEntityName(Curve0);
   }
   else
   {
@@ -1880,7 +1883,7 @@ UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing, editor *Editor)
  {
   if (Curve1)
   {
-   Button1 = Curve1->Name;
+   Button1 = GetEntityName(Curve1);
   }
   else
   {
@@ -2167,15 +2170,14 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
      {
       temp_arena Temp = TempArena(0);
       
-      entity *Entity = AllocEntity(&Editor->EntityStore, Entity_Curve, false);
+      entity_store *EntityStore = &Editor->EntityStore;
+      string_cache *StrCache = &Editor->StrCache;
+      entity *Entity = AllocEntity(EntityStore, Entity_Curve, false);
       entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
-      
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
-      InitEntity(Entity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
+      InitEntity(StrCache, Entity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
       InitEntityCurve(Entity, Editor->CurveDefaultParams);
-      
       TargetEntity = Entity;
-      
       EndEntityModify(EntityWitness);
       
       EndTemp(Temp);
@@ -2515,6 +2517,9 @@ internal void
 RenderMergingCurvesUI(editor *Editor)
 {
  merging_curves_state *Merging = &Editor->MergingCurves;
+ entity_store *EntityStore = &Editor->EntityStore;
+ string_cache *StrCache = &Editor->StrCache;
+ 
  if (Merging->Active)
  {
   b32 WindowOpen = true;
@@ -2550,7 +2555,7 @@ RenderMergingCurvesUI(editor *Editor)
     entity_with_modify_witness MergeWitness = BeginEntityModify(Merging->MergeEntity);
     if (Compatibility.Compatible)
     {
-     Merge2Curves(&MergeWitness, Entity0, Entity1, Merging->Method);
+     Merge2Curves(StrCache, &MergeWitness, Entity0, Entity1, Merging->Method);
     }
     else
     {
@@ -3127,11 +3132,6 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
   Editor = Memory->Editor = PushStruct(Memory->PermamentArena, editor);
   InitEditor(Editor, Memory);
  }
- 
- string Name1 = AllocEntityName(&Editor->EntityStore, StrLit("1234"));
- DeallocEntityName(&Editor->EntityStore, Name1);
- string Name2 = AllocEntityName(&Editor->EntityStore, StrLit("12345678"));
- DeallocEntityName(&Editor->EntityStore, Name2);
  
  render_group RenderGroup_ = {};
  render_group *RenderGroup = &RenderGroup_;

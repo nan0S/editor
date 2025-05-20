@@ -283,6 +283,20 @@ PopTightInputText(u32 InputWidthInChars)
  }
 }
 
+internal changed_b32
+UI_InputText2(char_buffer *Buffer, u32 InputWidthInChars, string Label)
+{
+ ui_input_result Result = {};
+ temp_arena Temp = TempArena(0);
+ string CLabel = CStrFromStr(Temp.Arena, Label);
+ PushTightInputText(InputWidthInChars);
+ b32 Changed = Cast(b32)Platform.ImGui.InputText(CLabel.Data, Buffer->Data, Buffer->Capacity);
+ Buffer->Count = CStrLen(Buffer->Data);
+ PopTightInputText(InputWidthInChars);
+ EndTemp(Temp);
+ return Changed;
+}
+
 internal ui_input_result
 UI_InputText(char *Buf, u64 BufSize, u32 InputWidthInChars, string Label)
 {
@@ -294,7 +308,6 @@ UI_InputText(char *Buf, u64 BufSize, u32 InputWidthInChars, string Label)
  PopTightInputText(InputWidthInChars);
  Result.Input = StrFromCStr(Buf);
  EndTemp(Temp);
- 
  return Result;
 }
 

@@ -151,6 +151,7 @@ internal void              UI_AngleSlider(v2 *Rotation, string Label);
 internal void              UI_AngleSliderF(v2 *Rotation, char const *Format, ...);
 internal changed_b32       UI_ColorPicker(v4 *Color, string Label);
 internal changed_b32       UI_ColorPickerF(v4 *Color, char const *Format, ...);
+internal ui_input_result   UI_InputText2(arena *Arena, string Input, u32 InputWidthInChars, string Label);
 internal ui_input_result   UI_InputText(char *Buf, u64 BufSize, u32 InputWidthInChars, string Label);
 internal ui_input_result   UI_InputTextF(char *Buf, u64 BufSize, u32 InputWidthInChars, char const *Format, ...);
 internal ui_input_result   UI_MultiLineInputText(char *Buf, u64 BufSize, u32 InputWidthInChars, string Label);

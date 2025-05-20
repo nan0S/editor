@@ -128,6 +128,8 @@ struct editor
  
  renderer_transfer_queue *RendererQueue;
  
+ string_cache StrCache;
+ 
  entity_handle SelectedEntityHandle;
  entity_store EntityStore;
  u64 EverIncreasingEntityCounter;
@@ -183,7 +185,7 @@ internal void LowerBezierCurveDegree(entity *Entity);
 internal void BeginMergingCurves(merging_curves_state *Merging);
 internal void EndMergingCurves(editor *Editor, b32 Merged);
 internal b32 MergingWantsInput(merging_curves_state *Merging);
-internal void Merge2Curves(entity_with_modify_witness *MergeWitness, entity *Entity0, entity *Entity1, curve_merge_method Method);
+internal void Merge2Curves(string_cache *StrCache, entity_with_modify_witness *MergeWitness, entity *Entity0, entity *Entity1, curve_merge_method Method);
 
 //- animating curves
 internal bouncing_parameter MakeBouncingParam(void);

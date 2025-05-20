@@ -1,24 +1,6 @@
 #ifndef EDITOR_CORE_H
 #define EDITOR_CORE_H
 
-read_only global u64 StringBucketChunkSizes[]
-{
- 16,
- 64,
- 256,
- 1024,
- 4096,
- 16384,
- 65536,
- U64_MAX,
-};
-
-struct string_chunk_node
-{
- string_chunk_node *Next;
- u64 Size;
-};
-
 struct entity_store
 {
  arena *Arena;
@@ -30,13 +12,11 @@ struct entity_store
  entity_array ByTypeArrays[Entity_Count + 1];
  u32 ByTypeGenerations[Entity_Count + 1];
  u32 AllocGeneration;
- 
+ u32 IdCounter;
  u32 TextureCount;
  b32 *IsTextureHandleAllocated;
  u32 BufferCount;
  b32 *IsBufferHandleAllocated;
- 
- string_chunk_node *FreeStringChunks[ArrayCount(StringBucketChunkSizes)];
 };
 
 struct thread_task_memory
@@ -79,17 +59,20 @@ struct image_loading_store
  image_loading_task *Free;
 };
 
+//- entity store
 internal void InitEntityStore(entity_store *Store, u32 MaxTextureCount, u32 MaxBufferCount);
 internal entity *AllocEntity(entity_store *Store, entity_type Type, b32 DontTrack);
 internal void DeallocEntity(entity *Entity, struct editor_assets *Assets);
 internal entity_array AllEntityArrayFromStore(entity_store *Store);
 internal entity_array EntityArrayFromType(entity_store *Store, entity_type Type);
-internal void SetEntityName(entity_store *Store, entity *Entity, string Name);
+internal void SetEntityName(string_cache *StrCache, entity *Entity, string Name);
 
+//- thread task with memory
 internal void InitThreadTaskMemoryStore(thread_task_memory_store *Store);
 internal thread_task_memory *BeginThreadTaskMemory(thread_task_memory_store *Store);
 internal void EndThreadTaskMemory(thread_task_memory_store *Store, thread_task_memory *Task);
 
+//- async store
 internal void InitAsyncTaskStore(image_loading_store *Store);
 internal image_loading_task *BeginAsyncImageLoadingTask(image_loading_store *Store);
 internal void FinishAsyncImageLoadingTask(image_loading_store *Store, image_loading_task *Task);

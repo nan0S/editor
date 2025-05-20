@@ -522,6 +522,13 @@ GetCurveCubicBezierPointRadius(curve *Curve)
  return Result;
 }
 
+internal string
+GetEntityName(entity *Entity)
+{
+ string Name = StrFromCharBuffer(Entity->NameBuffer);
+ return Name;
+}
+
 internal void
 ExtractControlPointIndexAndBezierOffsetFromCurvePointIndex(curve_point_index Index,
                                                            control_point_index *ControlPointIndex,
@@ -800,22 +807,22 @@ SetCurveControlPoints(entity_with_modify_witness *EntityWitness,
 }
 
 internal void
-InitEntityPart(entity *Entity, v2 P, string Name)
+InitEntityPart(string_cache *StrCache, entity *Entity, v2 P, string Name)
 {
  Entity->P = P;
  Entity->Scale = V2(1, 1);
  Entity->Rotation = Rotation2DZero();
- SetEntityName(Entity, Name);
+ SetEntityName(StrCache, Entity, Name);
 }
 
 internal void
-InitImageEntity(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath)
+InitImageEntity(string_cache *StrCache, entity *Entity, v2 P, u32 Width, u32 Height, string FilePath)
 {
  Assert(Entity->Type == Entity_Image);
  
  string FileName = PathLastPart(FilePath);
  string FileNameNoExt = StrChopLastDot(FileName);
- InitEntityPart(Entity, P, FileNameNoExt);
+ InitEntityPart(StrCache, Entity, P, FileNameNoExt);
  
  image *Image = &Entity->Image;
  Image->Dim = V2(Cast(f32)Width / Height, 1.0f);
@@ -831,7 +838,8 @@ InitEntityCurve(entity *Entity, curve_params Params)
 }
 
 internal void
-InitEntity(entity *Entity,
+InitEntity(string_cache *StrCache,
+           entity *Entity,
            v2 P,
            v2 Scale,
            v2 Rotation,
@@ -841,7 +849,7 @@ InitEntity(entity *Entity,
  Entity->P = P;
  Entity->Scale = Scale;
  Entity->Rotation = Rotation;
- SetEntityName(Entity, Name);
+ SetEntityName(StrCache, Entity, Name);
  Entity->SortingLayer = SortingLayer;
 }
 
@@ -862,20 +870,11 @@ SetCurveControlPoint(entity_with_modify_witness *EntityWitness, control_point_in
 }
 
 internal void
-SetEntityName(entity *Entity, string Name)
-{
- u64 ToCopy = Min(Name.Count, ArrayCount(Entity->NameBuffer) - 1);
- MemoryCopy(Entity->NameBuffer, Name.Data, ToCopy);
- Entity->NameBuffer[ToCopy] = 0;
- Entity->Name = MakeStr(Entity->NameBuffer, ToCopy);
-}
-
-internal void
-InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src)
+InitEntityFromEntity(string_cache *StrCache, entity_with_modify_witness *DstWitness, entity *Src)
 {
  entity *Dst = DstWitness->Entity;
  
- InitEntity(Dst, Src->P, Src->Scale, Src->Rotation, Src->Name, Src->SortingLayer);
+ InitEntity(StrCache, Dst, Src->P, Src->Scale, Src->Rotation, GetEntityName(Src), Src->SortingLayer);
  switch (Src->Type)
  {
   case Entity_Curve: {

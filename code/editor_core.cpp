@@ -62,6 +62,7 @@ AllocEntity(entity_store *Store, entity_type Type, b32 DontTrack)
  u32 Generation = Entity->Generation;
  StructZero(Entity);
  
+ Entity->Id = Store->IdCounter++;
  Entity->Generation = Generation;
  Entity->Type = Type;
  Entity->Flags = (DontTrack ? 0 : EntityFlag_Tracked);
@@ -162,97 +163,13 @@ EntityArrayFromType(entity_store *Store, entity_type Type)
  return Store->ByTypeArrays[Type];
 }
 
-internal u64
-FindBigEnoughStringChunkBucket(u64 Size)
-{
- u64 FoundIndex = 0;
- ForEachElement(Index, StringBucketChunkSizes)
- {
-  if (StringBucketChunkSizes[Index] >= Size)
-  {
-   FoundIndex = Index;
-   break;
-  }
- }
- return FoundIndex;
-}
-
-internal string
-AllocEntityName(entity_store *Store, string Name)
-{
- string Result = {};
- 
- u64 BucketIndex = FindBigEnoughStringChunkBucket(Name.Count);
- u64 AllocSize = 0;
- string_chunk_node *AllocNode = 0;
- string_chunk_node *AllocPrevNode = 0;
- 
- if (BucketIndex == ArrayCount(StringBucketChunkSizes) - 1)
- {
-  string_chunk_node *BestNode = Store->FreeStringChunks[BucketIndex];
-  string_chunk_node *BestPrevNode = 0;
-  string_chunk_node *PrevNode = 0;
-  ListIter(Node, Store->FreeStringChunks[BucketIndex], string_chunk_node)
-  {
-   if (Node->Size >= Name.Count && Node->Size < BestNode->Size)
-   {
-    BestNode = Node;
-    BestPrevNode = PrevNode;
-   }
-   PrevNode = Node;
-  }
-  AllocNode = BestNode;
-  AllocPrevNode = BestPrevNode;
-  AllocSize = Name.Count;
- }
- else
- {
-  AllocNode = Store->FreeStringChunks[BucketIndex];
-  AllocSize = StringBucketChunkSizes[BucketIndex];
- }
- 
- char *Data = 0;
- if (AllocNode)
- {
-  Data = Cast(char *)AllocNode;
-  if (AllocPrevNode)
-  {
-   AllocPrevNode->Next = AllocNode->Next;
-  }
-  else
-  {
-   Store->FreeStringChunks[BucketIndex] = AllocNode->Next;
-  }
- }
- else
- {
-  Data = PushArrayNonZero(Store->Arena, AllocSize, char);
- }
- 
- Result.Data = Data;
- Result.Count = Name.Count;
- MemoryCopy(Data, Name.Data, Name.Count);
- 
- return Result;
-}
-
 internal void
-DeallocEntityName(entity_store *Store, string Name)
+SetEntityName(string_cache *StrCache, entity *Entity, string Name)
 {
- if (Name.Count)
- {
-  string_chunk_node *Node = Cast(string_chunk_node *)Name.Data;
-  Node->Size = Name.Count;
-  u64 BucketIndex = FindBigEnoughStringChunkBucket(Name.Count);
-  StackPush(Store->FreeStringChunks[BucketIndex], Node);
- }
-}
-
-internal void
-SetEntityName(entity_store *Store, entity *Entity, string Name)
-{
- DeallocEntityName(Store, Entity->Name);
- Entity->Name = AllocEntityName(Store, Name);
+ DeallocString(StrCache, Entity->NameBuffer);
+ char_buffer Buffer = AllocString(StrCache, 128);
+ MemoryCopy(Buffer.Data, Name.Data, Name.Count);
+ Entity->NameBuffer = Buffer;
 }
 
 internal void

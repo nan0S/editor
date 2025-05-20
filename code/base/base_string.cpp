@@ -618,6 +618,13 @@ StrFromCStr(char const *CStr)
  return Result;
 }
 
+internal string
+StrFromCharBuffer(char_buffer Buffer)
+{
+ string Result = MakeStr(Buffer.Data, Buffer.Count);
+ return Result;
+}
+
 internal u64
 CStrLen(char const *CStr)
 {

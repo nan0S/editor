@@ -293,11 +293,11 @@ struct entity
  entity *Next;
  entity *Prev;
  
+ u32 Id;
  v2 P;
  v2 Scale;
  v2 Rotation;
- string Name;
- char NameBuffer[64];
+ char_buffer NameBuffer;
  i32 SortingLayer;
  entity_flags Flags;
  
@@ -406,6 +406,8 @@ struct curve_merge_compatibility
  string WhyIncompatible;
 };
 
+struct entity_store;
+
 //- entity handle
 internal entity_handle MakeEntityHandle(entity *Entity);
 internal entity *EntityFromHandle(entity_handle Handle);
@@ -419,16 +421,15 @@ internal curve_points_modify_handle BeginModifyCurvePoints(entity_with_modify_wi
 internal void EndModifyCurvePoints(curve_points_modify_handle Handle);
 
 //- entity initialization
-internal void InitImageEntity(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath);
+internal void InitImageEntity(string_cache *StrCache, entity *Entity, v2 P, u32 Width, u32 Height, string FilePath);
 internal void InitEntityCurve(entity *Entity, curve_params Params);
-internal void InitEntity(entity *Entity, v2 P, v2 Scale, v2 Rotation, string Name, i32 SortingLayer);
-internal void InitEntityFromEntity(entity_with_modify_witness *Dst, entity *Src);
+internal void InitEntity(string_cache *StrCache, entity *Entity, v2 P, v2 Scale, v2 Rotation, string Name, i32 SortingLayer);
+internal void InitEntityFromEntity(string_cache *StrCache, entity_with_modify_witness *Dst, entity *Src);
 
 internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
 internal v2 LocalEntityPositionToWorld(entity *Entity, v2 P);
 
 //- entity modify
-internal void SetEntityName(entity *Entity, string Name);
 internal void SetCurvePoint(entity_with_modify_witness *Entity, curve_point_index Index, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
 internal void SetCurveControlPoint(entity_with_modify_witness *Entity, control_point_index Index, v2 P, f32 Weight); // this can be only control point thus we accept weight as well
 internal void RemoveControlPoint(entity_with_modify_witness *Entity, u32 Index);
@@ -462,6 +463,7 @@ internal b32 IsCurveReversed(entity *Curve);
 internal b32 IsRegularBezierCurve(curve *Curve);
 internal b32 Are_B_SplineKnotsVisible(curve *Curve);
 internal entity_colors ExtractEntityColors(entity *Entity);
+internal string GetEntityName(entity *Entity);
 
 //- entity for merging tracker
 internal entity_snapshot_for_merging MakeEntitySnapshotForMerging(entity *Entity);

@@ -5,6 +5,7 @@
 #include "base/base_string.h"
 #include "base/base_arena.h"
 #include "base/base_os.h"
+#include "base/base_memory.h"
 
 #include "editor_profiler.h"
 #include "editor_imgui.h"

@@ -296,10 +296,8 @@ struct entity
  v2 P;
  v2 Scale;
  v2 Rotation;
- 
- char NameBuffer[64];
  string Name;
- 
+ char NameBuffer[64];
  i32 SortingLayer;
  entity_flags Flags;
  

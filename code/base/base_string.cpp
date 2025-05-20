@@ -870,6 +870,13 @@ StrSubstr(string S, u64 Pos, u64 Count)
  return Result;
 }
 
+internal b32
+StrIsEmpty(string S)
+{
+ b32 Result = (S.Count == 0);
+ return Result;
+}
+
 internal string
 PathChopLastPart(string Str)
 {

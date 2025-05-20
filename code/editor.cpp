@@ -3128,6 +3128,11 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
   InitEditor(Editor, Memory);
  }
  
+ string Name1 = AllocEntityName(&Editor->EntityStore, StrLit("1234"));
+ DeallocEntityName(&Editor->EntityStore, Name1);
+ string Name2 = AllocEntityName(&Editor->EntityStore, StrLit("12345678"));
+ DeallocEntityName(&Editor->EntityStore, Name2);
+ 
  render_group RenderGroup_ = {};
  render_group *RenderGroup = &RenderGroup_;
  {

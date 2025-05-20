@@ -1,6 +1,24 @@
 #ifndef EDITOR_CORE_H
 #define EDITOR_CORE_H
 
+read_only global u64 StringBucketChunkSizes[]
+{
+ 16,
+ 64,
+ 256,
+ 1024,
+ 4096,
+ 16384,
+ 65536,
+ U64_MAX,
+};
+
+struct string_chunk_node
+{
+ string_chunk_node *Next;
+ u64 Size;
+};
+
 struct entity_store
 {
  arena *Arena;
@@ -17,6 +35,8 @@ struct entity_store
  b32 *IsTextureHandleAllocated;
  u32 BufferCount;
  b32 *IsBufferHandleAllocated;
+ 
+ string_chunk_node *FreeStringChunks[ArrayCount(StringBucketChunkSizes)];
 };
 
 struct thread_task_memory
@@ -64,6 +84,7 @@ internal entity *AllocEntity(entity_store *Store, entity_type Type, b32 DontTrac
 internal void DeallocEntity(entity *Entity, struct editor_assets *Assets);
 internal entity_array AllEntityArrayFromStore(entity_store *Store);
 internal entity_array EntityArrayFromType(entity_store *Store, entity_type Type);
+internal void SetEntityName(entity_store *Store, entity *Entity, string Name);
 
 internal void InitThreadTaskMemoryStore(thread_task_memory_store *Store);
 internal thread_task_memory *BeginThreadTaskMemory(thread_task_memory_store *Store);

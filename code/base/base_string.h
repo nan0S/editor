@@ -72,6 +72,7 @@ internal string      StrAfterLastDot(string Str);
 internal string_list StrSplit(arena *Arena, string Split, string On);
 internal b32         StrContains(string S, string Sub);
 internal string      StrSubstr(string S, u64 Pos, u64 Count);
+internal b32         StrIsEmpty(string S);
 
 internal string      PathChopLastPart(string Path);
 internal string      PathLastPart(string Path);

@@ -92,22 +92,21 @@ InitEditor(editor *Editor, editor_memory *Memory)
   entity_store *EntityStore = &Editor->EntityStore;
   string_cache *StrCache = &Editor->StrCache;
   entity *Entity = AllocEntity(EntityStore, Entity_Curve, false);
-  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
+  entity_with_modify_witness Witness = BeginEntityModify(Entity);
   
-  InitEntity(StrCache, Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("de-casteljau"), 0);
   curve_params Params = Editor->CurveDefaultParams;
   Params.Type = Curve_Bezier;
-  InitEntityCurve(Entity, Params);
+  InitEntityCurve2(StrCache, Entity, StrLit("de-casteljau"), Params);
   
-  AppendControlPoint(&EntityWitness, V2(-0.5f, -0.5f));
-  AppendControlPoint(&EntityWitness, V2(+0.5f, -0.5f));
-  AppendControlPoint(&EntityWitness, V2(+0.5f, +0.5f));
-  AppendControlPoint(&EntityWitness, V2(-0.5f, +0.5f));
+  AppendControlPoint(&Witness, V2(-0.5f, -0.5f));
+  AppendControlPoint(&Witness, V2(+0.5f, -0.5f));
+  AppendControlPoint(&Witness, V2(+0.5f, +0.5f));
+  AppendControlPoint(&Witness, V2(-0.5f, +0.5f));
   
   Entity->Curve.PointTracking.Active = true;
-  SetTrackingPointFraction(&EntityWitness, 0.5f);
+  SetTrackingPointFraction(&Witness, 0.5f);
   
-  EndEntityModify(EntityWitness);
+  EndEntityModify(Witness);
  }
  
  {
@@ -116,10 +115,9 @@ InitEditor(editor *Editor, editor_memory *Memory)
   entity *Entity = AllocEntity(EntityStore, Entity_Curve, false);
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
   
-  InitEntity(StrCache, Entity, V2(0, 0), V2(1, 1), Rotation2DZero(), StrLit("b-spline"), 0);
   curve_params Params = Editor->CurveDefaultParams;
   Params.Type = Curve_B_Spline;
-  InitEntityCurve(Entity, Params);
+  InitEntityCurve2(StrCache, Entity, StrLit("b-spline"), Params);
   
   u32 PointCount = 30;
   curve_points_modify_handle Handle = BeginModifyCurvePoints(&Witness, PointCount, ModifyCurvePointsWhichPoints_JustControlPoints);

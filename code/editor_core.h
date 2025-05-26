@@ -65,7 +65,6 @@ internal entity *AllocEntity(entity_store *Store, entity_type Type, b32 DontTrac
 internal void DeallocEntity(entity *Entity, struct editor_assets *Assets);
 internal entity_array AllEntityArrayFromStore(entity_store *Store);
 internal entity_array EntityArrayFromType(entity_store *Store, entity_type Type);
-internal void SetEntityName(string_cache *StrCache, entity *Entity, string Name);
 
 //- thread task with memory
 internal void InitThreadTaskMemoryStore(thread_task_memory_store *Store);
@@ -76,5 +75,8 @@ internal void EndThreadTaskMemory(thread_task_memory_store *Store, thread_task_m
 internal void InitAsyncTaskStore(image_loading_store *Store);
 internal image_loading_task *BeginAsyncImageLoadingTask(image_loading_store *Store);
 internal void FinishAsyncImageLoadingTask(image_loading_store *Store, image_loading_task *Task);
+
+//- misc
+internal void SetEntityName(string_cache *StrCache, entity *Entity, string Name);
 
 #endif //EDITOR_CORE_H

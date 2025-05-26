@@ -2173,12 +2173,9 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
       entity_store *EntityStore = &Editor->EntityStore;
       string_cache *StrCache = &Editor->StrCache;
       entity *Entity = AllocEntity(EntityStore, Entity_Curve, false);
-      entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
-      InitEntity(StrCache, Entity, V2(0.0f, 0.0f), V2(1.0f, 1.0f), Rotation2DZero(), Name, 0);
-      InitEntityCurve(Entity, Editor->CurveDefaultParams);
+      InitEntityCurve2(StrCache, Entity, Name, Editor->CurveDefaultParams);
       TargetEntity = Entity;
-      EndEntityModify(EntityWitness);
       
       EndTemp(Temp);
      }

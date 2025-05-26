@@ -412,7 +412,7 @@ struct entity_store;
 internal entity_handle MakeEntityHandle(entity *Entity);
 internal entity *EntityFromHandle(entity_handle Handle);
 
-//- entity modify handle
+//- entity modify handles
 internal entity_with_modify_witness BeginEntityModify(entity *Entity);
 internal void EndEntityModify(entity_with_modify_witness Witness);
 internal void MarkEntityModified(entity_with_modify_witness *Witness);

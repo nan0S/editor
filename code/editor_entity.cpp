@@ -819,13 +819,20 @@ internal void
 InitImageEntity(string_cache *StrCache, entity *Entity, v2 P, u32 Width, u32 Height, string FilePath)
 {
  Assert(Entity->Type == Entity_Image);
- 
  string FileName = PathLastPart(FilePath);
  string FileNameNoExt = StrChopLastDot(FileName);
  InitEntityPart(StrCache, Entity, P, FileNameNoExt);
- 
  image *Image = &Entity->Image;
  Image->Dim = V2(Cast(f32)Width / Height, 1.0f);
+}
+
+internal void
+InitEntityCurve2(string_cache *StrCache, entity *Entity, string Name, curve_params Params)
+{
+ Assert(Entity->Type == Entity_Curve);
+ InitEntityPart(StrCache, Entity, V2(0, 0), Name);
+ curve *Curve = &Entity->Curve;
+ Curve->Params = Params;
 }
 
 internal void

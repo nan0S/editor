@@ -288,12 +288,17 @@ enum
 };
 typedef u32 entity_flags;
 
+enum
+{
+ EntityInternalFlag_Tracked = (1<<0),
+};
+typedef u32 entity_internal_flags;
+
 struct entity
 {
  entity *Next;
  entity *Prev;
  
- u32 Id;
  v2 P;
  v2 Scale;
  v2 Rotation;
@@ -301,9 +306,11 @@ struct entity
  i32 SortingLayer;
  entity_flags Flags;
  
+ u32 Id;
  // NOTE(hbr): I don't think this needs to be bigger than u32
  u32 Generation; // increments every time entity is allocated
  u32 Version; // increments every time entity is "recomputed" (see CurveRecompute)
+ entity_internal_flags InternalFlags;
  
  entity_type Type;
  curve Curve;
@@ -406,8 +413,6 @@ struct curve_merge_compatibility
  string WhyIncompatible;
 };
 
-struct entity_store;
-
 //- entity handle
 internal entity_handle MakeEntityHandle(entity *Entity);
 internal entity *EntityFromHandle(entity_handle Handle);
@@ -421,10 +426,10 @@ internal curve_points_modify_handle BeginModifyCurvePoints(entity_with_modify_wi
 internal void EndModifyCurvePoints(curve_points_modify_handle Handle);
 
 //- entity initialization
-internal void InitImageEntity(string_cache *StrCache, entity *Entity, v2 P, u32 Width, u32 Height, string FilePath);
+internal void InitImageEntity(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath);
 internal void InitEntityCurve(entity *Entity, curve_params Params);
-internal void InitEntity(string_cache *StrCache, entity *Entity, v2 P, v2 Scale, v2 Rotation, string Name, i32 SortingLayer);
-internal void InitEntityFromEntity(string_cache *StrCache, entity_with_modify_witness *Dst, entity *Src);
+internal void InitEntity(entity *Entity, v2 P, v2 Scale, v2 Rotation, string Name, i32 SortingLayer);
+internal void InitEntityFromEntity(entity_with_modify_witness *Dst, entity *Src);
 
 internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
 internal v2 LocalEntityPositionToWorld(entity *Entity, v2 P);

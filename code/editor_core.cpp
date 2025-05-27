@@ -1,3 +1,18 @@
+internal u32
+InternalIndexFromTextureHandle(entity_store *Store, render_texture_handle Handle)
+{
+ u32 Index = TextureIndexFromHandle(Handle) - 1;
+ Assert(Index < Store->TextureCount);
+ return Index;
+}
+
+internal render_texture_handle
+TextureHandleFromInternalIndex(u32 Index)
+{
+ render_texture_handle Handle = TextureHandleFromIndex(Index + 1);
+ return Handle;
+}
+
 internal render_texture_handle
 AllocTextureHandle(entity_store *Store)
 {
@@ -6,10 +21,10 @@ AllocTextureHandle(entity_store *Store)
       Index < Store->TextureCount;
       ++Index)
  {
-  if (!Store->IsTextureHandleAllocated[Index])
+  if (Store->TextureHandleRefCount[Index] == 0)
   {
-   Result = TextureHandleFromIndex(Index + 1);
-   Store->IsTextureHandleAllocated[Index] = true;
+   Result = TextureHandleFromInternalIndex(Index + 1);
+   ++Store->TextureHandleRefCount[Index];
    break;
   }
  }
@@ -21,30 +36,37 @@ DeallocTextureHandle(entity_store *Store, render_texture_handle Handle)
 {
  if (!TextureHandleMatch(Handle, TextureHandleZero()))
  {
-  u32 Index = TextureIndexFromHandle(Handle) - 1;
-  Assert(Index < Store->TextureCount);
-  Assert(Store->IsTextureHandleAllocated[Index]);
-  Store->IsTextureHandleAllocated[Index] = false;
+  u32 Index = InternalIndexFromTextureHandle(Store, Handle);
+  Assert(Store->TextureHandleRefCount[Index] != 0);
+  --Store->TextureHandleRefCount[Index];
  }
+}
+
+internal render_texture_handle
+CopyTextureHandle(entity_store *Store, render_texture_handle Handle)
+{
+ u32 Index = InternalIndexFromTextureHandle(Store, Handle);
+ ++Store->TextureHandleRefCount[Index];
+ return Handle;
 }
 
 internal void
 InitEntityStore(entity_store *Store,
                 u32 MaxTextureCount,
-                u32 MaxBufferCount)
+                u32 MaxBufferCount,
+                string_cache *StrCache)
 {
  arena *Arena = AllocArena(Gigabytes(64));
  Store->Arena = Arena;
- 
  ForEachElement(Index, Store->ByTypeArenas)
  {
   Store->ByTypeArenas[Index] = AllocArena(Megabytes(1));
  }
- 
  Store->TextureCount = MaxTextureCount;
- Store->IsTextureHandleAllocated = PushArray(Arena, MaxTextureCount, b32);
+ Store->TextureHandleRefCount = PushArray(Arena, MaxTextureCount, b32);
  Store->BufferCount = MaxBufferCount;
  Store->IsBufferHandleAllocated = PushArray(Arena, MaxBufferCount, b32);
+ Store->StrCache = StrCache;
 }
 
 internal entity *
@@ -65,7 +87,8 @@ AllocEntity(entity_store *Store, entity_type Type, b32 DontTrack)
  Entity->Id = Store->IdCounter++;
  Entity->Generation = Generation;
  Entity->Type = Type;
- Entity->Flags = (DontTrack ? 0 : EntityFlag_Tracked);
+ Entity->InternalFlags = (DontTrack ? 0 : EntityInternalFlag_Tracked);
+ Entity->NameBuffer = AllocString(Store->StrCache, 128);
  
  switch (Type)
  {
@@ -78,14 +101,13 @@ AllocEntity(entity_store *Store, entity_type Type, b32 DontTrack)
   
   case Entity_Image: {
    image *Image = &Entity->Image;
-   render_texture_handle TextureHandle = AllocTextureHandle(Store);
-   Image->TextureHandle = TextureHandle;
+   Image->TextureHandle = AllocTextureHandle(Store);
   }break;
   
   case Entity_Count: InvalidPath;
  }
  
- if (Entity->Flags & EntityFlag_Tracked)
+ if (Entity->InternalFlags & EntityInternalFlag_Tracked)
  {
   DLLPushBack(Store->Head, Store->Tail, Entity);
   ++Store->Count;
@@ -117,7 +139,7 @@ DeallocEntity(entity_store *Store, entity *Entity)
  
  ++Entity->Generation;
  
- if (Entity->Flags & EntityFlag_Tracked)
+ if (Entity->Flags & EntityInternalFlag_Tracked)
  {
   DLLRemove(Store->Head, Store->Tail, Entity);
   --Store->Count;
@@ -161,15 +183,6 @@ EntityArrayFromType(entity_store *Store, entity_type Type)
   Store->ByTypeGenerations[Type] = Store->AllocGeneration;
  }
  return Store->ByTypeArrays[Type];
-}
-
-internal void
-SetEntityName(string_cache *StrCache, entity *Entity, string Name)
-{
- DeallocString(StrCache, Entity->NameBuffer);
- char_buffer Buffer = AllocString(StrCache, 128);
- MemoryCopy(Buffer.Data, Name.Data, Name.Count);
- Entity->NameBuffer = Buffer;
 }
 
 internal void

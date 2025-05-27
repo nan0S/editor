@@ -78,7 +78,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->RendererQueue = Memory->RendererQueue;
  
  InitStringCache(&Editor->StrCache);
- InitEntityStore(&Editor->EntityStore, Memory->MaxTextureCount, Memory->MaxBufferCount);
+ InitEntityStore(&Editor->EntityStore, Memory->MaxTextureCount, Memory->MaxBufferCount, &Editor->StrCache);
  InitCamera(&Editor->Camera);
  InitFrameStats(&Editor->FrameStats);
  InitLeftClickState(&Editor->LeftClick);
@@ -90,13 +90,12 @@ InitEditor(editor *Editor, editor_memory *Memory)
  
  {
   entity_store *EntityStore = &Editor->EntityStore;
-  string_cache *StrCache = &Editor->StrCache;
   entity *Entity = AllocEntity(EntityStore, Entity_Curve, false);
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
   
   curve_params Params = Editor->CurveDefaultParams;
   Params.Type = Curve_Bezier;
-  InitEntityCurve2(StrCache, Entity, StrLit("de-casteljau"), Params);
+  InitCurveEntity2(Entity, StrLit("de-casteljau"), Params);
   
   AppendControlPoint(&Witness, V2(-0.5f, -0.5f));
   AppendControlPoint(&Witness, V2(+0.5f, -0.5f));
@@ -111,13 +110,12 @@ InitEditor(editor *Editor, editor_memory *Memory)
  
  {
   entity_store *EntityStore = &Editor->EntityStore;
-  string_cache *StrCache = &Editor->StrCache;
   entity *Entity = AllocEntity(EntityStore, Entity_Curve, false);
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
   
   curve_params Params = Editor->CurveDefaultParams;
   Params.Type = Curve_B_Spline;
-  InitEntityCurve2(StrCache, Entity, StrLit("b-spline"), Params);
+  InitCurveEntity2(Entity, StrLit("b-spline"), Params);
   
   u32 PointCount = 30;
   curve_points_modify_handle Handle = BeginModifyCurvePoints(&Witness, PointCount, ModifyCurvePointsWhichPoints_JustControlPoints);
@@ -180,13 +178,12 @@ DuplicateEntity(editor *Editor, entity *Entity)
  temp_arena Temp = TempArena(0);
  
  entity_store *EntityStore = &Editor->EntityStore;
- string_cache *StrCache = &Editor->StrCache;
  entity *Copy = AllocEntity(EntityStore, Entity->Type, false);
  entity_with_modify_witness CopyWitness = BeginEntityModify(Copy);
  string CopyName = StrF(Temp.Arena, "%S(copy)", GetEntityName(Entity));
  
- InitEntityFromEntity(StrCache, &CopyWitness, Entity);
- SetEntityName(StrCache, Copy, CopyName);
+ InitEntityFromEntity(&CopyWitness, Entity);
+ SetEntityName(Copy, CopyName);
  SelectEntity(Editor, Copy);
  
  // TODO(hbr): This is not right, translate depending on camera zoom
@@ -252,7 +249,6 @@ SplitCurveOnControlPoint(editor *Editor, entity_with_modify_witness *EntityWitne
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
  entity_store *EntityStore = &Editor->EntityStore;
- string_cache *StrCache = &Editor->StrCache;
  
  if (IsControlPointSelected(Curve))
  {
@@ -267,15 +263,15 @@ SplitCurveOnControlPoint(editor *Editor, entity_with_modify_witness *EntityWitne
   entity_with_modify_witness *HeadWitness = EntityWitness;
   entity_with_modify_witness TailWitness = BeginEntityModify(TailEntity);
   
-  InitEntityFromEntity(StrCache, &TailWitness, HeadEntity);
+  InitEntityFromEntity(&TailWitness, HeadEntity);
   
   curve *HeadCurve = SafeGetCurve(HeadEntity);
   curve *TailCurve = SafeGetCurve(TailEntity);
   
   string HeadName  = StrF(Temp.Arena, "%S (head)", GetEntityName(Entity));
   string TailName = StrF(Temp.Arena, "%S (tail)", GetEntityName(Entity));
-  SetEntityName(StrCache, HeadEntity, HeadName);
-  SetEntityName(StrCache, TailEntity, TailName);
+  SetEntityName(HeadEntity, HeadName);
+  SetEntityName(TailEntity, TailName);
   
   curve_points_modify_handle HeadPoints = BeginModifyCurvePoints(HeadWitness, HeadPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
   curve_points_modify_handle TailPoints = BeginModifyCurvePoints(&TailWitness, TailPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
@@ -421,7 +417,6 @@ PerformBezierCurveSplit(editor *Editor, entity_with_modify_witness *EntityWitnes
  curve *Curve = SafeGetCurve(Entity);
  point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
  entity_store *EntityStore = &Editor->EntityStore;
- string_cache *StrCache = &Editor->StrCache;
  
  Assert(Tracking->Active);
  Tracking->Active = false;
@@ -440,9 +435,9 @@ PerformBezierCurveSplit(editor *Editor, entity_with_modify_witness *EntityWitnes
  curve *LeftCurve = SafeGetCurve(LeftEntity);
  curve *RightCurve = SafeGetCurve(RightEntity);
  
- SetEntityName(StrCache, LeftEntity, LeftName);
- InitEntityFromEntity(StrCache, &RightWitness, LeftEntity);
- SetEntityName(StrCache, RightEntity, RightName);
+ SetEntityName(LeftEntity, LeftName);
+ InitEntityFromEntity(&RightWitness, LeftEntity);
+ SetEntityName(RightEntity, RightName);
  
  curve_points_modify_handle LeftPoints = BeginModifyCurvePoints(&LeftWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
  curve_points_modify_handle RightPoints = BeginModifyCurvePoints(&RightWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
@@ -474,17 +469,14 @@ internal void
 EndMergingCurves(editor *Editor, b32 Merged)
 {
  merging_curves_state *Merging = &Editor->MergingCurves;
- 
  if (Merged)
  {
   entity_store *EntityStore = &Editor->EntityStore;
-  string_cache *StrCache = &Editor->StrCache;
   entity *Entity = AllocEntity(EntityStore, Entity_Curve, false);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
-  InitEntityFromEntity(StrCache, &EntityWitness, Merging->MergeEntity);
+  InitEntityFromEntity(&EntityWitness, Merging->MergeEntity);
   EndEntityModify(EntityWitness);
  }
- 
  Merging->Active = false;
 }
 
@@ -506,193 +498,6 @@ MaybeReverseCurvePoints(entity *Entity)
   ArrayReverse(Curve->ControlPointWeights, Curve->ControlPointCount, f32);
   ArrayReverse(Curve->CubicBezierPoints,   Curve->ControlPointCount, cubic_bezier_point);
  }
-}
-
-internal void
-Merge2Curves(string_cache *StrCache, entity_with_modify_witness *MergeWitness, entity *Entity0, entity *Entity1, curve_merge_method Method)
-{
- temp_arena Temp = TempArena(0);
- 
- curve *Curve0 = SafeGetCurve(Entity0);
- curve *Curve1 = SafeGetCurve(Entity1);
- 
- entity *MergeEntity = MergeWitness->Entity;
- curve *Merge = &MergeEntity->Curve;
- 
- string Name = StrF(Temp.Arena, "%S+%S", GetEntityName(Entity0), GetEntityName(Entity1));
- 
- InitEntity(StrCache, MergeEntity, Entity0->P, Entity0->Scale, Entity0->Rotation, Name, Entity0->SortingLayer);
- InitEntityCurve(MergeEntity, Curve0->Params);
- 
- MaybeReverseCurvePoints(Entity0);
- MaybeReverseCurvePoints(Entity1);
- 
- u32 PointCount0 = Curve0->ControlPointCount;
- u32 PointCount1 = Curve1->ControlPointCount;
- 
- v2 *Points0 = Curve0->ControlPoints;
- v2 *Points1 = Curve1->ControlPoints;
- 
- f32 *Weights0 = Curve0->ControlPointWeights;
- f32 *Weights1 = Curve1->ControlPointWeights;
- 
- cubic_bezier_point *Beziers0 = Curve0->CubicBezierPoints;
- cubic_bezier_point *Beziers1 = Curve1->CubicBezierPoints;
- 
- u32 DropCount1 = 0;
- v2 Fix1 = {};
- switch (Method)
- {
-  case CurveMerge_Concat: {}break;
-  
-  case CurveMerge_C0:
-  case CurveMerge_C1:
-  case CurveMerge_C2:
-  case CurveMerge_G1: {
-   DropCount1 = 1;
-   
-   if (PointCount0 > 0 && PointCount1 > 0)
-   {
-    v2 P0 = Points0[PointCount0 - 1];
-    
-    v2 P1 = LocalEntityPositionToWorld(Entity1, Points1[0]);
-    P1 = WorldToLocalEntityPosition(Entity0, P1);
-    
-    Fix1 = (P0 - P1);
-   }
-  }break;
-  
-  case CurveMerge_Count: InvalidPath;
- }
- u32 PointCount = (PointCount0 + PointCount1);
- if (DropCount1 <= PointCount1)
- {
-  PointCount -= DropCount1;
- }
- 
- v2 *Points = PushArrayNonZero(Temp.Arena, PointCount, v2);
- f32 *Weights = PushArrayNonZero(Temp.Arena, PointCount, f32);
- cubic_bezier_point *Beziers = PushArrayNonZero(Temp.Arena, PointCount, cubic_bezier_point);
- 
- ArrayCopy(Weights,               Weights0,              PointCount0);
- ArrayCopy(Weights + PointCount0, Weights1 + DropCount1, PointCount1 - DropCount1);
- 
- ArrayCopy(Points,                Points0,               PointCount0);
- ArrayCopy(Beziers,               Beziers0,              PointCount0);
- 
- u32 PointIndex = PointCount0;
- for (u32 PointIndex1 = DropCount1;
-      PointIndex1 < PointCount1;
-      ++PointIndex1)
- {
-  v2 Point1 = Points1[PointIndex1];
-  Point1 = LocalEntityPositionToWorld(Entity1, Point1);
-  Point1 = WorldToLocalEntityPosition(Entity0, Point1);
-  Point1 = Point1 + Fix1;
-  Points[PointIndex] = Point1;
-  
-  cubic_bezier_point Bezier1 = Beziers1[PointIndex1];
-  Bezier1.P0 = LocalEntityPositionToWorld(Entity1, Bezier1.P0);
-  Bezier1.P0 = WorldToLocalEntityPosition(Entity0, Bezier1.P0);
-  Bezier1.P0 = Bezier1.P0 + Fix1;
-  
-  Bezier1.P1 = LocalEntityPositionToWorld(Entity1, Bezier1.P1);
-  Bezier1.P1 = WorldToLocalEntityPosition(Entity0, Bezier1.P1);
-  Bezier1.P1 = Bezier1.P1 + Fix1;
-  
-  Bezier1.P2 = LocalEntityPositionToWorld(Entity1, Bezier1.P2);
-  Bezier1.P2 = WorldToLocalEntityPosition(Entity0, Bezier1.P2);
-  Bezier1.P2 = Bezier1.P2 + Fix1;
-  
-  Beziers[PointIndex] = Bezier1;
-  
-  ++PointIndex;
- }
- 
- b32 S_Exists = (SignedCmp(PointCount0 - 3, >=, 0) && SignedCmp(PointCount0 - 3, <, PointCount));
- b32 Q_Exists = (SignedCmp(PointCount0 - 2, >=, 0) && SignedCmp(PointCount0 - 2, <, PointCount));
- b32 P_Exists = (SignedCmp(PointCount0 - 1, >=, 0) && SignedCmp(PointCount0 - 1, <, PointCount));
- b32 R_Exists = (SignedCmp(PointCount0 - 0, >=, 0) && SignedCmp(PointCount0 - 0, <, PointCount));
- b32 T_Exists = (SignedCmp(PointCount0 + 1, >=, 0) && SignedCmp(PointCount0 + 1, <, PointCount));
- 
- v2 S = (S_Exists ? Points[PointCount0 - 3] : V2(0,0));
- v2 Q = (Q_Exists ? Points[PointCount0 - 2] : V2(0,0));
- v2 P = (P_Exists ? Points[PointCount0 - 1] : V2(0,0));
- v2 R = (R_Exists ? Points[PointCount0 - 0] : V2(0,0));
- v2 T = (T_Exists ? Points[PointCount0 + 1] : V2(0,0));
- 
- v2 R_ = R;
- v2 T_ = T;
- 
- f32 n = Cast(f32)PointCount0;
- f32 m = Cast(f32)PointCount1;
- 
- switch (Method)
- {
-  case CurveMerge_G1: {
-   // NOTE(hbr): G1 merge:
-   // - C0 and
-   // - Q,P,R should be colinear
-   // - fix R, but maintain ||R-P|| length
-   v2 U = P - Q;
-   v2 V = R - P;
-   v2 Projected = ProjectOnto(V, U);
-   R_ = P + Projected;
-  }break;
-  
-  case CurveMerge_C1:
-  case CurveMerge_C2: {
-   // NOTE(hbr): C1 merge:
-   // - C0 and
-   // - n/(b-a) * (P-Q) = m/(c-b) * (R-P)
-   // - assuming (b-a) = (c-b) = 1
-   // - which gives us: n * (P-Q) = m * (R-P)
-   // - solving for R: R = n/m * (P-Q) + P
-   R_ = n/m * (P-Q) + P;
-   
-   if (Method == CurveMerge_C2)
-   {
-    // NOTE(hbr): C2 merge:
-    // - C0 and C1 and
-    // - n*(n-1)/(b-a)^2 * (P-2Q+S) = m*(m-1)/(c-b)^2 * (T-2R+P)
-    // - assuming (b-a) = (c-b) = 1
-    // - which gives us: n*(n-1) * (P-2Q+S) = m*(m-1) * (T-2R+P)
-    // - solving for T: T = (n*(n-1))/(m*(m-1)) * (P-2Q+S) + (2R-P)
-    T_ = (n*(n-1))/(m*(m-1)) * (P-2*Q+S) + (2*R_-P);
-   }
-  }break;
-  
-  case CurveMerge_C0:
-  case CurveMerge_Concat: {}break;
-  
-  case CurveMerge_Count: InvalidPath;
- }
- 
- if (Q_Exists && R_Exists)
- {
-  v2 Fix_R = R_ - R;
-  Points[PointCount0 - 0] += Fix_R;
-  Beziers[PointCount0 - 0].P0 += Fix_R;
-  Beziers[PointCount0 - 0].P1 += Fix_R;
-  Beziers[PointCount0 - 0].P2 += Fix_R;
- }
- 
- if (S_Exists && T_Exists)
- {
-  v2 Fix_T = T_ - T;
-  Points[PointCount0 + 1] += Fix_T;
-  Beziers[PointCount0 + 1].P0 += Fix_T;
-  Beziers[PointCount0 + 1].P1 += Fix_T;
-  Beziers[PointCount0 + 1].P2 += Fix_T;
- }
- 
- SetCurveControlPoints(MergeWitness, PointCount, Points, Weights, Beziers);
- 
- MaybeReverseCurvePoints(MergeEntity);
- MaybeReverseCurvePoints(Entity0);
- MaybeReverseCurvePoints(Entity1);
- 
- EndTemp(Temp);
 }
 
 internal bouncing_parameter

@@ -72,7 +72,6 @@ AllocString(string_cache *Cache, u64 Size)
  }
  
  Result.Data = Data;
- Result.Count = Size;
  Result.Capacity = AllocSize;
  
  return Result;
@@ -88,4 +87,12 @@ DeallocString(string_cache *Cache, char_buffer Buffer)
   u64 BucketIndex = FindBigEnoughStringChunkBucket(Buffer.Capacity);
   StackPush(Cache->FreeStringChunks[BucketIndex], Node);
  }
+}
+
+internal void
+FillCharBuffer(char_buffer *Buffer, string Str)
+{
+ u64 Count = Min(Str.Count, Buffer->Capacity);
+ MemoryCopy(Buffer->Data, Str.Data, Count);
+ Buffer->Count = Count;
 }

@@ -14,9 +14,10 @@ struct entity_store
  u32 AllocGeneration;
  u32 IdCounter;
  u32 TextureCount;
- b32 *IsTextureHandleAllocated;
+ b32 *TextureHandleRefCount;
  u32 BufferCount;
  b32 *IsBufferHandleAllocated;
+ string_cache *StrCache;
 };
 
 struct thread_task_memory
@@ -60,11 +61,15 @@ struct image_loading_store
 };
 
 //- entity store
-internal void InitEntityStore(entity_store *Store, u32 MaxTextureCount, u32 MaxBufferCount);
+internal void InitEntityStore(entity_store *Store, u32 MaxTextureCount, u32 MaxBufferCount, string_cache *StrCache);
 internal entity *AllocEntity(entity_store *Store, entity_type Type, b32 DontTrack);
 internal void DeallocEntity(entity *Entity, struct editor_assets *Assets);
 internal entity_array AllEntityArrayFromStore(entity_store *Store);
 internal entity_array EntityArrayFromType(entity_store *Store, entity_type Type);
+
+internal render_texture_handle AllocTextureHandle(entity_store *Store);
+internal void DeallocTextureHandle(entity_store *Store, render_texture_handle Handle);
+internal render_texture_handle CopyTextureHandle(entity_store *Store, render_texture_handle Handle);
 
 //- thread task with memory
 internal void InitThreadTaskMemoryStore(thread_task_memory_store *Store);
@@ -75,8 +80,5 @@ internal void EndThreadTaskMemory(thread_task_memory_store *Store, thread_task_m
 internal void InitAsyncTaskStore(image_loading_store *Store);
 internal image_loading_task *BeginAsyncImageLoadingTask(image_loading_store *Store);
 internal void FinishAsyncImageLoadingTask(image_loading_store *Store, image_loading_task *Task);
-
-//- misc
-internal void SetEntityName(string_cache *StrCache, entity *Entity, string Name);
 
 #endif //EDITOR_CORE_H

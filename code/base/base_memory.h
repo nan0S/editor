@@ -27,5 +27,6 @@ struct string_cache
 internal void InitStringCache(string_cache *Cache);
 internal char_buffer AllocString(string_cache *Cache, u64 Size);
 internal void DeallocString(string_cache *Cache, char_buffer Buffer);
+internal void FillCharBuffer(char_buffer *Buffer, string Str);
 
 #endif //BASE_MEMORY_H

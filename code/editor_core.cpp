@@ -23,7 +23,7 @@ AllocTextureHandle(entity_store *Store)
  {
   if (Store->TextureHandleRefCount[Index] == 0)
   {
-   Result = TextureHandleFromInternalIndex(Index + 1);
+   Result = TextureHandleFromInternalIndex(Index);
    ++Store->TextureHandleRefCount[Index];
    break;
   }
@@ -139,7 +139,7 @@ DeallocEntity(entity_store *Store, entity *Entity)
  
  ++Entity->Generation;
  
- if (Entity->Flags & EntityInternalFlag_Tracked)
+ if (Entity->InternalFlags & EntityInternalFlag_Tracked)
  {
   DLLRemove(Store->Head, Store->Tail, Entity);
   --Store->Count;

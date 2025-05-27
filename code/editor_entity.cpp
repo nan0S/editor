@@ -894,7 +894,7 @@ InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src)
    curve *SrcCurve = SafeGetCurve(Src);
    curve *DstCurve = SafeGetCurve(Dst);
    
-   InitEntityCurve(Dst, SrcCurve->Params);
+   InitCurveEntity(Dst, SrcCurve->Params);
    SetCurveControlPoints(DstWitness, SrcCurve->ControlPointCount, SrcCurve->ControlPoints, SrcCurve->ControlPointWeights, SrcCurve->CubicBezierPoints);
    SelectControlPoint(DstCurve, SrcCurve->SelectedIndex);
   } break;

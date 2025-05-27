@@ -1081,286 +1081,289 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
         }
        }
       }
-      
-      UI_SeparatorText(StrLit("Actions"));
-      UI_Label(StrLit("Actions"));
+     }
+     
+     UI_SeparatorText(StrLit("Actions"));
+     UI_Label(StrLit("Actions"));
+     {
+      if (UI_Button(StrLit("Copy")))
       {
-       if (UI_Button(StrLit("Copy")))
+       DuplicateEntity(Editor, Entity);
+      }
+      if (UI_IsItemHovered())
+      {
+       UI_Tooltip(StrLit("Duplicate entity, self explanatory"));
+      }
+      
+      UI_SameRow();
+      
+      DeleteEntity = UI_Button(StrLit("Delete"));
+      if (UI_IsItemHovered())
+      {
+       UI_Tooltip(StrLit("Delete entity, self explanatory"));
+      }
+      
+      UI_SameRow();
+      
+      if (UI_Button(StrLit("Focus")))
+      {
+       FocusCameraOnEntity(Editor, Entity, RenderGroup->AspectRatio);
+      }
+      if (UI_IsItemHovered())
+      {
+       UI_Tooltip(StrLit("Focus the camera on entity"));
+      }
+      
+      if (Curve)
+      {
+       UI_Disabled(!IsControlPointSelected(Curve))
        {
-        DuplicateEntity(Editor, Entity);
-       }
-       if (UI_IsItemHovered())
-       {
-        UI_Tooltip(StrLit("Duplicate entity, self explanatory"));
-       }
-       
-       UI_SameRow();
-       
-       DeleteEntity = UI_Button(StrLit("Delete"));
-       if (UI_IsItemHovered())
-       {
-        UI_Tooltip(StrLit("Delete entity, self explanatory"));
-       }
-       
-       UI_SameRow();
-       
-       if (UI_Button(StrLit("Focus")))
-       {
-        FocusCameraOnEntity(Editor, Entity, RenderGroup->AspectRatio);
-       }
-       if (UI_IsItemHovered())
-       {
-        UI_Tooltip(StrLit("Focus the camera on entity"));
-       }
-       
-       if (Curve)
-       {
-        UI_Disabled(!IsControlPointSelected(Curve))
+        if (UI_Button(StrLit("Split")))
         {
-         if (UI_Button(StrLit("Split")))
-         {
-          SplitCurveOnControlPoint(Editor, &EntityWitness);
-         }
-         if (UI_IsItemHovered())
-         {
-          UI_Tooltip(StrLit("Split curve into two parts, based on the currently selected control point"));
-         }
+         SplitCurveOnControlPoint(Editor, &EntityWitness);
+        }
+        if (UI_IsItemHovered())
+        {
+         UI_Tooltip(StrLit("Split curve into two parts, based on the currently selected control point"));
+        }
+       }
+       
+       UI_SameRow();
+       
+       if (UI_ButtonF("Swap Side"))
+       {
+        Entity->Flags ^= EntityFlag_CurveAppendFront;
+       }
+       if (UI_IsItemHovered())
+       {
+        UI_Tooltip(StrLit("Swap the side to which append new control points"));
+       }
+       
+       UI_Disabled(!IsRegularBezierCurve(Curve))
+       {
+        if (UI_Button(StrLit("Elevate Degree")))
+        {
+         ElevateBezierCurveDegree(Entity);
+        }
+        if (UI_IsItemHovered())
+        {
+         UI_Tooltip(StrLit("Elevate Bezier curve degree, while maintaining its shape"));
         }
         
         UI_SameRow();
         
-        if (UI_ButtonF("Swap Side"))
+        if (UI_Button(StrLit("Lower Degree")))
         {
-         Entity->Flags ^= EntityFlag_CurveAppendFront;
+         LowerBezierCurveDegree(Entity);
         }
         if (UI_IsItemHovered())
         {
-         UI_Tooltip(StrLit("Swap the side to which append new control points"));
-        }
-        
-        UI_Disabled(!IsRegularBezierCurve(Curve))
-        {
-         if (UI_Button(StrLit("Elevate Degree")))
-         {
-          ElevateBezierCurveDegree(Entity);
-         }
-         if (UI_IsItemHovered())
-         {
-          UI_Tooltip(StrLit("Elevate Bezier curve degree, while maintaining its shape"));
-         }
-         
-         UI_SameRow();
-         
-         if (UI_Button(StrLit("Lower Degree")))
-         {
-          LowerBezierCurveDegree(Entity);
-         }
-         if (UI_IsItemHovered())
-         {
-          UI_Tooltip(StrLit("Lower Bezier curve degree, while maintaining its shape (if possible)"));
-         }
+         UI_Tooltip(StrLit("Lower Bezier curve degree, while maintaining its shape (if possible)"));
         }
        }
-       
-       if (IsCurveEligibleForPointTracking(Curve))
+      }
+     }
+     
+     if (Curve && IsCurveEligibleForPointTracking(Curve))
+     {
+      point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
+      f32 Fraction = Tracking->Fraction;
+      b32 Changed = false;
+      
+      b32 BezierTrackingActive = false;
+      b32 SplittingTrackingActive = false;
+      switch (Tracking->Type)
+      {
+       case PointTrackingAlongCurve_DeCasteljauVisualization: {BezierTrackingActive = Tracking->Active;}break;
+       case PointTrackingAlongCurve_BezierCurveSplit: {SplittingTrackingActive = Tracking->Active;}break;
+      }
+      
+      UI_Label(StrLit("DeCasteljauVisualization"))
+      {
+       if (UI_Checkbox(&BezierTrackingActive, StrLit("##DeCasteljauEnabled")))
        {
-        point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
-        f32 Fraction = Tracking->Fraction;
-        b32 Changed = false;
-        
-        b32 BezierTrackingActive = false;
-        b32 SplittingTrackingActive = false;
-        switch (Tracking->Type)
+        Changed = true;
+        Tracking->Active = BezierTrackingActive;
+        if (Tracking->Active)
         {
-         case PointTrackingAlongCurve_DeCasteljauVisualization: {BezierTrackingActive = Tracking->Active;}break;
-         case PointTrackingAlongCurve_BezierCurveSplit: {SplittingTrackingActive = Tracking->Active;}break;
-        }
-        
-        UI_Label(StrLit("DeCasteljauVisualization"))
-        {
-         if (UI_Checkbox(&BezierTrackingActive, StrLit("##DeCasteljauEnabled")))
-         {
-          Changed = true;
-          Tracking->Active = BezierTrackingActive;
-          if (Tracking->Active)
-          {
-           Tracking->Type = PointTrackingAlongCurve_DeCasteljauVisualization;
-          }
-         }
-         UI_SameRow();
-         UI_SeparatorText(StrLit("De Casteljau's Algorithm"));
-         
-         if (BezierTrackingActive)
-         {
-          Changed |= UI_SliderFloat(&Fraction, 0.0f, 1.0f, StrLit("t"));
-         }
-        }
-        
-        UI_Label(StrLit("BezierSplitting"))
-        {
-         if (UI_Checkbox(&SplittingTrackingActive, StrLit("##SplittingEnabled")))
-         {
-          Changed = true;
-          Tracking->Active = SplittingTrackingActive;
-          if (Tracking->Active)
-          {
-           Tracking->Type = PointTrackingAlongCurve_BezierCurveSplit;
-          }
-         }
-         UI_SameRow();
-         UI_SeparatorText(StrLit("Split Bezier Curve"));
-         
-         if (SplittingTrackingActive)
-         {
-          Changed |= UI_SliderFloat(&Fraction, 0.0f, 1.0f, StrLit("t"));
-          UI_SameRow();
-          if (UI_Button(StrLit("Split!")))
-          {
-           PerformBezierCurveSplit(Editor, &EntityWitness);
-          }
-         }
-        }
-        
-        if (Tracking->Active && Changed)
-        {
-         SetTrackingPointFraction(&EntityWitness, Fraction);
+         Tracking->Type = PointTrackingAlongCurve_DeCasteljauVisualization;
         }
        }
+       UI_SameRow();
+       UI_SeparatorText(StrLit("De Casteljau's Algorithm"));
+       
+       if (BezierTrackingActive)
+       {
+        Changed |= UI_SliderFloat(&Fraction, 0.0f, 1.0f, StrLit("t"));
+       }
+      }
+      
+      UI_Label(StrLit("BezierSplitting"))
+      {
+       if (UI_Checkbox(&SplittingTrackingActive, StrLit("##SplittingEnabled")))
+       {
+        Changed = true;
+        Tracking->Active = SplittingTrackingActive;
+        if (Tracking->Active)
+        {
+         Tracking->Type = PointTrackingAlongCurve_BezierCurveSplit;
+        }
+       }
+       UI_SameRow();
+       UI_SeparatorText(StrLit("Split Bezier Curve"));
+       
+       if (SplittingTrackingActive)
+       {
+        Changed |= UI_SliderFloat(&Fraction, 0.0f, 1.0f, StrLit("t"));
+        UI_SameRow();
+        if (UI_Button(StrLit("Split!")))
+        {
+         PerformBezierCurveSplit(Editor, &EntityWitness);
+        }
+       }
+      }
+      
+      if (Tracking->Active && Changed)
+      {
+       SetTrackingPointFraction(&EntityWitness, Fraction);
       }
      }
      
      UI_EndTabItem();
     }
     
-    if (UI_BeginTabItem(StrLit("Settings")))
+    if (Curve)
     {
-     UI_SeparatorText(StrLit("Line"));
+     if (UI_BeginTabItem(StrLit("Settings")))
      {
-      b32 LineEnabled = !CurveParams->LineDisabled;
-      UI_Checkbox(&LineEnabled, StrLit("Visible"));
-      CurveParams->LineDisabled = !LineEnabled;
-      
-      UI_ColorPickerF(&CurveParams->LineColor, "Color");
-      if (ResetCtxMenu(StrLit("ColorReset")))
+      UI_SeparatorText(StrLit("Line"));
       {
-       CurveParams->LineColor = DefaultParams->LineColor;
-      }
-      
-      CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->LineWidth, 0.0f, FLT_MAX, 0, "Width");
-      if (ResetCtxMenu(StrLit("WidthReset")))
-      {
-       CurveParams->LineWidth = DefaultParams->LineWidth;
-       CrucialEntityParamChanged = true;
-      }
-      
-      if (IsCurveTotalSamplesMode(Curve))
-      {
-       CrucialEntityParamChanged |= UI_SliderIntegerF(SafeCastToPtr(CurveParams->TotalSamples, i32), 1, 5000, "Total Samples");
-       if (ResetCtxMenu(StrLit("Samples")))
-       {
-        CurveParams->TotalSamples = DefaultParams->TotalSamples;
-        CrucialEntityParamChanged = true;
-       }
-      }
-      else
-      {
-       CrucialEntityParamChanged |= UI_SliderIntegerF(SafeCastToPtr(CurveParams->SamplesPerControlPoint, i32), 1, 500, "Samples per Control Point");
-       if (ResetCtxMenu(StrLit("Samples")))
-       {
-        CurveParams->SamplesPerControlPoint = DefaultParams->SamplesPerControlPoint;
-        CrucialEntityParamChanged = true;
-       }
-      }
-     }
-     
-     if (UsesControlPoints(Curve))
-     {
-      UI_SeparatorText(StrLit("Control Points"));
-      UI_Label(StrLit("Control Points"))
-      {
-       b32 PointsEnabled = !CurveParams->PointsDisabled;
-       UI_Checkbox(&PointsEnabled, StrLit("Visible"));
-       CurveParams->PointsDisabled = !PointsEnabled;
+       b32 LineEnabled = !CurveParams->LineDisabled;
+       UI_Checkbox(&LineEnabled, StrLit("Visible"));
+       CurveParams->LineDisabled = !LineEnabled;
        
-       UI_ColorPickerF(&CurveParams->PointColor, "Color");
-       if (ResetCtxMenu(StrLit("PointColorReset")))
-       {
-        CurveParams->PointColor = DefaultParams->PointColor;
-       }
-       
-       UI_DragFloatF(&CurveParams->PointRadius, 0.0f, FLT_MAX, 0, "Radius");
-       if (ResetCtxMenu(StrLit("PointRadiusReset")))
-       {
-        CurveParams->PointRadius = DefaultParams->PointRadius;
-       }
-      }
-     }
-     
-     if (CurveParams->Type == Curve_B_Spline)
-     {
-      b_spline_params *B_Spline = &CurveParams->B_Spline;
-      
-      UI_SeparatorText(StrLit("B-Spline Knots"));
-      UI_Label(StrLit("B-Spline Knots"))
-      {
-       UI_Checkbox(&B_Spline->ShowPartitionKnotPoints, StrLit("Visible"));
-       
-       UI_ColorPicker(&B_Spline->KnotPointColor, StrLit("Color"));
+       UI_ColorPickerF(&CurveParams->LineColor, "Color");
        if (ResetCtxMenu(StrLit("ColorReset")))
        {
-        B_Spline->KnotPointColor= DefaultParams->B_Spline.KnotPointColor;
+        CurveParams->LineColor = DefaultParams->LineColor;
        }
        
-       UI_DragFloat(&B_Spline->KnotPointRadius, 0.0f, FLT_MAX, 0, StrLit("Radius"));
-       if (ResetCtxMenu(StrLit("RadiusReset")))
+       CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->LineWidth, 0.0f, FLT_MAX, 0, "Width");
+       if (ResetCtxMenu(StrLit("WidthReset")))
        {
-        B_Spline->KnotPointRadius = DefaultParams->B_Spline.KnotPointRadius;
-       }
-      }
-     }
-     
-     if (UsesControlPoints(Curve))
-     {
-      UI_SeparatorText(StrLit("Polyline"));
-      UI_Label(StrLit("Polyline"))
-      {
-       UI_Checkbox(&CurveParams->PolylineEnabled, StrLit("Visible"));
-       
-       UI_ColorPickerF(&CurveParams->PolylineColor, "Color");
-       if (ResetCtxMenu(StrLit("PolylineColorReset")))
-       {
-        CurveParams->PolylineColor = DefaultParams->PolylineColor;
-       }
-       
-       CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->PolylineWidth, 0.0f, FLT_MAX, 0, "Width");
-       if (ResetCtxMenu(StrLit("PolylineWidthReset")))
-       {
-        CurveParams->PolylineWidth = DefaultParams->PolylineWidth;
+        CurveParams->LineWidth = DefaultParams->LineWidth;
         CrucialEntityParamChanged = true;
+       }
+       
+       if (IsCurveTotalSamplesMode(Curve))
+       {
+        CrucialEntityParamChanged |= UI_SliderIntegerF(SafeCastToPtr(CurveParams->TotalSamples, i32), 1, 5000, "Total Samples");
+        if (ResetCtxMenu(StrLit("Samples")))
+        {
+         CurveParams->TotalSamples = DefaultParams->TotalSamples;
+         CrucialEntityParamChanged = true;
+        }
+       }
+       else
+       {
+        CrucialEntityParamChanged |= UI_SliderIntegerF(SafeCastToPtr(CurveParams->SamplesPerControlPoint, i32), 1, 500, "Samples per Control Point");
+        if (ResetCtxMenu(StrLit("Samples")))
+        {
+         CurveParams->SamplesPerControlPoint = DefaultParams->SamplesPerControlPoint;
+         CrucialEntityParamChanged = true;
+        }
        }
       }
       
-      UI_SeparatorText(StrLit("Convex Hull"));
-      UI_Label(StrLit("Convex Hull"))
+      if (UsesControlPoints(Curve))
       {
-       UI_Checkbox(&CurveParams->ConvexHullEnabled, StrLit("Visible"));
-       
-       UI_ColorPickerF(&CurveParams->ConvexHullColor, "Color");
-       if (ResetCtxMenu(StrLit("ConvexHullColorReset")))
+       UI_SeparatorText(StrLit("Control Points"));
+       UI_Label(StrLit("Control Points"))
        {
-        CurveParams->ConvexHullColor = DefaultParams->ConvexHullColor;
-       }
-       
-       CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->ConvexHullWidth, 0.0f, FLT_MAX, 0, "Width");
-       if (ResetCtxMenu(StrLit("ConvexHullWidthReset")))
-       {
-        CurveParams->ConvexHullWidth = DefaultParams->ConvexHullWidth;
-        CrucialEntityParamChanged = true;
+        b32 PointsEnabled = !CurveParams->PointsDisabled;
+        UI_Checkbox(&PointsEnabled, StrLit("Visible"));
+        CurveParams->PointsDisabled = !PointsEnabled;
+        
+        UI_ColorPickerF(&CurveParams->PointColor, "Color");
+        if (ResetCtxMenu(StrLit("PointColorReset")))
+        {
+         CurveParams->PointColor = DefaultParams->PointColor;
+        }
+        
+        UI_DragFloatF(&CurveParams->PointRadius, 0.0f, FLT_MAX, 0, "Radius");
+        if (ResetCtxMenu(StrLit("PointRadiusReset")))
+        {
+         CurveParams->PointRadius = DefaultParams->PointRadius;
+        }
        }
       }
+      
+      if (CurveParams->Type == Curve_B_Spline)
+      {
+       b_spline_params *B_Spline = &CurveParams->B_Spline;
+       
+       UI_SeparatorText(StrLit("B-Spline Knots"));
+       UI_Label(StrLit("B-Spline Knots"))
+       {
+        UI_Checkbox(&B_Spline->ShowPartitionKnotPoints, StrLit("Visible"));
+        
+        UI_ColorPicker(&B_Spline->KnotPointColor, StrLit("Color"));
+        if (ResetCtxMenu(StrLit("ColorReset")))
+        {
+         B_Spline->KnotPointColor= DefaultParams->B_Spline.KnotPointColor;
+        }
+        
+        UI_DragFloat(&B_Spline->KnotPointRadius, 0.0f, FLT_MAX, 0, StrLit("Radius"));
+        if (ResetCtxMenu(StrLit("RadiusReset")))
+        {
+         B_Spline->KnotPointRadius = DefaultParams->B_Spline.KnotPointRadius;
+        }
+       }
+      }
+      
+      if (UsesControlPoints(Curve))
+      {
+       UI_SeparatorText(StrLit("Polyline"));
+       UI_Label(StrLit("Polyline"))
+       {
+        UI_Checkbox(&CurveParams->PolylineEnabled, StrLit("Visible"));
+        
+        UI_ColorPickerF(&CurveParams->PolylineColor, "Color");
+        if (ResetCtxMenu(StrLit("PolylineColorReset")))
+        {
+         CurveParams->PolylineColor = DefaultParams->PolylineColor;
+        }
+        
+        CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->PolylineWidth, 0.0f, FLT_MAX, 0, "Width");
+        if (ResetCtxMenu(StrLit("PolylineWidthReset")))
+        {
+         CurveParams->PolylineWidth = DefaultParams->PolylineWidth;
+         CrucialEntityParamChanged = true;
+        }
+       }
+       
+       UI_SeparatorText(StrLit("Convex Hull"));
+       UI_Label(StrLit("Convex Hull"))
+       {
+        UI_Checkbox(&CurveParams->ConvexHullEnabled, StrLit("Visible"));
+        
+        UI_ColorPickerF(&CurveParams->ConvexHullColor, "Color");
+        if (ResetCtxMenu(StrLit("ConvexHullColorReset")))
+        {
+         CurveParams->ConvexHullColor = DefaultParams->ConvexHullColor;
+        }
+        
+        CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->ConvexHullWidth, 0.0f, FLT_MAX, 0, "Width");
+        if (ResetCtxMenu(StrLit("ConvexHullWidthReset")))
+        {
+         CurveParams->ConvexHullWidth = DefaultParams->ConvexHullWidth;
+         CrucialEntityParamChanged = true;
+        }
+       }
+      }
+      
+      UI_EndTabItem();
      }
-     
-     UI_EndTabItem();
     }
     
     if (UI_BeginTabItem(StrLit("Info")))
@@ -1372,6 +1375,11 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
        UI_TextF(false, "Number of control points  %u", Curve->ControlPointCount);
        UI_TextF(false, "Number of samples         %u", Curve->CurveSampleCount);
       }
+     }
+     
+     if (Image)
+     {
+      // TODO(hbr): print some info
      }
      
      UI_EndTabItem();

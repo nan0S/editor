@@ -352,6 +352,7 @@ enum modify_curve_points_which_points
 {
  ModifyCurvePointsWhichPoints_JustControlPoints,
  ModifyCurvePointsWhichPoints_ControlPointsWithWeights,
+ // TODO(hbr): Rename this to all points or sth like that
  ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers,
 };
 struct curve_points_modify_handle
@@ -427,7 +428,7 @@ internal void EndModifyCurvePoints(curve_points_modify_handle Handle);
 
 //- entity initialization
 internal void InitImageEntity(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath);
-internal void InitEntityCurve(entity *Entity, curve_params Params);
+internal void InitCurveEntity(entity *Entity, curve_params Params);
 internal void InitEntity(entity *Entity, v2 P, v2 Scale, v2 Rotation, string Name, i32 SortingLayer);
 internal void InitEntityFromEntity(entity_with_modify_witness *Dst, entity *Src);
 

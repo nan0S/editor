@@ -173,6 +173,45 @@ AddNotificationF(editor *Editor, notification_type Type, char const *Format, ...
 }
 
 internal void
+InitEntityFromEntity(entity_store *EntityStore, entity_with_modify_witness *DstWitness, entity *Src)
+{
+ entity *Dst = DstWitness->Entity;
+ curve *DstCurve = &Dst->Curve;
+ curve *SrcCurve = &Src->Curve;
+ image *DstImage = &Dst->Image;
+ image *SrcImage = &Src->Image;
+ 
+ Dst->P = Src->P;
+ Dst->Scale = Src->Scale;
+ Dst->Rotation = Src->Rotation;
+ SetEntityName(Dst, GetEntityName(Src));
+ Dst->SortingLayer = Src->SortingLayer;
+ Dst->Flags = Src->Flags;
+ 
+ switch (Src->Type)
+ {
+  case Entity_Curve: {
+   DstCurve->Params = SrcCurve->Params;
+   DstCurve->B_SplineKnotParams = SrcCurve->B_SplineKnotParams;
+   SetCurveControlPoints(DstWitness,
+                         SrcCurve->ControlPointCount,
+                         SrcCurve->ControlPoints,
+                         SrcCurve->ControlPointWeights,
+                         SrcCurve->CubicBezierPoints);
+   SelectControlPoint(DstCurve, SrcCurve->SelectedIndex);
+  }break;
+  
+  case Entity_Image: {
+   DstImage->Dim = SrcImage->Dim;
+   DeallocTextureHandle(EntityStore, DstImage->TextureHandle);
+   DstImage->TextureHandle = CopyTextureHandle(EntityStore, SrcImage->TextureHandle);
+  }break;
+  
+  case Entity_Count: InvalidPath;
+ }
+}
+
+internal void
 DuplicateEntity(editor *Editor, entity *Entity)
 {
  temp_arena Temp = TempArena(0);
@@ -182,8 +221,7 @@ DuplicateEntity(editor *Editor, entity *Entity)
  entity_with_modify_witness CopyWitness = BeginEntityModify(Copy);
  string CopyName = StrF(Temp.Arena, "%S(copy)", GetEntityName(Entity));
  
- InitEntityFromEntity(&CopyWitness, Entity);
- SetEntityName(Copy, CopyName);
+ InitEntityFromEntity(EntityStore, &CopyWitness, Entity);
  SelectEntity(Editor, Copy);
  
  // TODO(hbr): This is not right, translate depending on camera zoom

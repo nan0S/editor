@@ -318,17 +318,17 @@ TokenizeParametricEquation(arena *Arena, string Equation,
      if (Lexer.CharAt[0] == '*')
      {
       AdvanceChar(&Lexer, 1);
-      AddToken(&Lexer, ParametricEquationToken_Pow, SaveCharAt);
+      AddToken(&Lexer, ParametricEquationToken_DoubleAsteriskOrCaret, SaveCharAt);
      }
      else
      {
-      AddToken(&Lexer, ParametricEquationToken_Mult, SaveCharAt);
+      AddToken(&Lexer, ParametricEquationToken_Asterisk, SaveCharAt);
      }
     }break;
     
     case '^': {
      AdvanceChar(&Lexer, 1);
-     AddToken(&Lexer, ParametricEquationToken_Pow, SaveCharAt);
+     AddToken(&Lexer, ParametricEquationToken_DoubleAsteriskOrCaret, SaveCharAt);
     }break;
     
     case '(': {
@@ -579,12 +579,12 @@ IsBinaryOperator(parametric_equation_token Token)
  binary_operator_detection Result = {};
  switch (Token.Type)
  {
-  case ParametricEquationToken_Plus:    {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Plus);}break;
-  case ParametricEquationToken_Minus:   {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Minus);}break;
-  case ParametricEquationToken_Mult:    {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Mult);}break;
-  case ParametricEquationToken_Slash:   {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Div);}break;
-  case ParametricEquationToken_Percent: {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Mod);}break;
-  case ParametricEquationToken_Pow:     {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Pow);}break;
+  case ParametricEquationToken_Plus:                      {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Plus);}break;
+  case ParametricEquationToken_Minus:                     {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Minus);}break;
+  case ParametricEquationToken_Asterisk:                  {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Mult);}break;
+  case ParametricEquationToken_Slash:                     {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Div);}break;
+  case ParametricEquationToken_Percent:                   {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Mod);}break;
+  case ParametricEquationToken_DoubleAsteriskOrCaret:     {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Pow);}break;
   
   default: break;
  }
@@ -1235,7 +1235,7 @@ ParseExprOptimistic(arena *Arena,
     u32 TokenInsertPoint = Cast(u32)(Parser.TokenAt - CurrentTokens.Tokens);
     Assert(TokenInsertPoint < CurrentTokens.TokenCount);
     
-    parametric_equation_token FakeToken = MakeToken(ParametricEquationToken_Mult);
+    parametric_equation_token FakeToken = MakeToken(ParametricEquationToken_Asterisk);
     parametric_equation_token *NewTokens = PushArrayNonZero(Temp.Arena, CurrentTokens.TokenCount + 1, parametric_equation_token);
     
     // NOTE(hbr): This isn't particularly performant (both that we restart from the beginning

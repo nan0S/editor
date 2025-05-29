@@ -9,11 +9,10 @@ enum parametric_equation_token_type
  ParametricEquationToken_Equal,
  ParametricEquationToken_Slash,
  ParametricEquationToken_Percent,
- // TODO(hbr): renmae to asterisk or rename slash to div
- ParametricEquationToken_Mult,
+ ParametricEquationToken_Asterisk,
  ParametricEquationToken_Plus,
  ParametricEquationToken_Minus,
- ParametricEquationToken_Pow,
+ ParametricEquationToken_DoubleAsteriskOrCaret,
  ParametricEquationToken_OpenParen,
  ParametricEquationToken_CloseParen,
  ParametricEquationToken_OpenBrace,

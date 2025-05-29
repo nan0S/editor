@@ -939,7 +939,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
           UI_SameRow();
           UI_Text(false, StrLit(" := "));
           UI_SameRow();
-          ui_input_result X_Equation = UI_InputTextF(Resources->X_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##x(t)");
+          ui_input_result X_Equation = UI_InputText(Resources->X_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, StrLit("##x(t)"));
           if (ArenaCleared || VarChanged || X_Equation.Changed)
           {
            EquationChanged = true;
@@ -957,6 +957,10 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
             UI_Text(false, Resources->X_ErrorMessage);
            }
           }
+          if (DEBUG_Settings->ParametricEquationDebugMode)
+          {
+           UI_ParametricEquationExpr(Parametric->X_Equation, StrLit("x(t) expr"));
+          }
          }
          
          UI_Label(StrLit("y(t)"))
@@ -968,7 +972,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
           UI_SameRow();
           UI_Text(false, StrLit(" := "));
           UI_SameRow();
-          ui_input_result Y_Equation = UI_InputTextF(Resources->Y_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, "##y(t)");
+          ui_input_result Y_Equation = UI_InputText(Resources->Y_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, StrLit("##y(t)"));
           if (ArenaCleared || VarChanged || Y_Equation.Changed)
           {
            EquationChanged = true;
@@ -985,6 +989,10 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
            {
             UI_Text(false, Resources->Y_ErrorMessage);
            }
+          }
+          if (DEBUG_Settings->ParametricEquationDebugMode)
+          {
+           UI_ParametricEquationExpr(Parametric->Y_Equation, StrLit("y(t) expr"));
           }
          }
          
@@ -2445,11 +2453,13 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
    *QuitProject = true;
   }
   
+#if BUILD_DEBUG
   if (!Eat && ((Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Backtick)))
   {
    Eat = true;
    Editor->DevConsole = !Editor->DevConsole;
   }
+#endif
   
   if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_Delete)
   {
@@ -3308,9 +3318,18 @@ RenderDevConsoleUI(editor *Editor)
                      "bla bla blablabl ablablablablab lablablablablablablablablablabla"
                      "blabla blab lablablablab lablabla blablablablablablablablablabla");
    }
+   
+   UI_Checkbox(&DEBUG_Settings->ParametricEquationDebugMode, StrLit("Parametric Equation Debug Mode Enabled"));
   }
   UI_EndWindow();
  }
+}
+
+internal void
+InitGlobalsOnInitOrCodeReload(editor *Editor)
+{
+ NilExpr = &Editor->NilParametricExpr;
+ DEBUG_Settings = &Editor->DEBUG_Settings;
 }
 
 internal void
@@ -3320,6 +3339,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  if (!Editor)
  {
   Editor = Memory->Editor = PushStruct(Memory->PermamentArena, editor);
+  InitGlobalsOnInitOrCodeReload(Editor);
   InitEditor(Editor, Memory);
  }
  
@@ -3483,7 +3503,7 @@ EditorOnCodeReloadImpl(editor_memory *Memory)
 {
  Platform = Memory->PlatformAPI;
  ProfilerEquip(Memory->Profiler);
- NilExpr = &Memory->Editor->NilParametricExpr;
+ InitGlobalsOnInitOrCodeReload(Memory->Editor);
 }
 
 DLL_EXPORT

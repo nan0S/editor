@@ -8,6 +8,8 @@ enum parametric_equation_token_type
  ParametricEquationToken_Number,
  ParametricEquationToken_Equal,
  ParametricEquationToken_Slash,
+ ParametricEquationToken_Percent,
+ // TODO(hbr): renmae to asterisk or rename slash to div
  ParametricEquationToken_Mult,
  ParametricEquationToken_Plus,
  ParametricEquationToken_Minus,
@@ -23,11 +25,8 @@ enum parametric_equation_token_type
 struct parametric_equation_token
 {
  parametric_equation_token_type Type;
- union {
-  string Identifier;
-  f32 Number;
- };
- 
+ string Identifier;
+ f32 Number;
  string OriginalString;
 };
 
@@ -48,6 +47,7 @@ enum parametric_equation_binary_operator
  ParametricEquationBinaryOp_Minus,
  ParametricEquationBinaryOp_Mult,
  ParametricEquationBinaryOp_Div,
+ ParametricEquationBinaryOp_Mod,
  ParametricEquationBinaryOp_Pow,
 };
 struct parametric_equation_binary_expr
@@ -78,11 +78,12 @@ X(exp, 1) \
 X(pi, 0) \
 X(tau, 0) \
 X(euler, 0) \
+X(mod, 2) \
 X(t, 0) \
 X(var, 0) // this is just regular user-defined variable but we have to define all the types
 
-global char const *ParametricEquationIdentifierNames[] = {
-#define X(_Func, _ArgCount) #_Func,
+global string ParametricEquationIdentifierNames[] = {
+#define X(_Func, _ArgCount) StrLit(#_Func),
  ParametricEquationIdentifiers
 #undef X
 };
@@ -98,6 +99,7 @@ enum parametric_equation_identifier_type
 #define X(_Func, _ArgCount) ParametricEquationIdentifier_##_Func,
  ParametricEquationIdentifiers
 #undef X
+ ParametricEquationIdentifier_Count
 };
 
 struct parametric_equation_application_expr_identifier

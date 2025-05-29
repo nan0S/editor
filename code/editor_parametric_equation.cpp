@@ -1,3 +1,11 @@
+internal parametric_equation_token
+MakeToken(parametric_equation_token_type Type)
+{
+ parametric_equation_token Token = {};
+ Token.Type = Type;
+ return Token;
+}
+
 internal parametric_equation_token *
 AddToken(parametric_equation_lexer *Lexer,
          parametric_equation_token_type Type,
@@ -7,7 +15,7 @@ AddToken(parametric_equation_lexer *Lexer,
  parametric_equation_token *Token = Lexer->Tokens + Lexer->TokenCount;
  ++Lexer->TokenCount;
  
- Token->Type = Type;
+ *Token = MakeToken(Type);
  Token->OriginalString = MakeStr(TokenBeginChar, Lexer->CharAt - TokenBeginChar);
  
  return Token;
@@ -177,28 +185,27 @@ SetErrorF(parametric_equation_parsing_error *ErrorCapture,
  va_end(Args);
 }
 
-internal parametric_equation_token
-GetLastToken(parametric_equation_lexer *Lexer)
-{
- parametric_equation_token Token = {};
- if (Lexer->TokenCount > 0)
- {
-  Token = Lexer->Tokens[Lexer->TokenCount - 1];
- }
- return Token;
-}
-
 internal parametric_equation_lexer
 BeginLexing(arena *Arena, string Equation)
 {
  parametric_equation_lexer Lexer = {};
  
  Lexer.CharAt = Equation.Data;
- // NOTE(hbr): One additional space for Token_None, twice for virtual multiply tokens
- Lexer.MaxTokenCount = SafeCastU32(2 * Equation.Count + 1);
+ // NOTE(hbr): One additional space for Token_None
+ Lexer.MaxTokenCount = SafeCastU32(Equation.Count + 1);
  Lexer.Tokens = PushArrayNonZero(Arena, Lexer.MaxTokenCount, parametric_equation_token);
  
  return Lexer;
+}
+
+internal parametric_equation_token_array
+MakeTokenArray(u32 TokenCount, parametric_equation_token *Tokens)
+{
+ parametric_equation_token_array Array = {};
+ Array.TokenCount = TokenCount;
+ Array.Tokens = Tokens;
+ 
+ return Array;
 }
 
 internal parametric_equation_token_array
@@ -301,6 +308,11 @@ TokenizeParametricEquation(arena *Arena, string Equation,
      AddToken(&Lexer, ParametricEquationToken_Slash, SaveCharAt);
     }break;
     
+    case '%': {
+     AdvanceChar(&Lexer, 1);
+     AddToken(&Lexer, ParametricEquationToken_Percent, SaveCharAt);
+    }break;
+    
     case '*': {
      AdvanceChar(&Lexer, 1);
      if (Lexer.CharAt[0] == '*')
@@ -372,13 +384,6 @@ TokenizeParametricEquation(arena *Arena, string Equation,
      f32 Number = 0;
      if (ParseIdentifier(&Lexer, &Identifier))
      {
-      // NOTE(hbr): If the last token was a number, insert imaginary multiply token so that for example "12t" parses.
-      parametric_equation_token LastToken = GetLastToken(&Lexer);
-      if (LastToken.Type == ParametricEquationToken_Number)
-      {
-       parametric_equation_token *Token = AddToken(&Lexer, ParametricEquationToken_Mult, Lexer.CharAt);
-      }
-      
       parametric_equation_token *Token = AddToken(&Lexer, ParametricEquationToken_Identifier, SaveCharAt);
       Token->Identifier = Identifier;
      }
@@ -403,11 +408,8 @@ TokenizeParametricEquation(arena *Arena, string Equation,
  
  AddToken(&Lexer, ParametricEquationToken_None, Lexer.CharAt);
  
- parametric_equation_token_array Result = {};
- Result.Tokens = Lexer.Tokens;
- Result.TokenCount = Lexer.TokenCount;
- 
- return Result;
+ parametric_equation_token_array Tokens = MakeTokenArray(Lexer.TokenCount, Lexer.Tokens);
+ return Tokens;
 }
 
 internal b32
@@ -494,12 +496,12 @@ RawIdentifierToApplicationExprIdentifier(string RawIdentifier)
  
  b32 Found = false;
  for (u32 IdentifierIndex = 0;
-      IdentifierIndex < ParametricEquationIdentifier_var;
+      IdentifierIndex < ParametricEquationIdentifier_Count;
       ++IdentifierIndex)
  {
+  string IdentifierName = ParametricEquationIdentifierNames[IdentifierIndex];
   if (IdentifierIndex != ParametricEquationIdentifier_var)
   {
-   string IdentifierName = StrFromCStr(ParametricEquationIdentifierNames[IdentifierIndex]);
    if (StrMatch(RawIdentifier, IdentifierName, true))
    {
     parametric_equation_identifier_type Type = Cast(parametric_equation_identifier_type)IdentifierIndex;
@@ -534,55 +536,58 @@ MakeApplicationExpr(arena *Arena,
  return Expr;
 }
 
-internal b32
+struct unary_operator_detection
+{
+ b32 IsUnary;
+ parametric_equation_unary_operator Operator;
+};
+internal void
+UnaryOperatorDetected(unary_operator_detection *Detection, parametric_equation_unary_operator Operator)
+{
+ Assert(!Detection->IsUnary);
+ Detection->IsUnary = true;
+ Detection->Operator = Operator;
+}
+internal unary_operator_detection
 IsUnaryOperator(parametric_equation_token Token)
 {
- b32 Result = ((Token.Type == ParametricEquationToken_Plus) ||
-               (Token.Type == ParametricEquationToken_Minus));
- return Result;
-}
-
-internal parametric_equation_unary_operator
-TokenToUnaryOperator(parametric_equation_token Token)
-{
- parametric_equation_unary_operator Result = Cast(parametric_equation_unary_operator)0;
+ unary_operator_detection Result = {};
  switch (Token.Type)
  {
-  case ParametricEquationToken_Plus: {Result = ParametricEquationUnaryOp_Plus;}break;
-  case ParametricEquationToken_Minus: {Result = ParametricEquationUnaryOp_Minus;}break;
-  
-  default: InvalidPath;
+  case ParametricEquationToken_Plus:  {UnaryOperatorDetected(&Result, ParametricEquationUnaryOp_Plus);}break;
+  case ParametricEquationToken_Minus: {UnaryOperatorDetected(&Result, ParametricEquationUnaryOp_Minus);}break;
+  default: break;
  }
- 
  return Result;
 }
 
-internal b32
+struct binary_operator_detection
+{
+ b32 IsBinary;
+ parametric_equation_binary_operator Operator;
+};
+internal void
+BinaryOperatorDetected(binary_operator_detection *Detection, parametric_equation_binary_operator Operator)
+{
+ Assert(!Detection->IsBinary);
+ Detection->IsBinary = true;
+ Detection->Operator = Operator;
+}
+internal binary_operator_detection
 IsBinaryOperator(parametric_equation_token Token)
 {
- b32 Result = ((Token.Type == ParametricEquationToken_Plus) ||
-               (Token.Type == ParametricEquationToken_Minus) ||
-               (Token.Type == ParametricEquationToken_Mult) ||
-               (Token.Type == ParametricEquationToken_Slash) ||
-               (Token.Type == ParametricEquationToken_Pow));
- return Result;
-}
-
-internal parametric_equation_binary_operator
-TokenToBinaryOperator(parametric_equation_token Token)
-{
- parametric_equation_binary_operator Result = Cast(parametric_equation_binary_operator)0;
+ binary_operator_detection Result = {};
  switch (Token.Type)
  {
-  case ParametricEquationToken_Plus: {Result = ParametricEquationBinaryOp_Plus;}break;
-  case ParametricEquationToken_Minus: {Result = ParametricEquationBinaryOp_Minus;}break;
-  case ParametricEquationToken_Mult: {Result = ParametricEquationBinaryOp_Mult;}break;
-  case ParametricEquationToken_Slash: {Result = ParametricEquationBinaryOp_Div;}break;
-  case ParametricEquationToken_Pow: {Result = ParametricEquationBinaryOp_Pow;}break;
+  case ParametricEquationToken_Plus:    {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Plus);}break;
+  case ParametricEquationToken_Minus:   {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Minus);}break;
+  case ParametricEquationToken_Mult:    {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Mult);}break;
+  case ParametricEquationToken_Slash:   {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Div);}break;
+  case ParametricEquationToken_Percent: {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Mod);}break;
+  case ParametricEquationToken_Pow:     {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Pow);}break;
   
-  default: InvalidPath;
+  default: break;
  }
- 
  return Result;
 }
 
@@ -616,7 +621,8 @@ BinaryOperatorToPrecedence(parametric_equation_binary_operator Operator)
   case ParametricEquationBinaryOp_Plus: 
   case ParametricEquationBinaryOp_Minus: {Result = 1;}break;
   case ParametricEquationBinaryOp_Mult:
-  case ParametricEquationBinaryOp_Div: {Result = 2;}break;
+  case ParametricEquationBinaryOp_Div:
+  case ParametricEquationBinaryOp_Mod: {Result = 2;}break;
   case ParametricEquationBinaryOp_Pow: {Result = 4;}break;
  }
  return Result;
@@ -642,16 +648,16 @@ ParseLeafExpr(arena *Arena, parametric_equation_parser *Parser)
  parametric_equation_expr *Expr = NilExpr;
  
  parametric_equation_token NextToken = Parser->TokenAt[0];
- if (IsUnaryOperator(NextToken))
+ unary_operator_detection UnaryOp = IsUnaryOperator(NextToken);
+ if (UnaryOp.IsUnary)
  {
   ++Parser->TokenAt;
   
-  parametric_equation_unary_operator UnaryOp = TokenToUnaryOperator(NextToken);
-  u8 NextPrecedence = UnaryOperatorToPrecedence(UnaryOp);
+  u8 NextPrecedence = UnaryOperatorToPrecedence(UnaryOp.Operator);
   
   parametric_equation_expr *SubExpr = ParseExpr(Arena, Parser, NextPrecedence);
   
-  Expr = MakeUnaryExpr(Arena, UnaryOp, SubExpr);
+  Expr = MakeUnaryExpr(Arena, UnaryOp.Operator, SubExpr);
  }
  else if (IsNumber(NextToken))
  {
@@ -662,7 +668,6 @@ ParseLeafExpr(arena *Arena, parametric_equation_parser *Parser)
  else if (IsIdentifier(NextToken))
  {
   ++Parser->TokenAt;
-  
   string RawIdentifier = NextToken.Identifier;
   
   u32 ArgCount = 0;
@@ -750,7 +755,8 @@ IsRightAssociative(parametric_equation_binary_operator Operator)
   case ParametricEquationBinaryOp_Plus:
   case ParametricEquationBinaryOp_Minus:
   case ParametricEquationBinaryOp_Mult:
-  case ParametricEquationBinaryOp_Div: {}break;
+  case ParametricEquationBinaryOp_Div: 
+  case ParametricEquationBinaryOp_Mod: {}break;
   
   case ParametricEquationBinaryOp_Pow: {Result=true;}break;
  }
@@ -769,18 +775,18 @@ ParseExprIncreasingPrecedence(arena *Arena,
  parametric_equation_expr *Expr = Left;
  
  parametric_equation_token NextToken = Parser->TokenAt[0];
- if (IsBinaryOperator(NextToken))
+ binary_operator_detection BinaryOp = IsBinaryOperator(NextToken);
+ if (BinaryOp.IsBinary)
  {
-  parametric_equation_binary_operator BinaryOp = TokenToBinaryOperator(NextToken);
-  u8 NextPrecedence = BinaryOperatorToPrecedence(BinaryOp);
+  u8 NextPrecedence = BinaryOperatorToPrecedence(BinaryOp.Operator);
   
   if ((NextPrecedence > MinPrecedence) ||
-      (NextPrecedence == MinPrecedence && IsRightAssociative(BinaryOp)))
+      (NextPrecedence == MinPrecedence && IsRightAssociative(BinaryOp.Operator)))
   {
    ++Parser->TokenAt;
    
    parametric_equation_expr *Right = ParseExpr(Arena, Parser, NextPrecedence);
-   Expr = MakeBinaryExpr(Arena, Left, BinaryOp, Right);
+   Expr = MakeBinaryExpr(Arena, Left, BinaryOp.Operator, Right);
   }
  }
  
@@ -829,6 +835,15 @@ IsBound(parametric_equation_env *Env, string Var)
  return Bound;
 }
 
+internal string
+ParametricEquationIdentifierName(parametric_equation_application_expr_identifier Identifier)
+{
+ string Name = (Identifier.Type == ParametricEquationIdentifier_var ?
+                Identifier.Var :
+                ParametricEquationIdentifierNames[Identifier.Type]);
+ return Name;
+}
+
 internal void
 TypeCheckExpr(parametric_equation_expr *Expr,
               parametric_equation_env *Env,
@@ -871,29 +886,19 @@ TypeCheckExpr(parametric_equation_expr *Expr,
    u32 ExpectedArgCount = ParametricEquationIdentifierArgCounts[Identifier.Type];
    if (Application.ArgCount != ExpectedArgCount)
    {
-    string IdentifierStr = {};
-    if (Identifier.Type == ParametricEquationIdentifier_var)
-    {
-     IdentifierStr = Identifier.Var;
-    }
-    else
-    {
-     char const *IdentifierName = ParametricEquationIdentifierNames[Identifier.Type];
-     IdentifierStr = StrFromCStr(IdentifierName);
-    }
-    
+    string IdentifierName = ParametricEquationIdentifierName(Identifier);
     if (ExpectedArgCount == 0)
     {
      SetErrorF(ErrorCapture,
                "'%S' is not a function, no arguments expected (got %u)",
-               IdentifierStr, Application.ArgCount);
+               IdentifierName, Application.ArgCount);
     }
     else
     {
      char const *ArgumentStr = (ExpectedArgCount == 1 ? "argument" : "arguments");
      SetErrorF(ErrorCapture,
                "'%S' expects %u %s (got %u)",
-               IdentifierStr, ExpectedArgCount, ArgumentStr, Application.ArgCount);
+               IdentifierName, ExpectedArgCount, ArgumentStr, Application.ArgCount);
     }
    }
    
@@ -967,6 +972,7 @@ EvalBinaryExpr(f32 LeftValue, parametric_equation_binary_operator BinaryOp, f32 
   case ParametricEquationBinaryOp_Minus: {Result = LeftValue - RightValue;}break;
   case ParametricEquationBinaryOp_Mult: {Result = LeftValue * RightValue;}break;
   case ParametricEquationBinaryOp_Div: {Result = SafeDiv0(LeftValue, RightValue);}break;
+  case ParametricEquationBinaryOp_Mod: {Result = ModF32(LeftValue, RightValue);}break;
   case ParametricEquationBinaryOp_Pow: {Result = PowF32(LeftValue, RightValue);}break;
  }
  return Result;
@@ -1011,6 +1017,7 @@ EvalApplicationExpr(parametric_equation_application_expr_identifier Identifier,
   case ParametricEquationIdentifier_exp:   {Result =   ExpF32(ArgValues[0]);}break;
   
   case ParametricEquationIdentifier_pow:   {Result =   PowF32(ArgValues[0], ArgValues[1]);}break;
+  case ParametricEquationIdentifier_mod:   {Result =   ModF32(ArgValues[0], ArgValues[1]);}break;
   
   case ParametricEquationIdentifier_pi:    {Result =        Pi32;}break;
   case ParametricEquationIdentifier_tau:   {Result =       Tau32;}break;
@@ -1025,6 +1032,8 @@ EvalApplicationExpr(parametric_equation_application_expr_identifier Identifier,
    Assert(ArgCount == 0);
    Result = EnvLookup(Env, Identifier.Var);
   }break;
+  
+  case ParametricEquationIdentifier_Count: InvalidPath;
  }
  
  return Result;
@@ -1133,6 +1142,13 @@ OptimizeExpr(parametric_equation_expr *Expr, parametric_equation_env *Env)
       }
      }break;
      
+     case ParametricEquationBinaryOp_Mod: {
+      if (ValueEqual(RightValue, 0))
+      {
+       SetValue(Expr, 0);
+      }
+     }break;
+     
      case ParametricEquationBinaryOp_Pow: {
       if (ValueEqual(LeftValue, 0))
       {
@@ -1182,6 +1198,68 @@ OptimizeExpr(parametric_equation_expr *Expr, parametric_equation_env *Env)
  }
 }
 
+// NOTE(hbr): Parse expr. If it doesn't parse the whole thing, assume
+// virtual binary multiplication operator and try again.
+internal parametric_equation_expr *
+ParseExprOptimistic(arena *Arena,
+                    parametric_equation_token_array Tokens,
+                    parametric_equation_parsing_error *ErrorCapture)
+{
+ parametric_equation_expr *Parsed = NilExpr;
+ 
+ temp_arena Temp = TempArena(Arena);
+ temp_arena Checkpoint = BeginTemp(Arena);
+ parametric_equation_token_array CurrentTokens = Tokens;
+ b32 Parsing = true;
+ 
+ while (Parsing)
+ {
+  EndTemp(Checkpoint);
+  
+  parametric_equation_parser Parser = BeginParsing(CurrentTokens, ErrorCapture);
+  // NOTE(hbr): Parse empty expression
+  if (!EatIfMatch(&Parser, ParametricEquationToken_None))
+  {
+   parametric_equation_expr *Expr = ParseExpr(Arena, &Parser, 0);
+   if (IsError(ErrorCapture))
+   {
+    Parsing = false;
+   }
+   else if (EatIfMatch(&Parser, ParametricEquationToken_None))
+   {
+    Parsing = false;
+    Parsed = Expr;
+   }
+   else
+   {
+    u32 TokenInsertPoint = Cast(u32)(Parser.TokenAt - CurrentTokens.Tokens);
+    Assert(TokenInsertPoint < CurrentTokens.TokenCount);
+    
+    parametric_equation_token FakeToken = MakeToken(ParametricEquationToken_Mult);
+    parametric_equation_token *NewTokens = PushArrayNonZero(Temp.Arena, CurrentTokens.TokenCount + 1, parametric_equation_token);
+    
+    // NOTE(hbr): This isn't particularly performant (both that we restart from the beginning
+    // and that we insert into array) in general, but I bet for our use cases, this is fine.
+    ArrayCopy(NewTokens, CurrentTokens.Tokens, TokenInsertPoint);
+    NewTokens[TokenInsertPoint] = FakeToken;
+    ArrayCopy(NewTokens + TokenInsertPoint + 1,
+              CurrentTokens.Tokens + TokenInsertPoint,
+              CurrentTokens.TokenCount - TokenInsertPoint);
+    
+    CurrentTokens = MakeTokenArray(CurrentTokens.TokenCount + 1, NewTokens);
+   }
+  }
+  else
+  {
+   Parsing = false;
+  }
+ }
+ 
+ EndTemp(Temp);
+ 
+ return Parsed;
+}
+
 // TODO(hbr): Maybe keep one convention - either we do parse parametric equation or parametric equation parse
 internal parametric_equation_parse_result
 ParseEquation(arena *Arena, string Equation, parametric_equation_env Env, b32 DontOptimize)
@@ -1192,21 +1270,7 @@ ParseEquation(arena *Arena, string Equation, parametric_equation_env Env, b32 Do
  ErrorCapture.Arena = Arena;
  
  parametric_equation_token_array Tokens = TokenizeParametricEquation(Temp.Arena, Equation, &ErrorCapture);
- 
- parametric_equation_parser Parser = BeginParsing(Tokens, &ErrorCapture);
- 
-#if 0
- parametric_equation_token Token = Parser.TokenAt[0];
- Assert(Token.Type != ParametricEquationToken_None);
- SetErrorF(&ErrorCapture, "unexpected token '%S', expected end of input", Token.OriginalString);
-#endif
- 
- parametric_equation_expr *Parsed = NilExpr;
- if (!EatIfMatch(&Parser, ParametricEquationToken_None))
- {
-  Parsed = ParseExpr(Arena, &Parser, 0);
- }
- 
+ parametric_equation_expr *Parsed = ParseExprOptimistic(Arena, Tokens, &ErrorCapture);
  TypeCheckExpr(Parsed, &Env, &ErrorCapture);
  
  if (!IsError(&ErrorCapture))

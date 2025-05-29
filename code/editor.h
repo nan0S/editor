@@ -7,6 +7,7 @@
 #include "base/base_os.h"
 #include "base/base_memory.h"
 
+#include "editor_debug.h"
 #include "editor_profiler.h"
 #include "editor_imgui.h"
 #include "editor_platform.h"

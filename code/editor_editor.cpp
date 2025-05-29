@@ -61,8 +61,6 @@ InitAnimatingCurvesState(animating_curves_state *State)
 internal void
 InitEditor(editor *Editor, editor_memory *Memory)
 {
- NilExpr = &Editor->NilParametricExpr;
- 
  Editor->BackgroundColor = Editor->DefaultBackgroundColor = RGBA_Color(21, 21, 21);
  Editor->CollisionToleranceClip = 0.04f;
  Editor->RotationRadiusClip = 0.1f;

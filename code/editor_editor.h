@@ -162,6 +162,8 @@ struct editor
  merging_curves_state MergingCurves;
  visual_profiler_state Profiler;
  
+ debug_settings DEBUG_Settings;
+ 
  //////////////////////////////
  
  v4 DefaultBackgroundColor;

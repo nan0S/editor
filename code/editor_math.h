@@ -23,6 +23,7 @@
 #define TanF32(X)              tanf(X)
 #define TanhF32(X)             tanhf(X)
 #define ExpF32(X)              expf(X)
+#define ModF32(X, M)           fmodf(X, M)
 
 //~ Basic operations
 inline internal v2  operator+ (v2 U, v2 V)   { return V2(U.X + V.X, U.Y + V.Y); }

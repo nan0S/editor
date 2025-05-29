@@ -22,6 +22,7 @@ UI_ParametricEquationExpr(parametric_equation_expr *Expr, u32 *Id)
     case ParametricEquationBinaryOp_Minus: {OpStr = "-";}break;
     case ParametricEquationBinaryOp_Mult: {OpStr = "*";}break;
     case ParametricEquationBinaryOp_Div: {OpStr = "/";}break;
+    case ParametricEquationBinaryOp_Mod: {OpStr = "%";}break;
    }
    TypeStr = StrF(Temp.Arena, "BinaryOp(%s)", OpStr);
   }break;
@@ -32,17 +33,7 @@ UI_ParametricEquationExpr(parametric_equation_expr *Expr, u32 *Id)
   
   case ParametricEquationExpr_Application: {
    parametric_equation_application_expr Application = Expr->Application;
-   
-   string IdentifierName = {};
-   if (Application.Identifier.Type == ParametricEquationIdentifier_var)
-   {
-    IdentifierName = Application.Identifier.Var;
-   }
-   else
-   {
-    IdentifierName = StrFromCStr(ParametricEquationIdentifierNames[Application.Identifier.Type]);
-   }
-   
+   string IdentifierName = ParametricEquationIdentifierName(Application.Identifier);
    TypeStr = StrF(Temp.Arena, "Application(%S)", IdentifierName);
   }break;
  }

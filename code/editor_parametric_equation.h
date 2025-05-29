@@ -1,6 +1,32 @@
 #ifndef EDITOR_PARAMETRIC_EQUATION_H
 #define EDITOR_PARAMETRIC_EQUATION_H
 
+#define ParametricEquationIdentifiers \
+X(sin, 1) \
+X(cos, 1) \
+X(tan, 1) \
+X(asin, 1) \
+X(acos, 1) \
+X(atan, 1) \
+X(atan2, 1) \
+X(floor, 1) \
+X(ceil, 1) \
+X(round, 1) \
+X(mod, 2) \
+X(pow, 2) \
+X(sqrt, 1) \
+X(exp, 1) \
+X(log, 1) \
+X(log10, 1) \
+X(sinh, 1) \
+X(cosh, 1) \
+X(tanh, 1) \
+X(pi, 0) \
+X(tau, 0) \
+X(euler, 0) \
+X(t, 0) \
+X(var, 0) // this is just regular user-defined variable but we have to define all the types
+
 enum parametric_equation_token_type
 {
  ParametricEquationToken_None,
@@ -21,10 +47,36 @@ enum parametric_equation_token_type
  ParametricEquationToken_Comma,
 };
 
+global string ParametricEquationIdentifierNames[] = {
+#define X(_Func, _ArgCount) StrLit(#_Func),
+ ParametricEquationIdentifiers
+#undef X
+};
+
+global u32 ParametricEquationIdentifierArgCounts[] = {
+#define X(_Func, _ArgCount) _ArgCount,
+ ParametricEquationIdentifiers
+#undef X
+};
+
+enum parametric_equation_identifier_type
+{
+#define X(_Func, _ArgCount) ParametricEquationIdentifier_##_Func,
+ ParametricEquationIdentifiers
+#undef X
+ ParametricEquationIdentifier_Count
+};
+
+struct parametric_equation_identifier
+{
+ parametric_equation_identifier_type Type;
+ string Var;
+};
+
 struct parametric_equation_token
 {
  parametric_equation_token_type Type;
- string Identifier;
+ parametric_equation_identifier Identifier;
  f32 Number;
  string OriginalString;
 };
@@ -61,54 +113,9 @@ struct parametric_equation_number_expr
  f32 Number;
 };
 
-#define ParametricEquationIdentifiers \
-X(sin, 1) \
-X(cos, 1) \
-X(tan, 1) \
-X(sqrt, 1) \
-X(log, 1) \
-X(log10, 1) \
-X(floor, 1) \
-X(ceil, 1) \
-X(round, 1) \
-X(pow, 2) \
-X(tanh, 1) \
-X(exp, 1) \
-X(pi, 0) \
-X(tau, 0) \
-X(euler, 0) \
-X(mod, 2) \
-X(t, 0) \
-X(var, 0) // this is just regular user-defined variable but we have to define all the types
-
-global string ParametricEquationIdentifierNames[] = {
-#define X(_Func, _ArgCount) StrLit(#_Func),
- ParametricEquationIdentifiers
-#undef X
-};
-
-global u32 ParametricEquationIdentifierArgCounts[] = {
-#define X(_Func, _ArgCount) _ArgCount,
- ParametricEquationIdentifiers
-#undef X
-};
-
-enum parametric_equation_identifier_type
-{
-#define X(_Func, _ArgCount) ParametricEquationIdentifier_##_Func,
- ParametricEquationIdentifiers
-#undef X
- ParametricEquationIdentifier_Count
-};
-
-struct parametric_equation_application_expr_identifier
-{
- parametric_equation_identifier_type Type;
- string Var;
-};
 struct parametric_equation_application_expr
 {
- parametric_equation_application_expr_identifier Identifier;
+ parametric_equation_identifier Identifier;
  u32 ArgCount;
 #define PARAMETRIC_EQUATION_APPLICATION_MAX_ARG_COUNT 2
  parametric_equation_expr *Args[PARAMETRIC_EQUATION_APPLICATION_MAX_ARG_COUNT];

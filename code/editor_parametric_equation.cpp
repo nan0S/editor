@@ -208,6 +208,37 @@ MakeTokenArray(u32 TokenCount, parametric_equation_token *Tokens)
  return Array;
 }
 
+internal parametric_equation_identifier
+MakeParametricEquationIdentifier(string IdentifierStr)
+{
+ parametric_equation_identifier Identifier = {};
+ 
+ b32 Found = false;
+ for (u32 IdentifierIndex = 0;
+      IdentifierIndex < ParametricEquationIdentifier_Count;
+      ++IdentifierIndex)
+ {
+  string IdentifierName = ParametricEquationIdentifierNames[IdentifierIndex];
+  if (IdentifierIndex != ParametricEquationIdentifier_var)
+  {
+   if (StrMatch(IdentifierStr, IdentifierName, true))
+   {
+    Identifier.Type = Cast(parametric_equation_identifier_type)IdentifierIndex;
+    Found = true;
+    break;
+   }
+  }
+ }
+ 
+ if (!Found)
+ {
+  Identifier.Type = ParametricEquationIdentifier_var;
+  Identifier.Var = IdentifierStr;
+ }
+ 
+ return Identifier;
+}
+
 internal parametric_equation_token_array
 TokenizeParametricEquation(arena *Arena, string Equation,
                            parametric_equation_parsing_error *ErrorCapture)
@@ -385,7 +416,7 @@ TokenizeParametricEquation(arena *Arena, string Equation,
      if (ParseIdentifier(&Lexer, &Identifier))
      {
       parametric_equation_token *Token = AddToken(&Lexer, ParametricEquationToken_Identifier, SaveCharAt);
-      Token->Identifier = Identifier;
+      Token->Identifier = MakeParametricEquationIdentifier(Identifier);
      }
      else if (ParseNumber(&Lexer, &Number))
      {
@@ -470,65 +501,14 @@ MakeNumberExpr(arena *Arena, f32 Number)
  return Expr;
 }
 
-internal parametric_equation_application_expr_identifier
-MakeSpecialIdentifier(parametric_equation_identifier_type Special)
-{
- parametric_equation_application_expr_identifier Identifier = {};
- Identifier.Type = Special;
- 
- return Identifier;
-}
-
-internal parametric_equation_application_expr_identifier
-MakeVarIdentifier(string Var)
-{
- parametric_equation_application_expr_identifier Identifier = {};
- Identifier.Type = ParametricEquationIdentifier_var;
- Identifier.Var = Var;
- 
- return Identifier;
-}
-
-internal parametric_equation_application_expr_identifier
-RawIdentifierToApplicationExprIdentifier(string RawIdentifier)
-{
- parametric_equation_application_expr_identifier Identifier = {};
- 
- b32 Found = false;
- for (u32 IdentifierIndex = 0;
-      IdentifierIndex < ParametricEquationIdentifier_Count;
-      ++IdentifierIndex)
- {
-  string IdentifierName = ParametricEquationIdentifierNames[IdentifierIndex];
-  if (IdentifierIndex != ParametricEquationIdentifier_var)
-  {
-   if (StrMatch(RawIdentifier, IdentifierName, true))
-   {
-    parametric_equation_identifier_type Type = Cast(parametric_equation_identifier_type)IdentifierIndex;
-    Identifier = MakeSpecialIdentifier(Type);
-    Found = true;
-    
-    break;
-   }
-  }
- }
- 
- if (!Found)
- {
-  Identifier = MakeVarIdentifier(RawIdentifier);
- }
- 
- return Identifier;
-}
-
 internal parametric_equation_expr *
 MakeApplicationExpr(arena *Arena,
-                    string RawIdentifier,
+                    parametric_equation_identifier Identifier,
                     u32 ArgCount,
                     parametric_equation_expr **Args)
 {
  parametric_equation_expr *Expr = AllocExpr(Arena, ParametricEquationExpr_Application);
- Expr->Application.Identifier = RawIdentifierToApplicationExprIdentifier(RawIdentifier);
+ Expr->Application.Identifier = Identifier;
  Expr->Application.ArgCount = ArgCount;
  Assert(ArgCount <= PARAMETRIC_EQUATION_APPLICATION_MAX_ARG_COUNT);
  ArrayCopy(Expr->Application.Args, Args, ArgCount);
@@ -585,6 +565,13 @@ IsBinaryOperator(parametric_equation_token Token)
   case ParametricEquationToken_Slash:                     {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Div);}break;
   case ParametricEquationToken_Percent:                   {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Mod);}break;
   case ParametricEquationToken_DoubleAsteriskOrCaret:     {BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Pow);}break;
+  
+  case ParametricEquationToken_Identifier: {
+   if (Token.Identifier.Type == ParametricEquationIdentifier_mod)
+   {
+    BinaryOperatorDetected(&Result, ParametricEquationBinaryOp_Mod);
+   }
+  }break;
   
   default: break;
  }
@@ -668,7 +655,9 @@ ParseLeafExpr(arena *Arena, parametric_equation_parser *Parser)
  else if (IsIdentifier(NextToken))
  {
   ++Parser->TokenAt;
-  string RawIdentifier = NextToken.Identifier;
+  
+  parametric_equation_token IdentifierToken = NextToken;
+  parametric_equation_identifier Identifier = IdentifierToken.Identifier;
   
   u32 ArgCount = 0;
   parametric_equation_expr *Args[PARAMETRIC_EQUATION_APPLICATION_MAX_ARG_COUNT];
@@ -700,7 +689,7 @@ ParseLeafExpr(arena *Arena, parametric_equation_parser *Parser)
       }
       else
       {
-       SetErrorF(Parser->ErrorCapture, "too many arguments for '%S'", RawIdentifier);
+       SetErrorF(Parser->ErrorCapture, "too many arguments for '%S'", IdentifierToken.OriginalString);
        Parsing = false;
       }
      }
@@ -717,7 +706,7 @@ ParseLeafExpr(arena *Arena, parametric_equation_parser *Parser)
    }
   }
   
-  Expr = MakeApplicationExpr(Arena, RawIdentifier, ArgCount, Args);
+  Expr = MakeApplicationExpr(Arena, Identifier, ArgCount, Args);
  }
  else if (NextToken.Type == ParametricEquationToken_OpenParen)
  {
@@ -836,7 +825,7 @@ IsBound(parametric_equation_env *Env, string Var)
 }
 
 internal string
-ParametricEquationIdentifierName(parametric_equation_application_expr_identifier Identifier)
+ParametricEquationIdentifierName(parametric_equation_identifier Identifier)
 {
  string Name = (Identifier.Type == ParametricEquationIdentifier_var ?
                 Identifier.Var :
@@ -864,7 +853,7 @@ TypeCheckExpr(parametric_equation_expr *Expr,
   
   case ParametricEquationExpr_Application: {
    parametric_equation_application_expr Application = Expr->Application;
-   parametric_equation_application_expr_identifier Identifier = Application.Identifier;
+   parametric_equation_identifier Identifier = Application.Identifier;
    
    if (Identifier.Type == ParametricEquationIdentifier_var)
    {
@@ -997,7 +986,7 @@ EnvLookup(parametric_equation_env *Env, string Key)
 }
 
 internal f32
-EvalApplicationExpr(parametric_equation_application_expr_identifier Identifier,
+EvalApplicationExpr(parametric_equation_identifier Identifier,
                     parametric_equation_env *Env,
                     u32 ArgCount, f32 *ArgValues)
 {
@@ -1007,6 +996,9 @@ EvalApplicationExpr(parametric_equation_application_expr_identifier Identifier,
   case ParametricEquationIdentifier_sin:   {Result =   SinF32(ArgValues[0]);}break;
   case ParametricEquationIdentifier_cos:   {Result =   CosF32(ArgValues[0]);}break;
   case ParametricEquationIdentifier_tan:   {Result =   TanF32(ArgValues[0]);}break;
+  case ParametricEquationIdentifier_asin:  {Result =  AsinF32(ArgValues[0]);}break;
+  case ParametricEquationIdentifier_acos:  {Result =  AcosF32(ArgValues[0]);}break;
+  case ParametricEquationIdentifier_atan:  {Result =  AtanF32(ArgValues[0]);}break;
   case ParametricEquationIdentifier_sqrt:  {Result =  SqrtF32(ArgValues[0]);}break;
   case ParametricEquationIdentifier_log:   {Result =   LogF32(ArgValues[0]);}break;
   case ParametricEquationIdentifier_log10: {Result = Log10F32(ArgValues[0]);}break;
@@ -1014,10 +1006,13 @@ EvalApplicationExpr(parametric_equation_application_expr_identifier Identifier,
   case ParametricEquationIdentifier_ceil:  {Result =  CeilF32(ArgValues[0]);}break;
   case ParametricEquationIdentifier_round: {Result = RoundF32(ArgValues[0]);}break;
   case ParametricEquationIdentifier_tanh:  {Result =  TanhF32(ArgValues[0]);}break;
+  case ParametricEquationIdentifier_sinh:  {Result =  SinhF32(ArgValues[0]);}break;
+  case ParametricEquationIdentifier_cosh:  {Result =  CoshF32(ArgValues[0]);}break;
   case ParametricEquationIdentifier_exp:   {Result =   ExpF32(ArgValues[0]);}break;
   
   case ParametricEquationIdentifier_pow:   {Result =   PowF32(ArgValues[0], ArgValues[1]);}break;
   case ParametricEquationIdentifier_mod:   {Result =   ModF32(ArgValues[0], ArgValues[1]);}break;
+  case ParametricEquationIdentifier_atan2:  {Result = Atan2F32(ArgValues[0], ArgValues[1]);}break;
   
   case ParametricEquationIdentifier_pi:    {Result =        Pi32;}break;
   case ParametricEquationIdentifier_tau:   {Result =       Tau32;}break;

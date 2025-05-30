@@ -2464,7 +2464,9 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
   }
 #endif
   
-  if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_Delete)
+  if (!Eat &&
+      (Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Delete) ||
+      (Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_X && (Event->Flags & PlatformEventFlag_Ctrl)))
   {
    entity *Entity = EntityFromHandle(Editor->SelectedEntityHandle);
    entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
@@ -2497,8 +2499,19 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
    EndEntityModify(EntityWitness);
   }
   
+  if (Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_D && (Event->Flags & PlatformEventFlag_Ctrl))
+  {
+   entity *Entity = EntityFromHandle(Editor->SelectedEntityHandle);
+   if (Entity)
+   {
+    Eat = true;
+    DuplicateEntity(Editor, Entity);
+   }
+  }
+  
   if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Q && (Event->Flags & PlatformEventFlag_Ctrl))
   {
+   Eat = true;
    Editor->Profiler.Stopped = !Editor->Profiler.Stopped;
   }
   
@@ -3496,12 +3509,12 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  {
   Input->QuitRequested = true;
  }
+ 
  Input->ProfilingStopped = Editor->Profiler.Stopped;
  
- // TODO(hbr): Only in debug???
- //#if BUILD_DEBUG
+#if BUILD_DEBUG
  Input->RefreshRequested = true;
- //#endif
+#endif
 }
 
 internal void

@@ -813,43 +813,15 @@ SetEntityName(entity *Entity, string Name)
  FillCharBuffer(&Entity->NameBuffer, Name);
 }
 
-#if 0
-internal void
-InitEntityPart(entity *Entity, v2 P, string Name)
-{
- Entity->P = P;
- Entity->Scale = V2(1, 1);
- Entity->Rotation = Rotation2DZero();
- SetEntityName(Entity, Name);
-}
-
-internal void
-InitCurveEntity2(entity *Entity, string Name, curve_params Params)
-{
- Assert(Entity->Type == Entity_Curve);
- InitEntityPart(Entity, V2(0, 0), Name);
- curve *Curve = &Entity->Curve;
- Curve->Params = Params;
-}
-
-internal void
-InitCurveEntity(entity *Entity, curve_params Params)
-{
- Assert(Entity->Type == Entity_Curve);
- 
- curve *Curve = &Entity->Curve;
- Curve->Params = Params;
-}
-
-#endif
-
 internal void
 InitEntityPart(entity *Entity,
+               entity_type Type,
                v2 P, v2 Scale, v2 Rotation,
                string Name,
                i32 SortingLayer,
                entity_flags Flags)
 {
+ Entity->Type = Type;
  Entity->P = P;
  Entity->Scale = Scale;
  Entity->Rotation = Rotation;
@@ -862,22 +834,27 @@ internal void
 InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams)
 {
  InitEntityPart(Entity,
+                Entity_Curve,
                 V2(0, 0), V2(1, 1), Rotation2DZero(),
                 Name, 0, 0);
- curve *Curve = SafeGetCurve(Entity);
+ curve *Curve = &Entity->Curve;
  Curve->Params = CurveParams;
 }
 
 internal void
-InitEntityAsImage(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath)
+InitEntityAsImage(entity *Entity,
+                  v2 P,
+                  string Name,
+                  u32 Width, u32 Height,
+                  render_texture_handle TextureHandle)
 {
- string FileName = PathLastPart(FilePath);
- string FileNameNoExt = StrChopLastDot(FileName);
  InitEntityPart(Entity,
+                Entity_Image,
                 P, V2(1, 1), Rotation2DZero(),
-                FileNameNoExt, 0, 0);
- image *Image = SafeGetImage(Entity);
+                Name, 0, 0);
+ image *Image = &Entity->Image;
  Image->Dim = V2(Cast(f32)Width / Height, 1.0f);
+ Image->TextureHandle = TextureHandle;
 }
 
 internal void

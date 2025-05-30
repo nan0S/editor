@@ -62,7 +62,7 @@ struct image_loading_store
 
 //- entity store
 internal void InitEntityStore(entity_store *Store, u32 MaxTextureCount, u32 MaxBufferCount, string_cache *StrCache);
-internal entity *AllocEntity(entity_store *Store, entity_type Type, b32 DontTrack);
+internal entity *AllocEntity(entity_store *Store, b32 DontTrack);
 internal void DeallocEntity(entity *Entity, struct editor_assets *Assets);
 internal entity_array AllEntityArrayFromStore(entity_store *Store);
 internal entity_array EntityArrayFromType(entity_store *Store, entity_type Type);

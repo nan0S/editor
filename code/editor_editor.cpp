@@ -42,7 +42,7 @@ internal void
 InitMergingCurvesState(merging_curves_state *State,
                        entity_store *EntityStore)
 {
- State->MergeEntity = AllocEntity(EntityStore, Entity_Curve, true);
+ State->MergeEntity = AllocEntity(EntityStore, true);
 }
 
 internal void
@@ -88,7 +88,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
  
  {
   entity_store *EntityStore = &Editor->EntityStore;
-  entity *Entity = AllocEntity(EntityStore, Entity_Curve, false);
+  entity *Entity = AllocEntity(EntityStore, false);
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
   
   curve_params Params = Editor->CurveDefaultParams;
@@ -108,7 +108,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
  
  {
   entity_store *EntityStore = &Editor->EntityStore;
-  entity *Entity = AllocEntity(EntityStore, Entity_Curve, false);
+  entity *Entity = AllocEntity(EntityStore, false);
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
   
   curve_params Params = Editor->CurveDefaultParams;
@@ -180,6 +180,7 @@ InitEntityFromEntity(entity_store *EntityStore, entity_with_modify_witness *DstW
  image *SrcImage = &Src->Image;
  
  InitEntityPart(Dst,
+                Src->Type,
                 Src->P, Src->Scale, Src->Rotation,
                 GetEntityName(Src),
                 Src->SortingLayer,
@@ -214,7 +215,7 @@ DuplicateEntity(editor *Editor, entity *Entity)
  temp_arena Temp = TempArena(0);
  
  entity_store *EntityStore = &Editor->EntityStore;
- entity *Copy = AllocEntity(EntityStore, Entity->Type, false);
+ entity *Copy = AllocEntity(EntityStore, false);
  entity_with_modify_witness CopyWitness = BeginEntityModify(Copy);
  string CopyName = StrF(Temp.Arena, "%S(copy)", GetEntityName(Entity));
  
@@ -293,7 +294,7 @@ SplitCurveOnControlPoint(editor *Editor, entity_with_modify_witness *EntityWitne
   u32 TailPointCount = Curve->ControlPointCount - Curve->SelectedIndex.Index;
   
   entity *HeadEntity = Entity;
-  entity *TailEntity = AllocEntity(&Editor->EntityStore, Entity_Curve, false);
+  entity *TailEntity = AllocEntity(&Editor->EntityStore, false);
   
   entity_with_modify_witness *HeadWitness = EntityWitness;
   entity_with_modify_witness TailWitness = BeginEntityModify(TailEntity);
@@ -459,7 +460,7 @@ PerformBezierCurveSplit(editor *Editor, entity_with_modify_witness *EntityWitnes
  u32 ControlPointCount = Curve->ControlPointCount;
  
  entity *LeftEntity = Entity;
- entity *RightEntity = AllocEntity(&Editor->EntityStore, Entity_Curve, false);
+ entity *RightEntity = AllocEntity(&Editor->EntityStore, false);
  
  entity_with_modify_witness LeftWitness = BeginEntityModify(LeftEntity);
  entity_with_modify_witness RightWitness = BeginEntityModify(RightEntity);
@@ -507,7 +508,7 @@ EndMergingCurves(editor *Editor, b32 Merged)
  if (Merged)
  {
   entity_store *EntityStore = &Editor->EntityStore;
-  entity *Entity = AllocEntity(EntityStore, Entity_Curve, false);
+  entity *Entity = AllocEntity(EntityStore, false);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
   InitEntityFromEntity(EntityStore, &EntityWitness, Merging->MergeEntity);
   EndEntityModify(EntityWitness);

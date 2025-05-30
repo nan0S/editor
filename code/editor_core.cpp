@@ -70,7 +70,7 @@ InitEntityStore(entity_store *Store,
 }
 
 internal entity *
-AllocEntity(entity_store *Store, entity_type Type, b32 DontTrack)
+AllocEntity(entity_store *Store, b32 DontTrack)
 {
  entity *Entity = Store->Free;
  if (Entity)
@@ -86,26 +86,15 @@ AllocEntity(entity_store *Store, entity_type Type, b32 DontTrack)
  
  Entity->Id = Store->IdCounter++;
  Entity->Generation = Generation;
- Entity->Type = Type;
  Entity->InternalFlags = (DontTrack ? 0 : EntityInternalFlag_Tracked);
  Entity->NameBuffer = AllocString(Store->StrCache, 128);
  
- switch (Type)
- {
-  case Entity_Curve: {
-   curve *Curve = &Entity->Curve;
-   Curve->ComputeArena = AllocArena(Megabytes(32));
-   Curve->DegreeLowering.Arena = AllocArena(Megabytes(32));
-   Curve->ParametricResources.Arena = AllocArena(Megabytes(32));
-  }break;
-  
-  case Entity_Image: {
-   image *Image = &Entity->Image;
-   Image->TextureHandle = AllocTextureHandle(Store);
-  }break;
-  
-  case Entity_Count: InvalidPath;
- }
+ // NOTE(hbr): It shouldn't really matter anyway that we allocate arenas even for
+ // entities other than curves.
+ curve *Curve = &Entity->Curve;
+ Curve->ComputeArena = AllocArena(Megabytes(32));
+ Curve->DegreeLowering.Arena = AllocArena(Megabytes(32));
+ Curve->ParametricResources.Arena = AllocArena(Megabytes(32));
  
  if (Entity->InternalFlags & EntityInternalFlag_Tracked)
  {

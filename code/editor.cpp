@@ -311,17 +311,20 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
   string FilePath = FilePaths[FileIndex];
   
   image_info ImageInfo = LoadImageInfo(FilePath);
-  entity *Entity = AllocEntity(EntityStore, Entity_Image, false);
-  InitEntityAsImage(Entity, AtP, ImageInfo.Width, ImageInfo.Height, FilePath);
-  
+  render_texture_handle TextureHandle = AllocTextureHandle(EntityStore);
   // TODO(hbr): Make it always suceeed??????
-  renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, Entity->Image.TextureHandle);
+  renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, TextureHandle);
   image_loading_task *ImageLoading = BeginAsyncImageLoadingTask(ImageLoadingStore);
   thread_task_memory *TaskMemory = BeginThreadTaskMemory(ThreadTaskMemoryStore);
   
   load_image_work *Work = 0;
   if (TextureOp && TaskMemory && ImageLoading)
   {
+   string FileName = PathLastPart(FilePath);
+   string FileNameNoExt = StrChopLastDot(FileName);
+   entity *Entity = AllocEntity(EntityStore, false);
+   InitEntityAsImage(Entity, AtP, FileNameNoExt, ImageInfo.Width, ImageInfo.Height, TextureHandle);
+   
    ImageLoading->Entity = Entity;
    ImageLoading->ImageFilePath = StrCopy(ImageLoading->Arena, FilePath);
    
@@ -342,7 +345,7 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
    {
     PopTextureTransfer(Editor->RendererQueue, TextureOp);
    }
-   DeallocEntity(EntityStore, Entity);
+   DeallocTextureHandle(EntityStore, TextureHandle);
    if (ImageLoading)
    {
     FinishAsyncImageLoadingTask(ImageLoadingStore, ImageLoading);
@@ -2187,7 +2190,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
       temp_arena Temp = TempArena(0);
       
       entity_store *EntityStore = &Editor->EntityStore;
-      entity *Entity = AllocEntity(EntityStore, Entity_Curve, false);
+      entity *Entity = AllocEntity(EntityStore, false);
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
       InitEntityAsCurve(Entity, Name, Editor->CurveDefaultParams);
       TargetEntity = Entity;

@@ -312,7 +312,7 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
   
   image_info ImageInfo = LoadImageInfo(FilePath);
   entity *Entity = AllocEntity(EntityStore, Entity_Image, false);
-  InitImageEntity(Entity, AtP, ImageInfo.Width, ImageInfo.Height, FilePath);
+  InitEntityAsImage(Entity, AtP, ImageInfo.Width, ImageInfo.Height, FilePath);
   
   // TODO(hbr): Make it always suceeed??????
   renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, Entity->Image.TextureHandle);
@@ -2189,7 +2189,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
       entity_store *EntityStore = &Editor->EntityStore;
       entity *Entity = AllocEntity(EntityStore, Entity_Curve, false);
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
-      InitCurveEntity2(Entity, Name, Editor->CurveDefaultParams);
+      InitEntityAsCurve(Entity, Name, Editor->CurveDefaultParams);
       TargetEntity = Entity;
       
       EndTemp(Temp);
@@ -2528,7 +2528,10 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
 }
 
 internal void
-Merge2Curves(entity_with_modify_witness *MergeWitness, entity *Entity0, entity *Entity1, curve_merge_method Method)
+Merge2Curves(entity_with_modify_witness *MergeWitness,
+             entity *Entity0, entity *Entity1,
+             curve_merge_method Method,
+             entity_store *EntityStore)
 {
  temp_arena Temp = TempArena(0);
  
@@ -2539,7 +2542,7 @@ Merge2Curves(entity_with_modify_witness *MergeWitness, entity *Entity0, entity *
  curve *Merge = &MergeEntity->Curve;
  
  string Name = StrF(Temp.Arena, "%S+%S", GetEntityName(Entity0), GetEntityName(Entity1));
- InitEntityFromEntity(MergeWitness, Entity0);
+ InitEntityFromEntity(EntityStore, MergeWitness, Entity0);
  SetEntityName(MergeEntity, Name);
  
  MaybeReverseCurvePoints(Entity0);
@@ -2755,7 +2758,7 @@ RenderMergingCurvesUI(editor *Editor)
     entity_with_modify_witness MergeWitness = BeginEntityModify(Merging->MergeEntity);
     if (Compatibility.Compatible)
     {
-     Merge2Curves(&MergeWitness, Entity0, Entity1, Merging->Method);
+     Merge2Curves(&MergeWitness, Entity0, Entity1, Merging->Method, EntityStore);
     }
     else
     {

@@ -813,6 +813,7 @@ SetEntityName(entity *Entity, string Name)
  FillCharBuffer(&Entity->NameBuffer, Name);
 }
 
+#if 0
 internal void
 InitEntityPart(entity *Entity, v2 P, string Name)
 {
@@ -820,17 +821,6 @@ InitEntityPart(entity *Entity, v2 P, string Name)
  Entity->Scale = V2(1, 1);
  Entity->Rotation = Rotation2DZero();
  SetEntityName(Entity, Name);
-}
-
-internal void
-InitImageEntity(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath)
-{
- Assert(Entity->Type == Entity_Image);
- string FileName = PathLastPart(FilePath);
- string FileNameNoExt = StrChopLastDot(FileName);
- InitEntityPart(Entity, P, FileNameNoExt);
- image *Image = &Entity->Image;
- Image->Dim = V2(Cast(f32)Width / Height, 1.0f);
 }
 
 internal void
@@ -851,19 +841,43 @@ InitCurveEntity(entity *Entity, curve_params Params)
  Curve->Params = Params;
 }
 
+#endif
+
 internal void
-InitEntity(entity *Entity,
-           v2 P,
-           v2 Scale,
-           v2 Rotation,
-           string Name,
-           i32 SortingLayer)
+InitEntityPart(entity *Entity,
+               v2 P, v2 Scale, v2 Rotation,
+               string Name,
+               i32 SortingLayer,
+               entity_flags Flags)
 {
  Entity->P = P;
  Entity->Scale = Scale;
  Entity->Rotation = Rotation;
  SetEntityName(Entity, Name);
  Entity->SortingLayer = SortingLayer;
+ Entity->Flags = Flags;
+}
+
+internal void
+InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams)
+{
+ InitEntityPart(Entity,
+                V2(0, 0), V2(1, 1), Rotation2DZero(),
+                Name, 0, 0);
+ curve *Curve = SafeGetCurve(Entity);
+ Curve->Params = CurveParams;
+}
+
+internal void
+InitEntityAsImage(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath)
+{
+ string FileName = PathLastPart(FilePath);
+ string FileNameNoExt = StrChopLastDot(FileName);
+ InitEntityPart(Entity,
+                P, V2(1, 1), Rotation2DZero(),
+                FileNameNoExt, 0, 0);
+ image *Image = SafeGetImage(Entity);
+ Image->Dim = V2(Cast(f32)Width / Height, 1.0f);
 }
 
 internal void
@@ -879,31 +893,6 @@ SetCurveControlPoint(entity_with_modify_witness *EntityWitness, control_point_in
  {
   Curve->ControlPointWeights[Index.Index] = Weight;
   MarkEntityModified(EntityWitness);
- }
-}
-
-internal void
-InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src)
-{
- entity *Dst = DstWitness->Entity;
- 
- InitEntity(Dst, Src->P, Src->Scale, Src->Rotation, GetEntityName(Src), Src->SortingLayer);
- switch (Src->Type)
- {
-  case Entity_Curve: {
-   curve *SrcCurve = SafeGetCurve(Src);
-   curve *DstCurve = SafeGetCurve(Dst);
-   
-   InitCurveEntity(Dst, SrcCurve->Params);
-   SetCurveControlPoints(DstWitness, SrcCurve->ControlPointCount, SrcCurve->ControlPoints, SrcCurve->ControlPointWeights, SrcCurve->CubicBezierPoints);
-   SelectControlPoint(DstCurve, SrcCurve->SelectedIndex);
-  } break;
-  
-  case Entity_Image: {
-   image *Image = SafeGetImage(Src);
-  } break;
-  
-  case Entity_Count: InvalidPath; break;
  }
 }
 

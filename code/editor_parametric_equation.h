@@ -48,7 +48,7 @@ enum parametric_equation_token_type
 };
 
 global string ParametricEquationIdentifierNames[] = {
-#define X(_Func, _ArgCount) StrLit(#_Func),
+#define X(_Func, _ArgCount) StrLitComp(#_Func),
  ParametricEquationIdentifiers
 #undef X
 };

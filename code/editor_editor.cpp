@@ -93,7 +93,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
   
   curve_params Params = Editor->CurveDefaultParams;
   Params.Type = Curve_Bezier;
-  InitCurveEntity2(Entity, StrLit("de-casteljau"), Params);
+  InitEntityAsCurve(Entity, StrLit("de-casteljau"), Params);
   
   AppendControlPoint(&Witness, V2(-0.5f, -0.5f));
   AppendControlPoint(&Witness, V2(+0.5f, -0.5f));
@@ -113,7 +113,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
   
   curve_params Params = Editor->CurveDefaultParams;
   Params.Type = Curve_B_Spline;
-  InitCurveEntity2(Entity, StrLit("b-spline"), Params);
+  InitEntityAsCurve(Entity, StrLit("b-spline"), Params);
   
   u32 PointCount = 30;
   curve_points_modify_handle Handle = BeginModifyCurvePoints(&Witness, PointCount, ModifyCurvePointsWhichPoints_JustControlPoints);
@@ -179,12 +179,11 @@ InitEntityFromEntity(entity_store *EntityStore, entity_with_modify_witness *DstW
  image *DstImage = &Dst->Image;
  image *SrcImage = &Src->Image;
  
- Dst->P = Src->P;
- Dst->Scale = Src->Scale;
- Dst->Rotation = Src->Rotation;
- SetEntityName(Dst, GetEntityName(Src));
- Dst->SortingLayer = Src->SortingLayer;
- Dst->Flags = Src->Flags;
+ InitEntityPart(Dst,
+                Src->P, Src->Scale, Src->Rotation,
+                GetEntityName(Src),
+                Src->SortingLayer,
+                Src->Flags);
  
  switch (Src->Type)
  {
@@ -299,7 +298,7 @@ SplitCurveOnControlPoint(editor *Editor, entity_with_modify_witness *EntityWitne
   entity_with_modify_witness *HeadWitness = EntityWitness;
   entity_with_modify_witness TailWitness = BeginEntityModify(TailEntity);
   
-  InitEntityFromEntity(&TailWitness, HeadEntity);
+  InitEntityFromEntity(EntityStore, &TailWitness, HeadEntity);
   
   curve *HeadCurve = SafeGetCurve(HeadEntity);
   curve *TailCurve = SafeGetCurve(TailEntity);
@@ -472,7 +471,7 @@ PerformBezierCurveSplit(editor *Editor, entity_with_modify_witness *EntityWitnes
  curve *RightCurve = SafeGetCurve(RightEntity);
  
  SetEntityName(LeftEntity, LeftName);
- InitEntityFromEntity(&RightWitness, LeftEntity);
+ InitEntityFromEntity(EntityStore, &RightWitness, LeftEntity);
  SetEntityName(RightEntity, RightName);
  
  curve_points_modify_handle LeftPoints = BeginModifyCurvePoints(&LeftWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
@@ -510,7 +509,7 @@ EndMergingCurves(editor *Editor, b32 Merged)
   entity_store *EntityStore = &Editor->EntityStore;
   entity *Entity = AllocEntity(EntityStore, Entity_Curve, false);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
-  InitEntityFromEntity(&EntityWitness, Merging->MergeEntity);
+  InitEntityFromEntity(EntityStore, &EntityWitness, Merging->MergeEntity);
   EndEntityModify(EntityWitness);
  }
  Merging->Active = false;

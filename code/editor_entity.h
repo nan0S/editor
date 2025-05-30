@@ -427,10 +427,8 @@ internal curve_points_modify_handle BeginModifyCurvePoints(entity_with_modify_wi
 internal void EndModifyCurvePoints(curve_points_modify_handle Handle);
 
 //- entity initialization
-internal void InitImageEntity(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath);
-internal void InitCurveEntity(entity *Entity, curve_params Params);
-internal void InitEntity(entity *Entity, v2 P, v2 Scale, v2 Rotation, string Name, i32 SortingLayer);
-internal void InitEntityFromEntity(entity_with_modify_witness *Dst, entity *Src);
+internal void InitEntityAsImage(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath);
+internal void InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams);
 
 internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
 internal v2 LocalEntityPositionToWorld(entity *Entity, v2 P);

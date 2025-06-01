@@ -1,12 +1,19 @@
 #ifndef EDITOR_CORE_H
 #define EDITOR_CORE_H
 
+struct entity_list_node
+{
+ entity_list_node *Next;
+ entity_list_node *Prev;
+ entity Entity;
+};
+
 struct entity_store
 {
  arena *Arena;
- entity *Free;
- entity *Head;
- entity *Tail;
+ entity_list_node *Free;
+ entity_list_node *Head;
+ entity_list_node *Tail;
  u32 Count;
  arena *ByTypeArenas[Entity_Count + 1];
  entity_array ByTypeArrays[Entity_Count + 1];

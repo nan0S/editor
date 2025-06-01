@@ -232,9 +232,10 @@ union mat4
 // this is done in this weird way because I cannot write multiple statements ended with expression
 inline void *_SafeCastToPtr(void *Expr, u64 SizeOf1, u64 SizeOf2) { Assert(SizeOf1 == SizeOf2); return Expr; }
 #define SafeCastToPtr(Var, Type) Cast(Type *)_SafeCastToPtr(&Var, SizeOf(Var), SizeOf(Type))
-#define OffsetOf(Type, Member) (Cast(u64)(&((Cast(Type *)0)->Member)))
+#define OffsetOf(Type, Member) (Cast(umm)(&((Cast(Type *)0)->Member)))
 #define SizeOf(Expr) sizeof(Expr)
 #define MemberOf(Type, Member) ((Cast(Type *)0)->Member)
+#define ContainerOf(Ptr, ContainerType, ContainerMember) (Cast(ContainerType *)(Cast(umm)(Ptr) - OffsetOf(ContainerType, ContainerMember)))
 #define AlignOf(Type) alignof(Type)
 #define DeferBlock(Start, End) for (int _i_ = ((Start), 0); _i_ == 0; ++_i_, (End))
 #define NameConcat_(A, B) A##B

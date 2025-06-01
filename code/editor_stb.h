@@ -9,6 +9,7 @@ struct image_info
  u32 Width;
  u32 Height;
  u32 Channels;
+ u64 SizeInBytes;
 };
 
 struct loaded_image

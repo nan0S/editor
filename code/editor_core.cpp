@@ -72,15 +72,17 @@ InitEntityStore(entity_store *Store,
 internal entity *
 AllocEntity(entity_store *Store, b32 DontTrack)
 {
- entity *Entity = Store->Free;
- if (Entity)
+ entity_list_node *Node = Store->Free;
+ if (Node)
  {
   StackPop(Store->Free);
  }
  else
  {
-  Entity = PushStructNonZero(Store->Arena, entity);
+  Node = PushStructNonZero(Store->Arena, entity_list_node);
  }
+ 
+ entity *Entity = &Node->Entity;
  u32 Generation = Entity->Generation;
  StructZero(Entity);
  
@@ -98,7 +100,7 @@ AllocEntity(entity_store *Store, b32 DontTrack)
  
  if (Entity->InternalFlags & EntityInternalFlag_Tracked)
  {
-  DLLPushBack(Store->Head, Store->Tail, Entity);
+  DLLPushBack(Store->Head, Store->Tail, Node);
   ++Store->Count;
   ++Store->AllocGeneration;
  }
@@ -109,33 +111,24 @@ AllocEntity(entity_store *Store, b32 DontTrack)
 internal void
 DeallocEntity(entity_store *Store, entity *Entity)
 {
- switch (Entity->Type)
- {
-  case Entity_Curve: {
-   curve *Curve = &Entity->Curve;
-   DeallocArena(Curve->ComputeArena);
-   DeallocArena(Curve->DegreeLowering.Arena);
-   DeallocArena(Curve->ParametricResources.Arena);
-  }break;
-  
-  case Entity_Image: {
-   image *Image = &Entity->Image;
-   DeallocTextureHandle(Store, Image->TextureHandle);
-  }break;
-  
-  case Entity_Count: InvalidPath;
- }
+ curve *Curve = &Entity->Curve;
+ DeallocArena(Curve->ComputeArena);
+ DeallocArena(Curve->DegreeLowering.Arena);
+ DeallocArena(Curve->ParametricResources.Arena);
+ 
+ image *Image = &Entity->Image;
+ DeallocTextureHandle(Store, Image->TextureHandle);
  
  ++Entity->Generation;
  
+ entity_list_node *Node = ContainerOf(Entity, entity_list_node, Entity);
  if (Entity->InternalFlags & EntityInternalFlag_Tracked)
  {
-  DLLRemove(Store->Head, Store->Tail, Entity);
+  DLLRemove(Store->Head, Store->Tail, Node);
   --Store->Count;
   ++Store->AllocGeneration;
  }
- 
- StackPush(Store->Free, Entity);
+ StackPush(Store->Free, Node);
 }
 
 internal entity_array
@@ -157,8 +150,9 @@ EntityArrayFromType(entity_store *Store, entity_type Type)
   u32 MaxCount = Store->Count;
   Array.Entities = PushArrayNonZero(Arena, MaxCount, entity *);
   entity **At = Array.Entities;
-  ListIter(Entity, Store->Head, entity)
+  ListIter(Node, Store->Head, entity_list_node)
   {
+   entity *Entity = &Node->Entity;
    if (Type == Entity_Count || (Type == Entity->Type))
    {
     *At++ = Entity;

@@ -278,9 +278,8 @@ LoadImageWork(void *UserData)
  renderer_transfer_op_state OpState;
  if (LoadedImage.Success)
  {
-  u64 ImageSize = 4 * LoadedImage.Info.Width * LoadedImage.Info.Height;
   // TODO(hbr): Don't do memory copy, just read into that memory directly
-  MemoryCopy(TextureOp->Pixels, LoadedImage.Pixels, ImageSize);
+  MemoryCopy(TextureOp->Pixels, LoadedImage.Pixels, LoadedImage.Info.SizeInBytes);
   OpState = RendererOp_ReadyToTransfer;
   AsyncTaskState = Image_Loaded;
  }
@@ -312,49 +311,26 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
   
   image_info ImageInfo = LoadImageInfo(FilePath);
   render_texture_handle TextureHandle = AllocTextureHandle(EntityStore);
-  // TODO(hbr): Make it always suceeed??????
-  renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, TextureHandle);
+  renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, ImageInfo.Channels, TextureHandle);
   image_loading_task *ImageLoading = BeginAsyncImageLoadingTask(ImageLoadingStore);
   thread_task_memory *TaskMemory = BeginThreadTaskMemory(ThreadTaskMemoryStore);
   
-  load_image_work *Work = 0;
-  if (TextureOp && TaskMemory && ImageLoading)
-  {
-   string FileName = PathLastPart(FilePath);
-   string FileNameNoExt = StrChopLastDot(FileName);
-   entity *Entity = AllocEntity(EntityStore, false);
-   InitEntityAsImage(Entity, AtP, FileNameNoExt, ImageInfo.Width, ImageInfo.Height, TextureHandle);
-   
-   ImageLoading->Entity = Entity;
-   ImageLoading->ImageFilePath = StrCopy(ImageLoading->Arena, FilePath);
-   
-   Work = PushStruct(TaskMemory->Arena, load_image_work);
-   Work->Store = ThreadTaskMemoryStore;
-   Work->TaskMemory = TaskMemory;
-   Work->TextureOp = TextureOp;
-   Work->ImagePath = StrCopy(TaskMemory->Arena, FilePath);
-   Work->ImageLoading = ImageLoading;
-   
-   Platform.WorkQueueAddEntry(WorkQueue, LoadImageWork, Work);
-  }
+  string FileName = PathLastPart(FilePath);
+  string FileNameNoExt = StrChopLastDot(FileName);
+  entity *Entity = AllocEntity(EntityStore, false);
+  InitEntityAsImage(Entity, AtP, FileNameNoExt, ImageInfo.Width, ImageInfo.Height, TextureHandle);
   
-  //- dellocate things in case of failure
-  if (!Work)
-  {
-   if (TextureOp)
-   {
-    PopTextureTransfer(Editor->RendererQueue, TextureOp);
-   }
-   DeallocTextureHandle(EntityStore, TextureHandle);
-   if (ImageLoading)
-   {
-    FinishAsyncImageLoadingTask(ImageLoadingStore, ImageLoading);
-   }
-   if (TaskMemory)
-   {
-    EndThreadTaskMemory(ThreadTaskMemoryStore, TaskMemory);
-   }
-  }
+  ImageLoading->Entity = Entity;
+  ImageLoading->ImageFilePath = StrCopy(ImageLoading->Arena, FilePath);
+  
+  load_image_work *Work = PushStruct(TaskMemory->Arena, load_image_work);
+  Work->Store = ThreadTaskMemoryStore;
+  Work->TaskMemory = TaskMemory;
+  Work->TextureOp = TextureOp;
+  Work->ImagePath = StrCopy(TaskMemory->Arena, FilePath);
+  Work->ImageLoading = ImageLoading;
+  
+  Platform.WorkQueueAddEntry(WorkQueue, LoadImageWork, Work);
  }
 }
 

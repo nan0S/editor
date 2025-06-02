@@ -1,3 +1,19 @@
+internal mat3_col_major
+ColMajor3x3From3x3(mat3 M)
+{
+ mat3_col_major C = {};
+ C.M = Transpose3x3(M);
+ return C;
+}
+
+internal mat3_row_major
+RowMajor3x3From3x3(mat3 M)
+{
+ mat3_row_major R = {};
+ R.M = M;
+ return R;
+}
+
 inline internal render_texture_handle
 TextureHandleZero(void)
 {
@@ -45,7 +61,7 @@ PushVertexArray(render_group *Group,
   Line->VertexCount = VertexCount;
   Line->Primitive = Primitive;
   Line->Color = Color;
-  Line->Model = Group->ModelXForm;
+  Line->Model = RowMajor3x3From3x3(Group->ModelXForm);
   Line->ZOffset = ZOffset + Group->ZOffset;
  }
  
@@ -54,7 +70,7 @@ PushVertexArray(render_group *Group,
 
 internal void
 PushCircle(render_group *Group,
-           v2 P, v2 Rotation, v2 Scale,
+           v2 P,
            f32 Radius, v4 Color,
            f32 ZOffset,
            f32 OutlineThickness = 0,
@@ -65,20 +81,21 @@ PushCircle(render_group *Group,
  render_frame *Frame = Group->Frame;
  if (Frame->CircleCount < Frame->MaxCircleCount)
  {
-  render_circle *Data = Frame->Circles + Frame->CircleCount++;
+  render_circle *Circle = Frame->Circles + Frame->CircleCount++;
   
   f32 TotalRadius = Radius + OutlineThickness;
   f32 RadiusProper = Radius / TotalRadius;
   
-  mat3 Model = ModelTransform(P, Rotation, Scale);
+  mat3 Model = Identity3x3();
+  Model = Translate3x3(Model, P);
   Model = Scale3x3(Model, TotalRadius);
-  Model = Transpose3x3(Model);
+  Model = Group->ModelXForm * Model;
   
-  Data->Z = ZOffset;
-  Data->Model = Model;
-  Data->RadiusProper = RadiusProper;
-  Data->Color = Color;
-  Data->OutlineColor = OutlineColor;
+  Circle->Z = ZOffset;
+  Circle->Model = ColMajor3x3From3x3(Model);
+  Circle->RadiusProper = RadiusProper;
+  Circle->Color = Color;
+  Circle->OutlineColor = OutlineColor;
  }
  
  ProfileEnd();
@@ -195,10 +212,10 @@ PushImage(render_group *Group, v2 Dim, render_texture_handle TextureHandle)
  {
   render_image *RenderImage = Frame->Images + Frame->ImageCount++;
   
-  mat3 Model = Group->ModelXForm * ModelTransform(V2(0, 0), Rotation2DZero(), Dim);
-  Model = Transpose3x3(Model);
+  mat3 Model = ModelTransform(V2(0, 0), Rotation2DZero(), Dim);
+  Model = Group->ModelXForm * Model;
   
-  RenderImage->Model = Model;
+  RenderImage->Model = ColMajor3x3From3x3(Model);
   RenderImage->TextureHandle = TextureHandle;
   RenderImage->Z = Group->ZOffset;
  }

@@ -928,9 +928,11 @@ EndModifyCurvePoints(curve_points_modify_handle Handle)
 internal v2
 WorldToLocalEntityPosition(entity *Entity, v2 P)
 {
- v2 Result = RotateAround(P - Entity->P, V2(0, 0), Rotation2DInverse(Entity->Rotation));
- Result = Hadamard(V2(1.0f / Entity->Scale.X, 1.0f / Entity->Scale.Y), Result);
- return Result;
+ v2 Q = P;
+ Q = Q - Entity->P;
+ Q = Hadamard(Q, V2(1.0f / Entity->Scale.X, 1.0f / Entity->Scale.Y));
+ Q = RotateAround(Q, V2(0, 0), Rotation2DInverse(Entity->Rotation));
+ return Q;
 }
 
 internal v2
@@ -938,9 +940,11 @@ LocalEntityPositionToWorld(entity *Entity, v2 P)
 {
  // TODO(hbr): At some point at realized that the code line below was not there for a long
  // time. Investigate whether it shoould be there or not ????
- P = Hadamard(P, Entity->Scale);
- v2 Result = RotateAround(P, V2(0.0f, 0.0f), Entity->Rotation) + Entity->P;
- return Result;
+ v2 Q = P;
+ Q = RotateAround(Q, V2(0.0f, 0.0f), Entity->Rotation);
+ Q = Hadamard(Q, Entity->Scale);
+ Q = Q + Entity->P;
+ return Q;
 }
 
 internal void

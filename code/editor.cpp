@@ -132,8 +132,7 @@ UpdateAndRenderPointTracking(rendering_entity_handle Handle)
     v4 OutlineColor = DarkenColor(Color, 0.5f);
     
     PushCircle(RenderGroup,
-               Entity->P + Tracking->LocalSpaceTrackedPoint,
-               Entity->Rotation, Entity->Scale,
+               Tracking->LocalSpaceTrackedPoint,
                Radius, Color,
                GetCurvePartZOffset(CurvePart_BezierSplitPoint),
                OutlineThickness, OutlineColor);
@@ -165,8 +164,7 @@ UpdateAndRenderPointTracking(rendering_entity_handle Handle)
      {
       v2 Point = Tracking->Intermediate.P[PointIndex];
       PushCircle(RenderGroup,
-                 Entity->P + Point, Entity->Rotation, Entity->Scale,
-                 PointSize, IterationColor,
+                 Point, PointSize, IterationColor,
                  GetCurvePartZOffset(CurvePart_DeCasteljauAlgorithmPoints));
       ++PointIndex;
      }
@@ -494,7 +492,7 @@ RenderEntity(rendering_entity_handle Handle)
               CurveParams->LineColor,
               GetCurvePartZOffset(CurvePart_CubicBezierHelperLines));
      PushCircle(RenderGroup,
-                Entity->P + BezierPoint, Entity->Rotation, Entity->Scale,
+                BezierPoint,
                 BezierPointRadius, CurveParams->PointColor,
                 GetCurvePartZOffset(CurvePart_CubicBezierHelperPoints));
     }
@@ -507,8 +505,7 @@ RenderEntity(rendering_entity_handle Handle)
     {
      point_info PointInfo = GetCurveControlPointInfo(Entity, PointIndex);
      PushCircle(RenderGroup,
-                Entity->P + ControlPoints[PointIndex],
-                Entity->Rotation, Entity->Scale,
+                ControlPoints[PointIndex],
                 PointInfo.Radius,
                 PointInfo.Color,
                 GetCurvePartZOffset(CurvePart_CurveControlPoint),
@@ -530,9 +527,7 @@ RenderEntity(rendering_entity_handle Handle)
     {
      v2 Knot = PartitionKnotPoints[KnotIndex];
      PushCircle(RenderGroup,
-                Entity->P + Knot,
-                Entity->Rotation,
-                Entity->Scale,
+                Knot,
                 KnotPointInfo.Radius,
                 KnotPointInfo.Color,
                 GetCurvePartZOffset(CurvePart_B_SplineKnot),
@@ -743,12 +738,6 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
        Entity->Scale = V2(1.0f, 1.0f);
       }
       UI_PopLabel();
-     }
-     
-     UI_SliderInteger(&Entity->SortingLayer, -10, 10, StrLit("Sorting Layer"));
-     if (ResetCtxMenu(StrLit("SortingLayerReset")))
-     {
-      Entity->SortingLayer = 0;
      }
      
      {     
@@ -2568,7 +2557,8 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
    {
     v2 P0 = Points0[PointCount0 - 1];
     
-    v2 P1 = LocalEntityPositionToWorld(Entity1, Points1[0]);
+    v2 P1 = Points1[0];
+    P1 = LocalEntityPositionToWorld(Entity1, P1);
     P1 = WorldToLocalEntityPosition(Entity0, P1);
     
     Fix1 = (P0 - P1);
@@ -2589,7 +2579,6 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
  
  ArrayCopy(Weights,               Weights0,              PointCount0);
  ArrayCopy(Weights + PointCount0, Weights1 + DropCount1, PointCount1 - DropCount1);
- 
  ArrayCopy(Points,                Points0,               PointCount0);
  ArrayCopy(Beziers,               Beziers0,              PointCount0);
  
@@ -2718,7 +2707,7 @@ RenderMergingCurvesUI(editor *Editor)
  if (Merging->Active)
  {
   b32 WindowOpen = true;
-  UI_BeginWindow(&WindowOpen, 0, StrLit("Merging Curves"));
+  UI_BeginWindow(&WindowOpen, UIWindowFlag_AutoResize, StrLit("Merging Curves"));
   
   if (WindowOpen)
   {
@@ -3390,7 +3379,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
   {
    v4 Color = V4(0.5f, 0.5f, 0.5f, 0.3f);
    // TODO(hbr): Again, zoffset of this thing is wrong
-   PushCircle(RenderGroup, RightClick->ClickP, Rotation2DZero(), V2(1, 1), RenderGroup->CollisionTolerance, Color, 0.0f);
+   PushCircle(RenderGroup, RightClick->ClickP, RenderGroup->CollisionTolerance, Color, 0.0f);
   }
  }
  
@@ -3408,8 +3397,6 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
    // instead
    PushCircle(RenderGroup,
               Camera->P,
-              Rotation2DZero(),
-              V2(1, 1),
               Radius - OutlineThickness,
               Color, 0.0f,
               OutlineThickness, OutlineColor);

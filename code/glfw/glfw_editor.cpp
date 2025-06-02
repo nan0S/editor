@@ -411,6 +411,7 @@ Table[GLFWButton] = PlatformButton
      
      Input.EventCount = GLFWState->GLFWInput.EventCount;
      Input.Events = GLFWState->GLFWInput.Events;
+     Input.ClipSpaceMouseP = GLFWGetCursorPosInClipSpace(Window);
      
      for (u32 KeyIndex = 0;
           KeyIndex < ArrayCount(GLFWState->GLFWToPlatformKeyTable);

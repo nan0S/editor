@@ -1,6 +1,17 @@
 #ifndef EDITOR_RENDERER_H
 #define EDITOR_RENDERER_H
 
+struct mat3_col_major
+{
+ mat3 M;
+};
+struct mat3_row_major
+{
+ mat3 M;
+};
+internal mat3_col_major ColMajor3x3From3x3(mat3 M);
+internal mat3_row_major RowMajor3x3From3x3(mat3 M);
+
 enum render_primitive_type
 {
  Primitive_Triangles,
@@ -25,14 +36,14 @@ struct render_line
  v2 *Vertices;
  render_primitive_type Primitive;
  v4 Color;
- mat3 Model;
+ mat3_row_major Model;
  f32 ZOffset;
 };
 
 struct render_circle
 {
  f32 Z;
- mat3 Model;
+ mat3_col_major Model;
  f32 RadiusProper;
  v4 Color;
  v4 OutlineColor;
@@ -42,7 +53,7 @@ struct render_texture_handle
 {
  u32 U32[1];
 };
-inline internal render_texture_handle TextureHandleZero(void);
+internal render_texture_handle TextureHandleZero(void);
 internal b32 TextureHandleMatch(render_texture_handle T1, render_texture_handle T2);
 internal render_texture_handle TextureHandleFromIndex(u32 Index);
 internal u32 TextureIndexFromHandle(render_texture_handle Handle);
@@ -50,7 +61,7 @@ internal u32 TextureIndexFromHandle(render_texture_handle Handle);
 struct render_image
 {
  f32 Z;
- mat3 Model;
+ mat3_col_major Model;
  render_texture_handle TextureHandle;
 };
 

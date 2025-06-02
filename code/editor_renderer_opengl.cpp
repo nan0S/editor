@@ -1029,9 +1029,9 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
                                Frame->ImageCount * SizeOf(render_image),
                                Frame->Images, GL_DYNAMIC_DRAW));
   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertZ_AttrLoc, render_image, Z, 1);
-  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel0_AttrLoc, render_image, Model.Rows[0], 1);
-  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel1_AttrLoc, render_image, Model.Rows[1], 1);
-  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel2_AttrLoc, render_image, Model.Rows[2], 1);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel0_AttrLoc, render_image, Model.M.Rows[0], 1);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel1_AttrLoc, render_image, Model.M.Rows[1], 1);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel2_AttrLoc, render_image, Model.M.Rows[2], 1);
   
   u32 ImagesLeft = Frame->ImageCount;
   render_image *ImageAt = Frame->Images;
@@ -1080,7 +1080,7 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
        ++LineIndex)
   {
    render_line *Line = Frame->Lines + LineIndex;
-   mat3 Transform = Projection * Line->Model;
+   mat3 Transform = Projection * Line->Model.M;
    
    GL_CALL(OpenGL->glUniform1f(Prog->Uniforms.Z_UniformLoc, Line->ZOffset));
    GL_CALL(OpenGL->glUniform4fv(Prog->Uniforms.Color_UniformLoc, 1, Cast(f32 *)Line->Color.E));
@@ -1153,9 +1153,9 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
                                GL_DYNAMIC_DRAW));
   
   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertZ_AttrLoc, render_circle, Z, 1);
-  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel0_AttrLoc, render_circle, Model.Rows[0], 1);
-  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel1_AttrLoc, render_circle, Model.Rows[1], 1);
-  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel2_AttrLoc, render_circle, Model.Rows[2], 1);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel0_AttrLoc, render_circle, Model.M.Rows[0], 1);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel1_AttrLoc, render_circle, Model.M.Rows[1], 1);
+  GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel2_AttrLoc, render_circle, Model.M.Rows[2], 1);
   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertRadiusProper_AttrLoc, render_circle, RadiusProper, 1);
   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertColor_AttrLoc, render_circle, Color, 1);
   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertOutlineColor_AttrLoc, render_circle, OutlineColor, 1);

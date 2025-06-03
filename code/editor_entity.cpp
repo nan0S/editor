@@ -67,79 +67,150 @@ SafeGetImage(entity *Entity)
  return &Entity->Image;
 }
 
-inline internal curve_point_index
-CurvePointIndexFromControlPointIndex(control_point_index Index)
+inline internal control_point_handle
+ControlPointHandleFromIndex(u32 Index)
 {
- curve_point_index Result = {};
+ control_point_handle Handle = {};
+ Handle.Index = Index + 1;
+ return Handle;
+}
+
+inline internal u32
+IndexFromControlPointHandle(control_point_handle Handle)
+{
+ Assert(!ControlPointHandleMatch(Handle, ControlPointHandleZero()));
+ u32 Result = Handle.Index - 1;
+ return Result;
+}
+
+inline internal b32
+ControlPointHandleMatch(control_point_handle A, control_point_handle B)
+{
+ b32 Result = (A.Index == B.Index);
+ return Result;
+}
+
+inline internal control_point_handle
+ControlPointHandleZero(void)
+{
+ control_point_handle Index = {};
+ return Index;
+}
+
+inline internal control_point_handle
+ControlPointFromCubicBezierPoint(cubic_bezier_point_handle Bezier)
+{
+ control_point_handle Result = {};
+ if (!CubicBezierPointHandleMatch(Bezier, CubicBezierPointHandleZero()))
+ {
+  u32 BezierIndex = IndexFromCubicBezierPointHandle(Bezier);
+  Result = ControlPointHandleFromIndex(BezierIndex / 3);
+ }
+ return Result;
+}
+
+inline internal cubic_bezier_point_handle
+CubicBezierPointHandleFromIndex(u32 Index)
+{
+ cubic_bezier_point_handle Handle = {};
+ Handle.Index = Index + 1;
+ return Handle;
+}
+
+inline internal cubic_bezier_point_handle
+CubicBezierPointFromControlPoint(control_point_handle Handle)
+{
+ cubic_bezier_point_handle Bezier = {};
+ if (ControlPointHandleMatch(Handle, ControlPointHandleZero()))
+ {
+  u32 I = IndexFromControlPointHandle(Handle);
+  Bezier = CubicBezierPointHandleFromIndex(3 * I + 1);
+ }
+ return Bezier;
+}
+
+inline internal u32
+IndexFromCubicBezierPointHandle(cubic_bezier_point_handle Handle)
+{
+ Assert(!CubicBezierPointHandleMatch(Handle, CubicBezierPointHandleZero()));
+ u32 Index = Handle.Index - 1;
+ return Index;
+}
+
+inline internal b32
+CubicBezierPointHandleMatch(cubic_bezier_point_handle A, cubic_bezier_point_handle B)
+{
+ b32 Equal = (A.Index == B.Index);
+ return Equal;
+}
+
+inline internal cubic_bezier_point_handle
+CubicBezierPointHandleZero(void)
+{
+ cubic_bezier_point_handle Handle = {};
+ return Handle;
+}
+
+inline internal curve_point_handle
+CurvePointFromControlPoint(control_point_handle Handle)
+{
+ curve_point_handle Result = {};
  Result.Type = CurvePoint_ControlPoint;
- Result.ControlPoint = Index;
- 
+ Result.Control = Handle;
  return Result;
 }
 
-inline internal curve_point_index
-CurvePointIndexFromBezierPointIndex(cubic_bezier_point_index Index)
+inline internal curve_point_handle
+CurvePointFromCubicBezierPoint(cubic_bezier_point_handle Handle)
 {
- curve_point_index Result = {};
+ curve_point_handle Result = {};
  Result.Type = CurvePoint_CubicBezierPoint;
- Result.BezierPoint = Index;
- 
- return Result;
-}
-
-inline internal cubic_bezier_point_index
-CubicBezierPointIndexFromControlPointIndex(control_point_index Index)
-{
- cubic_bezier_point_index Result = {};
- Result.Index = 3 * Index.Index + 1;
- 
- return Result;
-}
-
-inline internal control_point_index
-MakeControlPointIndex(u32 Index)
-{
- control_point_index Result = {};
- Result.Index = Index;
+ Result.Bezier = Handle;
  return Result;
 }
 
 inline internal v2
-GetCubicBezierPoint(curve *Curve, cubic_bezier_point_index Index)
+GetCubicBezierPoint(curve *Curve, cubic_bezier_point_handle Point)
 {
  v2 Result = {};
- if (Index.Index < 3 * Curve->ControlPointCount)
+ u32 Index = IndexFromCubicBezierPointHandle(Point);
+ if (Index < 3 * Curve->ControlPointCount)
  {
   v2 *Beziers = Cast(v2 *)Curve->CubicBezierPoints;
-  Result = Beziers[Index.Index];
+  Result = Beziers[Index];
  }
- 
  return Result;
 }
 
 inline internal v2
-GetCenterPointFromCubicBezierPointIndex(curve *Curve, cubic_bezier_point_index Index)
+GetControlPoint(curve *Curve, control_point_handle Point)
 {
  v2 Result = {};
- u32 ControlPointIndex = Index.Index / 3;
- if (ControlPointIndex < Curve->ControlPointCount)
+ u32 Index = IndexFromControlPointHandle(Point);
+ if (Index < Curve->ControlPointCount)
  {
-  Result = Curve->ControlPoints[ControlPointIndex];
+  Result = Curve->ControlPoints[Index];
  }
- 
  return Result;
 }
 
-inline internal control_point_index
-CurveLinePointIndexToControlPointIndex(curve *Curve, u32 CurveLinePointIndex)
+inline internal v2
+GetCenterPointFromCubicBezierPoint(curve *Curve, cubic_bezier_point_handle Bezier)
+{
+ control_point_handle Control = ControlPointFromCubicBezierPoint(Bezier);
+ v2 Point = GetControlPoint(Curve, Control);
+ return Point;
+}
+
+inline internal control_point_handle
+ControlPointIndexFromCurveSampleIndex(curve *Curve, u32 CurveSampleIndex)
 {
  Assert(!IsCurveTotalSamplesMode(Curve));
- u32 Index = SafeDiv0(CurveLinePointIndex, Curve->Params.SamplesPerControlPoint);
+ u32 Index = SafeDiv0(CurveSampleIndex, Curve->Params.SamplesPerControlPoint);
  Assert(Index < Curve->ControlPointCount);
- control_point_index Result = {};
- Result.Index = ClampTop(Index, Curve->ControlPointCount - 1);
- 
- return Result;
+ Index = ClampTop(Index, Curve->ControlPointCount - 1);
+ control_point_handle Control = ControlPointHandleFromIndex(Index);
+ return Control;
 }
 
 internal b32
@@ -219,32 +290,34 @@ GetCurveTrackedPointRadius(curve *Curve)
 }
 
 internal void
-AddVisibleCubicBezierPoint(visible_cubic_bezier_points *Visible, cubic_bezier_point_index Index)
+AddVisibleCubicBezierPoint(visible_cubic_bezier_points *Visible, cubic_bezier_point_handle Point)
 {
  Assert(Visible->Count < ArrayCount(Visible->Indices));
- Visible->Indices[Visible->Count] = Index;
+ Visible->Indices[Visible->Count] = Point;
  ++Visible->Count;
 }
 
 inline internal b32
-PrevCubicBezierPoint(curve *Curve, cubic_bezier_point_index *Index)
+PrevCubicBezierPoint(curve *Curve, cubic_bezier_point_handle *Point)
 {
  b32 Result = false;
- if (Index->Index > 0)
+ u32 Index = IndexFromCubicBezierPointHandle(*Point);
+ if (Index > 0)
  {
-  --Index->Index;
+  *Point = CubicBezierPointHandleFromIndex(Index - 1);
   Result = true;
  }
  return Result;
 }
 
 inline internal b32
-NextCubicBezierPoint(curve *Curve, cubic_bezier_point_index *Index)
+NextCubicBezierPoint(curve *Curve, cubic_bezier_point_handle *Point)
 {
  b32 Result = false;
- if (Index->Index + 1 < 3 * Curve->ControlPointCount)
+ u32 Index = IndexFromCubicBezierPointHandle(*Point);
+ if (Index + 1 < 3 * Curve->ControlPointCount)
  {
-  ++Index->Index;
+  *Point = CubicBezierPointHandleFromIndex(Index + 1);
   Result = true;
  }
  return Result;
@@ -261,25 +334,25 @@ GetVisibleCubicBezierPoints(entity *Entity)
      Curve->Params.Type == Curve_Bezier &&
      Curve->Params.Bezier == Bezier_Cubic)
  {
-  cubic_bezier_point_index StartIndex = CubicBezierPointIndexFromControlPointIndex(Curve->SelectedIndex);
+  cubic_bezier_point_handle StartPoint = CubicBezierPointFromControlPoint(Curve->SelectedControlPoint);
   
-  cubic_bezier_point_index PrevIndex = StartIndex;
-  if (PrevCubicBezierPoint(Curve, &PrevIndex))
+  cubic_bezier_point_handle PrevPoint = StartPoint;
+  if (PrevCubicBezierPoint(Curve, &PrevPoint))
   {
-   AddVisibleCubicBezierPoint(&Result, PrevIndex);
-   if (PrevCubicBezierPoint(Curve, &PrevIndex))
+   AddVisibleCubicBezierPoint(&Result, PrevPoint);
+   if (PrevCubicBezierPoint(Curve, &PrevPoint))
    {
-    AddVisibleCubicBezierPoint(&Result, PrevIndex);
+    AddVisibleCubicBezierPoint(&Result, PrevPoint);
    }
   }
   
-  cubic_bezier_point_index NextIndex = StartIndex;
-  if (NextCubicBezierPoint(Curve, &NextIndex))
+  cubic_bezier_point_handle NextPoint = StartPoint;
+  if (NextCubicBezierPoint(Curve, &NextPoint))
   {
-   AddVisibleCubicBezierPoint(&Result, NextIndex);
-   if (NextCubicBezierPoint(Curve, &NextIndex))
+   AddVisibleCubicBezierPoint(&Result, NextPoint);
+   if (NextCubicBezierPoint(Curve, &NextPoint))
    {
-    AddVisibleCubicBezierPoint(&Result, NextIndex);
+    AddVisibleCubicBezierPoint(&Result, NextPoint);
    }
   }
  }
@@ -461,6 +534,18 @@ ApplyColorsToEntity(entity *Entity, entity_colors Colors)
  Params->ConvexHullColor = Colors.CurveConvexHullColor;
 }
 
+internal void
+MarkEntitySelected(entity *Entity)
+{
+ Entity->Flags |= EntityFlag_Selected;
+}
+
+internal void
+MarkEntityDeselected(entity *Entity)
+{
+ Entity->Flags &= ~EntityFlag_Selected;
+}
+
 internal point_info
 GetEntityPointInfo(entity *Entity, f32 BaseRadius, v4 BaseColor)
 {
@@ -495,7 +580,8 @@ GetCurveControlPointInfo(entity *Entity, u32 PointIndex)
   Result.Radius *= 1.5f;
  }
  
- if (PointIndex == Curve->SelectedIndex.Index)
+ if (IsControlPointSelected(Curve) &&
+     PointIndex == IndexFromControlPointHandle(Curve->SelectedControlPoint))
  {
   Result.OutlineColor = BrightenColor(Result.OutlineColor, 0.5f);
  }
@@ -530,37 +616,43 @@ GetEntityName(entity *Entity)
 }
 
 internal void
-ExtractControlPointIndexAndBezierOffsetFromCurvePointIndex(curve_point_index Index,
-                                                           control_point_index *ControlPointIndex,
-                                                           u32 *BezierOffset)
+ControlPointAndBezierOffsetFromCurvePoint(curve_point_handle CurvePoint,
+                                          control_point_handle *ControlPoint,
+                                          u32 *BezierOffset)
 {
- switch (Index.Type)
+ switch (CurvePoint.Type)
  {
   case CurvePoint_ControlPoint: {
-   ControlPointIndex->Index = Index.ControlPoint.Index;
+   *ControlPoint = CurvePoint.Control;
    *BezierOffset = 1;
   }break;
   case CurvePoint_CubicBezierPoint: {
-   ControlPointIndex->Index = Index.BezierPoint.Index / 3;
-   *BezierOffset = Index.BezierPoint.Index % 3;
+   u32 BezierIndex = IndexFromCubicBezierPointHandle(CurvePoint.Bezier);
+   *ControlPoint = ControlPointFromCubicBezierPoint(CurvePoint.Bezier);
+   *BezierOffset = BezierIndex % 3;
   }break;
  }
  Assert(*BezierOffset < 3);
 }
 
 internal void
-SetCurvePoint(entity_with_modify_witness *EntityWitness, curve_point_index Index, v2 P, translate_curve_point_flags Flags)
+SetCurvePoint(entity_with_modify_witness *EntityWitness,
+              curve_point_handle CurvePoint,
+              v2 P,
+              translate_curve_point_flags Flags)
 {
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
  
- control_point_index ControlPointIndex;
- u32 BezierOffset;
- ExtractControlPointIndexAndBezierOffsetFromCurvePointIndex(Index, &ControlPointIndex, &BezierOffset);
+ control_point_handle ControlPoint = {};
+ u32 BezierOffset = 0;
+ ControlPointAndBezierOffsetFromCurvePoint(CurvePoint, &ControlPoint, &BezierOffset);
  
- if (ControlPointIndex.Index < Curve->ControlPointCount)
+ u32 ControlPointIndex = IndexFromControlPointHandle(ControlPoint);
+ 
+ if (ControlPointIndex < Curve->ControlPointCount)
  {
-  cubic_bezier_point *B = Curve->CubicBezierPoints + ControlPointIndex.Index;
+  cubic_bezier_point *B = Curve->CubicBezierPoints + ControlPointIndex;
   v2 *TranslatePoint = B->Ps + BezierOffset;
   v2 LocalP = WorldToLocalEntityPosition(Entity, P);
   
@@ -571,7 +663,7 @@ SetCurvePoint(entity_with_modify_witness *EntityWitness, curve_point_index Index
    B->P0 += LocalTranslation;
    B->P2 += LocalTranslation;
    
-   Curve->ControlPoints[ControlPointIndex.Index] += LocalTranslation;
+   Curve->ControlPoints[ControlPointIndex] += LocalTranslation;
   }
   else
   {
@@ -610,23 +702,23 @@ SetCurvePoint(entity_with_modify_witness *EntityWitness, curve_point_index Index
 }
 
 internal void
-SelectControlPoint(curve *Curve, control_point_index Index)
+SelectControlPoint(curve *Curve, control_point_handle ControlPoint)
 {
  if (Curve)
  {
-  Curve->SelectedIndex = Index;
+  Curve->SelectedControlPoint = ControlPoint;
  }
 }
 
 internal void
-SelectControlPointFromCurvePointIndex(curve *Curve, curve_point_index Index)
+SelectControlPointFromCurvePoint(curve *Curve, curve_point_handle CurvePoint)
 {
  if (Curve)
  {
-  control_point_index ControlPointIndex;
-  u32 BezierOffset;
-  ExtractControlPointIndexAndBezierOffsetFromCurvePointIndex(Index, &ControlPointIndex, &BezierOffset);
-  Curve->SelectedIndex = ControlPointIndex;
+  control_point_handle ControlPoint = {};
+  u32 BezierOffset = 0;
+  ControlPointAndBezierOffsetFromCurvePoint(CurvePoint, &ControlPoint, &BezierOffset);
+  Curve->SelectedControlPoint = ControlPoint;
  }
 }
 
@@ -655,20 +747,21 @@ RecomputeCurveB_SplineKnots(curve *Curve)
 }
 
 internal void
-RemoveControlPoint(entity_with_modify_witness *EntityWitness, control_point_index Index)
+RemoveControlPoint(entity_with_modify_witness *EntityWitness, control_point_handle Point)
 {
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
+ u32 Index = IndexFromControlPointHandle(Point);
  
- if (Index.Index < Curve->ControlPointCount)
+ if (Index < Curve->ControlPointCount)
  {
 #define ArrayRemoveOrdered(Array, At, Count) \
 MemoryMove((Array) + (At), \
 (Array) + (At) + 1, \
 ((Count) - (At) - 1) * SizeOf((Array)[0]))
-  ArrayRemoveOrdered(Curve->ControlPoints,       Index.Index, Curve->ControlPointCount);
-  ArrayRemoveOrdered(Curve->ControlPointWeights, Index.Index, Curve->ControlPointCount);
-  ArrayRemoveOrdered(Curve->CubicBezierPoints,   Index.Index, Curve->ControlPointCount);
+  ArrayRemoveOrdered(Curve->ControlPoints,       Index, Curve->ControlPointCount);
+  ArrayRemoveOrdered(Curve->ControlPointWeights, Index, Curve->ControlPointCount);
+  ArrayRemoveOrdered(Curve->CubicBezierPoints,   Index, Curve->ControlPointCount);
 #undef ArrayRemoveOrdered
   
   --Curve->ControlPointCount;
@@ -676,13 +769,14 @@ MemoryMove((Array) + (At), \
   // NOTE(hbr): Maybe fix selected control point
   if (IsControlPointSelected(Curve))
   {
-   if (Index.Index == Curve->SelectedIndex.Index)
+   u32 SelectedIndex = IndexFromControlPointHandle(Curve->SelectedControlPoint);
+   if (Index == SelectedIndex)
    {
-    UnselectControlPoint(Curve);
+    DeselectControlPoint(Curve);
    }
-   else if (Index.Index < Curve->SelectedIndex.Index)
+   else if (Index < SelectedIndex)
    {
-    control_point_index Fixed = MakeControlPointIndex(Curve->SelectedIndex.Index - 1);
+    control_point_handle Fixed = ControlPointHandleFromIndex(SelectedIndex - 1);
     SelectControlPoint(Curve, Fixed);
    }
   }
@@ -692,11 +786,11 @@ MemoryMove((Array) + (At), \
 }
 
 internal void
-UnselectControlPoint(curve *Curve)
+DeselectControlPoint(curve *Curve)
 {
  if (Curve)
  {
-  Curve->SelectedIndex.Index = U32_MAX;
+  Curve->SelectedControlPoint = ControlPointHandleZero();
  }
 }
 
@@ -704,30 +798,29 @@ internal b32
 IsControlPointSelected(curve *Curve)
 {
  b32 Result = false;
- if (Curve)
+ if (!ControlPointHandleMatch(Curve->SelectedControlPoint, ControlPointHandleZero()))
  {
-  Result = (Curve->SelectedIndex.Index < Curve->ControlPointCount);
+  u32 Index = IndexFromControlPointHandle(Curve->SelectedControlPoint);
+  Result = (Index < Curve->ControlPointCount);
  }
  return Result;
 }
 
-internal control_point_index
+internal control_point_handle
 AppendControlPoint(entity_with_modify_witness *EntityWitness, v2 Point)
 {
- control_point_index Result = {};
- 
  entity *Entity = EntityWitness->Entity;
+ u32 InsertAt = 0;
  if (Entity->Flags & EntityFlag_CurveAppendFront)
  {
-  Result.Index = 0;
+  InsertAt = 0;
  }
  else
  {
-  Result.Index = Entity->Curve.ControlPointCount;
+  InsertAt = Entity->Curve.ControlPointCount;
  }
- InsertControlPoint(EntityWitness, Point, Result.Index);
- 
- return Result;
+ InsertControlPoint(EntityWitness, Point, InsertAt);
+ return ControlPointHandleFromIndex(InsertAt);
 }
 
 internal void
@@ -771,9 +864,14 @@ MemoryMove((Array) + ((At)+(ShiftCount)), \
    CalculateBezierCubicPointAt(N+1, P, B, At);
   }
   
-  if (IsControlPointSelected(Curve) && Curve->SelectedIndex.Index >= At)
+  if (IsControlPointSelected(Curve))
   {
-   Curve->SelectedIndex.Index = Curve->SelectedIndex.Index + 1;
+   u32 SelectedIndex = IndexFromControlPointHandle(Curve->SelectedControlPoint);
+   if (SelectedIndex >= At)
+   {
+    control_point_handle Fixed = ControlPointHandleFromIndex(SelectedIndex + 1);
+    SelectControlPoint(Curve, Fixed);
+   }
   }
   
   ++Curve->ControlPointCount;
@@ -801,7 +899,7 @@ SetCurveControlPoints(entity_with_modify_witness *EntityWitness,
  
  Curve->ControlPointCount = PointCount;
  // TODO(hbr): Make sure this is expected, maybe add to internal arguments
- UnselectControlPoint(Curve);
+ DeselectControlPoint(Curve);
  
  MarkEntityModified(EntityWitness);
 }
@@ -858,17 +956,18 @@ InitEntityAsImage(entity *Entity,
 }
 
 internal void
-SetCurveControlPoint(entity_with_modify_witness *EntityWitness, control_point_index Index, v2 P, f32 Weight)
+SetCurveControlPoint(entity_with_modify_witness *EntityWitness, control_point_handle ControlPoint, v2 P, f32 Weight)
 {
- curve_point_index CurvePointIndex = CurvePointIndexFromControlPointIndex(Index);
+ curve_point_handle CurvePoint = CurvePointFromControlPoint(ControlPoint);
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
  
- SetCurvePoint(EntityWitness, CurvePointIndex, P, 0);
+ SetCurvePoint(EntityWitness, CurvePoint, P, TranslateCurvePoint_None);
  
- if (Index.Index < Curve->ControlPointCount)
+ if (!ControlPointHandleMatch(ControlPoint, ControlPointHandleZero()))
  {
-  Curve->ControlPointWeights[Index.Index] = Weight;
+  u32 Index = IndexFromControlPointHandle(ControlPoint);
+  Curve->ControlPointWeights[Index] = Weight;
   MarkEntityModified(EntityWitness);
  }
 }

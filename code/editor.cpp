@@ -218,9 +218,9 @@ UpdateAndRenderDegreeLowering(rendering_entity_handle Handle)
     v2 NewControlPoint = Lerp(Lowering->LowerDegree.P_I, Lowering->LowerDegree.P_II, Lowering->MixParameter);
     f32 NewControlPointWeight = Lerp(Lowering->LowerDegree.W_I, Lowering->LowerDegree.W_II, Lowering->MixParameter);
     
-    control_point_index MiddlePointIndex = MakeControlPointIndex(Lowering->LowerDegree.MiddlePointIndex);
+    control_point_handle MiddlePoint = ControlPointHandleFromIndex(Lowering->LowerDegree.MiddlePointIndex);
     SetCurveControlPoint(&EntityWitness,
-                         MiddlePointIndex,
+                         MiddlePoint,
                          NewControlPoint,
                          NewControlPointWeight);
    }
@@ -475,10 +475,10 @@ RenderEntity(rendering_entity_handle Handle)
          Index < VisibleBeziers.Count;
          ++Index)
     {
-     cubic_bezier_point_index BezierIndex = VisibleBeziers.Indices[Index];
+     cubic_bezier_point_handle Bezier = VisibleBeziers.Indices[Index];
      
-     v2 BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
-     v2 CenterPoint = GetCenterPointFromCubicBezierPointIndex(Curve, BezierIndex);
+     v2 BezierPoint = GetCubicBezierPoint(Curve, Bezier);
+     v2 CenterPoint = GetCenterPointFromCubicBezierPoint(Curve, Bezier);
      
      f32 BezierPointRadius = GetCurveCubicBezierPointRadius(Curve);
      f32 HelperLineWidth = 0.2f * CurveParams->LineWidth;
@@ -680,7 +680,7 @@ internal void
 RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
 {
  entity_store *EntityStore = &Editor->EntityStore;
- entity *Entity = EntityFromHandle(Editor->SelectedEntityHandle);
+ entity *Entity = GetSelectedEntity(Editor);
  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
  b32 DeleteEntity = false;
  b32 CrucialEntityParamChanged = false;
@@ -1013,7 +1013,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
         u32 Selected = 0;
         if (IsControlPointSelected(Curve))
         {
-         Selected = Curve->SelectedIndex.Index;
+         Selected = IndexFromControlPointHandle(Curve->SelectedControlPoint);
          WeightChanged |= UI_DragFloatF(&Weights[Selected], 0.0f, FLT_MAX, 0, "Weight (%u)", Selected);
          if (ResetCtxMenu(StrLit("WeightReset")))
          {
@@ -2099,7 +2099,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
     curve *CollisionCurve = &Collision.Entity->Curve;
     point_tracking_along_curve_state *CollisionTracking = &CollisionCurve->PointTracking;
     
-    entity *SelectedEntity = EntityFromHandle(Editor->SelectedEntityHandle);
+    entity *SelectedEntity = GetSelectedEntity(Editor);
     curve *SelectedCurve = &SelectedEntity->Curve;
     
     if ((Collision.Entity || SelectedEntity) && (Event->Flags & PlatformEventFlag_Ctrl))
@@ -2112,7 +2112,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
     {
      BeginMovingTrackingPoint(LeftClick, MakeEntityHandle(Collision.Entity));
      
-     f32 Fraction = SafeDiv0(Cast(f32)Collision.CurveLinePointIndex, (CollisionCurve->CurveSampleCount- 1));
+     f32 Fraction = SafeDiv0(Cast(f32)Collision.CurveSampleIndex, (CollisionCurve->CurveSampleCount- 1));
      SetTrackingPointFraction(&CollisionEntityWitness, Fraction);
     }
     else if (Collision.Flags & Collision_B_SplineKnot)
@@ -2121,17 +2121,18 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
     }
     else if (Collision.Flags & Collision_CurvePoint)
     {
-     BeginMovingCurvePoint(LeftClick, MakeEntityHandle(Collision.Entity), Collision.CurvePointIndex);
+     BeginMovingCurvePoint(LeftClick, MakeEntityHandle(Collision.Entity), Collision.CurvePoint);
     }
     else if (Collision.Flags & Collision_CurveLine)
     {
      if (UsesControlPoints(CollisionCurve))
      {
-      control_point_index Index = CurveLinePointIndexToControlPointIndex(CollisionCurve, Collision.CurveLinePointIndex);
-      u32 InsertAt = Index.Index + 1;
+      control_point_handle ControlPoint = ControlPointIndexFromCurveSampleIndex(CollisionCurve, Collision.CurveSampleIndex);
+      u32 PointIndex = IndexFromControlPointHandle(ControlPoint);
+      u32 InsertAt = PointIndex + 1;
       InsertControlPoint(&CollisionEntityWitness, MouseP, InsertAt);
       BeginMovingCurvePoint(LeftClick, MakeEntityHandle(Collision.Entity),
-                            CurvePointIndexFromControlPointIndex(MakeControlPointIndex(InsertAt)));
+                            CurvePointFromControlPoint(ControlPointHandleFromIndex(InsertAt)));
      }
      else
      {
@@ -2165,8 +2166,8 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
      Assert(TargetEntity);
      
      entity_with_modify_witness TargetEntityWitness = BeginEntityModify(TargetEntity);
-     control_point_index Appended = AppendControlPoint(&TargetEntityWitness, MouseP);
-     BeginMovingCurvePoint(LeftClick, MakeEntityHandle(TargetEntity), CurvePointIndexFromControlPointIndex(Appended));
+     control_point_handle Appended = AppendControlPoint(&TargetEntityWitness, MouseP);
+     BeginMovingCurvePoint(LeftClick, MakeEntityHandle(TargetEntity), CurvePointFromControlPoint(Appended));
      EndEntityModify(TargetEntityWitness);
     }
     
@@ -2179,7 +2180,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
     if (LeftClick->Mode == EditorLeftClick_MovingCurvePoint)
     {
      curve *TargetCurve = SafeGetCurve(TargetEntity);
-     SelectControlPointFromCurvePointIndex(TargetCurve, LeftClick->CurvePointIndex);
+     SelectControlPointFromCurvePoint(TargetCurve, LeftClick->CurvePoint);
     }
     
     EndEntityModify(CollisionEntityWitness);
@@ -2254,7 +2255,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
       {
        Flags &= ~TranslateCurvePoint_MatchBezierTwinLength;
       }
-      SetCurvePoint(&EntityWitness, LeftClick->CurvePointIndex, MouseP, Flags);
+      SetCurvePoint(&EntityWitness, LeftClick->CurvePoint, MouseP, Flags);
      }break;
      
      case EditorLeftClick_MovingEntity: {
@@ -2282,7 +2283,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
    if (Collision.Flags & Collision_CurvePoint)
    {
     curve *Curve = SafeGetCurve(Entity);
-    SelectControlPointFromCurvePointIndex(Curve, Collision.CurvePointIndex);
+    SelectControlPointFromCurvePoint(Curve, Collision.CurvePoint);
    }
    
    if (Entity)
@@ -2317,13 +2318,13 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
     }
     else if (Collision->Flags & Collision_CurvePoint)
     {
-     if (Collision->CurvePointIndex.Type == CurvePoint_ControlPoint)
+     if (Collision->CurvePoint.Type == CurvePoint_ControlPoint)
      {
-      RemoveControlPoint(&EntityWitness, Collision->CurvePointIndex.ControlPoint);
+      RemoveControlPoint(&EntityWitness, Collision->CurvePoint.Control);
      }
      else
      {
-      SelectControlPointFromCurvePointIndex(Curve, Collision->CurvePointIndex);
+      SelectControlPointFromCurvePoint(Curve, Collision->CurvePoint);
      }
      SelectEntity(Editor, Entity);
     }
@@ -2433,7 +2434,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
       (Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Delete) ||
       (Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_X && (Event->Flags & PlatformEventFlag_Ctrl)))
   {
-   entity *Entity = EntityFromHandle(Editor->SelectedEntityHandle);
+   entity *Entity = GetSelectedEntity(Editor);
    entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
    
    if (Entity)
@@ -2445,7 +2446,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
       curve *Curve = SafeGetCurve(Entity);
       if (IsControlPointSelected(Curve))
       {
-       RemoveControlPoint(&EntityWitness, Curve->SelectedIndex);
+       RemoveControlPoint(&EntityWitness, Curve->SelectedControlPoint);
       }
       else
       {
@@ -2466,7 +2467,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
   
   if (Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_D && (Event->Flags & PlatformEventFlag_Ctrl))
   {
-   entity *Entity = EntityFromHandle(Editor->SelectedEntityHandle);
+   entity *Entity = GetSelectedEntity(Editor);
    if (Entity)
    {
     Eat = true;

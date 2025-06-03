@@ -113,7 +113,7 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
        {
         Result.Entity = Entity;
         Result.Flags |= Collision_CurvePoint;
-        Result.CurvePointIndex = CurvePointIndexFromControlPointIndex({MinPointIndex});
+        Result.CurvePoint = CurvePointFromControlPoint(ControlPointHandleFromIndex(MinPointIndex));
        }
       }
       
@@ -121,20 +121,20 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
       {
        visible_cubic_bezier_points VisibleBeziers = GetVisibleCubicBezierPoints(Entity);
        f32 MinSignedDistance = F32_INF;
-       cubic_bezier_point_index MinPointIndex = {};
+       cubic_bezier_point_handle MinPoint = {};
        
        for (u32 Index = 0;
             Index < VisibleBeziers.Count;
             ++Index)
        {
         f32 PointRadius = GetCurveCubicBezierPointRadius(Curve);
-        cubic_bezier_point_index BezierIndex = VisibleBeziers.Indices[Index];
-        v2 BezierPoint = GetCubicBezierPoint(Curve, BezierIndex);
+        cubic_bezier_point_handle Bezier = VisibleBeziers.Indices[Index];
+        v2 BezierPoint = GetCubicBezierPoint(Curve, Bezier);
         f32 SignedDistance = PointDistanceSquaredSigned(LocalAtP, BezierPoint, PointRadius + Tolerance);
         if (SignedDistance < MinSignedDistance)
         {
          MinSignedDistance = SignedDistance;
-         MinPointIndex = BezierIndex;
+         MinPoint = Bezier;
         }
        }
        
@@ -142,7 +142,7 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
        {
         Result.Entity = Entity;
         Result.Flags |= Collision_CurvePoint;
-        Result.CurvePointIndex = CurvePointIndexFromBezierPointIndex(MinPointIndex);
+        Result.CurvePoint = CurvePointFromCubicBezierPoint(MinPoint);
        }
       }
      }
@@ -202,7 +202,7 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
       {
        Result.Entity = Entity;
        Result.Flags |= Collision_CurveLine;
-       Result.CurveLinePointIndex = Line.PointIndex;
+       Result.CurveSampleIndex = Line.PointIndex;
       }
      }
      

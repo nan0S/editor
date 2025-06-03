@@ -46,7 +46,7 @@ struct editor_left_click_state
  
  entity_handle TargetEntity;
  editor_left_click_mode Mode;
- curve_point_index CurvePointIndex;
+ curve_point_handle CurvePoint;
  v2 LastMouseP;
  u32 B_SplineKnotIndex;
  
@@ -123,15 +123,18 @@ struct visual_profiler_state
 
 struct editor
 {
+ 
  camera Camera;
  frame_stats FrameStats;
  
  renderer_transfer_queue *RendererQueue;
  
  string_cache StrCache;
- 
- entity_handle SelectedEntityHandle;
  entity_store EntityStore;
+ arena *Arena;
+ 
+ entity_handle_node *SelectedEntityStack;
+ entity_handle_node *FreeEntityHandle;
  u64 EverIncreasingEntityCounter;
  
 #define MAX_NOTIFICATION_COUNT 16
@@ -182,6 +185,7 @@ internal void SplitCurveOnControlPoint(editor *Editor, entity *Entity);
 internal void PerformBezierCurveSplit(editor *Editor, entity *Entity);
 internal void ElevateBezierCurveDegree(entity *Entity);
 internal void LowerBezierCurveDegree(entity *Entity);
+internal entity *GetSelectedEntity(editor *Editor);
 
 //- merging curves
 internal void BeginMergingCurves(merging_curves_state *Merging);
@@ -200,7 +204,7 @@ internal b32 SupplyCurve(choose_2_curves_state *Choosing, entity *Curve);
 
 //- left click
 internal void BeginMovingEntity(editor_left_click_state *Left, entity_handle Target);
-internal void BeginMovingCurvePoint(editor_left_click_state *Left, entity_handle Target, curve_point_index CurvePoint);
+internal void BeginMovingCurvePoint(editor_left_click_state *Left, entity_handle Target, curve_point_handle CurvePoint);
 internal void BeginMovingTrackingPoint(editor_left_click_state *Left, entity_handle Target);
 internal void BeginMovingBSplineKnot(editor_left_click_state *Left, entity_handle Target, u32 B_SplineKnotIndex);
 internal void EndLeftClick(editor_left_click_state *Left);

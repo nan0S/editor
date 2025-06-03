@@ -13,8 +13,8 @@ struct collision
 {
  entity *Entity;
  collision_flags Flags;
- curve_point_index CurvePointIndex;
- u32 CurveLinePointIndex;
+ curve_point_handle CurvePoint;
+ u32 CurveSampleIndex;
  u32 KnotIndex;
 };
 

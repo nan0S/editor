@@ -74,6 +74,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->LowPriorityQueue = Memory->LowPriorityQueue;
  Editor->HighPriorityQueue = Memory->HighPriorityQueue;
  Editor->RendererQueue = Memory->RendererQueue;
+ Editor->Arena = AllocArena(Megabytes(32));
  
  InitStringCache(&Editor->StrCache);
  InitEntityStore(&Editor->EntityStore, Memory->MaxTextureCount, Memory->MaxBufferCount, &Editor->StrCache);
@@ -131,18 +132,47 @@ InitEditor(editor *Editor, editor_memory *Memory)
 }
 
 internal void
+PopTopSelectedEntity(editor *Editor)
+{
+ entity_handle_node *Node = Editor->SelectedEntityStack;
+ StackPop(Editor->SelectedEntityStack);
+ StackPush(Editor->FreeEntityHandle, Node);
+}
+
+internal void
 SelectEntity(editor *Editor, entity *Entity)
 {
- entity *SelectedEntity = EntityFromHandle(Editor->SelectedEntityHandle);
- if (SelectedEntity)
+ //- mark currently selected entity as no longer selected
+ if (Editor->SelectedEntityStack)
  {
-  SelectedEntity->Flags &= ~EntityFlag_Selected;
+  entity *Current = EntityFromHandle(Editor->SelectedEntityStack->Value);
+  if (Current)
+  {
+   Current->Flags &= ~EntityFlag_Selected;
+  }
  }
- if (Entity)
+ if (Entity == 0) //- deselect everything
  {
-  Entity->Flags |= EntityFlag_Selected;
+  while (Editor->SelectedEntityStack)
+  {
+   PopTopSelectedEntity(Editor);
+  }
  }
- Editor->SelectedEntityHandle = MakeEntityHandle(Entity);
+ else //- select requested entity
+ {
+  entity_handle_node *Node = Editor->FreeEntityHandle;
+  if (Node)
+  {
+   StackPop(Editor->FreeEntityHandle);
+  }
+  else
+  {
+   Node = PushStructNonZero(Editor->Arena, entity_handle_node);
+  }
+  MarkEntitySelected(Entity);
+  Node->Value = MakeEntityHandle(Entity);
+  StackPush(Editor->SelectedEntityStack, Node);
+ }
 }
 
 internal void
@@ -196,7 +226,7 @@ InitEntityFromEntity(entity_store *EntityStore, entity_with_modify_witness *DstW
                          SrcCurve->ControlPoints,
                          SrcCurve->ControlPointWeights,
                          SrcCurve->CubicBezierPoints);
-   SelectControlPoint(DstCurve, SrcCurve->SelectedIndex);
+   SelectControlPoint(DstCurve, SrcCurve->SelectedControlPoint);
   }break;
   
   case Entity_Image: {
@@ -290,8 +320,9 @@ SplitCurveOnControlPoint(editor *Editor, entity_with_modify_witness *EntityWitne
  {
   temp_arena Temp = TempArena(0);
   
-  u32 HeadPointCount = Curve->SelectedIndex.Index + 1;
-  u32 TailPointCount = Curve->ControlPointCount - Curve->SelectedIndex.Index;
+  u32 SelectedIndex = IndexFromControlPointHandle(Curve->SelectedControlPoint);
+  u32 HeadPointCount = SelectedIndex + 1;
+  u32 TailPointCount = Curve->ControlPointCount - SelectedIndex;
   
   entity *HeadEntity = Entity;
   entity *TailEntity = AllocEntity(&Editor->EntityStore, false);
@@ -314,7 +345,7 @@ SplitCurveOnControlPoint(editor *Editor, entity_with_modify_witness *EntityWitne
   Assert(HeadPoints.PointCount == HeadPointCount);
   Assert(TailPoints.PointCount == TailPointCount);
   
-  u32 SplitAt = Curve->SelectedIndex.Index;
+  u32 SplitAt = SelectedIndex;
   ArrayCopy(TailPoints.ControlPoints, Curve->ControlPoints + SplitAt, TailPoints.PointCount);
   ArrayCopy(TailPoints.Weights, Curve->ControlPointWeights + SplitAt, TailPoints.PointCount);
   ArrayCopy(TailCurve->CubicBezierPoints, Curve->CubicBezierPoints + SplitAt, TailPoints.PointCount);
@@ -442,6 +473,32 @@ LowerBezierCurveDegree(entity *Entity)
   
   EndTemp(Temp);
  }
+}
+
+internal entity *
+GetSelectedEntity(editor *Editor)
+{
+ entity *Selected = 0;
+ while (Editor->SelectedEntityStack)
+ {
+  entity *Entity = EntityFromHandle(Editor->SelectedEntityStack->Value);
+  if (Entity)
+  {
+   Selected = Entity;
+   break;
+  }
+  else
+  {
+   PopTopSelectedEntity(Editor);
+  }
+ }
+ // NOTE(hbr): mark entity as selected because there might have been multiple "dead"
+ // entities at the top of the stack and this one wasn't selected originally
+ if (Selected)
+ {
+  MarkEntitySelected(Selected);
+ }
+ return Selected;
 }
 
 internal void
@@ -611,12 +668,12 @@ BeginMovingEntity(editor_left_click_state *Left, entity_handle Target)
 }
 
 internal void
-BeginMovingCurvePoint(editor_left_click_state *Left, entity_handle Target, curve_point_index CurvePoint)
+BeginMovingCurvePoint(editor_left_click_state *Left, entity_handle Target, curve_point_handle CurvePoint)
 {
  Left->Active = true;
  Left->Mode = EditorLeftClick_MovingCurvePoint;
  Left->TargetEntity = Target;
- Left->CurvePointIndex = CurvePoint;
+ Left->CurvePoint = CurvePoint;
 }
 
 internal void

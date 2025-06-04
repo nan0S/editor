@@ -503,7 +503,7 @@ RenderEntity(rendering_entity_handle Handle)
          PointIndex < ControlPointCount;
          ++PointIndex)
     {
-     point_info PointInfo = GetCurveControlPointInfo(Entity, PointIndex);
+     point_info PointInfo = GetCurveControlPointInfo(Entity, ControlPointHandleFromIndex(PointIndex));
      PushCircle(RenderGroup,
                 ControlPoints[PointIndex],
                 PointInfo.Radius,

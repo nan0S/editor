@@ -567,21 +567,21 @@ GetEntityPointInfo(entity *Entity, f32 BaseRadius, v4 BaseColor)
 }
 
 internal point_info
-GetCurveControlPointInfo(entity *Entity, u32 PointIndex)
+GetCurveControlPointInfo(entity *Entity, control_point_handle Point)
 {
  curve *Curve = SafeGetCurve(Entity);
  curve_params *Params = &Curve->Params;
+ u32 Index = IndexFromControlPointHandle(Point);
  
  point_info Result = GetEntityPointInfo(Entity, Params->PointRadius, Params->PointColor);
  
- if (( (Entity->Flags & EntityFlag_CurveAppendFront) && PointIndex == 0) ||
-     (!(Entity->Flags & EntityFlag_CurveAppendFront) && PointIndex == Curve->ControlPointCount-1))
+ if (( (Entity->Flags & EntityFlag_CurveAppendFront) && Index == 0) ||
+     (!(Entity->Flags & EntityFlag_CurveAppendFront) && Index == Curve->ControlPointCount-1))
  {
   Result.Radius *= 1.5f;
  }
  
- if (IsControlPointSelected(Curve) &&
-     PointIndex == IndexFromControlPointHandle(Curve->SelectedControlPoint))
+ if (ControlPointHandleMatch(Point, Curve->SelectedControlPoint))
  {
   Result.OutlineColor = BrightenColor(Result.OutlineColor, 0.5f);
  }
@@ -595,7 +595,6 @@ Get_B_SplineKnotPointInfo(entity *Entity)
  curve *Curve = SafeGetCurve(Entity);
  curve_params *Params = &Curve->Params;
  b_spline_params *B_Spline = &Params->B_Spline;
- 
  point_info Result = GetEntityPointInfo(Entity, B_Spline->KnotPointRadius, B_Spline->KnotPointColor);
  return Result;
 }

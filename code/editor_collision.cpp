@@ -99,7 +99,7 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
        {
         // TODO(hbr): Maybe move this function call outside of this loop
         // due to performance reasons.
-        point_info PointInfo = GetCurveControlPointInfo(Entity, PointIndex);
+        point_info PointInfo = GetCurveControlPointInfo(Entity, ControlPointHandleFromIndex(PointIndex));
         f32 CollisionRadius = PointInfo.Radius + PointInfo.OutlineThickness + Tolerance;
         f32 SignedDistance = PointDistanceSquaredSigned(LocalAtP, ControlPoints[PointIndex], CollisionRadius);
         if (SignedDistance < MinSignedDistance)

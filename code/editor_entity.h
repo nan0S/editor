@@ -461,7 +461,7 @@ internal v2 LocalEntityPositionToWorld(entity *Entity, v2 P);
 //- entity modify
 internal void SetCurvePoint(entity_with_modify_witness *Entity, curve_point_handle CurvePoint, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
 internal void SetCurveControlPoint(entity_with_modify_witness *Entity, control_point_handle ControlPoint, v2 P, f32 Weight); // this can be only control point thus we accept weight as well
-internal void RemoveControlPoint(entity_with_modify_witness *Entity, u32 Index);
+internal void RemoveControlPoint(entity_with_modify_witness *Entity, control_point_handle Point);
 internal control_point_handle AppendControlPoint(entity_with_modify_witness *Entity, v2 Point);
 internal void InsertControlPoint(entity_with_modify_witness *Entity, v2 Point, u32 At);
 internal void SetCurveControlPoints(entity_with_modify_witness *Entity, u32 PointCount, v2 *Points, f32 *Weights, cubic_bezier_point *CubicBeziers);
@@ -482,7 +482,7 @@ internal b32 AreCurvePointsVisible(curve *Curve);
 internal b32 UsesControlPoints(curve *Curve);
 internal b32 IsPolylineVisible(curve *Curve);
 internal b32 IsConvexHullVisible(curve *Curve);
-internal point_info GetCurveControlPointInfo(entity *Curve, u32 PointIndex);
+internal point_info GetCurveControlPointInfo(entity *Curve, control_point_handle Point);
 internal point_info Get_B_SplineKnotPointInfo(entity *Entity);
 internal f32 GetCurveTrackedPointRadius(curve *Curve);
 internal f32 GetCurveCubicBezierPointRadius(curve *Curve);

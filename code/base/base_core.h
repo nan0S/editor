@@ -188,6 +188,20 @@ struct rect2
  v2 Max;
 };
 
+enum corner
+{
+ Corner_00,
+ Corner_01,
+ Corner_10,
+ Corner_11,
+ Corner_Count
+};
+
+struct rect2_corners
+{
+ v2 Corners[Corner_Count];
+};
+
 union mat3
 {
  f32 M[3][3];

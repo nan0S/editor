@@ -1714,6 +1714,17 @@ IsNonEmpty(rect2 *Rect)
  return Result;
 }
 
+internal rect2_corners
+AABBCorners(rect2 Rect)
+{
+ rect2_corners Corners = {};
+ Corners.Corners[Corner_00] = V2(Rect.Min.X, Rect.Min.Y);
+ Corners.Corners[Corner_01] = V2(Rect.Min.X, Rect.Max.Y);
+ Corners.Corners[Corner_10] = V2(Rect.Max.X, Rect.Min.Y);
+ Corners.Corners[Corner_11] = V2(Rect.Max.X, Rect.Max.Y);
+ return Corners;
+}
+
 internal inline v2
 operator*(mat3 A, v2 P)
 {
@@ -1777,6 +1788,9 @@ CameraTransform(v2 P, v2 Rotation, f32 Zoom)
  v2 XAxis = Rotation;
  v2 YAxis = Rotate90DegreesAntiClockwise(Rotation);
  
+ // TODO(hbr): It isn't strictly correct order to first do Rows3x3 and then Scale3x3.
+ // It should be the other way around. But we scale uniformly by scalar anyway so it
+ // doesn't matter.
  mat3 A = Rows3x3(XAxis, YAxis);
  A = Scale3x3(A, Zoom);
  v2 AP = -(A*P);
@@ -1807,8 +1821,11 @@ ModelTransform(v2 P, v2 Rotation, v2 Scale)
  v2 XAxis = Rotation;
  v2 YAxis = Rotate90DegreesAntiClockwise(Rotation);
  
- mat3 A = Cols3x3(XAxis, YAxis);
+ // NOTE(hbr): First scale, then rotate, then translate.
+ // It's crucial to do that in that order
+ mat3 A = Identity3x3();
  A = Scale3x3(A, Scale);
+ A = Cols3x3(XAxis, YAxis) * A;
  A = Translate3x3(A, P);
  
  return A;

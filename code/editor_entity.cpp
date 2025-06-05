@@ -1023,24 +1023,23 @@ EndModifyCurvePoints(curve_points_modify_handle Handle)
  }
 }
 
+// TODO(hbr): Consider using ModelTransform instead (might be a little slower but probably doesn't matter)
 internal v2
 WorldToLocalEntityPosition(entity *Entity, v2 P)
 {
  v2 Q = P;
  Q = Q - Entity->P;
- Q = Hadamard(Q, V2(1.0f / Entity->Scale.X, 1.0f / Entity->Scale.Y));
  Q = RotateAround(Q, V2(0, 0), Rotation2DInverse(Entity->Rotation));
+ Q = Hadamard(Q, V2(1.0f / Entity->Scale.X, 1.0f / Entity->Scale.Y));
  return Q;
 }
 
 internal v2
 LocalEntityPositionToWorld(entity *Entity, v2 P)
 {
- // TODO(hbr): At some point at realized that the code line below was not there for a long
- // time. Investigate whether it shoould be there or not ????
  v2 Q = P;
- Q = RotateAround(Q, V2(0.0f, 0.0f), Entity->Rotation);
  Q = Hadamard(Q, Entity->Scale);
+ Q = RotateAround(Q, V2(0.0f, 0.0f), Entity->Rotation);
  Q = Q + Entity->P;
  return Q;
 }

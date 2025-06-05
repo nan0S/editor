@@ -118,6 +118,7 @@ internal void              UI_SameRow(void);
 
 internal b32               UI_IsItemHovered(void);
 internal b32               UI_IsMouseClicked(ui_mouse_button Button);
+internal b32               UI_IsMouseDoubleClicked(ui_mouse_button Button);
 internal b32               UI_IsWindowHovered(void);
 
 internal void              UI_SetNextItemSize(v2 Size);

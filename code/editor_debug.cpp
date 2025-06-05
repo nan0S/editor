@@ -105,3 +105,10 @@ UI_ParametricEquationExpr(parametric_equation_expr *Expr, string Label)
  UI_ParametricEquationExpr(Expr, &Id);
  UI_PopLabel();
 }
+
+internal void
+UI_ExponentialAnimation(exponential_animation *Anim)
+{
+ UI_SliderFloat(&Anim->PowBase, 0.0f, 10.0f, StrLit("PowBase"));
+ UI_SliderFloat(&Anim->ExponentMult, 0.0f, 10.0f, StrLit("ExponentMult"));
+}

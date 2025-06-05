@@ -30,7 +30,6 @@
 #define SinhF32(X)             sinhf(X)
 #define CoshF32(X)             coshf(X)
 
-
 //~ Basic operations
 inline internal v2  operator+ (v2 U, v2 V)   { return V2(U.X + V.X, U.Y + V.Y); }
 inline internal v2  operator- (v2 U, v2 V)   { return V2(U.X - V.X, U.Y - V.Y); }
@@ -71,6 +70,7 @@ read_only global v4 TransparentColor = V4(0.0f, 0.0f, 0.0f, 0.0f);
 internal rect2 EmptyAABB(void);
 internal void AddPointAABB(rect2 *AABB, v2 P);
 internal b32 IsNonEmpty(rect2 *Rect);
+internal rect2_corners AABBCorners(rect2 Rect);
 
 //~ Calculations, linear algebra
 inline internal f32 Cube(f32 X) { return X * X * X; }

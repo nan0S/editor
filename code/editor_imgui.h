@@ -21,6 +21,7 @@ typedef IMGUI_RENDER(imgui_Render);
 #define ImGuiNonVariadicFunctions \
 X_Macro(IsItemHovered, IsItemHovered, bool, ImGuiHoveredFlags flags, flags) \
 X_Macro(IsMouseClicked, IsMouseClicked, bool, ImGuiMouseButton button, button) \
+X_Macro(IsMouseDoubleClicked, IsMouseDoubleClicked, bool, ImGuiMouseButton button, button) \
 X_Macro(IsWindowHovered, IsWindowHovered, bool, void, Nothing) \
 X_Macro(SetCursorPos, SetCursorPos, void, ImVec2 local_pos, local_pos) \
 X_Macro(SetNextItemOpen, SetNextItemOpen, void, bool is_open Comma ImGuiCond cond, cond) \

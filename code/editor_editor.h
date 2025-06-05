@@ -123,7 +123,6 @@ struct visual_profiler_state
 
 struct editor
 {
- 
  camera Camera;
  frame_stats FrameStats;
  
@@ -180,7 +179,6 @@ struct editor
 internal void InitEditor(editor *Editor, editor_memory *Memory);
 internal void SelectEntity(editor *Editor, entity *Entity);
 internal void DuplicateEntity(editor *Editor, entity *Entity);
-internal void FocusCameraOnEntity(editor *Editor, entity *Entity, f32 AspectRatio);
 internal void SplitCurveOnControlPoint(editor *Editor, entity *Entity);
 internal void PerformBezierCurveSplit(editor *Editor, entity *Entity);
 internal void ElevateBezierCurveDegree(entity *Entity);
@@ -223,5 +221,8 @@ internal void ProfilerInspectSingleFrame(visual_profiler_state *Visual, u32 Fram
 
 //- notifications
 internal void AddNotificationF(editor *Editor, notification_type Type, char const *Format, ...);
+
+//- misc
+internal void FocusCameraOnEntity(camera *Camera, entity *Entity);
 
 #endif //EDITOR_EDITOR_H

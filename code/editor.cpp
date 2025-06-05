@@ -677,6 +677,108 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
 }
 
 internal void
+FocusCameraOnEntity(camera *Camera, entity *Entity, render_group *RenderGroup)
+{
+ rect2 AABB = EmptyAABB();
+ switch (Entity->Type)
+ {
+  case Entity_Curve: {
+   curve *Curve = &Entity->Curve;
+   u32 SampleCount = Curve->CurveSampleCount;
+   v2 *Samples = Curve->CurveSamples;
+   u32 SampleIndex = 0;
+   while (SampleIndex + 8 < SampleCount)
+   {
+    AddPointAABB(&AABB, Samples[SampleIndex + 0]);
+    AddPointAABB(&AABB, Samples[SampleIndex + 1]);
+    AddPointAABB(&AABB, Samples[SampleIndex + 2]);
+    AddPointAABB(&AABB, Samples[SampleIndex + 3]);
+    AddPointAABB(&AABB, Samples[SampleIndex + 4]);
+    AddPointAABB(&AABB, Samples[SampleIndex + 5]);
+    AddPointAABB(&AABB, Samples[SampleIndex + 6]);
+    AddPointAABB(&AABB, Samples[SampleIndex + 7]);
+    SampleIndex += 8;
+   }
+   while (SampleIndex < SampleCount)
+   {
+    AddPointAABB(&AABB, Samples[SampleIndex]);
+    ++SampleIndex;
+   }
+  } break;
+  
+  case Entity_Image: {
+   image *Image = SafeGetImage(Entity);
+   v2 Dim = Image->Dim;
+   AddPointAABB(&AABB, V2( Dim.X,  Dim.Y));
+   AddPointAABB(&AABB, V2( Dim.X, -Dim.Y));
+   AddPointAABB(&AABB, V2(-Dim.X,  Dim.Y));
+   AddPointAABB(&AABB, V2(-Dim.X, -Dim.Y));
+  } break;
+  
+  case Entity_Count: InvalidPath; break;
+ }
+ 
+ if (IsNonEmpty(&AABB))
+ {
+  rect2_corners AABB_Corners = AABBCorners(AABB);
+  rect2 AABB_Transformed = EmptyAABB();
+  ForEachEnumVal(Corner, Corner_Count, corner)
+  {
+   v2 P = LocalEntityPositionToWorld(Entity, AABB_Corners.Corners[Corner]);
+   AddPointAABB(&AABB_Transformed, P);
+  }
+  
+  v2 TargetP = 0.5f * (AABB_Transformed.Min + AABB_Transformed.Max);
+  v2 Size = AABB_Transformed.Max - AABB_Transformed.Min;
+  v2 Expand = 0.6f * Size;
+  AABB_Transformed.Min += Expand;
+  AABB_Transformed.Max += Expand;
+  
+  // NOTE(hbr): We want AABB.Max, which is in world space, to be transformed
+  // into (1, 1) in clip space. Calculate projection matrix (by creating camera and
+  // clip matrices) and solve the equation. We get ZoomX and ZoomY. Take the minimal
+  // one (because the window might be a rectangle) so that the whole AABB is visible.
+  // Appendix: this isn't really true that we want to transform AABB.Max necessarily
+  // into (1,1) when we take camera rotation into account. But this is a useful
+  // step to understanding the idea behing the code below. In reality we transform
+  // all 4 corners of AABB through projection matrix and take the biggest zoom that
+  // encompasses all of them.
+  // NOTE(hbr): I'm not 100% sure whether taking Abs is mathematically sound here
+  // and whether this code actually mathematically is correct. Abs is sus to me
+  // to be honest. But it seems to work fairly well.
+  mat3_inv CameraT = CameraTransform(TargetP, Camera->Rotation, 1.0f);
+  mat3_inv ClipT = ClipTransform(RenderGroup->AspectRatio);
+  mat3 Proj = ClipT.Forward * CameraT.Forward;
+  
+  rect2_corners Corners = AABBCorners(AABB_Transformed);
+  v2 Q0 = Proj * Corners.Corners[Corner_00];
+  v2 Q1 = Proj * Corners.Corners[Corner_01];
+  v2 Q2 = Proj * Corners.Corners[Corner_10];
+  v2 Q3 = Proj * Corners.Corners[Corner_11];
+  
+  f32 ZoomX0 = Abs(SafeDiv1(1.0f, Q0.X));
+  f32 ZoomY0 = Abs(SafeDiv1(1.0f, Q0.Y));
+  f32 ZoomX1 = Abs(SafeDiv1(1.0f, Q1.X));
+  f32 ZoomY1 = Abs(SafeDiv1(1.0f, Q1.Y));
+  f32 ZoomX2 = Abs(SafeDiv1(1.0f, Q2.X));
+  f32 ZoomY2 = Abs(SafeDiv1(1.0f, Q2.Y));
+  f32 ZoomX3 = Abs(SafeDiv1(1.0f, Q3.X));
+  f32 ZoomY3 = Abs(SafeDiv1(1.0f, Q3.Y));
+  
+  f32 TargetZoom = ZoomX0;
+  TargetZoom = Min(TargetZoom, ZoomY0);
+  TargetZoom = Min(TargetZoom, ZoomX1);
+  TargetZoom = Min(TargetZoom, ZoomY1);
+  TargetZoom = Min(TargetZoom, ZoomX2);
+  TargetZoom = Min(TargetZoom, ZoomY2);
+  TargetZoom = Min(TargetZoom, ZoomX3);
+  TargetZoom = Min(TargetZoom, ZoomY3);
+  
+  SetCameraTarget(Camera, TargetP, TargetZoom);
+ }
+}
+
+internal void
 RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
 {
  entity_store *EntityStore = &Editor->EntityStore;
@@ -1083,7 +1185,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       
       if (UI_Button(StrLit("Focus")))
       {
-       FocusCameraOnEntity(Editor, Entity, RenderGroup->AspectRatio);
+       FocusCameraOnEntity(&Editor->Camera, Entity, RenderGroup);
       }
       if (UI_IsItemHovered())
       {
@@ -1422,35 +1524,35 @@ RenderMenuBarUI(editor *Editor,
   
   if(UI_BeginMenu(StrLit("Settings")))
   {
-   if(UI_BeginMenu(StrLit("Camera")))
+   UI_SeparatorText(StrLit("Camera"));
    {
     camera *Camera = &Editor->Camera;
-    
     UI_DragFloat2(Camera->P.E, 0.0f, 0.0f, 0, StrLit("Position"));
     if (ResetCtxMenu(StrLit("PositionReset")))
     {
      TranslateCamera(Camera, -Camera->P);
     }
-    
     UI_AngleSlider(&Camera->Rotation, StrLit("Rotation"));
     if (ResetCtxMenu(StrLit("RotationReset")))
     {
      RotateCameraAround(Camera, Rotation2DInverse(Camera->Rotation), Camera->P);
     }
-    
     UI_DragFloat(&Camera->Zoom, 0.0f, 0.0f, 0, StrLit("Zoom"));
     if (ResetCtxMenu(StrLit("ZoomReset")))
     {
      SetCameraZoom(Camera, 1.0f);
     }
-    
-    UI_EndMenu();
    }
-   UI_ColorPicker(&Editor->BackgroundColor, StrLit("Background Color"));
-   if (ResetCtxMenu(StrLit("BackgroundColorReset")))
+   
+   UI_SeparatorText(StrLit("Misc"));
    {
-    Editor->BackgroundColor = Editor->DefaultBackgroundColor;
+    UI_ColorPicker(&Editor->BackgroundColor, StrLit("Background Color"));
+    if (ResetCtxMenu(StrLit("BackgroundColorReset")))
+    {
+     Editor->BackgroundColor = Editor->DefaultBackgroundColor;
+    }
    }
+   
    UI_EndMenu();
   }
   
@@ -1492,6 +1594,11 @@ RenderEntityListWindowContents(editor *Editor, render_group *RenderGroup)
      SelectEntity(Editor, Entity);
     }
     
+    if (UI_IsItemHovered() && UI_IsMouseDoubleClicked(UIMouseButton_Left))
+    {
+     FocusCameraOnEntity(&Editor->Camera, Entity, RenderGroup);
+    }
+    
     string CtxMenu = StrLit("EntityContextMenu");
     if (UI_IsItemHovered() && UI_IsMouseClicked(UIMouseButton_Right))
     {
@@ -1517,7 +1624,7 @@ RenderEntityListWindowContents(editor *Editor, render_group *RenderGroup)
      }
      if(UI_MenuItem(0, 0, StrLit("Focus")))
      {
-      FocusCameraOnEntity(Editor, Entity, RenderGroup->AspectRatio);
+      FocusCameraOnEntity(&Editor->Camera, Entity, RenderGroup);
      }
      
      UI_EndPopup();
@@ -1535,7 +1642,7 @@ RenderEntityListUI(editor *Editor, render_group *RenderGroup)
 {
  if (Editor->EntityListWindow)
  {
-  if (UI_BeginWindow(&Editor->EntityListWindow, 0, StrLit("Entities")))
+  if (UI_BeginWindow(&Editor->EntityListWindow, UIWindowFlag_AutoResize, StrLit("Entities")))
   {
    RenderEntityListWindowContents(Editor, RenderGroup);
   }
@@ -1567,7 +1674,7 @@ RenderHelpUI(editor *Editor)
 {
  if (Editor->HelpWindow)
  {
-  if (UI_BeginWindow(&Editor->HelpWindow, 0, StrLit("Help")))
+  if (UI_BeginWindow(&Editor->HelpWindow, UIWindowFlag_AutoResize, StrLit("Help")))
   {
    UI_Text(false,
            StrLit("Parametric Curve Editor overview and tutorial."));
@@ -1595,7 +1702,8 @@ RenderHelpUI(editor *Editor)
      UI_BulletText(StrLit("clicking on curve control point selects that curve and that control point"));
      UI_BulletText(StrLit("clicking on curve line inserts control point inside that curve"));
      UI_BulletText(StrLit("clicking outside of curve (\"on nothing\"), while curve is selected, appends new control point to that curve"));
-     UI_BulletText(StrLit("clicking outside of curve (\"on nothing\"), while no curve is selected, creates a new curve with one control point in that spot"));
+     UI_BulletText(StrLit("clicking outside of curve (\"on nothing\"), while no curve is selected, creates a new curve with one control\n"
+                          "point in that spot"));
      UI_BulletText(StrLit("notice that left mouse click always adds new control point or selects existing one"));
      UI_BulletText(StrLit("clicking and holding moves that control point until mouse button is released"));
      UI_BulletText(StrLit("while splitting Bezier curve, clicking and holding on split point, moves that point along that curve"));
@@ -1618,7 +1726,8 @@ RenderHelpUI(editor *Editor)
      UI_Text(false, StrLit("In more detail:"));
      UI_BulletText(StrLit("clicking on curve (either curve line or curve control point) selects it"));
      UI_BulletText(StrLit("clicking and holding anywhere while curve is selected, moves it"));
-     UI_BulletText(StrLit("clicking and holding while no curve is selected, doesn't do anything"));
+     UI_BulletText(StrLit("clicking and holding while no curve is selected, results in the same action\n"
+                          "as if Left Ctrl was not held - new curve with one control point is added"));
      
      UI_NewRow();
      
@@ -1669,6 +1778,22 @@ RenderHelpUI(editor *Editor)
      
      UI_Text(false, StrLit("In more detail:"));
      UI_BulletText(StrLit("clicking and holding moves the camera"));
+     UI_BulletText(StrLit("scrolling (un)zooms the camera"));
+     
+     UI_NewRow();
+     
+     UI_EndTree();
+    }
+    
+    if (UI_BeginTree(StrLit("Middle mouse button (+ Left Ctrl)")))
+    {
+     UI_NewRow();
+     UI_Text(false, StrLit("Manipulate the camera."));
+     UI_NewRow();
+     
+     UI_Text(false, StrLit("In more detail:"));
+     UI_BulletText(StrLit("clicking and holding moves the camera"));
+     UI_BulletText(StrLit("clicking and holding with Left Ctrl rotates the camera around"));
      UI_BulletText(StrLit("scrolling (un)zooms the camera"));
      
      UI_NewRow();
@@ -1931,7 +2056,7 @@ RenderAnimatingCurvesUI(editor *Editor)
  if (Animation->Flags & AnimatingCurves_Active)
  {
   b32 WindowOpen = true;
-  UI_BeginWindow(&WindowOpen, 0, StrLit("Curve Animation"));
+  UI_BeginWindow(&WindowOpen, UIWindowFlag_AutoResize, StrLit("Curve Animation"));
   
   if (WindowOpen)
   {
@@ -3291,6 +3416,8 @@ RenderProfilerUI(editor *Editor)
 internal void
 RenderDevConsoleUI(editor *Editor)
 {
+ camera *Camera = &Editor->Camera;
+ 
  if (Editor->DevConsole)
  {
   if (UI_BeginWindow(&Editor->DevConsole, 0, StrLit("Dev Console")))
@@ -3303,8 +3430,8 @@ RenderDevConsoleUI(editor *Editor)
                      "bla bla blablabl ablablablablab lablablablablablablablablablabla"
                      "blabla blab lablablablab lablabla blablablablablablablablablabla");
    }
-   
    UI_Checkbox(&DEBUG_Settings->ParametricEquationDebugMode, StrLit("Parametric Equation Debug Mode Enabled"));
+   UI_ExponentialAnimation(&Camera->Animation);
   }
   UI_EndWindow();
  }

@@ -39,7 +39,14 @@ UI_IsMouseClicked(ui_mouse_button Button)
 {
  ImGuiMouseButton ImButton = UIMouseButtonToImGuiMouseButton(Button);
  b32 Result = Cast(b32)Platform.ImGui.IsMouseClicked(ImButton);
- 
+ return Result;
+}
+
+internal b32
+UI_IsMouseDoubleClicked(ui_mouse_button Button)
+{
+ ImGuiMouseButton ImButton = UIMouseButtonToImGuiMouseButton(Button);
+ b32 Result = Cast(b32)Platform.ImGui.IsMouseDoubleClicked(ImButton);
  return Result;
 }
 

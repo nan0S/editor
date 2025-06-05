@@ -6,6 +6,8 @@ InitCamera(camera *Camera)
  Camera->Zoom = 1.0f;
  Camera->ZoomSensitivity = 0.05f;
  Camera->ReachingTargetSpeed = 1.0f;
+ // NOTE(hbr): Parameters chosen experimentally
+ Camera->Animation = MakeExponentialAnimation(5.2f, 6.6f);
 }
 
 internal void
@@ -16,36 +18,11 @@ TranslateCamera(camera *Camera, v2 Translate)
 }
 
 internal void
-SetCameraTarget(camera *Camera, rect2 AABB, f32 AspectRatio)
+SetCameraTarget(camera *Camera, v2 TargetP, f32 TargetZoom)
 {
- if (IsNonEmpty(&AABB))
- {
-  v2 TargetP = 0.5f * (AABB.Min + AABB.Max);
-  Camera->TargetP = TargetP;
-  
-#if 0
-  v2 Extents = AABB.Max - TargetP;
-  Camera->TargetZoom = Min(SafeDiv1(1.0f, Extents.X), SafeDiv1(1.0f, Extents.Y));
-#endif
-  
-  {
-   mat3_inv CameraT = CameraTransform(TargetP, Camera->Rotation, 1.0f);
-   mat3_inv ClipT = ClipTransform(AspectRatio);
-   
-   v2 MaxP = V2(1.0f, 1.0f);
-   
-   v2 P = ClipT.Forward * CameraT.Forward * MaxP;
-   
-   f32 ZoomX = 1.0f / P.X;
-   f32 ZoomY = 1.0f / P.Y;
-   
-   f32 NewZoom = Min(ZoomX, ZoomY);
-   Camera->TargetZoom = NewZoom;
-  }
-  
-  
-  Camera->ReachingTarget = true;
- }
+ Camera->TargetP = TargetP;
+ Camera->TargetZoom = TargetZoom;
+ Camera->ReachingTarget = true;
 }
 
 internal void
@@ -76,9 +53,10 @@ UpdateCamera(camera *Camera, platform_input_output *Input)
 {
  if (Camera->ReachingTarget)
  {
-  f32 t = 1.0f - PowF32(2.0f, -Camera->ReachingTargetSpeed * Input->dtForFrame);
+  f32 t = EvaluateAnimation(&Camera->Animation, Input->dtForFrame);
   Camera->P = Lerp(Camera->P, Camera->TargetP, t);
-  Camera->Zoom = Lerp(Camera->Zoom, Camera->TargetZoom, t);
+  // NOTE(hbr): Zooming slower than moving the camera looks way more natural
+  Camera->Zoom = Lerp(Camera->Zoom, Camera->TargetZoom, t/4);
   
   if (ApproxEq32(Camera->Zoom, Camera->TargetZoom) &&
       ApproxEq32(Camera->P.X, Camera->TargetP.X) &&
@@ -89,4 +67,27 @@ UpdateCamera(camera *Camera, platform_input_output *Input)
    Camera->ReachingTarget = false;
   }
  }
+}
+
+internal exponential_animation
+MakeExponentialAnimation(f32 PowBase, f32 ExponentMult)
+{
+ exponential_animation Anim = {};
+ Anim.PowBase = PowBase;
+ Anim.ExponentMult = ExponentMult;
+ return Anim;
+}
+
+internal exponential_animation
+ExponentialAnimationDefault(void)
+{
+ exponential_animation Anim = MakeExponentialAnimation(2.0f, 4.0f);
+ return Anim;
+}
+
+inline internal f32
+EvaluateAnimation(exponential_animation *Anim, f32 dt)
+{
+ f32 T = 1.0f - PowF32(Anim->PowBase, -Anim->ExponentMult * dt);
+ return T;
 }

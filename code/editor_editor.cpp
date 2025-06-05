@@ -262,53 +262,6 @@ DuplicateEntity(editor *Editor, entity *Entity)
  EndTemp(Temp);
 }
 
-// TODO(hbr): Optimize this function
-internal void
-FocusCameraOnEntity(editor *Editor, entity *Entity, f32 AspectRatio)
-{
- rect2 AABB = EmptyAABB();
- 
- switch (Entity->Type)
- {
-  case Entity_Curve: {
-   curve *Curve = &Entity->Curve;
-   
-   u32 PointCount = Curve->ControlPointCount;
-   v2 *Points = Curve->ControlPoints;
-   for (u32 PointIndex = 0;
-        PointIndex < PointCount;
-        ++PointIndex)
-   {
-    v2 P = LocalEntityPositionToWorld(Entity, Points[PointIndex]);
-    // TODO(hbr): Maybe include also point size
-    AddPointAABB(&AABB, P);
-   }
-  } break;
-  
-  case Entity_Image: {
-   NotImplemented;
-#if 0
-   // TODO(hbr): Use LocalEntityPositionToWorld here instead
-   f32 ScaleX = Entity->Scale.X;
-   f32 ScaleY = Entity->Scale.Y;
-   
-   sf::Vector2u TextureSize = Entity->Image.Texture.getSize();
-   f32 HalfWidth = 0.5f * GlobalImageScaleFactor * ScaleX * TextureSize.x;
-   f32 HalfHeight = 0.5f * GlobalImageScaleFactor * ScaleY * TextureSize.y;
-   
-   AddPointAABB(&AABB, Entity->P + V2( HalfWidth,  HalfHeight));
-   AddPointAABB(&AABB, Entity->P + V2(-HalfWidth,  HalfHeight));
-   AddPointAABB(&AABB, Entity->P + V2( HalfWidth, -HalfHeight));
-   AddPointAABB(&AABB, Entity->P + V2(-HalfWidth, -HalfHeight));
-#endif
-  } break;
-  
-  case Entity_Count: InvalidPath; break;
- }
- 
- SetCameraTarget(&Editor->Camera, AABB, AspectRatio);
-}
-
 internal void
 SplitCurveOnControlPoint(editor *Editor, entity_with_modify_witness *EntityWitness)
 {

@@ -150,12 +150,24 @@ read_only global string PlatformKeyNames[] =
 StaticAssert(ArrayCount(PlatformKeyNames) == PlatformKey_Count,
              PlatformKeyNamesDefined);
 
+enum platform_key_modifier
+{
+ PlatformKeyModifier_Alt,
+ PlatformKeyModifier_Shift,
+ PlatformKeyModifier_Ctrl,
+ PlatformKeyModifier_Count,
+};
+#define NoKeyModifier PlatformEventFlag_None
+#define KeyModifierFlag(Key) (1<<PlatformKeyModifier_##Key)
+#define AnyKeyModifier (KeyModifierFlag(Count) - 1)
+
 typedef u32 platform_event_flags;
 enum
 {
- PlatformEventFlag_Alt      = (1<<0),
- PlatformEventFlag_Shift    = (1<<1),
- PlatformEventFlag_Ctrl     = (1<<2),
+ PlatformEventFlag_None,
+ PlatformEventFlag_Alt   = KeyModifierFlag(Alt),
+ PlatformEventFlag_Shift = KeyModifierFlag(Shift),
+ PlatformEventFlag_Ctrl  = KeyModifierFlag(Ctrl),
 };
 
 struct platform_event
@@ -221,11 +233,9 @@ struct platform_api
  platform_alloc_virtual_memory *AllocVirtualMemory;
  platform_dealloc_virtual_memory *DeallocVirtualMemory;
  platform_commit_virtual_memory *CommitVirtualMemory;
- 
  platform_get_scratch_arena *GetScratchArena;
  
  platform_open_file_dialog *OpenFileDialog;
- 
  platform_read_entire_file *ReadEntireFile;
  
  platform_work_queue_add_entry *WorkQueueAddEntry;
@@ -234,10 +244,10 @@ struct platform_api
  imgui_bindings ImGui;
 };
 extern platform_api Platform;
-#define TempArena Platform.GetScratchArena
 #define AllocVirtualMemory Platform.AllocVirtualMemory
 #define DeallocVirtualMemory Platform.DeallocVirtualMemory
 #define CommitVirtualMemory Platform.CommitVirtualMemory
+#define TempArena Platform.GetScratchArena
 
 struct editor_memory
 {
@@ -281,5 +291,13 @@ StaticAssert(SizeOf(MemberOf(editor_function_table, Functions)) ==
 StaticAssert(ArrayCount(MemberOf(editor_function_table, Functions)) ==
              ArrayCount(EditorFunctionTableNames),
              EditorFunctionTableNamesDefined);
+
+//- platform input/output
+internal f32 UseAndExtractDeltaTime(platform_input_output *Input);
+internal f32 ExtractDeltaTimeOnly(platform_input_output *Input);
+
+//- event helpers
+internal b32 IsKeyPress(platform_event *Event, platform_key Key, platform_event_flags Flags = 0);
+internal b32 IsKeyRelease(platform_event *Event, platform_key Key);
 
 #endif //EDITOR_PLATFORM_H

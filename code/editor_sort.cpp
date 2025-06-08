@@ -19,12 +19,6 @@ AddSortEntry(sort_entry_array *Array, sort_key_f32 SortKey, u32 Index)
  Entry->Index = Index;
 }
 
-internal void
-ClearSortEntryArray(sort_entry_array *Array)
-{
- Array->Count = 0;
-}
-
 internal void *
 MergeSortStable(void *Elems, u32 ElemSize, u32 Count, void *Temp, sort_cmp_func *CmpFunc, void *Data)
 {
@@ -82,6 +76,7 @@ MergeSortStable(void *Elems, u32 ElemSize, u32 Count, void *Temp, sort_cmp_func 
 internal int
 SortEntryCmp(void *Data, sort_entry *A, sort_entry *B)
 {
+ MarkUnused(Data);
  int Result = Cmp(A->SortKey, B->SortKey);
  return Result;
 }
@@ -100,7 +95,6 @@ QuickSort(void *Elems, u32 ElemSize, u32 Count, sort_cmp_func *CmpFunc, void *Da
   u32 PivotIndex = Count - 1;
   void *PivotAt = AtIndexUntyped(Elems, PivotIndex, ElemSize);
   u32 Left = 0;
-  void *ElemAt = Elems;
   
   for (u32 Index = 0;
        Index < Count;

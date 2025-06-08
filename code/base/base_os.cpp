@@ -11,6 +11,7 @@ global string GlobalExecutableDirPath;
 internal void
 OS_Init(int ArgCount, char *Args[])
 {
+ MarkUnused(ArgCount);
  string ExecutablePath = StrFromCStr(Args[0]);
  GlobalExecutableDirPath = PathChopLastPart(ExecutablePath);
 }

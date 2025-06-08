@@ -53,7 +53,8 @@ UpdateCamera(camera *Camera, platform_input_output *Input)
 {
  if (Camera->ReachingTarget)
  {
-  f32 t = EvaluateAnimation(&Camera->Animation, Input->dtForFrame);
+  f32 dt = UseAndExtractDeltaTime(Input);
+  f32 t = EvaluateAnimation(&Camera->Animation, dt);
   Camera->P = Lerp(Camera->P, Camera->TargetP, t);
   // NOTE(hbr): Zooming slower than moving the camera looks way more natural
   Camera->Zoom = Lerp(Camera->Zoom, Camera->TargetZoom, t/4);

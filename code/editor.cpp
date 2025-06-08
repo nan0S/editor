@@ -19,6 +19,7 @@
 #include "editor_collision.cpp"
 #include "editor_core.cpp"
 #include "editor_editor.cpp"
+#include "editor_platform.cpp"
 
 platform_api Platform;
 
@@ -299,7 +300,6 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
 {
  work_queue *WorkQueue = Editor->LowPriorityQueue;
  entity_store *EntityStore = &Editor->EntityStore;
- string_cache *StrCache = &Editor->StrCache;
  thread_task_memory_store *ThreadTaskMemoryStore = &Editor->ThreadTaskMemoryStore;
  image_loading_store *ImageLoadingStore = &Editor->ImageLoadingStore;
  
@@ -358,8 +358,8 @@ UpdateAndRenderAnimatingCurves(animating_curves_state *Animation, platform_input
  {
   if (Animation->Flags & AnimatingCurves_Animating)
   {
-   UpdateBouncingParam(&Animation->Bouncing, Input->dtForFrame);
-   Input->RefreshRequested = true;
+   f32 dt = UseAndExtractDeltaTime(Input);
+   UpdateBouncingParam(&Animation->Bouncing, dt);
   }
   
   v2 Points[4] = {
@@ -384,7 +384,7 @@ UpdateAndRenderAnimatingCurves(animating_curves_state *Animation, platform_input
   ClearArena(Arena);
   
   // TODO(hbr): Use max instead
-  u32 CurveSampleCount = Min(Curve0->CurveSampleCount, Curve1->CurveSampleCount);
+  u32 CurveSampleCount = Min(CurveSampleCount0, CurveSampleCount1);
   v2 *CurveSamples = PushArrayNonZero(Arena, CurveSampleCount, v2);
   for (u32 LinePointIndex = 0;
        LinePointIndex < CurveSampleCount;
@@ -396,8 +396,8 @@ UpdateAndRenderAnimatingCurves(animating_curves_state *Animation, platform_input
    if (IsCurveReversed(Entity0)) LinePointIndex0 = (CurveSampleCount0-1 - LinePointIndex0);
    if (IsCurveReversed(Entity1)) LinePointIndex1 = (CurveSampleCount1-1 - LinePointIndex1);
    
-   v2 PointLocal0 = Curve0->CurveSamples[LinePointIndex0];
-   v2 PointLocal1 = Curve1->CurveSamples[LinePointIndex1];
+   v2 PointLocal0 = CurveSamples0[LinePointIndex0];
+   v2 PointLocal1 = CurveSamples1[LinePointIndex1];
    
    v2 Point0 = LocalEntityPositionToWorld(Entity0, PointLocal0);
    v2 Point1 = LocalEntityPositionToWorld(Entity1, PointLocal1);
@@ -781,7 +781,6 @@ FocusCameraOnEntity(camera *Camera, entity *Entity, render_group *RenderGroup)
 internal void
 RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
 {
- entity_store *EntityStore = &Editor->EntityStore;
  entity *Entity = GetSelectedEntity(Editor);
  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
  b32 DeleteEntity = false;
@@ -1651,7 +1650,32 @@ RenderEntityListUI(editor *Editor, render_group *RenderGroup)
 }
 
 internal void
-RenderDiagnosticsUI(editor *Editor, f32 dtForFrame)
+UpdateFrameStats(frame_stats *Stats, platform_input_output *Input)
+{
+ // NOTE(hbr): Access directly (without setting RefreshRequested) purposefully
+ f32 dt = ExtractDeltaTimeOnly(Input);
+ 
+ Stats->Calculation.FrameCount += 1;
+ Stats->Calculation.SumFrameTime += dt;
+ Stats->Calculation.MinFrameTime = Min(Stats->Calculation.MinFrameTime, dt);
+ Stats->Calculation.MaxFrameTime = Max(Stats->Calculation.MaxFrameTime, dt);
+ 
+ if (Stats->Calculation.SumFrameTime >= 1.0f)
+ {
+  Stats->FPS = Stats->Calculation.FrameCount / Stats->Calculation.SumFrameTime;
+  Stats->MinFrameTime = Stats->Calculation.MinFrameTime;
+  Stats->MaxFrameTime = Stats->Calculation.MaxFrameTime;
+  Stats->AvgFrameTime = Stats->Calculation.SumFrameTime / Stats->Calculation.FrameCount;
+  
+  Stats->Calculation.FrameCount = 0;
+  Stats->Calculation.MinFrameTime = F32_INF;
+  Stats->Calculation.MaxFrameTime = -F32_INF;
+  Stats->Calculation.SumFrameTime = 0.0f;
+ }
+}
+
+internal void
+RenderDiagnosticsUI(editor *Editor, platform_input_output *Input)
 {
  //- render diagnostics UI
  if (Editor->DiagnosticsWindow)
@@ -1659,7 +1683,9 @@ RenderDiagnosticsUI(editor *Editor, f32 dtForFrame)
   if (UI_BeginWindow(&Editor->DiagnosticsWindow, UIWindowFlag_AutoResize, StrLit("Diagnostics")))
   {
    frame_stats *Stats = &Editor->FrameStats;
-   UI_TextF(false, "%-20s %.2f ms", "Frame time", 1000.0f * dtForFrame);
+   f32 dt = ExtractDeltaTimeOnly(Input);
+   
+   UI_TextF(false, "%-20s %.2f ms", "Frame time", 1000.0f * dt);
    UI_TextF(false, "%-20s %.0f", "FPS", Stats->FPS);
    UI_TextF(false, "%-20s %.2f ms", "Min frame time", 1000.0f * Stats->MinFrameTime);
    UI_TextF(false, "%-20s %.2f ms", "Max frame time", 1000.0f * Stats->MaxFrameTime);
@@ -1825,12 +1851,13 @@ UpdateAndRenderNotifications(editor *Editor, platform_input_output *Input, rende
    {
     b32 Remove = false;
     
-    Notification->LifeTime += Input->dtForFrame;
+    f32 dt = UseAndExtractDeltaTime(Input);
+    Notification->LifeTime += dt;
     
     f32 MoveSpeed = 20.0f;
     f32 NextPosY = Lerp(Notification->ScreenPosY,
                         TargetPosY,
-                        1.0f - PowF32(2.0f, -MoveSpeed * Input->dtForFrame));
+                        1.0f - PowF32(2.0f, -MoveSpeed * dt));
     Notification->ScreenPosY = NextPosY;
     
     enum notification_phase
@@ -2104,30 +2131,6 @@ RenderAnimatingCurvesUI(editor *Editor)
 }
 
 internal void
-UpdateFrameStats(frame_stats *Stats, platform_input_output *Input)
-{
- f32 dt = Input->dtForFrame;
- 
- Stats->Calculation.FrameCount += 1;
- Stats->Calculation.SumFrameTime += dt;
- Stats->Calculation.MinFrameTime = Min(Stats->Calculation.MinFrameTime, dt);
- Stats->Calculation.MaxFrameTime = Max(Stats->Calculation.MaxFrameTime, dt);
- 
- if (Stats->Calculation.SumFrameTime >= 1.0f)
- {
-  Stats->FPS = Stats->Calculation.FrameCount / Stats->Calculation.SumFrameTime;
-  Stats->MinFrameTime = Stats->Calculation.MinFrameTime;
-  Stats->MaxFrameTime = Stats->Calculation.MaxFrameTime;
-  Stats->AvgFrameTime = Stats->Calculation.SumFrameTime / Stats->Calculation.FrameCount;
-  
-  Stats->Calculation.FrameCount = 0;
-  Stats->Calculation.MinFrameTime = F32_INF;
-  Stats->Calculation.MaxFrameTime = -F32_INF;
-  Stats->Calculation.SumFrameTime = 0.0f;
- }
-}
-
-internal void
 ProcessImageLoadingTasks(editor *Editor)
 {
  image_loading_store *ImageLoadingStore = &Editor->ImageLoadingStore;
@@ -2158,7 +2161,9 @@ ProcessImageLoadingTasks(editor *Editor)
 }
 
 internal void
-ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *RenderGroup,
+ProcessInputEvents(editor *Editor,
+                   platform_input_output *Input,
+                   render_group *RenderGroup,
                    b32 *NewProject, b32 *OpenFileDialog, b32 *SaveProject,
                    b32 *SaveProjectAs, b32 *QuitProject)
 {
@@ -2180,7 +2185,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
   //- left click events processing
   b32 DoesAnimationWantInput = AnimationWantsInput(Animation);
   b32 DoesMergingWantInput = MergingWantsInput(Merging);
-  if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_LeftMouseButton &&
+  if (!Eat && IsKeyPress(Event, PlatformKey_LeftMouseButton, AnyKeyModifier) &&
       (!LeftClick->Active || DoesAnimationWantInput || DoesMergingWantInput))
   {
    Eat = true;
@@ -2312,7 +2317,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
    }
   }
   
-  if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_LeftMouseButton && LeftClick->Active)
+  if (!Eat && IsKeyRelease(Event, PlatformKey_LeftMouseButton) && LeftClick->Active)
   {
    Eat = true;
    EndLeftClick(LeftClick);
@@ -2395,7 +2400,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
   }
   
   //- right click events processing
-  if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_RightMouseButton && !RightClick->Active)
+  if (!Eat && IsKeyPress(Event, PlatformKey_RightMouseButton, AnyKeyModifier) && !RightClick->Active)
   {
    Eat = true;
    
@@ -2417,7 +2422,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
    }
   }
   
-  if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_RightMouseButton && RightClick->Active)
+  if (!Eat && IsKeyRelease(Event, PlatformKey_RightMouseButton) && RightClick->Active)
   {
    Eat = true;
    
@@ -2469,12 +2474,12 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
   }
   
   //- camera control events processing
-  if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_MiddleMouseButton)
+  if (!Eat && IsKeyPress(Event, PlatformKey_MiddleMouseButton, AnyKeyModifier))
   {
    Eat = true;
    BeginMiddleClick(MiddleClick, Event->Flags & PlatformEventFlag_Ctrl, Event->ClipSpaceMouseP);
   }
-  if (!Eat && Event->Type == PlatformEvent_Release && Event->Key == PlatformKey_MiddleMouseButton)
+  if (!Eat && IsKeyRelease(Event, PlatformKey_MiddleMouseButton))
   {
    Eat = true;
    EndMiddleClick(MiddleClick);
@@ -2510,45 +2515,46 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
    ZoomCamera(&Editor->Camera, Event->ScrollDelta);
   }
   
-  if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Tab)
+  if (!Eat && IsKeyPress(Event, PlatformKey_Tab, NoKeyModifier))
   {
    Eat = true;
    Editor->HideUI = !Editor->HideUI;
   }
   
   //- shortcuts
-  if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_N && (Event->Flags & PlatformEventFlag_Ctrl))
+  if (!Eat && IsKeyPress(Event, PlatformKey_N, KeyModifierFlag(Ctrl)))
   {
    Eat = true;
    *NewProject = true;
   }
   
-  if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_O && (Event->Flags & PlatformEventFlag_Ctrl))
+  if (!Eat && IsKeyPress(Event, PlatformKey_O, KeyModifierFlag(Ctrl)))
   {
    Eat = true;
    *OpenFileDialog = true;
   }
   
-  if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_S && (Event->Flags & PlatformEventFlag_Ctrl))
+  if (!Eat && IsKeyPress(Event, PlatformKey_S, KeyModifierFlag(Ctrl)))
   {
    Eat = true;
    *SaveProject = true;
   }
   
-  if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_S && (Event->Flags & PlatformEventFlag_Ctrl) && (Event->Flags & PlatformEventFlag_Shift))
+  if (!Eat && IsKeyPress(Event, PlatformKey_S, KeyModifierFlag(Ctrl) | KeyModifierFlag(Shift)))
   {
    Eat = true;
    *SaveProjectAs = true;
   }
   
-  if (!Eat && ((Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Escape) || (Event->Type == PlatformEvent_WindowClose)))
+  if (!Eat && (IsKeyPress(Event, PlatformKey_Escape, NoKeyModifier) ||
+               (Event->Type == PlatformEvent_WindowClose)))
   {
    Eat = true;
    *QuitProject = true;
   }
   
 #if BUILD_DEBUG
-  if (!Eat && ((Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Backtick)))
+  if (!Eat && IsKeyPress(Event, PlatformKey_Backtick, NoKeyModifier))
   {
    Eat = true;
    Editor->DevConsole = !Editor->DevConsole;
@@ -2556,8 +2562,8 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
 #endif
   
   if (!Eat &&
-      (Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Delete) ||
-      (Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_X && (Event->Flags & PlatformEventFlag_Ctrl)))
+      (IsKeyPress(Event, PlatformKey_Delete, PlatformEventFlag_None) ||
+       IsKeyPress(Event, PlatformKey_X, KeyModifierFlag(Ctrl))))
   {
    entity *Entity = GetSelectedEntity(Editor);
    entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
@@ -2590,7 +2596,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
    EndEntityModify(EntityWitness);
   }
   
-  if (Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_D && (Event->Flags & PlatformEventFlag_Ctrl))
+  if (IsKeyPress(Event, PlatformKey_D, KeyModifierFlag(Ctrl)))
   {
    entity *Entity = GetSelectedEntity(Editor);
    if (Entity)
@@ -2600,7 +2606,7 @@ ProcessInputEvents(editor *Editor, platform_input_output *Input, render_group *R
    }
   }
   
-  if (!Eat && Event->Type == PlatformEvent_Press && Event->Key == PlatformKey_Q && (Event->Flags & PlatformEventFlag_Ctrl))
+  if (!Eat && IsKeyPress(Event, PlatformKey_Q, KeyModifierFlag(Ctrl)))
   {
    Eat = true;
    Editor->Profiler.Stopped = !Editor->Profiler.Stopped;
@@ -2644,9 +2650,7 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
  
  curve *Curve0 = SafeGetCurve(Entity0);
  curve *Curve1 = SafeGetCurve(Entity1);
- 
  entity *MergeEntity = MergeWitness->Entity;
- curve *Merge = &MergeEntity->Curve;
  
  string Name = StrF(Temp.Arena, "%S+%S", GetEntityName(Entity0), GetEntityName(Entity1));
  InitEntityFromEntity(EntityStore, MergeWitness, Entity0);
@@ -2827,7 +2831,6 @@ internal void
 RenderMergingCurvesUI(editor *Editor)
 {
  merging_curves_state *Merging = &Editor->MergingCurves;
- entity *MergeEntity = Merging->MergeEntity;
  entity_store *EntityStore = &Editor->EntityStore;
  
  if (Merging->Active)
@@ -3028,9 +3031,12 @@ struct anchor_filter
 internal int
 AnchorFilterCmp(void *Data, anchor_filter *A, anchor_filter *B)
 {
+ MarkUnused(Data);
  int Result = StrCmp(A->FilterLabel, B->FilterLabel);
  return Result;
 }
+
+internal int Gowno(void);
 
 enum profiles_layout_mode
 {
@@ -3242,7 +3248,6 @@ RenderProfilerWindowContents(editor *Editor)
   ++SpecialFilterCount;
   Assert(FilterCount <= MaxFilterCount);
   
-  u32 AnchorCount = 0;
   for (u32 AnchorIndex = 0;
        AnchorIndex < MAX_PROFILER_ANCHOR_COUNT;
        ++AnchorIndex)
@@ -3538,7 +3543,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
   RenderSelectedEntityUI(Editor, RenderGroup);
   RenderMenuBarUI(Editor, &NewProject, &OpenFileDialog, &SaveProject, &SaveProjectAs, &QuitProject);
   RenderEntityListUI(Editor, RenderGroup);
-  RenderDiagnosticsUI(Editor, Input->dtForFrame);
+  RenderDiagnosticsUI(Editor, Input);
   RenderHelpUI(Editor);
   RenderAnimatingCurvesUI(Editor);
   RenderMergingCurvesUI(Editor);

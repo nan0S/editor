@@ -472,10 +472,10 @@ internal void DeselectControlPoint(curve *Curve);
 internal void ApplyColorsToEntity(entity *Entity, entity_colors Colors);
 internal void MarkEntitySelected(entity *Entity);
 internal void MarkEntityDeselected(entity *Entity);
+internal void SwitchEntityVisibility(entity *Entity);
 
 //- entity info
 internal b32 IsEntityVisible(entity *Entity);
-internal void SwitchEntityVisibility(entity *Entity);
 internal b32 IsEntitySelected(entity *Entity);
 internal b32 IsControlPointSelected(curve *Curve);
 internal b32 AreCurvePointsVisible(curve *Curve);

@@ -199,6 +199,14 @@ OpenGLClearErrors(void)
 
 GL_DEBUG_CALLBACK(OpenGLDebugCallback)
 {
+ MarkUnused(source);
+ MarkUnused(type);
+ MarkUnused(id);
+ MarkUnused(severity);
+ MarkUnused(length);
+ MarkUnused(message);
+ MarkUnused(userParam);
+ 
  // ignore non-significant error/warning codes
  if(id == 131169 || id == 131185 || id == 131218 || id == 131204) return; 
  

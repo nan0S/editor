@@ -298,7 +298,7 @@ AddVisibleCubicBezierPoint(visible_cubic_bezier_points *Visible, cubic_bezier_po
 }
 
 inline internal b32
-PrevCubicBezierPoint(curve *Curve, cubic_bezier_point_handle *Point)
+PrevCubicBezierPoint(cubic_bezier_point_handle *Point)
 {
  b32 Result = false;
  u32 Index = IndexFromCubicBezierPointHandle(*Point);
@@ -337,10 +337,10 @@ GetVisibleCubicBezierPoints(entity *Entity)
   cubic_bezier_point_handle StartPoint = CubicBezierPointFromControlPoint(Curve->SelectedControlPoint);
   
   cubic_bezier_point_handle PrevPoint = StartPoint;
-  if (PrevCubicBezierPoint(Curve, &PrevPoint))
+  if (PrevCubicBezierPoint(&PrevPoint))
   {
    AddVisibleCubicBezierPoint(&Result, PrevPoint);
-   if (PrevCubicBezierPoint(Curve, &PrevPoint))
+   if (PrevCubicBezierPoint(&PrevPoint))
    {
     AddVisibleCubicBezierPoint(&Result, PrevPoint);
    }
@@ -1343,7 +1343,7 @@ CalcCubicBezier(cubic_bezier_point *Beziers, u32 PointCount,
 }
 
 internal void
-Calc_B_Spline(v2 *Controls, u32 PointCount,
+Calc_B_Spline(v2 *Controls,
               b_spline_knot_params KnotParams, f32 *Knots,
               u32 SampleCount, v2 *OutSamples)
 {
@@ -1436,7 +1436,7 @@ CalcCurve(arena *EntityArena, curve *Curve, u32 SampleCount, v2 *OutSamples)
    }
    Curve->B_SplinePartitionKnotPoints = PartitionKnotPoints;
    
-   Calc_B_Spline(Controls, PointCount, KnotParams, B_SplineKnots, SampleCount, OutSamples);
+   Calc_B_Spline(Controls, KnotParams, B_SplineKnots, SampleCount, OutSamples);
   }break;
   case Curve_Parametric: {CalcParametric(Params->Parametric, SampleCount, OutSamples);}break;
   

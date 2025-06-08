@@ -9,6 +9,7 @@ OS_Reserve(u64 Reserve, b32 Commit)
 internal void
 OS_Release(void *Memory, u64 Size)
 {
+ MarkUnused(Size);
  VirtualFree(Memory, 0, MEM_RELEASE);
 }
 

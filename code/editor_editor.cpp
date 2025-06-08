@@ -285,7 +285,6 @@ SplitCurveOnControlPoint(editor *Editor, entity_with_modify_witness *EntityWitne
   
   InitEntityFromEntity(EntityStore, &TailWitness, HeadEntity);
   
-  curve *HeadCurve = SafeGetCurve(HeadEntity);
   curve *TailCurve = SafeGetCurve(TailEntity);
   
   string HeadName  = StrF(Temp.Arena, "%S (head)", GetEntityName(Entity));
@@ -477,9 +476,6 @@ PerformBezierCurveSplit(editor *Editor, entity_with_modify_witness *EntityWitnes
  
  string LeftName = StrF(Temp.Arena, "%S(left)", GetEntityName(Entity));
  string RightName = StrF(Temp.Arena, "%S(right)", GetEntityName(Entity));
- 
- curve *LeftCurve = SafeGetCurve(LeftEntity);
- curve *RightCurve = SafeGetCurve(RightEntity);
  
  SetEntityName(LeftEntity, LeftName);
  InitEntityFromEntity(EntityStore, &RightWitness, LeftEntity);

@@ -75,7 +75,6 @@ UI_ParametricEquationExpr(parametric_equation_expr *Expr, u32 *Id)
   case ParametricEquationExpr_Application: {
    parametric_equation_application_expr Application = Expr->Application;
    
-   u32 ArgIndex = 0;
    for (u32 ArgIndex = 0;
         ArgIndex < Application.ArgCount;
         ++ArgIndex)

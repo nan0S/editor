@@ -187,15 +187,15 @@ PushTriangle(render_group *Group,
   f32 Z = ZOffset + Group->ZOffset;
   
   V[0].P = P0;
-  V[0].Z = ZOffset;
+  V[0].Z = Z;
   V[0].Color = Color;
   
   V[1].P = P1; 
-  V[1].Z = ZOffset;
+  V[1].Z = Z;
   V[1].Color = Color;
   
   V[2].P = P2;
-  V[2].Z = ZOffset;
+  V[2].Z = Z;
   V[2].Color = Color;
   
   Frame->VertexCount += 3;
@@ -241,7 +241,7 @@ BeginRenderGroup(render_frame *Frame,
  Result.ModelXForm = Identity3x3();
  
  Result.CollisionTolerance = CollisionToleranceClip / CameraZoom;
- Result.RotationRadius = CollisionToleranceClip / CameraZoom;
+ Result.RotationRadius = RotationRadiusClip / CameraZoom;
  Result.AspectRatio = AspectRatio;
  
  Frame->Proj = Result.ProjXForm.Forward;

@@ -5,6 +5,10 @@ int WinMain(HINSTANCE Instance,
             LPSTR     lpCmdLine,
             int       nShowCmd)
 {
+ MarkUnused(Instance);
+ MarkUnused(PrevInstance);
+ MarkUnused(lpCmdLine);
+ MarkUnused(nShowCmd);
  EntryPoint(__argc, __argv);
  return 0;
 }

@@ -76,6 +76,8 @@ GLFWModsToFlags(int Mods)
 internal void
 GLFWKeyCallback(GLFWwindow *Window, int Key, int ScanCode, int Action, int Mods)
 {
+ MarkUnused(ScanCode);
+ MarkUnused(Window);
  glfw_state *GLFWState = &GlobalGLFWState;
  
  glfw_imgui_maybe_capture_input_result ImGuiCapture =  GLFWImGuiMaybeCaptureInput();
@@ -178,6 +180,8 @@ GLFWMouseMoveCallback(GLFWwindow *Window, double X, double Y)
 internal void
 GLFWMouseScrollCallback(GLFWwindow *Window, double XOffset, double YOffset)
 {
+ MarkUnused(Window);
+ MarkUnused(XOffset);
  glfw_imgui_maybe_capture_input_result ImGuiCapture = GLFWImGuiMaybeCaptureInput();
  if (!ImGuiCapture.ImGuiWantCaptureMouse)
  {

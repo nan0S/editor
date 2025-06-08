@@ -252,14 +252,14 @@ BeginRenderGroup(render_frame *Frame,
 
 internal renderer_transfer_op *
 PushTextureTransfer(renderer_transfer_queue *Queue,
-                    u32 TextureWidth, u32 TextureHeight, u32 TextureChannels,
+                    u32 TextureWidth, u32 TextureHeight, u64 SizeInBytes,
                     render_texture_handle TextureHandle)
 {
  renderer_transfer_op *Op = 0;
  if (Queue->OpCount < MAX_RENDERER_TRANFER_QUEUE_COUNT)
  {
   u64 PreviousAllocateOffset = Queue->AllocateOffset;
-  u64 RequestSize = Cast(u64)TextureWidth * TextureHeight * TextureChannels;
+  u64 RequestSize = SizeInBytes;
   
   if (Queue->AllocateOffset >= Queue->FreeOffset &&
       (Queue->TransferMemorySize - Queue->AllocateOffset) < RequestSize &&

@@ -99,7 +99,7 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
        {
         // TODO(hbr): Maybe move this function call outside of this loop
         // due to performance reasons.
-        point_info PointInfo = GetCurveControlPointInfo(Entity, ControlPointHandleFromIndex(PointIndex));
+        point_draw_info PointInfo = GetCurveControlPointDrawInfo(Entity, ControlPointHandleFromIndex(PointIndex));
         f32 CollisionRadius = PointInfo.Radius + PointInfo.OutlineThickness + Tolerance;
         f32 SignedDistance = PointDistanceSquaredSigned(LocalAtP, ControlPoints[PointIndex], CollisionRadius);
         if (SignedDistance < MinSignedDistance)
@@ -237,7 +237,7 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
       //b_spline_knots Knots = Curve->B_SplineKnots;
       u32 PartitionSize = Curve->B_SplineKnotParams.PartitionSize;
       v2 *PartitionKnotPoints = Curve->B_SplinePartitionKnotPoints;
-      point_info KnotPointInfo = Get_B_SplineKnotPointInfo(Entity);
+      point_draw_info KnotPointInfo = Get_B_SplineKnotPointDrawInfo(Entity);
       
       for (u32 KnotIndex = 0;
            KnotIndex < PartitionSize;

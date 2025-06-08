@@ -4,8 +4,9 @@ MakeImageInfo(u32 Width, u32 Height, u32 Channels)
  image_info Info = {};
  Info.Width = Width;
  Info.Height = Height;
- Info.Channels = Channels;
- Info.SizeInBytes = Cast(u64)Width * Height * Channels;
+ Info.ChannelsUponLoad = 4;
+ Info.RealChannels = Channels;
+ Info.SizeInBytesUponLoad = Cast(u64)Width * Height * Info.ChannelsUponLoad;
  return Info;
 }
 

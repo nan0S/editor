@@ -287,13 +287,13 @@ enum
  EntityFlag_Hidden           = (1<<0),
  EntityFlag_Selected         = (1<<1),
  EntityFlag_CurveAppendFront = (1<<2),
- EntityFlag_Tracked          = (1<<3),
 };
 typedef u32 entity_flags;
 
 enum
 {
  EntityInternalFlag_Tracked = (1<<0),
+ EntityInternalFlag_Deactivated = (1<<1),
 };
 typedef u32 entity_internal_flags;
 
@@ -390,7 +390,7 @@ StaticAssert(SizeOf(MemberOf(entity_colors, AllColors)) ==
              SizeOf(entity_colors),
              EntityColors_ArrayLengthMatchesDefinedColors);
 
-struct point_info
+struct point_draw_info
 {
  f32 Radius;
  v4 Color;
@@ -423,6 +423,18 @@ struct curve_merge_compatibility
  string WhyIncompatible;
 };
 
+struct control_point
+{
+ v2 P;
+ f32 Weight;
+ cubic_bezier_point Bezier;
+ b32 IsWeight;
+ b32 IsBezier;
+};
+
+internal curve *SafeGetCurve(entity *Entity);
+internal image *SafeGetImage(entity *Entity);
+
 //- indices
 internal control_point_handle ControlPointHandleFromIndex(u32 Index);
 internal u32 IndexFromControlPointHandle(control_point_handle Handle);
@@ -438,10 +450,14 @@ internal cubic_bezier_point_handle CubicBezierPointHandleZero(void);
 
 internal curve_point_handle CurvePointFromControlPoint(control_point_handle Handle);
 internal curve_point_handle CurvePointFromCubicBezierPoint(cubic_bezier_point_handle Handle);
+internal control_point_handle ControlPointFromCurvePoint(curve_point_handle Handle);
+
+internal control_point MakeControlPoint(v2 Point);
+internal control_point MakeControlPoint(v2 Point, f32 Weight, cubic_bezier_point Bezier);
 
 //- entity handles
 internal entity_handle MakeEntityHandle(entity *Entity);
-internal entity *EntityFromHandle(entity_handle Handle);
+internal entity *EntityFromHandle(entity_handle Handle, b32 AllowDeactived = false);
 
 internal entity_with_modify_witness BeginEntityModify(entity *Entity);
 internal void EndEntityModify(entity_with_modify_witness Witness);
@@ -459,11 +475,12 @@ internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
 internal v2 LocalEntityPositionToWorld(entity *Entity, v2 P);
 
 //- entity modify
-internal void SetCurvePoint(entity_with_modify_witness *Entity, curve_point_handle CurvePoint, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
-internal void SetCurveControlPoint(entity_with_modify_witness *Entity, control_point_handle ControlPoint, v2 P, f32 Weight); // this can be only control point thus we accept weight as well
+internal void SetCurvePointP(entity_with_modify_witness *Entity, curve_point_handle Handle, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
+internal void SetCurveControlPointP(entity_with_modify_witness *Entity, control_point_handle Handle, v2 P, f32 Weight); // this can be only control point thus we accept weight as well
+internal void SetCurveControlPointAt(entity_with_modify_witness *Witness, control_point_handle Handle, control_point Point);
 internal void RemoveControlPoint(entity_with_modify_witness *Entity, control_point_handle Point);
 internal control_point_handle AppendControlPoint(entity_with_modify_witness *Entity, v2 Point);
-internal void InsertControlPoint(entity_with_modify_witness *Entity, v2 Point, u32 At);
+internal control_point_handle InsertControlPoint(entity_with_modify_witness *Entity, control_point Point, u32 At);
 internal void SetCurveControlPoints(entity_with_modify_witness *Entity, u32 PointCount, v2 *Points, f32 *Weights, cubic_bezier_point *CubicBeziers);
 internal void RotateEntityAround(entity *Entity, v2 Rotate, v2 Around);
 internal void SelectControlPoint(curve *Curve, control_point_handle ControlPoint);
@@ -482,8 +499,8 @@ internal b32 AreCurvePointsVisible(curve *Curve);
 internal b32 UsesControlPoints(curve *Curve);
 internal b32 IsPolylineVisible(curve *Curve);
 internal b32 IsConvexHullVisible(curve *Curve);
-internal point_info GetCurveControlPointInfo(entity *Curve, control_point_handle Point);
-internal point_info Get_B_SplineKnotPointInfo(entity *Entity);
+internal point_draw_info GetCurveControlPointDrawInfo(entity *Curve, control_point_handle Point);
+internal point_draw_info Get_B_SplineKnotPointDrawInfo(entity *Entity);
 internal f32 GetCurveTrackedPointRadius(curve *Curve);
 internal f32 GetCurveCubicBezierPointRadius(curve *Curve);
 internal visible_cubic_bezier_points GetVisibleCubicBezierPoints(entity *Entity);
@@ -495,6 +512,7 @@ internal b32 IsRegularBezierCurve(curve *Curve);
 internal b32 Are_B_SplineKnotsVisible(curve *Curve);
 internal entity_colors ExtractEntityColors(entity *Entity);
 internal string GetEntityName(entity *Entity);
+internal control_point GetCurveControlPoint(entity *Entity, control_point_handle Point);
 
 //- entity for merging tracker
 internal entity_snapshot_for_merging MakeEntitySnapshotForMerging(entity *Entity);

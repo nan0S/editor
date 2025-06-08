@@ -88,7 +88,6 @@ AllocEntity(entity_store *Store, b32 DontTrack)
  
  Entity->Id = Store->IdCounter++;
  Entity->Generation = Generation;
- Entity->InternalFlags = (DontTrack ? 0 : EntityInternalFlag_Tracked);
  Entity->NameBuffer = AllocString(Store->StrCache, 128);
  
  // NOTE(hbr): It shouldn't really matter anyway that we allocate arenas even for
@@ -98,11 +97,9 @@ AllocEntity(entity_store *Store, b32 DontTrack)
  Curve->DegreeLowering.Arena = AllocArena(Megabytes(32));
  Curve->ParametricResources.Arena = AllocArena(Megabytes(32));
  
- if (Entity->InternalFlags & EntityInternalFlag_Tracked)
+ if (!DontTrack)
  {
-  DLLPushBack(Store->Head, Store->Tail, Node);
-  ++Store->Count;
-  ++Store->AllocGeneration;
+  ActivateEntity(Store, Entity);
  }
  
  return Entity;
@@ -119,16 +116,43 @@ DeallocEntity(entity_store *Store, entity *Entity)
  image *Image = &Entity->Image;
  DeallocTextureHandle(Store, Image->TextureHandle);
  
- ++Entity->Generation;
+ DeactiveEntity(Store, Entity);
  
+ entity_list_node *Node = ContainerOf(Entity, entity_list_node, Entity);
+ StackPush(Store->Free, Node);
+}
+
+internal void
+ActivateEntity(entity_store *Store, entity *Entity)
+{
+ entity_list_node *Node = ContainerOf(Entity, entity_list_node, Entity);
+ DLLPushBack(Store->Head, Store->Tail, Node);
+ ++Store->Count;
+ ++Store->AllocGeneration;
+ Entity->InternalFlags |= EntityInternalFlag_Tracked;
+ // NOTE(hbr): If I'm activating entity that was previously deactivated,
+ // decremented its previously incremented generation.
+ if (Entity->InternalFlags & EntityInternalFlag_Deactivated)
+ {
+  Assert(Entity->Generation > 0);
+  --Entity->Generation;
+ }
+ Entity->InternalFlags &= ~EntityInternalFlag_Deactivated;
+}
+
+internal void
+DeactiveEntity(entity_store *Store, entity *Entity)
+{
  entity_list_node *Node = ContainerOf(Entity, entity_list_node, Entity);
  if (Entity->InternalFlags & EntityInternalFlag_Tracked)
  {
   DLLRemove(Store->Head, Store->Tail, Node);
   --Store->Count;
   ++Store->AllocGeneration;
+  Entity->InternalFlags &= ~EntityInternalFlag_Tracked;
  }
- StackPush(Store->Free, Node);
+ Entity->InternalFlags |= EntityInternalFlag_Deactivated;
+ ++Entity->Generation;
 }
 
 internal entity_array

@@ -614,6 +614,9 @@ BeginMovingEntity(editor_left_click_state *Left, entity_handle Target)
  Left->Active = true;
  Left->Mode = EditorLeftClick_MovingEntity;
  Left->TargetEntity = Target;
+ entity *Entity = EntityFromHandle(Target);
+ Assert(Entity);
+ Left->InitialEntityP = Entity->P;
 }
 
 internal void
@@ -623,6 +626,9 @@ BeginMovingCurvePoint(editor_left_click_state *Left, entity_handle Target, curve
  Left->Mode = EditorLeftClick_MovingCurvePoint;
  Left->TargetEntity = Target;
  Left->CurvePoint = CurvePoint;
+ control_point_handle ControlPointHandle = ControlPointFromCurvePoint(CurvePoint);
+ Left->ControlPointHandle = ControlPointHandle;
+ Left->InitialControlPoint = GetCurveControlPoint(EntityFromHandle(Target), ControlPointHandle);
 }
 
 internal void
@@ -643,8 +649,25 @@ BeginMovingBSplineKnot(editor_left_click_state *Left, entity_handle Target, u32 
 }
 
 internal void
-EndLeftClick(editor_left_click_state *Left)
+EndLeftClick(editor *Editor, editor_left_click_state *Left)
 {
+ if (Left->Moved)
+ {
+  if (Left->Mode == EditorLeftClick_MovingCurvePoint)
+  {
+   RegisterTrackedControlPointMove(Editor,
+                                   Left->TargetEntity,
+                                   Left->ControlPointHandle,
+                                   Left->InitialControlPoint);
+  }
+  else if (Left->Mode == EditorLeftClick_MovingEntity)
+  {
+   RegisterTrackedEntityMove(Editor,
+                             Left->TargetEntity,
+                             Left->InitialEntityP);
+  }
+ }
+ 
  arena *OriginalVerticesArena = Left->OriginalVerticesArena;
  StructZero(Left);
  Left->OriginalVerticesArena = OriginalVerticesArena;
@@ -692,4 +715,219 @@ ProfilerInspectSingleFrame(visual_profiler_state *Visual, u32 FrameIndex)
  Assert(FrameIndex < MAX_PROFILER_FRAME_COUNT);
  Visual->FrameIndex = FrameIndex;
  Visual->FrameSnapshot = Profiler->Frames[FrameIndex];
+}
+
+internal tracked_action *
+AllocTrackedAction(editor *Editor)
+{
+ tracked_action *Action = &NilTrackedAction;
+ if (Editor->TrackedActionIndex < ArrayCount(Editor->TrackedActions))
+ {
+  // NOTE(hbr): Iterate through every action from the future (aka. actions that have been undo'ed)
+  // and deallocate all AddEntity entities. Because they live in that future and that future only.
+  // And we ditch that future and create a new path.
+  for (u32 Index = Editor->TrackedActionIndex;
+       Index < Editor->TrackedActionCount;
+       ++Index)
+  {
+   tracked_action *Action = Editor->TrackedActions + Index;
+   if (Action->Type == TrackedAction_AddEntity)
+   {
+    entity *Entity = EntityFromHandle(Action->Entity, true);
+    Assert(Entity);
+    DeallocEntity(&Editor->EntityStore, Entity);
+   }
+  }
+  Action = Editor->TrackedActions + Editor->TrackedActionIndex;
+  ++Editor->TrackedActionIndex;
+  Editor->TrackedActionCount = Editor->TrackedActionIndex;
+ }
+ return Action;
+}
+
+internal void
+RemoveControlPointTracked(editor *Editor,
+                          entity_with_modify_witness *Entity,
+                          control_point_handle Point)
+{
+ tracked_action *Action = AllocTrackedAction(Editor);
+ Action->Type = TrackedAction_RemoveControlPoint;
+ Action->Entity = MakeEntityHandle(Entity->Entity);
+ Action->ControlPoint = GetCurveControlPoint(Entity->Entity, Point);
+ Action->ControlPointHandle = Point;
+ RemoveControlPoint(Entity, Point);
+}
+
+internal control_point_handle
+AddControlPointTracked(editor *Editor,
+                       entity_with_modify_witness *Entity,
+                       control_point Point,
+                       u32 At,
+                       b32 Append)
+{
+ tracked_action *Action = AllocTrackedAction(Editor);
+ Action->Type = TrackedAction_AddControlPoint;
+ Action->Entity = MakeEntityHandle(Entity->Entity);
+ Action->ControlPoint = Point;
+ control_point_handle Handle = (Append ? AppendControlPoint(Entity, Point.P) : InsertControlPoint(Entity, Point, At));
+ Action->ControlPointHandle = Handle;
+ return Handle;
+}
+
+internal void
+InsertControlPointTracked(editor *Editor,
+                          entity_with_modify_witness *Entity,
+                          control_point Point,
+                          u32 At)
+{
+ AddControlPointTracked(Editor, Entity, Point, At, false);
+}
+
+internal control_point_handle
+AppendControlPointTracked(editor *Editor,
+                          entity_with_modify_witness *Entity,
+                          v2 Point)
+{
+ control_point_handle Result = AddControlPointTracked(Editor, Entity, MakeControlPoint(Point), 0, true);
+ return Result;
+}
+
+internal void
+RegisterTrackedControlPointMove(editor *Editor,
+                                entity_handle Entity,
+                                control_point_handle PointHandle,
+                                control_point OriginalControlPoint)
+{
+ tracked_action *Action = AllocTrackedAction(Editor);
+ Action->Type = TrackedAction_MoveControlPoint;
+ Action->Entity = Entity;
+ Action->ControlPointHandle = PointHandle;
+ Action->ControlPoint = OriginalControlPoint;
+ Action->MovedToControlPoint = GetCurveControlPoint(EntityFromHandle(Entity), PointHandle);
+}
+
+internal void
+RegisterTrackedEntityMove(editor *Editor,
+                          entity_handle Entity,
+                          v2 OriginalP)
+{
+ tracked_action *Action = AllocTrackedAction(Editor);
+ Action->Type = TrackedAction_MoveEntity;
+ Action->Entity = Entity;
+ Action->OriginalEntityP = OriginalP;
+ entity *E = EntityFromHandle(Entity);
+ Action->MovedToEntityP = E->P;
+}
+
+internal void
+RemoveEntityTracked(editor *Editor, entity *Entity)
+{
+ tracked_action *Action = AllocTrackedAction(Editor);
+ Action->Type = TrackedAction_RemoveEntity;
+ Action->Entity = MakeEntityHandle(Entity);
+ DeactiveEntity(&Editor->EntityStore, Entity);
+}
+
+internal entity *
+AddEntityTracked(editor *Editor)
+{
+ entity *Entity = AllocEntity(&Editor->EntityStore, false);
+ RegisterEntityAdded(Editor, Entity);
+ return Entity;
+}
+
+internal void
+RegisterEntityAdded(editor *Editor, entity *Entity)
+{
+ tracked_action *Action = AllocTrackedAction(Editor);
+ Action->Type = TrackedAction_AddEntity;
+ Action->Entity = MakeEntityHandle(Entity);
+}
+
+internal void
+Undo(editor *Editor)
+{
+ if (Editor->TrackedActionIndex > 0)
+ {
+  --Editor->TrackedActionIndex;
+  tracked_action *Action = Editor->TrackedActions + Editor->TrackedActionIndex;
+  b32 AllowDeactived = (Action->Type == TrackedAction_RemoveEntity);
+  entity *Entity = EntityFromHandle(Action->Entity, AllowDeactived);
+  if (Entity)
+  {
+   entity_with_modify_witness Witness = BeginEntityModify(Entity);
+   switch (Action->Type)
+   {
+    case TrackedAction_RemoveControlPoint: {
+     u32 InsertAt = IndexFromControlPointHandle(Action->ControlPointHandle);
+     InsertControlPoint(&Witness, Action->ControlPoint, InsertAt);
+    }break;
+    
+    case TrackedAction_AddControlPoint: {
+     RemoveControlPoint(&Witness, Action->ControlPointHandle);
+    }break;
+    
+    case TrackedAction_MoveControlPoint: {
+     SetCurveControlPointAt(&Witness, Action->ControlPointHandle, Action->ControlPoint);
+    }break;
+    
+    case TrackedAction_MoveEntity: {
+     Entity->P = Action->OriginalEntityP;
+    }break;
+    
+    case TrackedAction_RemoveEntity: {
+     ActivateEntity(&Editor->EntityStore, Entity);
+    }break;
+    
+    case TrackedAction_AddEntity: {
+     DeactiveEntity(&Editor->EntityStore, Entity);
+    }break;
+   }
+   EndEntityModify(Witness);
+  }
+ }
+}
+
+internal void
+Redo(editor *Editor)
+{
+ if (Editor->TrackedActionIndex < Editor->TrackedActionCount)
+ {
+  tracked_action *Action = Editor->TrackedActions + Editor->TrackedActionIndex;
+  ++Editor->TrackedActionIndex;
+  b32 AllowDeactived = (Action->Type == TrackedAction_AddEntity);
+  entity *Entity = EntityFromHandle(Action->Entity, AllowDeactived);
+  if (Entity)
+  {
+   entity_with_modify_witness Witness = BeginEntityModify(Entity);
+   switch (Action->Type)
+   {
+    case TrackedAction_RemoveControlPoint: {
+     RemoveControlPoint(&Witness, Action->ControlPointHandle);
+    }break;
+    
+    case TrackedAction_AddControlPoint: {
+     u32 InsertAt = IndexFromControlPointHandle(Action->ControlPointHandle);
+     InsertControlPoint(&Witness, Action->ControlPoint, InsertAt);
+    }break;
+    
+    case TrackedAction_MoveControlPoint: {
+     SetCurveControlPointAt(&Witness, Action->ControlPointHandle, Action->MovedToControlPoint);
+    }break;
+    
+    case TrackedAction_MoveEntity: {
+     Entity->P = Action->MovedToEntityP;
+    }break;
+    
+    case TrackedAction_RemoveEntity: {
+     DeactiveEntity(&Editor->EntityStore, Entity);
+    }break;
+    
+    case TrackedAction_AddEntity: {
+     ActivateEntity(&Editor->EntityStore, Entity);
+    }break;
+   }
+   EndEntityModify(Witness);
+  }
+ }
 }

@@ -71,6 +71,9 @@ struct image_loading_store
 internal void InitEntityStore(entity_store *Store, u32 MaxTextureCount, u32 MaxBufferCount, string_cache *StrCache);
 internal entity *AllocEntity(entity_store *Store, b32 DontTrack);
 internal void DeallocEntity(entity_store *Store, entity *Entity);
+internal void ActivateEntity(entity_store *Store, entity *Entity); // don't actually dealloc memory and don't put on free list, but otherwise mark entity as "deallocated" to the outside world
+internal void DeactiveEntity(entity_store *Store, entity *Entity);
+
 internal entity_array AllEntityArrayFromStore(entity_store *Store);
 internal entity_array EntityArrayFromType(entity_store *Store, entity_type Type);
 

@@ -220,10 +220,10 @@ UpdateAndRenderDegreeLowering(rendering_entity_handle Handle)
     f32 NewControlPointWeight = Lerp(Lowering->LowerDegree.W_I, Lowering->LowerDegree.W_II, Lowering->MixParameter);
     
     control_point_handle MiddlePoint = ControlPointHandleFromIndex(Lowering->LowerDegree.MiddlePointIndex);
-    SetCurveControlPoint(&EntityWitness,
-                         MiddlePoint,
-                         NewControlPoint,
-                         NewControlPointWeight);
+    SetCurveControlPointP(&EntityWitness,
+                          MiddlePoint,
+                          NewControlPoint,
+                          NewControlPointWeight);
    }
    
    if (Revert)
@@ -278,7 +278,7 @@ LoadImageWork(void *UserData)
  if (LoadedImage.Success)
  {
   // TODO(hbr): Don't do memory copy, just read into that memory directly
-  MemoryCopy(TextureOp->Pixels, LoadedImage.Pixels, LoadedImage.Info.SizeInBytes);
+  MemoryCopy(TextureOp->Pixels, LoadedImage.Pixels, LoadedImage.Info.SizeInBytesUponLoad);
   OpState = RendererOp_ReadyToTransfer;
   AsyncTaskState = Image_Loaded;
  }
@@ -309,7 +309,7 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
   
   image_info ImageInfo = LoadImageInfo(FilePath);
   render_texture_handle TextureHandle = AllocTextureHandle(EntityStore);
-  renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, ImageInfo.Channels, TextureHandle);
+  renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, ImageInfo.SizeInBytesUponLoad, TextureHandle);
   image_loading_task *ImageLoading = BeginAsyncImageLoadingTask(ImageLoadingStore);
   thread_task_memory *TaskMemory = BeginThreadTaskMemory(ThreadTaskMemoryStore);
   
@@ -503,7 +503,7 @@ RenderEntity(rendering_entity_handle Handle)
          PointIndex < ControlPointCount;
          ++PointIndex)
     {
-     point_info PointInfo = GetCurveControlPointInfo(Entity, ControlPointHandleFromIndex(PointIndex));
+     point_draw_info PointInfo = GetCurveControlPointDrawInfo(Entity, ControlPointHandleFromIndex(PointIndex));
      PushCircle(RenderGroup,
                 ControlPoints[PointIndex],
                 PointInfo.Radius,
@@ -519,7 +519,7 @@ RenderEntity(rendering_entity_handle Handle)
     u32 PartitionSize = Curve->B_SplineKnotParams.PartitionSize;
     v2 *PartitionKnotPoints = Curve->B_SplinePartitionKnotPoints;
     b_spline_params B_Spline = CurveParams->B_Spline;
-    point_info KnotPointInfo = Get_B_SplineKnotPointInfo(Entity);
+    point_draw_info KnotPointInfo = Get_B_SplineKnotPointDrawInfo(Entity);
     
     for (u32 KnotIndex = 0;
          KnotIndex < PartitionSize;
@@ -2134,8 +2134,13 @@ internal void
 ProcessImageLoadingTasks(editor *Editor)
 {
  image_loading_store *ImageLoadingStore = &Editor->ImageLoadingStore;
- ListIter(ImageLoading, ImageLoadingStore->Head, image_loading_task)
+ entity_store *EntityStore = &Editor->EntityStore;
+ 
+ ListIter(ImageLoading,
+          ImageLoadingStore->Head,
+          image_loading_task)
  {
+  entity *Entity = ImageLoading->Entity;
   if (ImageLoading->State == Image_Loading)
   {
    // NOTE(hbr): nothing to do
@@ -2144,12 +2149,13 @@ ProcessImageLoadingTasks(editor *Editor)
   {
    if (ImageLoading->State == Image_Loaded)
    {
-    entity *Entity = ImageLoading->Entity;
+    RegisterEntityAdded(Editor, Entity);
     SelectEntity(Editor, Entity);
    }
    else
    {
     Assert(ImageLoading->State == Image_Failed);
+    DeallocEntity(EntityStore, Entity);
     AddNotificationF(Editor, Notification_Error,
                      "failed to load image from %S",
                      ImageLoading->ImageFilePath);
@@ -2260,7 +2266,7 @@ ProcessInputEvents(editor *Editor,
       control_point_handle ControlPoint = ControlPointIndexFromCurveSampleIndex(CollisionCurve, Collision.CurveSampleIndex);
       u32 PointIndex = IndexFromControlPointHandle(ControlPoint);
       u32 InsertAt = PointIndex + 1;
-      InsertControlPoint(&CollisionEntityWitness, MouseP, InsertAt);
+      InsertControlPointTracked(Editor, &CollisionEntityWitness, MakeControlPoint(MouseP), InsertAt);
       BeginMovingCurvePoint(LeftClick, MakeEntityHandle(Collision.Entity),
                             CurvePointFromControlPoint(ControlPointHandleFromIndex(InsertAt)));
      }
@@ -2286,7 +2292,7 @@ ProcessInputEvents(editor *Editor,
       temp_arena Temp = TempArena(0);
       
       entity_store *EntityStore = &Editor->EntityStore;
-      entity *Entity = AllocEntity(EntityStore, false);
+      entity *Entity = AddEntityTracked(Editor);
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
       InitEntityAsCurve(Entity, Name, Editor->CurveDefaultParams);
       TargetEntity = Entity;
@@ -2296,7 +2302,7 @@ ProcessInputEvents(editor *Editor,
      Assert(TargetEntity);
      
      entity_with_modify_witness TargetEntityWitness = BeginEntityModify(TargetEntity);
-     control_point_handle Appended = AppendControlPoint(&TargetEntityWitness, MouseP);
+     control_point_handle Appended = AppendControlPointTracked(Editor, &TargetEntityWitness, MouseP);
      BeginMovingCurvePoint(LeftClick, MakeEntityHandle(TargetEntity), CurvePointFromControlPoint(Appended));
      EndEntityModify(TargetEntityWitness);
     }
@@ -2320,7 +2326,7 @@ ProcessInputEvents(editor *Editor,
   if (!Eat && IsKeyRelease(Event, PlatformKey_LeftMouseButton) && LeftClick->Active)
   {
    Eat = true;
-   EndLeftClick(LeftClick);
+   EndLeftClick(Editor, LeftClick);
   }
   
   if (!Eat && Event->Type == PlatformEvent_MouseMove && LeftClick->Active)
@@ -2385,7 +2391,7 @@ ProcessInputEvents(editor *Editor,
       {
        Flags &= ~TranslateCurvePoint_MatchBezierTwinLength;
       }
-      SetCurvePoint(&EntityWitness, LeftClick->CurvePoint, MouseP, Flags);
+      SetCurvePointP(&EntityWitness, LeftClick->CurvePoint, MouseP, Flags);
      }break;
      
      case EditorLeftClick_MovingEntity: {
@@ -2394,6 +2400,7 @@ ProcessInputEvents(editor *Editor,
     }
     
     LeftClick->LastMouseP = MouseP;
+    LeftClick->Moved = true;
     
     EndEntityModify(EntityWitness);
    }
@@ -2450,7 +2457,7 @@ ProcessInputEvents(editor *Editor,
     {
      if (Collision->CurvePoint.Type == CurvePoint_ControlPoint)
      {
-      RemoveControlPoint(&EntityWitness, Collision->CurvePoint.Control);
+      RemoveControlPointTracked(Editor, &EntityWitness, Collision->CurvePoint.Control);
      }
      else
      {
@@ -2460,7 +2467,7 @@ ProcessInputEvents(editor *Editor,
     }
     else if (Entity)
     {
-     DeallocEntity(&Editor->EntityStore, Entity);
+     RemoveEntityTracked(Editor, Entity);
     }
     else
     {
@@ -2577,16 +2584,16 @@ ProcessInputEvents(editor *Editor,
       curve *Curve = SafeGetCurve(Entity);
       if (IsControlPointSelected(Curve))
       {
-       RemoveControlPoint(&EntityWitness, Curve->SelectedControlPoint);
+       RemoveControlPointTracked(Editor, &EntityWitness, Curve->SelectedControlPoint);
       }
       else
       {
-       DeallocEntity(&Editor->EntityStore, Entity);
+       RemoveEntityTracked(Editor, Entity);
       }
      }break;
      
      case Entity_Image: {
-      DeallocEntity(&Editor->EntityStore, Entity);
+      RemoveEntityTracked(Editor, Entity);
      }break;
      
      case Entity_Count: InvalidPath;
@@ -2612,6 +2619,18 @@ ProcessInputEvents(editor *Editor,
    Editor->Profiler.Stopped = !Editor->Profiler.Stopped;
   }
   
+  if (!Eat && IsKeyPress(Event, PlatformKey_Z, KeyModifierFlag(Ctrl)))
+  {
+   Eat = true;
+   Undo(Editor);
+  }
+  
+  if (!Eat && IsKeyPress(Event, PlatformKey_R, KeyModifierFlag(Ctrl)))
+  {
+   Eat = true;
+   Redo(Editor);
+  }
+  
   //- misc
   if (!Eat && Event->Type == PlatformEvent_FilesDrop)
   {
@@ -2626,7 +2645,7 @@ ProcessInputEvents(editor *Editor,
  // on some ImGui window
  if (!Input->Pressed[PlatformKey_LeftMouseButton])
  {
-  EndLeftClick(LeftClick);
+  EndLeftClick(Editor, LeftClick);
  }
  if (!Input->Pressed[PlatformKey_RightMouseButton])
  {
@@ -3608,8 +3627,10 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  
  Input->ProfilingStopped = Editor->Profiler.Stopped;
  
+#if 0
 #if BUILD_DEBUG
  Input->RefreshRequested = true;
+#endif
 #endif
 }
 

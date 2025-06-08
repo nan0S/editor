@@ -43,14 +43,22 @@ MakeEntityHandle(entity *Entity)
 }
 
 inline internal entity *
-EntityFromHandle(entity_handle Handle)
+EntityFromHandle(entity_handle Handle, b32 AllowDeactived)
 {
- entity *Result = 0;
- if (Handle.Entity && (Handle.Generation == Handle.Entity->Generation))
+ entity *Entity = 0;
+ if (Handle.Entity &&
+     (Handle.Generation == Handle.Entity->Generation))
  {
-  Result = Handle.Entity;
+  Entity = Handle.Entity;
  }
- return Result;
+ if (AllowDeactived &&
+     (Entity == 0) &&
+     (Handle.Entity->InternalFlags & EntityInternalFlag_Deactivated) &&
+     (Handle.Generation + 1 == Handle.Entity->Generation))
+ {
+  Entity = Handle.Entity;
+ }
+ return Entity;
 }
 
 inline internal curve *
@@ -169,6 +177,18 @@ CurvePointFromCubicBezierPoint(cubic_bezier_point_handle Handle)
  return Result;
 }
 
+inline internal control_point_handle
+ControlPointFromCurvePoint(curve_point_handle Handle)
+{
+ control_point_handle Result = {};
+ switch (Handle.Type)
+ {
+  case CurvePoint_ControlPoint: {Result = Handle.Control;}break;
+  case CurvePoint_CubicBezierPoint: {Result = ControlPointFromCubicBezierPoint(Handle.Bezier);}break;
+ }
+ return Result;
+}
+
 inline internal v2
 GetCubicBezierPoint(curve *Curve, cubic_bezier_point_handle Point)
 {
@@ -183,7 +203,7 @@ GetCubicBezierPoint(curve *Curve, cubic_bezier_point_handle Point)
 }
 
 inline internal v2
-GetControlPoint(curve *Curve, control_point_handle Point)
+GetControlPointP(curve *Curve, control_point_handle Point)
 {
  v2 Result = {};
  u32 Index = IndexFromControlPointHandle(Point);
@@ -198,7 +218,7 @@ inline internal v2
 GetCenterPointFromCubicBezierPoint(curve *Curve, cubic_bezier_point_handle Bezier)
 {
  control_point_handle Control = ControlPointFromCubicBezierPoint(Bezier);
- v2 Point = GetControlPoint(Curve, Control);
+ v2 Point = GetControlPointP(Curve, Control);
  return Point;
 }
 
@@ -546,10 +566,10 @@ MarkEntityDeselected(entity *Entity)
  Entity->Flags &= ~EntityFlag_Selected;
 }
 
-internal point_info
+internal point_draw_info
 GetEntityPointInfo(entity *Entity, f32 BaseRadius, v4 BaseColor)
 {
- point_info Result = {};
+ point_draw_info Result = {};
  
  Result.Radius = BaseRadius;
  
@@ -566,14 +586,14 @@ GetEntityPointInfo(entity *Entity, f32 BaseRadius, v4 BaseColor)
  return Result;
 }
 
-internal point_info
-GetCurveControlPointInfo(entity *Entity, control_point_handle Point)
+internal point_draw_info
+GetCurveControlPointDrawInfo(entity *Entity, control_point_handle Point)
 {
  curve *Curve = SafeGetCurve(Entity);
  curve_params *Params = &Curve->Params;
  u32 Index = IndexFromControlPointHandle(Point);
  
- point_info Result = GetEntityPointInfo(Entity, Params->PointRadius, Params->PointColor);
+ point_draw_info Result = GetEntityPointInfo(Entity, Params->PointRadius, Params->PointColor);
  
  if (( (Entity->Flags & EntityFlag_CurveAppendFront) && Index == 0) ||
      (!(Entity->Flags & EntityFlag_CurveAppendFront) && Index == Curve->ControlPointCount-1))
@@ -589,13 +609,13 @@ GetCurveControlPointInfo(entity *Entity, control_point_handle Point)
  return Result;
 }
 
-internal point_info
-Get_B_SplineKnotPointInfo(entity *Entity)
+internal point_draw_info
+Get_B_SplineKnotPointDrawInfo(entity *Entity)
 {
  curve *Curve = SafeGetCurve(Entity);
  curve_params *Params = &Curve->Params;
  b_spline_params *B_Spline = &Params->B_Spline;
- point_info Result = GetEntityPointInfo(Entity, B_Spline->KnotPointRadius, B_Spline->KnotPointColor);
+ point_draw_info Result = GetEntityPointInfo(Entity, B_Spline->KnotPointRadius, B_Spline->KnotPointColor);
  return Result;
 }
 
@@ -612,6 +632,36 @@ GetEntityName(entity *Entity)
 {
  string Name = StrFromCharBuffer(Entity->NameBuffer);
  return Name;
+}
+
+internal control_point
+MakeControlPoint(v2 Point)
+{
+ control_point Result = {};
+ Result.P = Point;
+ return Result;
+}
+
+internal control_point
+MakeControlPoint(v2 Point, f32 Weight, cubic_bezier_point Bezier)
+{
+ control_point Result = {};
+ Result.P = Point;
+ Result.Weight = Weight;
+ Result.Bezier = Bezier;
+ Result.IsWeight = Result.IsBezier = true;
+ return Result;
+}
+
+internal control_point
+GetCurveControlPoint(entity *Entity, control_point_handle Point)
+{
+ curve *Curve = SafeGetCurve(Entity);
+ u32 Index = IndexFromControlPointHandle(Point);
+ control_point Result = MakeControlPoint(Curve->ControlPoints[Index],
+                                         Curve->ControlPointWeights[Index],
+                                         Curve->CubicBezierPoints[Index]);
+ return Result;
 }
 
 internal void
@@ -635,10 +685,10 @@ ControlPointAndBezierOffsetFromCurvePoint(curve_point_handle CurvePoint,
 }
 
 internal void
-SetCurvePoint(entity_with_modify_witness *EntityWitness,
-              curve_point_handle CurvePoint,
-              v2 P,
-              translate_curve_point_flags Flags)
+SetCurvePointP(entity_with_modify_witness *EntityWitness,
+               curve_point_handle CurvePoint,
+               v2 P,
+               translate_curve_point_flags Flags)
 {
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
@@ -818,21 +868,61 @@ AppendControlPoint(entity_with_modify_witness *EntityWitness, v2 Point)
  {
   InsertAt = Entity->Curve.ControlPointCount;
  }
- InsertControlPoint(EntityWitness, Point, InsertAt);
- return ControlPointHandleFromIndex(InsertAt);
+ control_point_handle Result = InsertControlPoint(EntityWitness, MakeControlPoint(Point), InsertAt);
+ return Result;
 }
 
 internal void
-InsertControlPoint(entity_with_modify_witness *EntityWitness, v2 Point, u32 At)
+SetCurveControlPointAt(entity_with_modify_witness *Witness, control_point_handle Handle, control_point Point)
 {
+ entity *Entity = Witness->Entity;
+ curve *Curve = SafeGetCurve(Entity);
+ 
+ u32 I = IndexFromControlPointHandle(Handle);
+ u32 N = Curve->ControlPointCount;
+ v2 *P = Curve->ControlPoints;
+ f32 *W = Curve->ControlPointWeights;
+ cubic_bezier_point *B = Curve->CubicBezierPoints;
+ 
+ P[I] = WorldToLocalEntityPosition(Entity, Point.P);
+ W[I] = (Point.IsWeight ? Point.Weight : 1.0f);
+ if (Point.IsBezier)
+ {
+  B[I] = Point.Bezier;
+ }
+ else
+ {
+  // NOTE(hbr): Cubic bezier point calculation is not really defined
+  // for N<=2. At least I tried to "define" it but failed to do something
+  // that was super useful. In that case, when the third point is added,
+  // just recalculate all bezier points.
+  if (Curve->ControlPointCount == 2)
+  {
+   BezierCubicCalculateAllControlPoints(N+1, P, B);
+  }
+  else
+  {
+   CalculateBezierCubicPointAt(N+1, P, B, I);
+  }
+ }
+ 
+ MarkEntityModified(Witness);
+}
+
+internal control_point_handle
+InsertControlPoint(entity_with_modify_witness *EntityWitness, control_point Point, u32 At)
+{
+ control_point_handle Result = {};
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
+ 
  if (Curve &&
      Curve->ControlPointCount < MAX_CONTROL_POINT_COUNT &&
      At <= Curve->ControlPointCount)
  {
   Assert(UsesControlPoints(Curve));
   
+  control_point_handle Handle = ControlPointHandleFromIndex(At);
   u32 N = Curve->ControlPointCount;
   v2 *P = Curve->ControlPoints;
   f32 *W = Curve->ControlPointWeights;
@@ -847,21 +937,7 @@ MemoryMove((Array) + ((At)+(ShiftCount)), \
   ShiftRightArray(B, N, At, 1);
 #undef ShiftRightArray
   
-  P[At] = WorldToLocalEntityPosition(Entity, Point);
-  W[At] = 1.0f;
-  
-  // NOTE(hbr): Cubic bezier point calculation is not really defined
-  // for N<=2. At least I tried to "define" it but failed to do something
-  // that was super useful. In that case, when the third point is added,
-  // just recalculate all bezier points.
-  if (N == 2)
-  {
-   BezierCubicCalculateAllControlPoints(N+1, P, B);
-  }
-  else
-  {
-   CalculateBezierCubicPointAt(N+1, P, B, At);
-  }
+  SetCurveControlPointAt(EntityWitness, Handle, Point);
   
   if (IsControlPointSelected(Curve))
   {
@@ -874,9 +950,10 @@ MemoryMove((Array) + ((At)+(ShiftCount)), \
   }
   
   ++Curve->ControlPointCount;
-  
-  MarkEntityModified(EntityWitness);
+  Result = Handle;
  }
+ 
+ return Result;
 }
 
 internal void
@@ -955,17 +1032,16 @@ InitEntityAsImage(entity *Entity,
 }
 
 internal void
-SetCurveControlPoint(entity_with_modify_witness *EntityWitness, control_point_handle ControlPoint, v2 P, f32 Weight)
+SetCurveControlPointP(entity_with_modify_witness *EntityWitness, control_point_handle Handle, v2 P, f32 Weight)
 {
- curve_point_handle CurvePoint = CurvePointFromControlPoint(ControlPoint);
+ curve_point_handle CurvePoint = CurvePointFromControlPoint(Handle);
  entity *Entity = EntityWitness->Entity;
- curve *Curve = SafeGetCurve(Entity);
+ SetCurvePointP(EntityWitness, CurvePoint, P, TranslateCurvePoint_None);
  
- SetCurvePoint(EntityWitness, CurvePoint, P, TranslateCurvePoint_None);
- 
- if (!ControlPointHandleMatch(ControlPoint, ControlPointHandleZero()))
+ if (!ControlPointHandleMatch(Handle, ControlPointHandleZero()))
  {
-  u32 Index = IndexFromControlPointHandle(ControlPoint);
+  curve *Curve = SafeGetCurve(Entity);
+  u32 Index = IndexFromControlPointHandle(Handle);
   Curve->ControlPointWeights[Index] = Weight;
   MarkEntityModified(EntityWitness);
  }

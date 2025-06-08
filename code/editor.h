@@ -32,12 +32,12 @@ TODO:
 - parametric curve preexisting examples
 - extract animated curve - bezier can be 100% matching, other can do with interpolation
 - incluce imgui tutorial to get familiar with the ui widgets used throughout the project
-- use [dt] more carefully - if I use dt I should mark that I need update in the next frame
 - better error msgs when curves fail to merge
 - moving partition knot along curve
 - parallelize curve recomputation
  - GPU buffer in the same way we have texture_index
- 
+ - update "help" - add info about moving cubic bezier helpers, add info about "undo/redo"
+
  Bugs:
  - ZOffset are fucked - if multiple images have the same ZOffset, make sure to check collisions in the reverse order they are renderer
  - adding points to periodic curve doesn't work again
@@ -46,7 +46,8 @@ TODO:
  - inserting control point in the middle of polynomial curve is sometimes broken
  - because clicks are now highly independent, we might now delete control point while moving the same control point which could lead to some weird behaviours, investigate that
  - focusing on entity is not 100% correct mathematically - if camera is rotated and entity is rotated, it zooms out a little too much compared to what it "should", although probably noone will notice anyway, I can't figure out the math behing this
- 
+ - undo/redo messes up what entity is selected - kind of, because we store EntityFlag_Selected in Entity itself. Maybe clear that flag on Deactivate?
+
  Ideas:
  - confirm window when removing points
  - loop curve with checkbox - it seems useful

@@ -884,19 +884,14 @@ RemoveEntityTracked(editor *Editor, action_tracking_group *Group, entity *Entity
 }
 
 internal entity *
-AddEntityTracked(editor *Editor, action_tracking_group *Group)
+AddEntity(editor *Editor, action_tracking_group *Group)
 {
- entity *Entity = AllocEntity(&Editor->EntityStore, false);
- RegisterEntityAdded(Editor, Group, Entity);
- return Entity;
-}
-
-internal void
-RegisterEntityAdded(editor *Editor, action_tracking_group *Group, entity *Entity)
-{
+ 
  tracked_action *Action = NextTrackedActionFromGroup(Group);
  Action->Type = TrackedAction_AddEntity;
+ entity *Entity = AllocEntity(&Editor->EntityStore, false);
  Action->Entity = MakeEntityHandle(Entity);
+ return Entity;
 }
 
 internal void

@@ -53,11 +53,12 @@ struct image_loading_task
 {
  image_loading_task *Next;
  image_loading_task *Prev;
- 
  arena *Arena;
  image_loading_state State;
- entity *Entity;
+ v2 ImageP;
+ image_info ImageInfo;
  string ImageFilePath;
+ render_texture_handle LoadingTexture;
 };
 struct image_loading_store
 {

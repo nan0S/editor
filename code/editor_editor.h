@@ -227,8 +227,7 @@ internal void Redo(editor *Editor);
 internal action_tracking_group *BeginActionTrackingGroup(editor *Editor);
 internal void EndActionTrackingGroup(editor *Editor, action_tracking_group *Group);
 
-internal entity *AddEntityTracked(editor *Editor, action_tracking_group *Group);
-internal void RegisterEntityAdded(editor *Editor, action_tracking_group *Group, entity *Entity);
+internal entity *AddEntity(editor *Editor, action_tracking_group *Group);
 internal void RemoveEntityTracked(editor *Editor, action_tracking_group *Group, entity *Entity);
 internal control_point_handle AppendControlPointTracked(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, v2 Point);
 internal control_point_handle InsertControlPointTracked(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, control_point Point, u32 At);

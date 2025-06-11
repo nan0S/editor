@@ -310,16 +310,13 @@ TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
   image_info ImageInfo = LoadImageInfo(FilePath);
   render_texture_handle TextureHandle = AllocTextureHandle(EntityStore);
   renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, ImageInfo.SizeInBytesUponLoad, TextureHandle);
-  image_loading_task *ImageLoading = BeginAsyncImageLoadingTask(ImageLoadingStore);
   thread_task_memory *TaskMemory = BeginThreadTaskMemory(ThreadTaskMemoryStore);
   
-  string FileName = PathLastPart(FilePath);
-  string FileNameNoExt = StrChopLastDot(FileName);
-  entity *Entity = AllocEntity(EntityStore, false);
-  InitEntityAsImage(Entity, AtP, FileNameNoExt, ImageInfo.Width, ImageInfo.Height, TextureHandle);
-  
-  ImageLoading->Entity = Entity;
+  image_loading_task *ImageLoading = BeginAsyncImageLoadingTask(ImageLoadingStore);
+  ImageLoading->ImageP = AtP;
+  ImageLoading->ImageInfo = ImageInfo;
   ImageLoading->ImageFilePath = StrCopy(ImageLoading->Arena, FilePath);
+  ImageLoading->LoadingTexture = TextureHandle;
   
   load_image_work *Work = PushStruct(TaskMemory->Arena, load_image_work);
   Work->Store = ThreadTaskMemoryStore;
@@ -2140,7 +2137,6 @@ ProcessImageLoadingTasks(editor *Editor)
           ImageLoadingStore->Head,
           image_loading_task)
  {
-  entity *Entity = ImageLoading->Entity;
   if (ImageLoading->State == Image_Loading)
   {
    // NOTE(hbr): nothing to do
@@ -2151,14 +2147,22 @@ ProcessImageLoadingTasks(editor *Editor)
    {
     // TODO(hbr): Include [SelectEntity] in that group as well
     action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
-    RegisterEntityAdded(Editor, TrackingGroup, Entity);
+    string FileName = PathLastPart(ImageLoading->ImageFilePath);
+    string FileNameNoExt = StrChopLastDot(FileName);
+    entity *Entity = AddEntity(Editor, TrackingGroup);
+    InitEntityAsImage(Entity,
+                      ImageLoading->ImageP,
+                      FileNameNoExt,
+                      ImageLoading->ImageInfo.Width,
+                      ImageLoading->ImageInfo.Height,
+                      ImageLoading->LoadingTexture);
     SelectEntity(Editor, Entity);
     EndActionTrackingGroup(Editor, TrackingGroup);
    }
    else
    {
     Assert(ImageLoading->State == Image_Failed);
-    DeallocEntity(EntityStore, Entity);
+    DeallocTextureHandle(EntityStore, ImageLoading->LoadingTexture);
     AddNotificationF(Editor, Notification_Error,
                      "failed to load image from %S",
                      ImageLoading->ImageFilePath);
@@ -2308,7 +2312,7 @@ ProcessInputEvents(editor *Editor,
       temp_arena Temp = TempArena(0);
       
       entity_store *EntityStore = &Editor->EntityStore;
-      entity *Entity = AddEntityTracked(Editor, TrackingGroup);
+      entity *Entity = AddEntity(Editor, TrackingGroup);
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
       InitEntityAsCurve(Entity, Name, Editor->CurveDefaultParams);
       TargetEntity = Entity;

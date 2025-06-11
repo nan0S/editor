@@ -399,8 +399,8 @@ UpdateAndRenderAnimatingCurves(animating_curves_state *Animation, platform_input
    v2 PointLocal0 = CurveSamples0[LinePointIndex0];
    v2 PointLocal1 = CurveSamples1[LinePointIndex1];
    
-   v2 Point0 = LocalEntityPositionToWorld(Entity0, PointLocal0);
-   v2 Point1 = LocalEntityPositionToWorld(Entity1, PointLocal1);
+   v2 Point0 = LocalToWorldEntityPosition(Entity0, PointLocal0);
+   v2 Point1 = LocalToWorldEntityPosition(Entity1, PointLocal1);
    
    v2 Point  = Lerp(Point0, Point1, MappedT);
    CurveSamples[LinePointIndex] = Point;
@@ -724,7 +724,7 @@ FocusCameraOnEntity(camera *Camera, entity *Entity, render_group *RenderGroup)
   rect2 AABB_Transformed = EmptyAABB();
   ForEachEnumVal(Corner, Corner_Count, corner)
   {
-   v2 P = LocalEntityPositionToWorld(Entity, AABB_Corners.Corners[Corner]);
+   v2 P = LocalToWorldEntityPosition(Entity, AABB_Corners.Corners[Corner]);
    AddPointAABB(&AABB_Transformed, P);
   }
   
@@ -2149,8 +2149,11 @@ ProcessImageLoadingTasks(editor *Editor)
   {
    if (ImageLoading->State == Image_Loaded)
    {
-    RegisterEntityAdded(Editor, Entity);
+    // TODO(hbr): Include [SelectEntity] in that group as well
+    action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
+    RegisterEntityAdded(Editor, TrackingGroup, Entity);
     SelectEntity(Editor, Entity);
+    EndActionTrackingGroup(Editor, TrackingGroup);
    }
    else
    {
@@ -2238,11 +2241,13 @@ ProcessInputEvents(editor *Editor,
     entity *SelectedEntity = GetSelectedEntity(Editor);
     curve *SelectedCurve = &SelectedEntity->Curve;
     
+    
     if ((Collision.Entity || SelectedEntity) && (Event->Flags & PlatformEventFlag_Ctrl))
     {
      entity *Entity = (Collision.Entity ? Collision.Entity : SelectedEntity);
+     action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
      // NOTE(hbr): just move entity if ctrl is pressed
-     BeginMovingEntity(LeftClick, MakeEntityHandle(Entity));
+     BeginMovingEntity(LeftClick, MakeEntityHandle(Entity), TrackingGroup);
     }
     else if ((Collision.Flags & Collision_CurveLine) && CollisionTracking->Active)
     {
@@ -2257,7 +2262,11 @@ ProcessInputEvents(editor *Editor,
     }
     else if (Collision.Flags & Collision_CurvePoint)
     {
-     BeginMovingCurvePoint(LeftClick, MakeEntityHandle(Collision.Entity), Collision.CurvePoint);
+     action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
+     BeginMovingCurvePoint(LeftClick,
+                           MakeEntityHandle(Collision.Entity),
+                           Collision.CurvePoint,
+                           TrackingGroup);
     }
     else if (Collision.Flags & Collision_CurveLine)
     {
@@ -2266,9 +2275,12 @@ ProcessInputEvents(editor *Editor,
       control_point_handle ControlPoint = ControlPointIndexFromCurveSampleIndex(CollisionCurve, Collision.CurveSampleIndex);
       u32 PointIndex = IndexFromControlPointHandle(ControlPoint);
       u32 InsertAt = PointIndex + 1;
-      InsertControlPointTracked(Editor, &CollisionEntityWitness, MakeControlPoint(MouseP), InsertAt);
-      BeginMovingCurvePoint(LeftClick, MakeEntityHandle(Collision.Entity),
-                            CurvePointFromControlPoint(ControlPointHandleFromIndex(InsertAt)));
+      action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
+      InsertControlPointTracked(Editor, TrackingGroup, &CollisionEntityWitness, MakeControlPoint(MouseP), InsertAt);
+      BeginMovingCurvePoint(LeftClick,
+                            MakeEntityHandle(Collision.Entity),
+                            CurvePointFromControlPoint(ControlPointHandleFromIndex(InsertAt)),
+                            TrackingGroup);
      }
      else
      {
@@ -2282,8 +2294,12 @@ ProcessInputEvents(editor *Editor,
     }
     else
     {
+     action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
+     
      entity *TargetEntity = 0;
-     if (SelectedEntity && SelectedEntity->Type == Entity_Curve && UsesControlPoints(SelectedCurve))
+     if (SelectedEntity &&
+         (SelectedEntity->Type == Entity_Curve) &&
+         UsesControlPoints(SelectedCurve))
      {
       TargetEntity = SelectedEntity;
      }
@@ -2292,7 +2308,7 @@ ProcessInputEvents(editor *Editor,
       temp_arena Temp = TempArena(0);
       
       entity_store *EntityStore = &Editor->EntityStore;
-      entity *Entity = AddEntityTracked(Editor);
+      entity *Entity = AddEntityTracked(Editor, TrackingGroup);
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
       InitEntityAsCurve(Entity, Name, Editor->CurveDefaultParams);
       TargetEntity = Entity;
@@ -2302,8 +2318,11 @@ ProcessInputEvents(editor *Editor,
      Assert(TargetEntity);
      
      entity_with_modify_witness TargetEntityWitness = BeginEntityModify(TargetEntity);
-     control_point_handle Appended = AppendControlPointTracked(Editor, &TargetEntityWitness, MouseP);
-     BeginMovingCurvePoint(LeftClick, MakeEntityHandle(TargetEntity), CurvePointFromControlPoint(Appended));
+     control_point_handle Appended = AppendControlPointTracked(Editor, TrackingGroup, &TargetEntityWitness, MouseP);
+     BeginMovingCurvePoint(LeftClick,
+                           MakeEntityHandle(TargetEntity),
+                           CurvePointFromControlPoint(Appended),
+                           TrackingGroup);
      EndEntityModify(TargetEntityWitness);
     }
     
@@ -2440,6 +2459,7 @@ ProcessInputEvents(editor *Editor,
     collision *Collision = &RightClick->CollisionAtP;
     entity *Entity = Collision->Entity;
     entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
+    action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
     curve *Curve = &Entity->Curve;
     
     if (Collision->Flags & Collision_TrackedPoint)
@@ -2457,7 +2477,7 @@ ProcessInputEvents(editor *Editor,
     {
      if (Collision->CurvePoint.Type == CurvePoint_ControlPoint)
      {
-      RemoveControlPointTracked(Editor, &EntityWitness, Collision->CurvePoint.Control);
+      RemoveControlPointTracked(Editor, TrackingGroup, &EntityWitness, Collision->CurvePoint.Control);
      }
      else
      {
@@ -2467,13 +2487,14 @@ ProcessInputEvents(editor *Editor,
     }
     else if (Entity)
     {
-     RemoveEntityTracked(Editor, Entity);
+     RemoveEntityTracked(Editor, TrackingGroup, Entity);
     }
     else
     {
      SelectEntity(Editor, 0);
     }
     
+    EndActionTrackingGroup(Editor, TrackingGroup);
     EndEntityModify(EntityWitness);
    }
    
@@ -2574,6 +2595,7 @@ ProcessInputEvents(editor *Editor,
   {
    entity *Entity = GetSelectedEntity(Editor);
    entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
+   action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
    
    if (Entity)
    {
@@ -2584,22 +2606,23 @@ ProcessInputEvents(editor *Editor,
       curve *Curve = SafeGetCurve(Entity);
       if (IsControlPointSelected(Curve))
       {
-       RemoveControlPointTracked(Editor, &EntityWitness, Curve->SelectedControlPoint);
+       RemoveControlPointTracked(Editor, TrackingGroup, &EntityWitness, Curve->SelectedControlPoint);
       }
       else
       {
-       RemoveEntityTracked(Editor, Entity);
+       RemoveEntityTracked(Editor, TrackingGroup, Entity);
       }
      }break;
      
      case Entity_Image: {
-      RemoveEntityTracked(Editor, Entity);
+      RemoveEntityTracked(Editor, TrackingGroup, Entity);
      }break;
      
      case Entity_Count: InvalidPath;
     }
    }
    
+   EndActionTrackingGroup(Editor, TrackingGroup);
    EndEntityModify(EntityWitness);
   }
   
@@ -2707,7 +2730,7 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
     v2 P0 = Points0[PointCount0 - 1];
     
     v2 P1 = Points1[0];
-    P1 = LocalEntityPositionToWorld(Entity1, P1);
+    P1 = LocalToWorldEntityPosition(Entity1, P1);
     P1 = WorldToLocalEntityPosition(Entity0, P1);
     
     Fix1 = (P0 - P1);
@@ -2737,21 +2760,21 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
       ++PointIndex1)
  {
   v2 Point1 = Points1[PointIndex1];
-  Point1 = LocalEntityPositionToWorld(Entity1, Point1);
+  Point1 = LocalToWorldEntityPosition(Entity1, Point1);
   Point1 = WorldToLocalEntityPosition(Entity0, Point1);
   Point1 = Point1 + Fix1;
   Points[PointIndex] = Point1;
   
   cubic_bezier_point Bezier1 = Beziers1[PointIndex1];
-  Bezier1.P0 = LocalEntityPositionToWorld(Entity1, Bezier1.P0);
+  Bezier1.P0 = LocalToWorldEntityPosition(Entity1, Bezier1.P0);
   Bezier1.P0 = WorldToLocalEntityPosition(Entity0, Bezier1.P0);
   Bezier1.P0 = Bezier1.P0 + Fix1;
   
-  Bezier1.P1 = LocalEntityPositionToWorld(Entity1, Bezier1.P1);
+  Bezier1.P1 = LocalToWorldEntityPosition(Entity1, Bezier1.P1);
   Bezier1.P1 = WorldToLocalEntityPosition(Entity0, Bezier1.P1);
   Bezier1.P1 = Bezier1.P1 + Fix1;
   
-  Bezier1.P2 = LocalEntityPositionToWorld(Entity1, Bezier1.P2);
+  Bezier1.P2 = LocalToWorldEntityPosition(Entity1, Bezier1.P2);
   Bezier1.P2 = WorldToLocalEntityPosition(Entity0, Bezier1.P2);
   Bezier1.P2 = Bezier1.P2 + Fix1;
   

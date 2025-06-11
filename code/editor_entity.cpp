@@ -654,13 +654,21 @@ MakeControlPoint(v2 Point, f32 Weight, cubic_bezier_point Bezier)
 }
 
 internal control_point
-GetCurveControlPoint(entity *Entity, control_point_handle Point)
+GetCurveControlPointInWorldSpace(entity *Entity, control_point_handle Point)
 {
  curve *Curve = SafeGetCurve(Entity);
  u32 Index = IndexFromControlPointHandle(Point);
- control_point Result = MakeControlPoint(Curve->ControlPoints[Index],
-                                         Curve->ControlPointWeights[Index],
-                                         Curve->CubicBezierPoints[Index]);
+ 
+ v2 P = LocalToWorldEntityPosition(Entity, Curve->ControlPoints[Index]);
+ f32 Weight = Curve->ControlPointWeights[Index];
+ cubic_bezier_point B = Curve->CubicBezierPoints[Index];
+ cubic_bezier_point Bezier = {
+  LocalToWorldEntityPosition(Entity, B.Ps[0]),
+  LocalToWorldEntityPosition(Entity, B.Ps[1]),
+  LocalToWorldEntityPosition(Entity, B.Ps[2]),
+ };
+ 
+ control_point Result = MakeControlPoint(P, Weight, Bezier);
  return Result;
 }
 
@@ -1111,7 +1119,7 @@ WorldToLocalEntityPosition(entity *Entity, v2 P)
 }
 
 internal v2
-LocalEntityPositionToWorld(entity *Entity, v2 P)
+LocalToWorldEntityPosition(entity *Entity, v2 P)
 {
  v2 Q = P;
  Q = Hadamard(Q, Entity->Scale);

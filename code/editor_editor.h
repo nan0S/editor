@@ -33,6 +33,33 @@ struct notification
  f32 ScreenPosY;
 };
 
+enum tracked_action_type
+{
+ TrackedAction_AddEntity,
+ TrackedAction_RemoveEntity,
+ TrackedAction_MoveEntity,
+ TrackedAction_AddControlPoint,
+ TrackedAction_RemoveControlPoint,
+ TrackedAction_MoveControlPoint,
+};
+struct tracked_action
+{
+ tracked_action_type Type;
+ entity_handle Entity;
+ control_point ControlPoint;
+ control_point MovedToControlPoint;
+ control_point_handle ControlPointHandle;
+ v2 OriginalEntityP;
+ v2 MovedToEntityP;
+};
+global tracked_action NilTrackedAction;
+struct action_tracking_group
+{
+ u32 Count;
+ tracked_action Actions[4];
+};
+global action_tracking_group NilActionTrackingGroup;
+
 enum editor_left_click_mode
 {
  EditorLeftClick_MovingTrackingPoint,
@@ -53,6 +80,7 @@ struct editor_left_click_state
  control_point InitialControlPoint;
  b32 Moved;
  v2 InitialEntityP;
+ action_tracking_group *TrackingGroup;
  
  arena *OriginalVerticesArena;
  b32 OriginalVerticesCaptured;
@@ -125,27 +153,6 @@ struct visual_profiler_state
  profiler_frame FrameSnapshot;
 };
 
-enum tracked_action_type
-{
- TrackedAction_RemoveControlPoint,
- TrackedAction_AddControlPoint,
- TrackedAction_MoveControlPoint,
- TrackedAction_MoveEntity,
- TrackedAction_RemoveEntity,
- TrackedAction_AddEntity,
-};
-struct tracked_action
-{
- tracked_action_type Type;
- entity_handle Entity;
- control_point ControlPoint;
- control_point MovedToControlPoint;
- control_point_handle ControlPointHandle;
- v2 OriginalEntityP;
- v2 MovedToEntityP;
-};
-global tracked_action NilTrackedAction;
-
 struct editor
 {
  camera Camera;
@@ -161,10 +168,10 @@ struct editor
  entity_handle_node *FreeEntityHandle;
  u64 EverIncreasingEntityCounter;
  
- u32 TrackedActionCount;
- u32 TrackedActionIndex;
- // TODO(hbr): dynamic array?
- tracked_action TrackedActions[1024];
+ u32 ActionTrackingGroupCount;
+ u32 ActionTrackingGroupIndex;
+ b32 ActionTrackingGroupPending;
+ action_tracking_group ActionTrackingGroups[1024];
  
 #define MAX_NOTIFICATION_COUNT 16
  u32 NotificationCount;
@@ -214,6 +221,20 @@ internal void PerformBezierCurveSplit(editor *Editor, entity *Entity);
 internal void ElevateBezierCurveDegree(entity *Entity);
 internal void LowerBezierCurveDegree(entity *Entity);
 internal entity *GetSelectedEntity(editor *Editor);
+internal void Undo(editor *Editor);
+internal void Redo(editor *Editor);
+
+internal action_tracking_group *BeginActionTrackingGroup(editor *Editor);
+internal void EndActionTrackingGroup(editor *Editor, action_tracking_group *Group);
+
+internal entity *AddEntityTracked(editor *Editor, action_tracking_group *Group);
+internal void RegisterEntityAdded(editor *Editor, action_tracking_group *Group, entity *Entity);
+internal void RemoveEntityTracked(editor *Editor, action_tracking_group *Group, entity *Entity);
+internal control_point_handle AppendControlPointTracked(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, v2 Point);
+internal control_point_handle InsertControlPointTracked(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, control_point Point, u32 At);
+internal void RemoveControlPointTracked(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, control_point_handle Point);
+internal void RegisterEntityMove(editor *Editor, action_tracking_group *Group, entity_handle Entity, v2 OriginalP);
+internal void RegisterControlPointMove(editor *Editor, action_tracking_group *Group, entity_handle Entity, control_point_handle PointHandle, control_point OriginalControlPoint);
 
 //- merging curves
 internal void BeginMergingCurves(merging_curves_state *Merging);
@@ -231,8 +252,8 @@ internal void BeginChoosing2Curves(choose_2_curves_state *Choosing);
 internal b32 SupplyCurve(choose_2_curves_state *Choosing, entity *Curve);
 
 //- click states
-internal void BeginMovingEntity(editor_left_click_state *Left, entity_handle Target);
-internal void BeginMovingCurvePoint(editor_left_click_state *Left, entity_handle Target, curve_point_handle CurvePoint);
+internal void BeginMovingEntity(editor_left_click_state *Left, entity_handle Target, action_tracking_group *TrackingGroup);
+internal void BeginMovingCurvePoint(editor_left_click_state *Left, entity_handle Target, curve_point_handle CurvePoint, action_tracking_group *TrackingGroup);
 internal void BeginMovingTrackingPoint(editor_left_click_state *Left, entity_handle Target);
 internal void BeginMovingBSplineKnot(editor_left_click_state *Left, entity_handle Target, u32 B_SplineKnotIndex);
 internal void EndLeftClick(editor *Editor, editor_left_click_state *Left);
@@ -242,20 +263,6 @@ internal void EndMiddleClick(editor_middle_click_state *Middle);
 
 internal void BeginRightClick(editor_right_click_state *Right, v2 ClickP, collision CollisionAtP);
 internal void EndRightClick(editor_right_click_state *Right);
-
-//- undo/redo, action tracking
-internal tracked_action *AllocTrackedAction(editor *Editor);
-internal void RemoveControlPointTracked(editor *Editor, entity_with_modify_witness *Entity, control_point_handle Point);
-internal control_point_handle AddControlPointTracked(editor *Editor, entity_with_modify_witness *Entity, control_point Point, u32 At, b32 Append);
-internal void InsertControlPointTracked(editor *Editor, entity_with_modify_witness *Entity, control_point Point, u32 At);
-internal control_point_handle AppendControlPointTracked(editor *Editor, entity_with_modify_witness *Entity, v2 Point);
-internal void RegisterTrackedControlPointMove(editor *Editor, entity_handle Entity, control_point_handle PointHandle, control_point OriginalControlPoint);
-internal void RegisterTrackedEntityMove(editor *Editor, entity_handle Entity, v2 OriginalP);
-internal void RemoveEntityTracked(editor *Editor, entity *Entity);
-internal entity *AddEntityTracked(editor *Editor);
-internal void RegisterEntityAdded(editor *Editor, entity *Entity);
-internal void Undo(editor *Editor);
-internal void Redo(editor *Editor);
 
 //- misc
 internal void FocusCameraOnEntity(camera *Camera, entity *Entity);

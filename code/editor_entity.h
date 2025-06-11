@@ -472,7 +472,7 @@ internal void InitEntityAsImage(entity *Entity, v2 P, u32 Width, u32 Height, str
 internal void InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams);
 
 internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
-internal v2 LocalEntityPositionToWorld(entity *Entity, v2 P);
+internal v2 LocalToWorldEntityPosition(entity *Entity, v2 P);
 
 //- entity modify
 internal void SetCurvePointP(entity_with_modify_witness *Entity, curve_point_handle Handle, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
@@ -512,7 +512,7 @@ internal b32 IsRegularBezierCurve(curve *Curve);
 internal b32 Are_B_SplineKnotsVisible(curve *Curve);
 internal entity_colors ExtractEntityColors(entity *Entity);
 internal string GetEntityName(entity *Entity);
-internal control_point GetCurveControlPoint(entity *Entity, control_point_handle Point);
+internal control_point GetCurveControlPointInWorldSpace(entity *Entity, control_point_handle Point);
 
 //- entity for merging tracker
 internal entity_snapshot_for_merging MakeEntitySnapshotForMerging(entity *Entity);

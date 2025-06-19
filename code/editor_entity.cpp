@@ -864,7 +864,7 @@ IsControlPointSelected(curve *Curve)
 }
 
 internal control_point_handle
-AppendControlPoint(entity_with_modify_witness *EntityWitness, v2 Point)
+AppendControlPoint(entity_with_modify_witness *EntityWitness, v2 P)
 {
  entity *Entity = EntityWitness->Entity;
  u32 InsertAt = 0;
@@ -876,7 +876,7 @@ AppendControlPoint(entity_with_modify_witness *EntityWitness, v2 Point)
  {
   InsertAt = Entity->Curve.ControlPointCount;
  }
- control_point_handle Result = InsertControlPoint(EntityWitness, MakeControlPoint(Point), InsertAt);
+ control_point_handle Result = InsertControlPoint(EntityWitness, MakeControlPoint(P), InsertAt);
  return Result;
 }
 

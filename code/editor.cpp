@@ -2245,32 +2245,26 @@ ProcessInputEvents(editor *Editor,
     entity *SelectedEntity = GetSelectedEntity(Editor);
     curve *SelectedCurve = &SelectedEntity->Curve;
     
-    
     if ((Collision.Entity || SelectedEntity) && (Event->Flags & PlatformEventFlag_Ctrl))
     {
      entity *Entity = (Collision.Entity ? Collision.Entity : SelectedEntity);
-     action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
      // NOTE(hbr): just move entity if ctrl is pressed
-     BeginMovingEntity(LeftClick, MakeEntityHandle(Entity), TrackingGroup);
+     BeginMovingEntity(LeftClick, Editor, Entity);
     }
     else if ((Collision.Flags & Collision_CurveLine) && CollisionTracking->Active)
     {
-     BeginMovingTrackingPoint(LeftClick, MakeEntityHandle(Collision.Entity));
-     
+     BeginMovingTrackingPoint(LeftClick, Collision.Entity);
      f32 Fraction = SafeDiv0(Cast(f32)Collision.CurveSampleIndex, (CollisionCurve->CurveSampleCount- 1));
      SetTrackingPointFraction(&CollisionEntityWitness, Fraction);
     }
     else if (Collision.Flags & Collision_B_SplineKnot)
     {
-     BeginMovingBSplineKnot(LeftClick, MakeEntityHandle(Collision.Entity), Collision.KnotIndex);
+     BeginMovingBSplineKnot(LeftClick, Collision.Entity, Collision.KnotIndex);
     }
     else if (Collision.Flags & Collision_CurvePoint)
     {
      action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
-     BeginMovingCurvePoint(LeftClick,
-                           MakeEntityHandle(Collision.Entity),
-                           Collision.CurvePoint,
-                           TrackingGroup);
+     BeginMovingCurvePoint(LeftClick, Editor, TrackingGroup, Collision.Entity, Collision.CurvePoint);
     }
     else if (Collision.Flags & Collision_CurveLine)
     {
@@ -2280,11 +2274,9 @@ ProcessInputEvents(editor *Editor,
       u32 PointIndex = IndexFromControlPointHandle(ControlPoint);
       u32 InsertAt = PointIndex + 1;
       action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
-      InsertControlPointTracked(Editor, TrackingGroup, &CollisionEntityWitness, MakeControlPoint(MouseP), InsertAt);
-      BeginMovingCurvePoint(LeftClick,
-                            MakeEntityHandle(Collision.Entity),
-                            CurvePointFromControlPoint(ControlPointHandleFromIndex(InsertAt)),
-                            TrackingGroup);
+      InsertControlPoint(Editor, TrackingGroup, &CollisionEntityWitness, MouseP, InsertAt);
+      curve_point_handle CurvePoint = CurvePointFromControlPoint(ControlPointHandleFromIndex(InsertAt));
+      BeginMovingCurvePoint(LeftClick, Editor, TrackingGroup, Collision.Entity, CurvePoint);
      }
      else
      {
@@ -2322,11 +2314,8 @@ ProcessInputEvents(editor *Editor,
      Assert(TargetEntity);
      
      entity_with_modify_witness TargetEntityWitness = BeginEntityModify(TargetEntity);
-     control_point_handle Appended = AppendControlPointTracked(Editor, TrackingGroup, &TargetEntityWitness, MouseP);
-     BeginMovingCurvePoint(LeftClick,
-                           MakeEntityHandle(TargetEntity),
-                           CurvePointFromControlPoint(Appended),
-                           TrackingGroup);
+     control_point_handle Appended = AppendControlPoint(Editor, TrackingGroup, &TargetEntityWitness, MouseP);
+     BeginMovingCurvePoint(LeftClick, Editor, TrackingGroup, TargetEntity, CurvePointFromControlPoint(Appended));
      EndEntityModify(TargetEntityWitness);
     }
     
@@ -2481,7 +2470,7 @@ ProcessInputEvents(editor *Editor,
     {
      if (Collision->CurvePoint.Type == CurvePoint_ControlPoint)
      {
-      RemoveControlPointTracked(Editor, TrackingGroup, &EntityWitness, Collision->CurvePoint.Control);
+      RemoveControlPoint(Editor, TrackingGroup, &EntityWitness, Collision->CurvePoint.Control);
      }
      else
      {
@@ -2491,7 +2480,7 @@ ProcessInputEvents(editor *Editor,
     }
     else if (Entity)
     {
-     RemoveEntityTracked(Editor, TrackingGroup, Entity);
+     RemoveEntity(Editor, TrackingGroup, Entity);
     }
     else
     {
@@ -2610,16 +2599,16 @@ ProcessInputEvents(editor *Editor,
       curve *Curve = SafeGetCurve(Entity);
       if (IsControlPointSelected(Curve))
       {
-       RemoveControlPointTracked(Editor, TrackingGroup, &EntityWitness, Curve->SelectedControlPoint);
+       RemoveControlPoint(Editor, TrackingGroup, &EntityWitness, Curve->SelectedControlPoint);
       }
       else
       {
-       RemoveEntityTracked(Editor, TrackingGroup, Entity);
+       RemoveEntity(Editor, TrackingGroup, Entity);
       }
      }break;
      
      case Entity_Image: {
-      RemoveEntityTracked(Editor, TrackingGroup, Entity);
+      RemoveEntity(Editor, TrackingGroup, Entity);
      }break;
      
      case Entity_Count: InvalidPath;

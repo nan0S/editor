@@ -479,7 +479,7 @@ internal void SetCurvePointP(entity_with_modify_witness *Entity, curve_point_han
 internal void SetCurveControlPointP(entity_with_modify_witness *Entity, control_point_handle Handle, v2 P, f32 Weight); // this can be only control point thus we accept weight as well
 internal void SetCurveControlPointAt(entity_with_modify_witness *Witness, control_point_handle Handle, control_point Point);
 internal void RemoveControlPoint(entity_with_modify_witness *Entity, control_point_handle Point);
-internal control_point_handle AppendControlPoint(entity_with_modify_witness *Entity, v2 Point);
+internal control_point_handle AppendControlPoint(entity_with_modify_witness *Entity, v2 P);
 internal control_point_handle InsertControlPoint(entity_with_modify_witness *Entity, control_point Point, u32 At);
 internal void SetCurveControlPoints(entity_with_modify_witness *Entity, u32 PointCount, v2 *Points, f32 *Weights, cubic_bezier_point *CubicBeziers);
 internal void RotateEntityAround(entity *Entity, v2 Rotate, v2 Around);

@@ -57,6 +57,7 @@ struct action_tracking_group
 {
  u32 Count;
  tracked_action Actions[4];
+ b32 HasActionPending;
 };
 global action_tracking_group NilActionTrackingGroup;
 
@@ -228,12 +229,14 @@ internal action_tracking_group *BeginActionTrackingGroup(editor *Editor);
 internal void EndActionTrackingGroup(editor *Editor, action_tracking_group *Group);
 
 internal entity *AddEntity(editor *Editor, action_tracking_group *Group);
-internal void RemoveEntityTracked(editor *Editor, action_tracking_group *Group, entity *Entity);
-internal control_point_handle AppendControlPointTracked(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, v2 Point);
-internal control_point_handle InsertControlPointTracked(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, control_point Point, u32 At);
-internal void RemoveControlPointTracked(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, control_point_handle Point);
-internal void RegisterEntityMove(editor *Editor, action_tracking_group *Group, entity_handle Entity, v2 OriginalP);
-internal void RegisterControlPointMove(editor *Editor, action_tracking_group *Group, entity_handle Entity, control_point_handle PointHandle, control_point OriginalControlPoint);
+internal void RemoveEntity(editor *Editor, action_tracking_group *Group, entity *Entity);
+internal control_point_handle AppendControlPoint(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, v2 P);
+internal control_point_handle InsertControlPoint(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, v2 P, u32 At);
+internal void RemoveControlPoint(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, control_point_handle Point);
+internal void BeginEntityMove(editor *Editor, action_tracking_group *Group, entity *Entity);
+internal void EndEntityMove(editor *Editor, action_tracking_group *Group);
+internal void BeginControlPointMove(editor *Editor, action_tracking_group *Group, entity *Entity, control_point_handle Point);
+internal void EndControlPointMove(editor *Editor, action_tracking_group *Group);
 
 //- merging curves
 internal void BeginMergingCurves(merging_curves_state *Merging);
@@ -251,8 +254,8 @@ internal void BeginChoosing2Curves(choose_2_curves_state *Choosing);
 internal b32 SupplyCurve(choose_2_curves_state *Choosing, entity *Curve);
 
 //- click states
-internal void BeginMovingEntity(editor_left_click_state *Left, entity_handle Target, action_tracking_group *TrackingGroup);
-internal void BeginMovingCurvePoint(editor_left_click_state *Left, entity_handle Target, curve_point_handle CurvePoint, action_tracking_group *TrackingGroup);
+internal void BeginMovingEntity(editor_left_click_state *Left, editor *Editor, entity *Entity);
+internal void BeginMovingCurvePoint(editor_left_click_state *Left, editor *Editor, action_tracking_group *TrackingGroup, entity *Target, curve_point_handle CurvePoint);
 internal void BeginMovingTrackingPoint(editor_left_click_state *Left, entity_handle Target);
 internal void BeginMovingBSplineKnot(editor_left_click_state *Left, entity_handle Target, u32 B_SplineKnotIndex);
 internal void EndLeftClick(editor *Editor, editor_left_click_state *Left);

@@ -201,22 +201,19 @@ DuplicateEntity(editor *Editor, entity *Entity)
  temp_arena Temp = TempArena(0);
  
  entity_store *EntityStore = &Editor->EntityStore;
- 
- 
- entity *Copy = AllocEntity(EntityStore, false);
+ action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
+ entity *Copy = AddEntity(Editor, TrackingGroup);
  entity_with_modify_witness CopyWitness = BeginEntityModify(Copy);
  string CopyName = StrF(Temp.Arena, "%S(copy)", GetEntityName(Entity));
- 
  InitEntityFromEntity(EntityStore, &CopyWitness, Entity);
  SelectEntity(Editor, Copy);
- 
  // TODO(hbr): This is not right, translate depending on camera zoom
  f32 SlightTranslationX = 0.2f;
  v2 SlightTranslation = V2(SlightTranslationX, 0.0f);
  Copy->P += SlightTranslation;
  
+ EndActionTrackingGroup(Editor, TrackingGroup);
  EndEntityModify(CopyWitness);
- 
  EndTemp(Temp);
 }
 

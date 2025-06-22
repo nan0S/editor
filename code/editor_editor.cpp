@@ -879,15 +879,18 @@ internal void
 SelectEntity(editor *Editor, entity *Entity)
 {
  action_tracking_group *TrackingGroup = Editor->PendingActionTrackingGroup;
+ b32 EndGroup = false;
  if (!TrackingGroup)
  {
   TrackingGroup = BeginActionTrackingGroup(Editor);
+  EndGroup = true;
  }
  tracked_action *Action = NextTrackedActionFromGroup(TrackingGroup, false);
  Action->Type = TrackedAction_SelectEntity;
  Action->Entity = MakeEntityHandle(Entity);
+ Action->PreviouslySelectedEntity = Editor->SelectedEntity;
  SelectEntityWithoutTracking(Editor, Entity);
- if (!Editor->PendingActionTrackingGroup)
+ if (EndGroup)
  {
   EndActionTrackingGroup(Editor, TrackingGroup);
  }
@@ -905,7 +908,9 @@ Undo(editor *Editor)
    tracked_action *Action = Group->Actions + (Group->Count - 1 - ActionIndex);
    b32 AllowDeactived = (Action->Type == TrackedAction_RemoveEntity);
    entity *Entity = EntityFromHandle(Action->Entity, AllowDeactived);
-   if (Entity)
+   // NOTE(hbr): Deselecting entity if zero
+   b32 AllowZero = (Action->Type == TrackedAction_SelectEntity);
+   if (Entity || AllowZero)
    {
     entity_with_modify_witness Witness = BeginEntityModify(Entity);
     switch (Action->Type)
@@ -936,7 +941,8 @@ Undo(editor *Editor)
      }break;
      
      case TrackedAction_SelectEntity: {
-      PopAndDeselectTopSelectedEntity(Editor);
+      entity *Previous = EntityFromHandle(Action->PreviouslySelectedEntity);
+      SelectEntityWithoutTracking(Editor, Previous);
      }break;
     }
     EndEntityModify(Witness);

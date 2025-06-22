@@ -47,6 +47,7 @@ struct tracked_action
 {
  tracked_action_type Type;
  entity_handle Entity;
+ entity_handle PreviouslySelectedEntity;
  control_point ControlPoint;
  control_point MovedToControlPoint;
  control_point_handle ControlPointHandle;

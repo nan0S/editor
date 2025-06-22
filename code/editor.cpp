@@ -3643,10 +3643,8 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  
  Input->ProfilingStopped = Editor->Profiler.Stopped;
  
-#if 0
 #if BUILD_DEBUG
  Input->RefreshRequested = true;
-#endif
 #endif
 }
 

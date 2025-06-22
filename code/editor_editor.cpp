@@ -132,50 +132,6 @@ InitEditor(editor *Editor, editor_memory *Memory)
 }
 
 internal void
-PopTopSelectedEntity(editor *Editor)
-{
- entity_handle_node *Node = Editor->SelectedEntityStack;
- StackPop(Editor->SelectedEntityStack);
- StackPush(Editor->FreeEntityHandle, Node);
-}
-
-internal void
-SelectEntity(editor *Editor, entity *Entity)
-{
- //- mark currently selected entity as no longer selected
- if (Editor->SelectedEntityStack)
- {
-  entity *Current = EntityFromHandle(Editor->SelectedEntityStack->Value);
-  if (Current)
-  {
-   Current->Flags &= ~EntityFlag_Selected;
-  }
- }
- if (Entity == 0) //- deselect everything
- {
-  while (Editor->SelectedEntityStack)
-  {
-   PopTopSelectedEntity(Editor);
-  }
- }
- else //- select requested entity
- {
-  entity_handle_node *Node = Editor->FreeEntityHandle;
-  if (Node)
-  {
-   StackPop(Editor->FreeEntityHandle);
-  }
-  else
-  {
-   Node = PushStructNonZero(Editor->Arena, entity_handle_node);
-  }
-  MarkEntitySelected(Entity);
-  Node->Value = MakeEntityHandle(Entity);
-  StackPush(Editor->SelectedEntityStack, Node);
- }
-}
-
-internal void
 AddNotificationF(editor *Editor, notification_type Type, char const *Format, ...)
 {
  va_list Args;
@@ -430,27 +386,8 @@ LowerBezierCurveDegree(entity *Entity)
 internal entity *
 GetSelectedEntity(editor *Editor)
 {
- entity *Selected = 0;
- while (Editor->SelectedEntityStack)
- {
-  entity *Entity = EntityFromHandle(Editor->SelectedEntityStack->Value);
-  if (Entity)
-  {
-   Selected = Entity;
-   break;
-  }
-  else
-  {
-   PopTopSelectedEntity(Editor);
-  }
- }
- // NOTE(hbr): mark entity as selected because there might have been multiple "dead"
- // entities at the top of the stack and this one wasn't selected originally
- if (Selected)
- {
-  MarkEntitySelected(Selected);
- }
- return Selected;
+ entity *Entity = EntityFromHandle(Editor->SelectedEntity);
+ return Entity;
 }
 
 internal void
@@ -658,16 +595,13 @@ internal void
 EndLeftClick(editor *Editor, editor_left_click_state *Left)
 {
  action_tracking_group *TrackingGroup = Left->TrackingGroup;
- if (Left->Moved)
+ if (Left->Mode == EditorLeftClick_MovingCurvePoint)
  {
-  if (Left->Mode == EditorLeftClick_MovingCurvePoint)
-  {
-   EndControlPointMove(Editor, TrackingGroup);
-  }
-  else if (Left->Mode == EditorLeftClick_MovingEntity)
-  {
-   EndEntityMove(Editor, TrackingGroup);
-  }
+  EndControlPointMove(Editor, TrackingGroup);
+ }
+ else if (Left->Mode == EditorLeftClick_MovingEntity)
+ {
+  EndEntityMove(Editor, TrackingGroup);
  }
  if (TrackingGroup)
  {
@@ -729,25 +663,26 @@ NextTrackedActionFromGroup(action_tracking_group *Group, b32 Partial)
  Assert(Group->Count < ArrayCount(Group->Actions));
  tracked_action *Action = Group->Actions + Group->Count;
  ++Group->Count;
- Assert(!Group->HasActionPending);
- Group->HasActionPending = Partial;
+ if (Partial)
+ {
+  Assert(Group->PendingAction == 0);
+  Group->PendingAction = Action;
+ }
  return Action;
 }
 
 internal void
 CommitPendingAction(action_tracking_group *Group)
 {
- Assert(Group->HasActionPending);
- Group->HasActionPending = false;
+ Assert(Group->PendingAction);
+ Group->PendingAction = 0;
 }
 
 internal tracked_action *
 GetPendingAction(action_tracking_group *Group)
 {
- Assert(Group->HasActionPending);
- Assert(Group->Count > 0);
- tracked_action *Action = Group->Actions + Group->Count - 1;
- return Action;
+ Assert(Group->PendingAction);
+ return Group->PendingAction;
 }
 
 internal action_tracking_group *
@@ -765,6 +700,7 @@ BeginActionTrackingGroup(editor *Editor)
   Group = &NilActionTrackingGroup;
  }
  StructZero(Group);
+ Editor->PendingActionTrackingGroup = Group;
  return Group;
 }
 
@@ -798,6 +734,7 @@ EndActionTrackingGroup(editor *Editor, action_tracking_group *Group)
   Editor->ActionTrackingGroupCount = Editor->ActionTrackingGroupIndex;
  }
  Editor->ActionTrackingGroupPending = false;
+ Editor->PendingActionTrackingGroup = 0;
 }
 
 internal void
@@ -858,8 +795,7 @@ EndControlPointMove(editor *Editor,
  entity *Entity = EntityFromHandle(Action->Entity);
  if (Entity)
  {
-  Action->MovedToControlPoint = GetCurveControlPointInWorldSpace(Entity,
-                                                                 Action->ControlPointHandle);
+  Action->MovedToControlPoint = GetCurveControlPointInWorldSpace(Entity, Action->ControlPointHandle);
  }
 }
 
@@ -923,6 +859,41 @@ AddEntity(editor *Editor, action_tracking_group *Group)
 }
 
 internal void
+SelectEntityWithoutTracking(editor *Editor, entity *Entity)
+{
+ //- mark currently selected entity as no longer selected
+ entity *Current = EntityFromHandle(Editor->SelectedEntity);
+ if (Current)
+ {
+  MarkEntityDeselected(Current);
+ }
+ //- select new entity
+ if (Entity)
+ {
+  MarkEntitySelected(Entity);
+ }
+ Editor->SelectedEntity = MakeEntityHandle(Entity);
+}
+
+internal void
+SelectEntity(editor *Editor, entity *Entity)
+{
+ action_tracking_group *TrackingGroup = Editor->PendingActionTrackingGroup;
+ if (!TrackingGroup)
+ {
+  TrackingGroup = BeginActionTrackingGroup(Editor);
+ }
+ tracked_action *Action = NextTrackedActionFromGroup(TrackingGroup, false);
+ Action->Type = TrackedAction_SelectEntity;
+ Action->Entity = MakeEntityHandle(Entity);
+ SelectEntityWithoutTracking(Editor, Entity);
+ if (!Editor->PendingActionTrackingGroup)
+ {
+  EndActionTrackingGroup(Editor, TrackingGroup);
+ }
+}
+
+internal void
 Undo(editor *Editor)
 {
  if (Editor->ActionTrackingGroupIndex > 0)
@@ -963,6 +934,10 @@ Undo(editor *Editor)
      case TrackedAction_AddEntity: {
       DeactiveEntity(&Editor->EntityStore, Entity);
      }break;
+     
+     case TrackedAction_SelectEntity: {
+      PopAndDeselectTopSelectedEntity(Editor);
+     }break;
     }
     EndEntityModify(Witness);
    }
@@ -982,7 +957,9 @@ Redo(editor *Editor)
    tracked_action *Action = Group->Actions + ActionIndex;
    b32 AllowDeactived = (Action->Type == TrackedAction_AddEntity);
    entity *Entity = EntityFromHandle(Action->Entity, AllowDeactived);
-   if (Entity)
+   // NOTE(hbr): Deselecting entity if zero
+   b32 AllowZero = (Action->Type == TrackedAction_SelectEntity);
+   if (Entity || AllowZero)
    {
     entity_with_modify_witness Witness = BeginEntityModify(Entity);
     switch (Action->Type)
@@ -1010,6 +987,10 @@ Redo(editor *Editor)
      
      case TrackedAction_AddEntity: {
       ActivateEntity(&Editor->EntityStore, Entity);
+     }break;
+     
+     case TrackedAction_SelectEntity: {
+      SelectEntityWithoutTracking(Editor, Entity);
      }break;
     }
     EndEntityModify(Witness);

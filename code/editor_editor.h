@@ -38,6 +38,7 @@ enum tracked_action_type
  TrackedAction_AddEntity,
  TrackedAction_RemoveEntity,
  TrackedAction_MoveEntity,
+ TrackedAction_SelectEntity,
  TrackedAction_AddControlPoint,
  TrackedAction_RemoveControlPoint,
  TrackedAction_MoveControlPoint,
@@ -57,7 +58,7 @@ struct action_tracking_group
 {
  u32 Count;
  tracked_action Actions[4];
- b32 HasActionPending;
+ tracked_action *PendingAction;
 };
 global action_tracking_group NilActionTrackingGroup;
 
@@ -165,14 +166,15 @@ struct editor
  entity_store EntityStore;
  arena *Arena;
  
- entity_handle_node *SelectedEntityStack;
- entity_handle_node *FreeEntityHandle;
+ entity_handle SelectedEntity;
  u64 EverIncreasingEntityCounter;
  
  u32 ActionTrackingGroupCount;
  u32 ActionTrackingGroupIndex;
  b32 ActionTrackingGroupPending;
  action_tracking_group ActionTrackingGroups[1024];
+ // TODO(hbr): remove this
+ action_tracking_group *PendingActionTrackingGroup;
  
 #define MAX_NOTIFICATION_COUNT 16
  u32 NotificationCount;
@@ -215,7 +217,6 @@ struct editor
 
 //- editor
 internal void InitEditor(editor *Editor, editor_memory *Memory);
-internal void SelectEntity(editor *Editor, entity *Entity);
 internal void DuplicateEntity(editor *Editor, entity *Entity);
 internal void SplitCurveOnControlPoint(editor *Editor, entity *Entity);
 internal void PerformBezierCurveSplit(editor *Editor, entity *Entity);
@@ -230,6 +231,8 @@ internal void EndActionTrackingGroup(editor *Editor, action_tracking_group *Grou
 
 internal entity *AddEntity(editor *Editor, action_tracking_group *Group);
 internal void RemoveEntity(editor *Editor, action_tracking_group *Group, entity *Entity);
+// TODO(hbr): Add action_tracking_group to argumeents
+internal void SelectEntity(editor *Editor, entity *Entity);
 internal control_point_handle AppendControlPoint(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, v2 P);
 internal control_point_handle InsertControlPoint(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, v2 P, u32 At);
 internal void RemoveControlPoint(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, control_point_handle Point);

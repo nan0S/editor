@@ -232,7 +232,6 @@ internal void EndActionTrackingGroup(editor *Editor, action_tracking_group *Grou
 
 internal entity *AddEntity(editor *Editor, action_tracking_group *Group);
 internal void RemoveEntity(editor *Editor, action_tracking_group *Group, entity *Entity);
-// TODO(hbr): Add action_tracking_group to argumeents
 internal void SelectEntity(editor *Editor, entity *Entity);
 internal control_point_handle AppendControlPoint(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, v2 P);
 internal control_point_handle InsertControlPoint(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, v2 P, u32 At);

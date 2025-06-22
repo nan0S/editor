@@ -201,6 +201,8 @@ DuplicateEntity(editor *Editor, entity *Entity)
  temp_arena Temp = TempArena(0);
  
  entity_store *EntityStore = &Editor->EntityStore;
+ 
+ 
  entity *Copy = AllocEntity(EntityStore, false);
  entity_with_modify_witness CopyWitness = BeginEntityModify(Copy);
  string CopyName = StrF(Temp.Arena, "%S(copy)", GetEntityName(Entity));
@@ -663,19 +665,26 @@ NextTrackedActionFromGroup(action_tracking_group *Group, b32 Partial)
  Assert(Group->Count < ArrayCount(Group->Actions));
  tracked_action *Action = Group->Actions + Group->Count;
  ++Group->Count;
+ Assert(Group->PendingAction == 0);
  if (Partial)
  {
-  Assert(Group->PendingAction == 0);
   Group->PendingAction = Action;
  }
  return Action;
 }
 
 internal void
-CommitPendingAction(action_tracking_group *Group)
+FinishPendingAction(action_tracking_group *Group, b32 Cancel)
 {
  Assert(Group->PendingAction);
+ if (Cancel)
+ {
+  tracked_action *Current = Group->Actions + Group->Count - 1;
+  Assert(Current == Group->PendingAction);
+  --Group->Count;
+ }
  Group->PendingAction = 0;
+ 
 }
 
 internal tracked_action *
@@ -695,12 +704,12 @@ BeginActionTrackingGroup(editor *Editor)
  }
  Assert(!Editor->ActionTrackingGroupPending);
  Editor->ActionTrackingGroupPending = true;
+ Editor->PendingActionTrackingGroup = Group;
  if (Group == 0)
  {
   Group = &NilActionTrackingGroup;
  }
  StructZero(Group);
- Editor->PendingActionTrackingGroup = Group;
  return Group;
 }
 
@@ -767,11 +776,20 @@ EndEntityMove(editor *Editor, action_tracking_group *Group)
 {
  tracked_action *Action = GetPendingAction(Group);
  entity *Entity = EntityFromHandle(Action->Entity);
+ b32 Cancel = false;
  if (Entity)
  {
-  Action->MovedToEntityP = Entity->P;
+  v2 P = Entity->P;
+  if (StructsEqual(P, Action->OriginalEntityP))
+  {
+   Cancel = true;
+  }
+  else
+  {
+   Action->MovedToEntityP = P;
+  }
  }
- CommitPendingAction(Group);
+ FinishPendingAction(Group, Cancel);
 }
 
 internal void
@@ -793,10 +811,20 @@ EndControlPointMove(editor *Editor,
 {
  tracked_action *Action = GetPendingAction(Group);
  entity *Entity = EntityFromHandle(Action->Entity);
+ b32 Cancel = false;
  if (Entity)
  {
-  Action->MovedToControlPoint = GetCurveControlPointInWorldSpace(Entity, Action->ControlPointHandle);
+  control_point MovedToControlPoint = GetCurveControlPointInWorldSpace(Entity, Action->ControlPointHandle);
+  if (StructsEqual(Action->MovedToControlPoint, Action->ControlPoint))
+  {
+   Cancel = true;
+  }
+  else
+  {
+   Action->MovedToControlPoint = MovedToControlPoint;
+  }
  }
+ FinishPendingAction(Group, Cancel);
 }
 
 internal control_point_handle
@@ -806,7 +834,6 @@ AddControlPoint(editor *Editor,
                 v2 P, u32 At,
                 b32 Append)
 {
- 
  tracked_action *Action = NextTrackedActionFromGroup(Group, false);
  Action->Type = TrackedAction_AddControlPoint;
  Action->Entity = MakeEntityHandle(Entity->Entity);
@@ -850,7 +877,6 @@ RemoveEntity(editor *Editor, action_tracking_group *Group, entity *Entity)
 internal entity *
 AddEntity(editor *Editor, action_tracking_group *Group)
 {
- 
  tracked_action *Action = NextTrackedActionFromGroup(Group, false);
  Action->Type = TrackedAction_AddEntity;
  entity *Entity = AllocEntity(&Editor->EntityStore, false);
@@ -879,21 +905,14 @@ internal void
 SelectEntity(editor *Editor, entity *Entity)
 {
  action_tracking_group *TrackingGroup = Editor->PendingActionTrackingGroup;
- b32 EndGroup = false;
- if (!TrackingGroup)
+ if (0)
  {
-  TrackingGroup = BeginActionTrackingGroup(Editor);
-  EndGroup = true;
+  tracked_action *Action = NextTrackedActionFromGroup(TrackingGroup, false);
+  Action->Type = TrackedAction_SelectEntity;
+  Action->Entity = MakeEntityHandle(Entity);
+  Action->PreviouslySelectedEntity = Editor->SelectedEntity;
  }
- tracked_action *Action = NextTrackedActionFromGroup(TrackingGroup, false);
- Action->Type = TrackedAction_SelectEntity;
- Action->Entity = MakeEntityHandle(Entity);
- Action->PreviouslySelectedEntity = Editor->SelectedEntity;
  SelectEntityWithoutTracking(Editor, Entity);
- if (EndGroup)
- {
-  EndActionTrackingGroup(Editor, TrackingGroup);
- }
 }
 
 internal void

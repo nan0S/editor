@@ -83,7 +83,6 @@ struct editor_left_click_state
  control_point InitialControlPoint;
  b32 Moved;
  v2 InitialEntityP;
- action_tracking_group *TrackingGroup;
  
  arena *OriginalVerticesArena;
  b32 OriginalVerticesCaptured;
@@ -172,10 +171,9 @@ struct editor
  
  u32 ActionTrackingGroupCount;
  u32 ActionTrackingGroupIndex;
- b32 ActionTrackingGroupPending;
  action_tracking_group ActionTrackingGroups[1024];
- // TODO(hbr): remove this
- action_tracking_group *PendingActionTrackingGroup;
+ b32 IsPendingActionTrackingGroup;
+ action_tracking_group PendingActionTrackingGroup;
  
 #define MAX_NOTIFICATION_COUNT 16
  u32 NotificationCount;
@@ -218,28 +216,28 @@ struct editor
 
 //- editor
 internal void InitEditor(editor *Editor, editor_memory *Memory);
-internal void DuplicateEntity(editor *Editor, action_tracking_group *Group, entity *Entity);
-internal void SplitCurveOnControlPoint(editor *Editor, action_tracking_group *Group, entity *Entity);
-internal void PerformBezierCurveSplit(editor *Editor, action_tracking_group *Group, entity *Entity);
+internal void DuplicateEntity(editor *Editor, entity *Entity);
+internal void SplitCurveOnControlPoint(editor *Editor, entity *Entity);
+internal void PerformBezierCurveSplit(editor *Editor, entity *Entity);
 internal void ElevateBezierCurveDegree(entity *Entity);
 internal void LowerBezierCurveDegree(entity *Entity);
 internal entity *GetSelectedEntity(editor *Editor);
 internal void Undo(editor *Editor);
 internal void Redo(editor *Editor);
 
-internal action_tracking_group *BeginActionTrackingGroup_(editor *Editor);
-internal void EndActionTrackingGroup_(editor *Editor, action_tracking_group *Group);
-
-internal entity *AddEntity(editor *Editor, action_tracking_group *Group);
-internal void RemoveEntity(editor *Editor, action_tracking_group *Group, entity *Entity);
+internal entity *AddEntity(editor *Editor);
+internal void RemoveEntity(editor *Editor, entity *Entity);
 internal void SelectEntity(editor *Editor, entity *Entity);
-internal control_point_handle AppendControlPoint(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, v2 P);
-internal control_point_handle InsertControlPoint(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, v2 P, u32 At);
-internal void RemoveControlPoint(editor *Editor, action_tracking_group *Group, entity_with_modify_witness *Entity, control_point_handle Point);
-internal void BeginEntityMove(editor *Editor, action_tracking_group *Group, entity *Entity);
-internal void EndEntityMove(editor *Editor, action_tracking_group *Group);
-internal void BeginControlPointMove(editor *Editor, action_tracking_group *Group, entity *Entity, control_point_handle Point);
-internal void EndControlPointMove(editor *Editor, action_tracking_group *Group);
+internal control_point_handle AppendControlPoint(editor *Editor, entity_with_modify_witness *Entity, v2 P);
+internal control_point_handle InsertControlPoint(editor *Editor, entity_with_modify_witness *Entity, v2 P, u32 At);
+internal void RemoveControlPoint(editor *Editor, entity_with_modify_witness *Entity, control_point_handle Point);
+internal void BeginEntityMove(editor *Editor, entity *Entity);
+internal void EndEntityMove(editor *Editor);
+internal void BeginControlPointMove(editor *Editor, entity *Entity, control_point_handle Point);
+internal void EndControlPointMove(editor *Editor);
+
+internal void BeginEditorFrame(editor *Editor);
+internal void EndEditorFrame(editor *Editor);
 
 //- merging curves
 internal void BeginMergingCurves(merging_curves_state *Merging);

@@ -782,7 +782,6 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
  b32 DeleteEntity = false;
  b32 CrucialEntityParamChanged = false;
- action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
  
  if (Editor->SelectedEntityWindow && Entity)
  {
@@ -1163,7 +1162,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
      {
       if (UI_Button(StrLit("Copy")))
       {
-       DuplicateEntity(Editor, TrackingGroup, Entity);
+       DuplicateEntity(Editor, Entity);
       }
       if (UI_IsItemHovered())
       {
@@ -1195,7 +1194,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
        {
         if (UI_Button(StrLit("Split")))
         {
-         SplitCurveOnControlPoint(Editor, TrackingGroup, Entity);
+         SplitCurveOnControlPoint(Editor, Entity);
         }
         if (UI_IsItemHovered())
         {
@@ -1293,7 +1292,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
         UI_SameRow();
         if (UI_Button(StrLit("Split!")))
         {
-         PerformBezierCurveSplit(Editor, TrackingGroup, Entity);
+         PerformBezierCurveSplit(Editor, Entity);
         }
        }
       }
@@ -1477,10 +1476,8 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
  
  if (DeleteEntity)
  {
-  RemoveEntity(Editor, TrackingGroup, Entity);
+  RemoveEntity(Editor, Entity);
  }
- 
- EndActionTrackingGroup(Editor, TrackingGroup);
 }
 
 internal void
@@ -1587,7 +1584,6 @@ RenderEntityListWindowContents(editor *Editor, render_group *RenderGroup)
     entity *Entity = Entities.Entities[EntityIndex];
     UI_PushId(EntityIndex);
     b32 Selected = IsEntitySelected(Entity);
-    action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
     
     if (UI_SelectableItem(Selected, GetEntityName(Entity)))
     {
@@ -1608,11 +1604,11 @@ RenderEntityListWindowContents(editor *Editor, render_group *RenderGroup)
     {
      if(UI_MenuItem(0, 0, StrLit("Delete")))
      {
-      RemoveEntity(Editor, TrackingGroup, Entity);
+      RemoveEntity(Editor, Entity);
      }
      if(UI_MenuItem(0, 0, StrLit("Copy")))
      {
-      DuplicateEntity(Editor, TrackingGroup, Entity);
+      DuplicateEntity(Editor, Entity);
      }
      if(UI_MenuItem(0, 0, (Entity->Flags & EntityFlag_Hidden) ? StrLit("Show") : StrLit("Hide")))
      {
@@ -1631,8 +1627,6 @@ RenderEntityListWindowContents(editor *Editor, render_group *RenderGroup)
     }
     
     UI_PopId();
-    
-    EndActionTrackingGroup(Editor, TrackingGroup);
    }
   }
   
@@ -2151,11 +2145,9 @@ ProcessImageLoadingTasks(editor *Editor)
   {
    if (ImageLoading->State == Image_Loaded)
    {
-    // TODO(hbr): Include [SelectEntity] in that group as well
-    action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
     string FileName = PathLastPart(ImageLoading->ImageFilePath);
     string FileNameNoExt = StrChopLastDot(FileName);
-    entity *Entity = AddEntity(Editor, TrackingGroup);
+    entity *Entity = AddEntity(Editor);
     InitEntityAsImage(Entity,
                       ImageLoading->ImageP,
                       FileNameNoExt,
@@ -2163,7 +2155,6 @@ ProcessImageLoadingTasks(editor *Editor)
                       ImageLoading->ImageInfo.Height,
                       ImageLoading->LoadingTexture);
     SelectEntity(Editor, Entity);
-    EndActionTrackingGroup(Editor, TrackingGroup);
    }
    else
    {
@@ -2267,8 +2258,7 @@ ProcessInputEvents(editor *Editor,
     }
     else if (Collision.Flags & Collision_CurvePoint)
     {
-     action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
-     BeginMovingCurvePoint(LeftClick, Editor, TrackingGroup, Collision.Entity, Collision.CurvePoint);
+     BeginMovingCurvePoint(LeftClick, Editor, Collision.Entity, Collision.CurvePoint);
     }
     else if (Collision.Flags & Collision_CurveLine)
     {
@@ -2277,10 +2267,9 @@ ProcessInputEvents(editor *Editor,
       control_point_handle ControlPoint = ControlPointIndexFromCurveSampleIndex(CollisionCurve, Collision.CurveSampleIndex);
       u32 PointIndex = IndexFromControlPointHandle(ControlPoint);
       u32 InsertAt = PointIndex + 1;
-      action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
-      InsertControlPoint(Editor, TrackingGroup, &CollisionEntityWitness, MouseP, InsertAt);
+      InsertControlPoint(Editor, &CollisionEntityWitness, MouseP, InsertAt);
       curve_point_handle CurvePoint = CurvePointFromControlPoint(ControlPointHandleFromIndex(InsertAt));
-      BeginMovingCurvePoint(LeftClick, Editor, TrackingGroup, Collision.Entity, CurvePoint);
+      BeginMovingCurvePoint(LeftClick, Editor, Collision.Entity, CurvePoint);
      }
      else
      {
@@ -2294,8 +2283,6 @@ ProcessInputEvents(editor *Editor,
     }
     else
     {
-     action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
-     
      entity *TargetEntity = 0;
      if (SelectedEntity &&
          (SelectedEntity->Type == Entity_Curve) &&
@@ -2308,7 +2295,7 @@ ProcessInputEvents(editor *Editor,
       temp_arena Temp = TempArena(0);
       
       entity_store *EntityStore = &Editor->EntityStore;
-      entity *Entity = AddEntity(Editor, TrackingGroup);
+      entity *Entity = AddEntity(Editor);
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
       InitEntityAsCurve(Entity, Name, Editor->CurveDefaultParams);
       TargetEntity = Entity;
@@ -2318,8 +2305,8 @@ ProcessInputEvents(editor *Editor,
      Assert(TargetEntity);
      
      entity_with_modify_witness TargetEntityWitness = BeginEntityModify(TargetEntity);
-     control_point_handle Appended = AppendControlPoint(Editor, TrackingGroup, &TargetEntityWitness, MouseP);
-     BeginMovingCurvePoint(LeftClick, Editor, TrackingGroup, TargetEntity, CurvePointFromControlPoint(Appended));
+     control_point_handle Appended = AppendControlPoint(Editor, &TargetEntityWitness, MouseP);
+     BeginMovingCurvePoint(LeftClick, Editor, TargetEntity, CurvePointFromControlPoint(Appended));
      EndEntityModify(TargetEntityWitness);
     }
     
@@ -2456,7 +2443,6 @@ ProcessInputEvents(editor *Editor,
     collision *Collision = &RightClick->CollisionAtP;
     entity *Entity = Collision->Entity;
     entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
-    action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
     curve *Curve = &Entity->Curve;
     
     if (Collision->Flags & Collision_TrackedPoint)
@@ -2464,7 +2450,7 @@ ProcessInputEvents(editor *Editor,
      switch (Curve->PointTracking.Type)
      {
       case PointTrackingAlongCurve_BezierCurveSplit: {
-       PerformBezierCurveSplit(Editor, TrackingGroup, Entity);
+       PerformBezierCurveSplit(Editor, Entity);
       }break;
       
       case PointTrackingAlongCurve_DeCasteljauVisualization: {}break;
@@ -2474,7 +2460,7 @@ ProcessInputEvents(editor *Editor,
     {
      if (Collision->CurvePoint.Type == CurvePoint_ControlPoint)
      {
-      RemoveControlPoint(Editor, TrackingGroup, &EntityWitness, Collision->CurvePoint.Control);
+      RemoveControlPoint(Editor, &EntityWitness, Collision->CurvePoint.Control);
      }
      else
      {
@@ -2484,14 +2470,13 @@ ProcessInputEvents(editor *Editor,
     }
     else if (Entity)
     {
-     RemoveEntity(Editor, TrackingGroup, Entity);
+     RemoveEntity(Editor, Entity);
     }
     else
     {
      SelectEntity(Editor, 0);
     }
     
-    EndActionTrackingGroup(Editor, TrackingGroup);
     EndEntityModify(EntityWitness);
    }
    
@@ -2592,7 +2577,6 @@ ProcessInputEvents(editor *Editor,
   {
    entity *Entity = GetSelectedEntity(Editor);
    entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
-   action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
    
    if (Entity)
    {
@@ -2603,23 +2587,22 @@ ProcessInputEvents(editor *Editor,
       curve *Curve = SafeGetCurve(Entity);
       if (IsControlPointSelected(Curve))
       {
-       RemoveControlPoint(Editor, TrackingGroup, &EntityWitness, Curve->SelectedControlPoint);
+       RemoveControlPoint(Editor, &EntityWitness, Curve->SelectedControlPoint);
       }
       else
       {
-       RemoveEntity(Editor, TrackingGroup, Entity);
+       RemoveEntity(Editor, Entity);
       }
      }break;
      
      case Entity_Image: {
-      RemoveEntity(Editor, TrackingGroup, Entity);
+      RemoveEntity(Editor, Entity);
      }break;
      
      case Entity_Count: InvalidPath;
     }
    }
    
-   EndActionTrackingGroup(Editor, TrackingGroup);
    EndEntityModify(EntityWitness);
   }
   
@@ -2629,9 +2612,7 @@ ProcessInputEvents(editor *Editor,
    if (Entity)
    {
     Eat = true;
-    action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
-    DuplicateEntity(Editor, TrackingGroup, Entity);
-    EndActionTrackingGroup(Editor, TrackingGroup);
+    DuplicateEntity(Editor, Entity);
    }
   }
   
@@ -3501,6 +3482,8 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
   InitEditor(Editor, Memory);
  }
  
+ BeginEditorFrame(Editor);
+ 
  render_group RenderGroup_ = {};
  render_group *RenderGroup = &RenderGroup_;
  {
@@ -3652,6 +3635,8 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
 #if BUILD_DEBUG
  Input->RefreshRequested = true;
 #endif
+ 
+ EndEditorFrame(Editor);
 }
 
 internal void

@@ -218,17 +218,17 @@ struct editor
 
 //- editor
 internal void InitEditor(editor *Editor, editor_memory *Memory);
-internal void DuplicateEntity(editor *Editor, entity *Entity);
-internal void SplitCurveOnControlPoint(editor *Editor, entity *Entity);
-internal void PerformBezierCurveSplit(editor *Editor, entity *Entity);
+internal void DuplicateEntity(editor *Editor, action_tracking_group *Group, entity *Entity);
+internal void SplitCurveOnControlPoint(editor *Editor, action_tracking_group *Group, entity *Entity);
+internal void PerformBezierCurveSplit(editor *Editor, action_tracking_group *Group, entity *Entity);
 internal void ElevateBezierCurveDegree(entity *Entity);
 internal void LowerBezierCurveDegree(entity *Entity);
 internal entity *GetSelectedEntity(editor *Editor);
 internal void Undo(editor *Editor);
 internal void Redo(editor *Editor);
 
-internal action_tracking_group *BeginActionTrackingGroup(editor *Editor);
-internal void EndActionTrackingGroup(editor *Editor, action_tracking_group *Group);
+internal action_tracking_group *BeginActionTrackingGroup_(editor *Editor);
+internal void EndActionTrackingGroup_(editor *Editor, action_tracking_group *Group);
 
 internal entity *AddEntity(editor *Editor, action_tracking_group *Group);
 internal void RemoveEntity(editor *Editor, action_tracking_group *Group, entity *Entity);

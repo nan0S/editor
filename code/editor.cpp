@@ -782,6 +782,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
  b32 DeleteEntity = false;
  b32 CrucialEntityParamChanged = false;
+ action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
  
  if (Editor->SelectedEntityWindow && Entity)
  {
@@ -1162,7 +1163,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
      {
       if (UI_Button(StrLit("Copy")))
       {
-       DuplicateEntity(Editor, Entity);
+       DuplicateEntity(Editor, TrackingGroup, Entity);
       }
       if (UI_IsItemHovered())
       {
@@ -1194,7 +1195,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
        {
         if (UI_Button(StrLit("Split")))
         {
-         SplitCurveOnControlPoint(Editor, &EntityWitness);
+         SplitCurveOnControlPoint(Editor, TrackingGroup, Entity);
         }
         if (UI_IsItemHovered())
         {
@@ -1292,7 +1293,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
         UI_SameRow();
         if (UI_Button(StrLit("Split!")))
         {
-         PerformBezierCurveSplit(Editor, &EntityWitness);
+         PerformBezierCurveSplit(Editor, TrackingGroup, Entity);
         }
        }
       }
@@ -1476,8 +1477,10 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
  
  if (DeleteEntity)
  {
-  DeallocEntity(&Editor->EntityStore, Entity);
+  RemoveEntity(Editor, TrackingGroup, Entity);
  }
+ 
+ EndActionTrackingGroup(Editor, TrackingGroup);
 }
 
 internal void
@@ -1584,6 +1587,7 @@ RenderEntityListWindowContents(editor *Editor, render_group *RenderGroup)
     entity *Entity = Entities.Entities[EntityIndex];
     UI_PushId(EntityIndex);
     b32 Selected = IsEntitySelected(Entity);
+    action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
     
     if (UI_SelectableItem(Selected, GetEntityName(Entity)))
     {
@@ -1604,11 +1608,11 @@ RenderEntityListWindowContents(editor *Editor, render_group *RenderGroup)
     {
      if(UI_MenuItem(0, 0, StrLit("Delete")))
      {
-      DeallocEntity(&Editor->EntityStore, Entity);
+      RemoveEntity(Editor, TrackingGroup, Entity);
      }
      if(UI_MenuItem(0, 0, StrLit("Copy")))
      {
-      DuplicateEntity(Editor, Entity);
+      DuplicateEntity(Editor, TrackingGroup, Entity);
      }
      if(UI_MenuItem(0, 0, (Entity->Flags & EntityFlag_Hidden) ? StrLit("Show") : StrLit("Hide")))
      {
@@ -1627,6 +1631,8 @@ RenderEntityListWindowContents(editor *Editor, render_group *RenderGroup)
     }
     
     UI_PopId();
+    
+    EndActionTrackingGroup(Editor, TrackingGroup);
    }
   }
   
@@ -2458,7 +2464,7 @@ ProcessInputEvents(editor *Editor,
      switch (Curve->PointTracking.Type)
      {
       case PointTrackingAlongCurve_BezierCurveSplit: {
-       PerformBezierCurveSplit(Editor, &EntityWitness);
+       PerformBezierCurveSplit(Editor, TrackingGroup, Entity);
       }break;
       
       case PointTrackingAlongCurve_DeCasteljauVisualization: {}break;
@@ -2623,7 +2629,9 @@ ProcessInputEvents(editor *Editor,
    if (Entity)
    {
     Eat = true;
-    DuplicateEntity(Editor, Entity);
+    action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
+    DuplicateEntity(Editor, TrackingGroup, Entity);
+    EndActionTrackingGroup(Editor, TrackingGroup);
    }
   }
   

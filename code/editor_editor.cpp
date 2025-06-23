@@ -196,12 +196,11 @@ InitEntityFromEntity(entity_store *EntityStore, entity_with_modify_witness *DstW
 }
 
 internal void
-DuplicateEntity(editor *Editor, entity *Entity)
+DuplicateEntity(editor *Editor, action_tracking_group *TrackingGroup, entity *Entity)
 {
  temp_arena Temp = TempArena(0);
  
  entity_store *EntityStore = &Editor->EntityStore;
- action_tracking_group *TrackingGroup = BeginActionTrackingGroup(Editor);
  entity *Copy = AddEntity(Editor, TrackingGroup);
  entity_with_modify_witness CopyWitness = BeginEntityModify(Copy);
  string CopyName = StrF(Temp.Arena, "%S(copy)", GetEntityName(Entity));
@@ -212,15 +211,13 @@ DuplicateEntity(editor *Editor, entity *Entity)
  v2 SlightTranslation = V2(SlightTranslationX, 0.0f);
  Copy->P += SlightTranslation;
  
- EndActionTrackingGroup(Editor, TrackingGroup);
  EndEntityModify(CopyWitness);
  EndTemp(Temp);
 }
 
 internal void
-SplitCurveOnControlPoint(editor *Editor, entity_with_modify_witness *EntityWitness)
+SplitCurveOnControlPoint(editor *Editor, action_tracking_group *TrackingGroup, entity *Entity)
 {
- entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
  entity_store *EntityStore = &Editor->EntityStore;
  
@@ -232,35 +229,44 @@ SplitCurveOnControlPoint(editor *Editor, entity_with_modify_witness *EntityWitne
   u32 HeadPointCount = SelectedIndex + 1;
   u32 TailPointCount = Curve->ControlPointCount - SelectedIndex;
   
-  entity *HeadEntity = Entity;
-  entity *TailEntity = AllocEntity(&Editor->EntityStore, false);
+  entity *HeadEntity = AddEntity(Editor, TrackingGroup);
+  entity *TailEntity = AddEntity(Editor, TrackingGroup);
   
-  entity_with_modify_witness *HeadWitness = EntityWitness;
+  entity_with_modify_witness HeadWitness = BeginEntityModify(HeadEntity);
   entity_with_modify_witness TailWitness = BeginEntityModify(TailEntity);
   
-  InitEntityFromEntity(EntityStore, &TailWitness, HeadEntity);
+  InitEntityFromEntity(EntityStore, &HeadWitness, Entity);
+  InitEntityFromEntity(EntityStore, &TailWitness, Entity);
   
+  curve *HeadCurve = SafeGetCurve(HeadEntity);
   curve *TailCurve = SafeGetCurve(TailEntity);
   
-  string HeadName  = StrF(Temp.Arena, "%S (head)", GetEntityName(Entity));
-  string TailName = StrF(Temp.Arena, "%S (tail)", GetEntityName(Entity));
+  string HeadName = StrF(Temp.Arena, "%S(head)", GetEntityName(Entity));
+  string TailName = StrF(Temp.Arena, "%S(tail)", GetEntityName(Entity));
   SetEntityName(HeadEntity, HeadName);
   SetEntityName(TailEntity, TailName);
   
-  curve_points_modify_handle HeadPoints = BeginModifyCurvePoints(HeadWitness, HeadPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
+  curve_points_modify_handle HeadPoints = BeginModifyCurvePoints(&HeadWitness, HeadPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
   curve_points_modify_handle TailPoints = BeginModifyCurvePoints(&TailWitness, TailPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
   Assert(HeadPoints.PointCount == HeadPointCount);
   Assert(TailPoints.PointCount == TailPointCount);
   
+  ArrayCopy(HeadPoints.ControlPoints, Curve->ControlPoints, HeadPoints.PointCount);
+  ArrayCopy(HeadPoints.Weights, Curve->ControlPointWeights, HeadPoints.PointCount);
+  ArrayCopy(HeadPoints.CubicBeziers, Curve->CubicBezierPoints, HeadPoints.PointCount);
+  
   u32 SplitAt = SelectedIndex;
   ArrayCopy(TailPoints.ControlPoints, Curve->ControlPoints + SplitAt, TailPoints.PointCount);
   ArrayCopy(TailPoints.Weights, Curve->ControlPointWeights + SplitAt, TailPoints.PointCount);
-  ArrayCopy(TailCurve->CubicBezierPoints, Curve->CubicBezierPoints + SplitAt, TailPoints.PointCount);
+  ArrayCopy(TailPoints.CubicBeziers, Curve->CubicBezierPoints + SplitAt, TailPoints.PointCount);
   
   EndModifyCurvePoints(HeadPoints);
   EndModifyCurvePoints(TailPoints);
   
+  EndEntityModify(HeadWitness);
   EndEntityModify(TailWitness);
+  
+  RemoveEntity(Editor, TrackingGroup, Entity);
   
   EndTemp(Temp);
  }
@@ -390,31 +396,30 @@ GetSelectedEntity(editor *Editor)
 }
 
 internal void
-PerformBezierCurveSplit(editor *Editor, entity_with_modify_witness *EntityWitness)
+PerformBezierCurveSplit(editor *Editor, action_tracking_group *TrackingGroup, entity *Entity)
 {
  temp_arena Temp = TempArena(0);
  
- entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
  point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
  entity_store *EntityStore = &Editor->EntityStore;
+ u32 ControlPointCount = Curve->ControlPointCount;
  
  Assert(Tracking->Active);
  Tracking->Active = false;
  
- u32 ControlPointCount = Curve->ControlPointCount;
- 
- entity *LeftEntity = Entity;
- entity *RightEntity = AllocEntity(&Editor->EntityStore, false);
+ entity *LeftEntity = AddEntity(Editor, TrackingGroup);
+ entity *RightEntity = AddEntity(Editor, TrackingGroup);
  
  entity_with_modify_witness LeftWitness = BeginEntityModify(LeftEntity);
  entity_with_modify_witness RightWitness = BeginEntityModify(RightEntity);
  
+ InitEntityFromEntity(EntityStore, &LeftWitness, Entity);
+ InitEntityFromEntity(EntityStore, &RightWitness, Entity);
+ 
  string LeftName = StrF(Temp.Arena, "%S(left)", GetEntityName(Entity));
  string RightName = StrF(Temp.Arena, "%S(right)", GetEntityName(Entity));
- 
  SetEntityName(LeftEntity, LeftName);
- InitEntityFromEntity(EntityStore, &RightWitness, LeftEntity);
  SetEntityName(RightEntity, RightName);
  
  curve_points_modify_handle LeftPoints = BeginModifyCurvePoints(&LeftWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
@@ -432,6 +437,8 @@ PerformBezierCurveSplit(editor *Editor, entity_with_modify_witness *EntityWitnes
  
  EndEntityModify(LeftWitness);
  EndEntityModify(RightWitness);
+ 
+ RemoveEntity(Editor, TrackingGroup, Entity);
  
  EndTemp(Temp);
 }
@@ -692,7 +699,7 @@ GetPendingAction(action_tracking_group *Group)
 }
 
 internal action_tracking_group *
-BeginActionTrackingGroup(editor *Editor)
+BeginActionTrackingGroup_(editor *Editor)
 {
  action_tracking_group *Group = 0;
  if (Editor->ActionTrackingGroupIndex < ArrayCount(Editor->ActionTrackingGroups))
@@ -711,7 +718,7 @@ BeginActionTrackingGroup(editor *Editor)
 }
 
 internal void
-EndActionTrackingGroup(editor *Editor, action_tracking_group *Group)
+EndActionTrackingGroup_(editor *Editor, action_tracking_group *Group)
 {
  if (Group != &NilActionTrackingGroup && Group->Count > 0)
  {  
@@ -741,6 +748,22 @@ EndActionTrackingGroup(editor *Editor, action_tracking_group *Group)
  }
  Editor->ActionTrackingGroupPending = false;
  Editor->PendingActionTrackingGroup = 0;
+}
+
+internal action_tracking_group *
+GetCurrentActionTrackingGroup(editor *Editor)
+{
+ action_tracking_group *Group = Editor->PendingActionTrackingGroup;
+ if (Group == 0)
+ {
+  Group = BeginActionTrackingGroup(Editor);
+ }
+ if (Group == 0)
+ {
+  Group = &NilActionTrackingGroup;
+ }
+ Editor->PendingActionTrackingGroup = Group;
+ return Group;
 }
 
 internal void
@@ -882,7 +905,7 @@ AddEntity(editor *Editor, action_tracking_group *Group)
 }
 
 internal void
-SelectEntityWithoutTracking(editor *Editor, entity *Entity)
+SelectEntity(editor *Editor, entity *Entity)
 {
  //- mark currently selected entity as no longer selected
  entity *Current = EntityFromHandle(Editor->SelectedEntity);
@@ -896,20 +919,6 @@ SelectEntityWithoutTracking(editor *Editor, entity *Entity)
   MarkEntitySelected(Entity);
  }
  Editor->SelectedEntity = MakeEntityHandle(Entity);
-}
-
-internal void
-SelectEntity(editor *Editor, entity *Entity)
-{
- action_tracking_group *TrackingGroup = Editor->PendingActionTrackingGroup;
- if (0)
- {
-  tracked_action *Action = NextTrackedActionFromGroup(TrackingGroup, false);
-  Action->Type = TrackedAction_SelectEntity;
-  Action->Entity = MakeEntityHandle(Entity);
-  Action->PreviouslySelectedEntity = Editor->SelectedEntity;
- }
- SelectEntityWithoutTracking(Editor, Entity);
 }
 
 internal void
@@ -958,7 +967,7 @@ Undo(editor *Editor)
      
      case TrackedAction_SelectEntity: {
       entity *Previous = EntityFromHandle(Action->PreviouslySelectedEntity);
-      SelectEntityWithoutTracking(Editor, Previous);
+      SelectEntity(Editor, Previous);
      }break;
     }
     EndEntityModify(Witness);
@@ -1012,7 +1021,7 @@ Redo(editor *Editor)
      }break;
      
      case TrackedAction_SelectEntity: {
-      SelectEntityWithoutTracking(Editor, Entity);
+      SelectEntity(Editor, Entity);
      }break;
     }
     EndEntityModify(Witness);

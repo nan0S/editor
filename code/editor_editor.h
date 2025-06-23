@@ -33,6 +33,12 @@ struct notification
  f32 ScreenPosY;
 };
 
+enum
+{
+ TrackedActionFlag_Active = (1<<0),
+ TrackedActionFlag_Pending = (1<<1),
+};
+typedef u32 tracked_action_flags;
 enum tracked_action_type
 {
  TrackedAction_AddEntity,
@@ -53,13 +59,13 @@ struct tracked_action
  control_point_handle ControlPointHandle;
  v2 OriginalEntityP;
  v2 MovedToEntityP;
+ tracked_action_flags Flags;
 };
 global tracked_action NilTrackedAction;
 struct action_tracking_group
 {
  u32 Count;
  tracked_action Actions[4];
- tracked_action *PendingAction;
 };
 global action_tracking_group NilActionTrackingGroup;
 
@@ -83,6 +89,7 @@ struct editor_left_click_state
  control_point InitialControlPoint;
  b32 Moved;
  v2 InitialEntityP;
+ tracked_action *PendingTrackedAction;
  
  arena *OriginalVerticesArena;
  b32 OriginalVerticesCaptured;
@@ -231,10 +238,10 @@ internal void SelectEntity(editor *Editor, entity *Entity);
 internal control_point_handle AppendControlPoint(editor *Editor, entity_with_modify_witness *Entity, v2 P);
 internal control_point_handle InsertControlPoint(editor *Editor, entity_with_modify_witness *Entity, v2 P, u32 At);
 internal void RemoveControlPoint(editor *Editor, entity_with_modify_witness *Entity, control_point_handle Point);
-internal void BeginEntityMove(editor *Editor, entity *Entity);
-internal void EndEntityMove(editor *Editor);
-internal void BeginControlPointMove(editor *Editor, entity *Entity, control_point_handle Point);
-internal void EndControlPointMove(editor *Editor);
+internal tracked_action *BeginEntityMove(editor *Editor, entity *Entity);
+internal void EndEntityMove(editor *Editor, tracked_action *MoveAction);
+internal tracked_action *BeginControlPointMove(editor *Editor, entity *Entity, control_point_handle Point);
+internal void EndControlPointMove(editor *Editor, tracked_action *MoveAction);
 
 internal void BeginEditorFrame(editor *Editor);
 internal void EndEditorFrame(editor *Editor);

@@ -2678,6 +2678,7 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
  InitEntityFromEntity(EntityStore, MergeWitness, Entity0);
  SetEntityName(MergeEntity, Name);
  
+ // TODO(hbr): remove this?
  MaybeReverseCurvePoints(Entity0);
  MaybeReverseCurvePoints(Entity1);
  

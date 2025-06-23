@@ -2218,8 +2218,6 @@ ProcessInputEvents(editor *Editor,
    if ((DoesAnimationWantInput || DoesMergingWantInput) &&
        Collision.Entity && Collision.Entity->Type == Entity_Curve)
    {
-    
-    
     if (DoesAnimationWantInput)
     {
      if (SupplyCurve(&Animation->Choose2Curves, Collision.Entity))

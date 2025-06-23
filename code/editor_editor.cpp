@@ -207,8 +207,8 @@ DuplicateEntity(editor *Editor, entity *Entity)
  string CopyName = StrF(Temp.Arena, "%S(copy)", GetEntityName(Entity));
  InitEntityFromEntity(EntityStore, &CopyWitness, Entity);
  SelectEntity(Editor, Copy);
- // TODO(hbr): This is not right, translate depending on camera zoom
- f32 SlightTranslationX = 0.2f;
+ 
+ f32 SlightTranslationX = 5 * Copy->Curve.Params.LineWidth;
  v2 SlightTranslation = V2(SlightTranslationX, 0.0f);
  Copy->P += SlightTranslation;
  

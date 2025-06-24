@@ -38,8 +38,12 @@ TODO:
  - update "help" - add info about moving cubic bezier helpers, add info about "undo/redo"
 - keyboard shortcuts in help
  - convex hull around pieces of b-spline segments
-- enable/disable grid
 - proper grid implementation
+- remove DLL loading in release mode
+- make undo/redo work with elevate/lower bezier curve degree
+- Checbyshev polynomial bezier degree lowering method
+- rename "Copy" button into "Duplicate"
+- add resource monitor - memory/texture handles - to investigate if there are any leaks
 
  Bugs:
  - ZOffset are fucked - if multiple images have the same ZOffset, make sure to check collisions in the reverse order they are renderer
@@ -64,7 +68,6 @@ TODO:
  - investigate why drawing takes so much time
  - investigate why this application on Windows is ~10x slower than on Linux
  - add computing lines on GPU
- - Checbyshev polynomial bezier degree lowering method
  - multi-threaded computaiton (GPU?) of internsive stuff
  - fix adding cubic bezier points when zero control points - now its hardcoded (0.5f, 0.5f)
  - add SIMD
@@ -74,7 +77,6 @@ TODO:
  - maybe don't be so precise when checking curvepoints collisions - jump every 50 points or something like that
  - don't use other type for saving entity, use current type and override pointers - why? simplify by default, don't complicate by default, and more types is more complicated than less types
  - maybe rename EntityDestroy, in general consider using Allocate/Deallocate maybe or Make/Destroy, or something consistent more, just think about it
- - rename "Copy" button into "Duplicate"
  - Focus on curve is weird for larger curves - investigate that
  - Delete key should do the same as right click but just for selected, not positioned
  - placeholder when loading images asynchronously

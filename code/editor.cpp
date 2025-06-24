@@ -1160,13 +1160,13 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
      UI_SeparatorText(StrLit("Actions"));
      UI_Label(StrLit("Actions"));
      {
-      if (UI_Button(StrLit("Copy")))
+      if (UI_Button(StrLit("Duplicate")))
       {
        DuplicateEntity(Editor, Entity);
       }
       if (UI_IsItemHovered())
       {
-       UI_Tooltip(StrLit("Duplicate entity, self explanatory"));
+       UI_Tooltip(StrLit("Duplicate entity"));
       }
       
       UI_SameRow();
@@ -1174,7 +1174,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       DeleteEntity = UI_Button(StrLit("Delete"));
       if (UI_IsItemHovered())
       {
-       UI_Tooltip(StrLit("Delete entity, self explanatory"));
+       UI_Tooltip(StrLit("Delete entity"));
       }
       
       UI_SameRow();
@@ -1192,13 +1192,15 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       {
        UI_Disabled(!IsControlPointSelected(Curve))
        {
-        if (UI_Button(StrLit("Split")))
+        if (UI_Button(StrLit("Split at Control Point")))
         {
          SplitCurveOnControlPoint(Editor, Entity);
         }
         if (UI_IsItemHovered())
         {
-         UI_Tooltip(StrLit("Split curve into two parts, based on the currently selected control point"));
+         UI_Tooltip(StrLit("Split curve into two parts - from the beginning to the\n"
+                           "selected control point, and from the selected control\n"
+                           "point to the end"));
         }
        }
        
@@ -1210,7 +1212,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
        }
        if (UI_IsItemHovered())
        {
-        UI_Tooltip(StrLit("Swap the side to which append new control points"));
+        UI_Tooltip(StrLit("Swap curve beginning with the end"));
        }
        
        UI_Disabled(!IsRegularBezierCurve(Curve))
@@ -1221,7 +1223,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
         }
         if (UI_IsItemHovered())
         {
-         UI_Tooltip(StrLit("Elevate Bezier curve degree, while maintaining its shape"));
+         UI_Tooltip(StrLit("Elevate Bezier curve degree, maintain its shape"));
         }
         
         UI_SameRow();
@@ -1232,7 +1234,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
         }
         if (UI_IsItemHovered())
         {
-         UI_Tooltip(StrLit("Lower Bezier curve degree, while maintaining its shape (if possible)"));
+         UI_Tooltip(StrLit("Lower Bezier curve degree, maintain its shape (if possible)"));
         }
        }
       }
@@ -1607,7 +1609,7 @@ RenderEntityListWindowContents(editor *Editor, render_group *RenderGroup)
      {
       RemoveEntity(Editor, Entity);
      }
-     if(UI_MenuItem(0, 0, StrLit("Copy")))
+     if(UI_MenuItem(0, 0, StrLit("Duplicate")))
      {
       DuplicateEntity(Editor, Entity);
      }
@@ -3522,6 +3524,40 @@ RenderGrid(editor *Editor, render_group *RenderGroup)
 }
 
 internal void
+RenderRotationIndicator(editor *Editor, render_group *RenderGroup)
+{
+ editor_middle_click_state *MiddleClick = &Editor->MiddleClick;
+ if (MiddleClick->Active && MiddleClick->Rotate)
+ {
+  camera *Camera = &Editor->Camera;
+  f32 Radius = ClipSpaceLengthToWorldSpace(RenderGroup, Editor->RotationRadiusClip);
+  v4 Color = RGBA_Color(30, 56, 87, 80);
+  f32 OutlineThickness = 0.1f * Radius;
+  v4 OutlineColor = RGBA_Color(255, 255, 255, 24);
+  // TODO(hbr): ZOffset here is possibly wrong, it should be something on top of everything
+  // instead
+  PushCircle(RenderGroup,
+             Camera->P,
+             Radius - OutlineThickness,
+             Color, 0.0f,
+             OutlineThickness, OutlineColor);
+ }
+}
+
+internal void
+RenderRemoveIndicator(editor *Editor, render_group *RenderGroup)
+{
+ editor_right_click_state *RightClick = &Editor->RightClick;
+ if (RightClick->Active)
+ {
+  v4 Color = V4(0.5f, 0.5f, 0.5f, 0.3f);
+  f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(RenderGroup, Editor->CollisionToleranceClip);
+  // TODO(hbr): Again, zoffset of this thing is wrong
+  PushCircle(RenderGroup, RightClick->ClickP, CollisionTolerance, Color, 0.0f);
+ }
+}
+
+internal void
 EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, struct render_frame *Frame)
 {
  editor *Editor = Memory->Editor;
@@ -3577,38 +3613,6 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
   }
  }
  
- //- render "remove" indicator
- {
-  editor_right_click_state *RightClick = &Editor->RightClick;
-  if (RightClick->Active)
-  {
-   v4 Color = V4(0.5f, 0.5f, 0.5f, 0.3f);
-   f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(RenderGroup, Editor->CollisionToleranceClip);
-   // TODO(hbr): Again, zoffset of this thing is wrong
-   PushCircle(RenderGroup, RightClick->ClickP, CollisionTolerance, Color, 0.0f);
-  }
- }
- 
- //- render rotation indicator
- {
-  editor_middle_click_state *MiddleClick = &Editor->MiddleClick;
-  if (MiddleClick->Active && MiddleClick->Rotate)
-  {
-   camera *Camera = &Editor->Camera;
-   f32 Radius = ClipSpaceLengthToWorldSpace(RenderGroup, Editor->RotationRadiusClip);
-   v4 Color = RGBA_Color(30, 56, 87, 80);
-   f32 OutlineThickness = 0.1f * Radius;
-   v4 OutlineColor = RGBA_Color(255, 255, 255, 24);
-   // TODO(hbr): ZOffset here is possibly wrong, it should be something on top of everything
-   // instead
-   PushCircle(RenderGroup,
-              Camera->P,
-              Radius - OutlineThickness,
-              Color, 0.0f,
-              OutlineThickness, OutlineColor);
-  }
- }
- 
  if (!Editor->HideUI)
  {
   ProfileBegin("UI Update");
@@ -3637,6 +3641,8 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  UpdateAndRenderAnimatingCurves(&Editor->AnimatingCurves, Input, RenderGroup);
  UpdateAndRenderNotifications(Editor, Input, RenderGroup);
  RenderMergingCurves(&Editor->MergingCurves, RenderGroup);
+ RenderRotationIndicator(Editor, RenderGroup);
+ RenderRemoveIndicator(Editor, RenderGroup);
  
  if (OpenFileDialog)
  {

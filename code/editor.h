@@ -27,16 +27,16 @@
 
 TODO:
 - saving/loading project from/to file
-- undo/redo - at least with basic control point/entity operations
 - merging weighted bezier curves
-- parametric curve preexisting examples
+- parametric curve examples
 - extract animated curve - bezier can be 100% matching, other can do with interpolation
 - incluce imgui tutorial to get familiar with the ui widgets used throughout the project
 - better error msgs when curves fail to merge
 - moving partition knot along curve
 - parallelize curve recomputation
- - GPU buffer in the same way we have texture_index
+ - GPU buffer_index in the same way we have texture_index
  - update "help" - add info about moving cubic bezier helpers, add info about "undo/redo"
+- keyboard shortcuts in help
 
  Bugs:
  - ZOffset are fucked - if multiple images have the same ZOffset, make sure to check collisions in the reverse order they are renderer

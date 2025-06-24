@@ -22,6 +22,13 @@ RGB_FromHex(u32 HexCode)
 }
 
 internal v4
+GrayColor(u8 Gray, u8 Alpha)
+{
+ v4 Result = RGBA_Color(Gray, Gray, Gray, Alpha);
+ return Result;
+}
+
+internal v4
 BrightenColor(v4 Color, f32 BrightenByRatio)
 {
  v4 Result = {};

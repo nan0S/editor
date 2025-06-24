@@ -475,9 +475,9 @@ internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
 internal v2 LocalToWorldEntityPosition(entity *Entity, v2 P);
 
 //- entity modify
-internal void SetCurvePointP(entity_with_modify_witness *Entity, curve_point_handle Handle, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
-internal void SetCurveControlPointP(entity_with_modify_witness *Entity, control_point_handle Handle, v2 P, f32 Weight); // this can be only control point thus we accept weight as well
-internal void SetCurveControlPointAt(entity_with_modify_witness *Witness, control_point_handle Handle, control_point Point);
+internal void TranslateCurvePointTo(entity_with_modify_witness *Entity, curve_point_handle Handle, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
+internal void SetControlPoint(entity_with_modify_witness *Entity, control_point_handle Handle, v2 P, f32 Weight); // this can be only control point thus we accept weight as well
+internal void SetControlPoint(entity_with_modify_witness *Witness, control_point_handle Handle, control_point Point);
 internal void RemoveControlPoint(entity_with_modify_witness *Entity, control_point_handle Point);
 internal control_point_handle AppendControlPoint(entity_with_modify_witness *Entity, v2 P);
 internal control_point_handle InsertControlPoint(entity_with_modify_witness *Entity, control_point Point, u32 At);

@@ -220,10 +220,10 @@ UpdateAndRenderDegreeLowering(rendering_entity_handle Handle)
     f32 NewControlPointWeight = Lerp(Lowering->LowerDegree.W_I, Lowering->LowerDegree.W_II, Lowering->MixParameter);
     
     control_point_handle MiddlePoint = ControlPointHandleFromIndex(Lowering->LowerDegree.MiddlePointIndex);
-    SetCurveControlPointP(&EntityWitness,
-                          MiddlePoint,
-                          NewControlPoint,
-                          NewControlPointWeight);
+    SetControlPoint(&EntityWitness,
+                    MiddlePoint,
+                    NewControlPoint,
+                    NewControlPointWeight);
    }
    
    if (Revert)
@@ -2184,6 +2184,10 @@ ProcessInputEvents(editor *Editor,
  editor_middle_click_state *MiddleClick = &Editor->MiddleClick;
  animating_curves_state *Animation = &Editor->AnimatingCurves;
  merging_curves_state *Merging = &Editor->MergingCurves;
+ 
+ f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(RenderGroup, Editor->CollisionToleranceClip);
+ f32 RotationRadius = ClipSpaceLengthToWorldSpace(RenderGroup, Editor->RotationRadiusClip);
+ 
  for (u32 EventIndex = 0;
       EventIndex < Input->EventCount;
       ++EventIndex)
@@ -2209,7 +2213,7 @@ ProcessInputEvents(editor *Editor,
    }
    else
    {
-    Collision = CheckCollisionWithEntities(Entities, MouseP, RenderGroup->CollisionTolerance);
+    Collision = CheckCollisionWithEntities(Entities, MouseP, CollisionTolerance);
    }
    
    if ((DoesAnimationWantInput || DoesMergingWantInput) &&
@@ -2394,7 +2398,7 @@ ProcessInputEvents(editor *Editor,
       {
        Flags &= ~TranslateCurvePoint_MatchBezierTwinLength;
       }
-      SetCurvePointP(&EntityWitness, LeftClick->CurvePoint, MouseP, Flags);
+      TranslateCurvePointTo(&EntityWitness, LeftClick->CurvePoint, MouseP, Flags);
      }break;
      
      case EditorLeftClick_MovingEntity: {
@@ -2415,7 +2419,7 @@ ProcessInputEvents(editor *Editor,
    Eat = true;
    
    entity_array Entities = AllEntityArrayFromStore(&Editor->EntityStore);
-   collision Collision = CheckCollisionWithEntities(Entities, MouseP, RenderGroup->CollisionTolerance);
+   collision Collision = CheckCollisionWithEntities(Entities, MouseP, CollisionTolerance);
    
    BeginRightClick(RightClick, MouseP, Collision);
    
@@ -2437,7 +2441,7 @@ ProcessInputEvents(editor *Editor,
    Eat = true;
    
    // NOTE(hbr): perform click action only if button was released roughly in the same place
-   b32 ReleasedClose = (NormSquared(RightClick->ClickP - MouseP) <= Square(RenderGroup->CollisionTolerance));
+   b32 ReleasedClose = (NormSquared(RightClick->ClickP - MouseP) <= Square(CollisionTolerance));
    if (ReleasedClose)
    {
     collision *Collision = &RightClick->CollisionAtP;
@@ -2504,8 +2508,8 @@ ProcessInputEvents(editor *Editor,
    if (MiddleClick->Rotate)
    {
     v2 CenterP = Camera->P;
-    if (NormSquared(FromP - CenterP) >= Square(RenderGroup->RotationRadius) &&
-        NormSquared(ToP   - CenterP) >= Square(RenderGroup->RotationRadius))
+    if (NormSquared(FromP - CenterP) >= Square(RotationRadius) &&
+        NormSquared(ToP   - CenterP) >= Square(RotationRadius))
     {
      v2 Rotation = Rotation2DFromMovementAroundPoint(FromP, ToP, CenterP);
      RotateCameraAround(Camera, Rotation2DInverse(Rotation), CenterP);
@@ -3491,9 +3495,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
   camera *Camera = &Editor->Camera;
   RenderGroup_ = BeginRenderGroup(Frame,
                                   Camera->P, Camera->Rotation, Camera->Zoom,
-                                  Editor->BackgroundColor,
-                                  Editor->CollisionToleranceClip,
-                                  Editor->RotationRadiusClip);
+                                  Editor->BackgroundColor);
  }
  
  ProcessImageLoadingTasks(Editor);
@@ -3536,8 +3538,9 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
   if (RightClick->Active)
   {
    v4 Color = V4(0.5f, 0.5f, 0.5f, 0.3f);
+   f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(RenderGroup, Editor->CollisionToleranceClip);
    // TODO(hbr): Again, zoffset of this thing is wrong
-   PushCircle(RenderGroup, RightClick->ClickP, RenderGroup->CollisionTolerance, Color, 0.0f);
+   PushCircle(RenderGroup, RightClick->ClickP, CollisionTolerance, Color, 0.0f);
   }
  }
  
@@ -3547,7 +3550,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
   if (MiddleClick->Active && MiddleClick->Rotate)
   {
    camera *Camera = &Editor->Camera;
-   f32 Radius = RenderGroup->RotationRadius;
+   f32 Radius = ClipSpaceLengthToWorldSpace(RenderGroup, Editor->RotationRadiusClip);
    v4 Color = RGBA_Color(30, 56, 87, 80);
    f32 OutlineThickness = 0.1f * Radius;
    v4 OutlineColor = RGBA_Color(255, 255, 255, 24);
@@ -3559,6 +3562,48 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
               Color, 0.0f,
               OutlineThickness, OutlineColor);
   }
+ }
+ 
+ //- render grid
+ {
+  ProfileBegin("Render Grid");
+  
+  f32 GridZOffset = 0.0f;
+  v4 GridColor = GrayColor(122, 70);
+  f32 GridLineWidthClip = 0.001f;
+  f32 GridLineWidth = ClipSpaceLengthToWorldSpace(RenderGroup, GridLineWidthClip);
+  
+  //- vertical part
+  for (i32 X = -2; X <= 2; ++X)
+  {
+   f32 BottomY = Unproject(RenderGroup, V2(0.0f, -1.0f)).Y;
+   f32 TopY = Unproject(RenderGroup, V2(0.0f, 1.0f)).Y;
+   f32 GridX = Cast(f32)X;
+   
+   v2 Bottom = V2(GridX, BottomY);
+   v2 Top = V2(GridX, TopY);
+   
+   PushLine(RenderGroup,
+            Bottom, Top,
+            GridLineWidth, GridColor, GridZOffset);
+  }
+  
+  //- horizontal part
+  for (i32 Y = -2; Y <= 2; ++Y)
+  {
+   f32 LeftX = Unproject(RenderGroup, V2(-1.0f, 0.0f)).X;
+   f32 RightX = Unproject(RenderGroup, V2(1.0f, 0.0f)).X;
+   f32 GridY = Cast(f32)Y;
+   
+   v2 Left = V2(LeftX, GridY);
+   v2 Right = V2(RightX, GridY);
+   
+   PushLine(RenderGroup,
+            Left, Right,
+            GridLineWidth, GridColor, GridZOffset);
+  }
+  
+  ProfileEnd();
  }
  
  if (!Editor->HideUI)

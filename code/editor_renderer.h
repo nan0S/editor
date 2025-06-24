@@ -104,11 +104,19 @@ struct render_group
  mat3 ModelXForm;
  f32 ZOffset;
  
- f32 CollisionTolerance;
- f32 RotationRadius;
- 
+ f32 CameraZoom;
  f32 AspectRatio;
 };
+internal render_group BeginRenderGroup(render_frame *Frame, v2 CameraP, v2 CameraRot, f32 CameraZoom, v4 ClearColor);
+internal void PushVertexArray(render_group *Group, v2 *Vertices, u32 VertexCount, render_primitive_type Primitive, v4 Color, f32 ZOffset);
+internal void PushCircle(render_group *Group, v2 P, f32 Radius, v4 Color, f32 ZOffset, f32 OutlineThickness = 0, v4 OutlineColor = V4(0, 0, 0, 0));
+internal void PushRectangle(render_group *Group, v2 P, v2 Size, v2 Rotation, v4 Color, f32 ZOffset);
+internal void PushLine(render_group *Group, v2 BeginPoint, v2 EndPoint, f32 LineWidth, v4 Color, f32 ZOffset);
+internal void PushTriangle(render_group *Group, v2 P0, v2 P1, v2 P2, v4 Color, f32 ZOffset);
+internal void PushImage(render_group *Group, v2 Dim, render_texture_handle TextureHandle);
+internal f32 ClipSpaceLengthToWorldSpace(render_group *RenderGroup, f32 Clip);
+internal void SetTransform(render_group *RenderGroup, mat3 Model, f32 ZOffset);
+internal void ResetTransform(render_group *RenderGroup);
 
 enum renderer_transfer_op_type
 {
@@ -154,6 +162,8 @@ struct renderer_transfer_queue
  u64 FreeOffset;
  u64 TransferMemorySize;
 };
+internal renderer_transfer_op *PushTextureTransfer(renderer_transfer_queue *Queue, u32 TextureWidth, u32 TextureHeight, u64 SizeInBytes, render_texture_handle TextureHandle);
+internal void PopTextureTransfer(renderer_transfer_queue *Queue, renderer_transfer_op *Op);
 
 struct platform_renderer_limits
 {

@@ -35,7 +35,6 @@ struct notification
 
 enum
 {
- TrackedActionFlag_Active = (1<<0),
  TrackedActionFlag_Pending = (1<<1),
 };
 typedef u32 tracked_action_flags;
@@ -51,6 +50,8 @@ enum tracked_action_type
 };
 struct tracked_action
 {
+ tracked_action *Next;
+ tracked_action *Prev;
  tracked_action_type Type;
  entity_handle Entity;
  entity_handle PreviouslySelectedEntity;
@@ -64,8 +65,8 @@ struct tracked_action
 global tracked_action NilTrackedAction;
 struct action_tracking_group
 {
- u32 Count;
- tracked_action Actions[4];
+ tracked_action *ActionsHead;
+ tracked_action *ActionsTail;
 };
 global action_tracking_group NilActionTrackingGroup;
 
@@ -181,6 +182,7 @@ struct editor
  action_tracking_group ActionTrackingGroups[1024];
  b32 IsPendingActionTrackingGroup;
  action_tracking_group PendingActionTrackingGroup;
+ tracked_action *FreeTrackedAction;
  
 #define MAX_NOTIFICATION_COUNT 16
  u32 NotificationCount;

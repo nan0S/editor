@@ -693,10 +693,10 @@ ControlPointAndBezierOffsetFromCurvePoint(curve_point_handle CurvePoint,
 }
 
 internal void
-SetCurvePointP(entity_with_modify_witness *EntityWitness,
-               curve_point_handle CurvePoint,
-               v2 P,
-               translate_curve_point_flags Flags)
+TranslateCurvePointTo(entity_with_modify_witness *EntityWitness,
+                      curve_point_handle CurvePoint,
+                      v2 P,
+                      translate_curve_point_flags Flags)
 {
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
@@ -881,7 +881,7 @@ AppendControlPoint(entity_with_modify_witness *EntityWitness, v2 P)
 }
 
 internal void
-SetCurveControlPointAt(entity_with_modify_witness *Witness, control_point_handle Handle, control_point Point)
+SetControlPoint(entity_with_modify_witness *Witness, control_point_handle Handle, control_point Point)
 {
  entity *Entity = Witness->Entity;
  curve *Curve = SafeGetCurve(Entity);
@@ -896,7 +896,12 @@ SetCurveControlPointAt(entity_with_modify_witness *Witness, control_point_handle
  W[I] = (Point.IsWeight ? Point.Weight : 1.0f);
  if (Point.IsBezier)
  {
-  B[I] = Point.Bezier;
+  cubic_bezier_point Bezier = {
+   WorldToLocalEntityPosition(Entity, Point.Bezier.P0),
+   WorldToLocalEntityPosition(Entity, Point.Bezier.P1),
+   WorldToLocalEntityPosition(Entity, Point.Bezier.P2),
+  };
+  B[I] = Bezier;
  }
  else
  {
@@ -945,7 +950,7 @@ MemoryMove((Array) + ((At)+(ShiftCount)), \
   ShiftRightArray(B, N, At, 1);
 #undef ShiftRightArray
   
-  SetCurveControlPointAt(EntityWitness, Handle, Point);
+  SetControlPoint(EntityWitness, Handle, Point);
   
   if (IsControlPointSelected(Curve))
   {
@@ -1040,11 +1045,11 @@ InitEntityAsImage(entity *Entity,
 }
 
 internal void
-SetCurveControlPointP(entity_with_modify_witness *EntityWitness, control_point_handle Handle, v2 P, f32 Weight)
+SetControlPoint(entity_with_modify_witness *EntityWitness, control_point_handle Handle, v2 P, f32 Weight)
 {
  curve_point_handle CurvePoint = CurvePointFromControlPoint(Handle);
  entity *Entity = EntityWitness->Entity;
- SetCurvePointP(EntityWitness, CurvePoint, P, TranslateCurvePoint_None);
+ TranslateCurvePointTo(EntityWitness, CurvePoint, P, TranslateCurvePoint_None);
  
  if (!ControlPointHandleMatch(Handle, ControlPointHandleZero()))
  {

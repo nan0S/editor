@@ -73,8 +73,8 @@ PushCircle(render_group *Group,
            v2 P,
            f32 Radius, v4 Color,
            f32 ZOffset,
-           f32 OutlineThickness = 0,
-           v4 OutlineColor = V4(0, 0, 0, 0))
+           f32 OutlineThickness,
+           v4 OutlineColor)
 {
  ProfileFunctionBegin();
  
@@ -224,8 +224,7 @@ PushImage(render_group *Group, v2 Dim, render_texture_handle TextureHandle)
 internal render_group
 BeginRenderGroup(render_frame *Frame,
                  v2 CameraP, v2 CameraRot, f32 CameraZoom,
-                 v4 ClearColor, f32 CollisionToleranceClip,
-                 f32 RotationRadiusClip)
+                 v4 ClearColor)
 {
  render_group Result = {};
  
@@ -240,14 +239,20 @@ BeginRenderGroup(render_frame *Frame,
  Result.ProjXForm.Inverse = CameraT.Inverse * ClipT.Inverse;
  Result.ModelXForm = Identity3x3();
  
- Result.CollisionTolerance = CollisionToleranceClip / CameraZoom;
- Result.RotationRadius = RotationRadiusClip / CameraZoom;
  Result.AspectRatio = AspectRatio;
+ Result.CameraZoom = CameraZoom;
  
  Frame->Proj = Result.ProjXForm.Forward;
  Frame->ClearColor = ClearColor;
  
  return Result;
+}
+
+internal f32
+ClipSpaceLengthToWorldSpace(render_group *RenderGroup, f32 Clip)
+{
+ f32 World = Clip / RenderGroup->CameraZoom;
+ return World;
 }
 
 internal renderer_transfer_op *

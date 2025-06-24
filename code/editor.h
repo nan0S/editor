@@ -37,6 +37,9 @@ TODO:
  - GPU buffer_index in the same way we have texture_index
  - update "help" - add info about moving cubic bezier helpers, add info about "undo/redo"
 - keyboard shortcuts in help
+ - convex hull around pieces of b-spline segments
+- enable/disable grid
+- proper grid implementation
 
  Bugs:
  - ZOffset are fucked - if multiple images have the same ZOffset, make sure to check collisions in the reverse order they are renderer

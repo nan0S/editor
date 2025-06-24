@@ -1515,6 +1515,7 @@ RenderMenuBarUI(editor *Editor,
    UI_MenuItem(&Editor->EntityListWindow, 0, StrLit("Entity List"));
    UI_MenuItem(&Editor->SelectedEntityWindow, 0, StrLit("Selected Entity"));
    UI_MenuItem(&Editor->ProfilerWindow, 0, StrLit("Profiler"));
+   UI_MenuItem(&Editor->Grid, 0, StrLit("Grid"));
    UI_EndMenu();
   }
   
@@ -3477,6 +3478,50 @@ InitGlobalsOnInitOrCodeReload(editor *Editor)
 }
 
 internal void
+RenderGrid(editor *Editor, render_group *RenderGroup)
+{
+ ProfileFunctionBegin();
+ if (Editor->Grid)
+ {
+  f32 GridZOffset = 0.0f;
+  v4 GridColor = GrayColor(122, 70);
+  f32 GridLineWidthClip = 0.001f;
+  f32 GridLineWidth = ClipSpaceLengthToWorldSpace(RenderGroup, GridLineWidthClip);
+  
+  //- vertical part
+  for (i32 X = -2; X <= 2; ++X)
+  {
+   f32 BottomY = Unproject(RenderGroup, V2(0.0f, -1.0f)).Y;
+   f32 TopY = Unproject(RenderGroup, V2(0.0f, 1.0f)).Y;
+   f32 GridX = Cast(f32)X;
+   
+   v2 Bottom = V2(GridX, BottomY);
+   v2 Top = V2(GridX, TopY);
+   
+   PushLine(RenderGroup,
+            Bottom, Top,
+            GridLineWidth, GridColor, GridZOffset);
+  }
+  
+  //- horizontal part
+  for (i32 Y = -2; Y <= 2; ++Y)
+  {
+   f32 LeftX = Unproject(RenderGroup, V2(-1.0f, 0.0f)).X;
+   f32 RightX = Unproject(RenderGroup, V2(1.0f, 0.0f)).X;
+   f32 GridY = Cast(f32)Y;
+   
+   v2 Left = V2(LeftX, GridY);
+   v2 Right = V2(RightX, GridY);
+   
+   PushLine(RenderGroup,
+            Left, Right,
+            GridLineWidth, GridColor, GridZOffset);
+  }
+ }
+ ProfileEnd();
+}
+
+internal void
 EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, struct render_frame *Frame)
 {
  editor *Editor = Memory->Editor;
@@ -3564,48 +3609,6 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
   }
  }
  
- //- render grid
- {
-  ProfileBegin("Render Grid");
-  
-  f32 GridZOffset = 0.0f;
-  v4 GridColor = GrayColor(122, 70);
-  f32 GridLineWidthClip = 0.001f;
-  f32 GridLineWidth = ClipSpaceLengthToWorldSpace(RenderGroup, GridLineWidthClip);
-  
-  //- vertical part
-  for (i32 X = -2; X <= 2; ++X)
-  {
-   f32 BottomY = Unproject(RenderGroup, V2(0.0f, -1.0f)).Y;
-   f32 TopY = Unproject(RenderGroup, V2(0.0f, 1.0f)).Y;
-   f32 GridX = Cast(f32)X;
-   
-   v2 Bottom = V2(GridX, BottomY);
-   v2 Top = V2(GridX, TopY);
-   
-   PushLine(RenderGroup,
-            Bottom, Top,
-            GridLineWidth, GridColor, GridZOffset);
-  }
-  
-  //- horizontal part
-  for (i32 Y = -2; Y <= 2; ++Y)
-  {
-   f32 LeftX = Unproject(RenderGroup, V2(-1.0f, 0.0f)).X;
-   f32 RightX = Unproject(RenderGroup, V2(1.0f, 0.0f)).X;
-   f32 GridY = Cast(f32)Y;
-   
-   v2 Left = V2(LeftX, GridY);
-   v2 Right = V2(RightX, GridY);
-   
-   PushLine(RenderGroup,
-            Left, Right,
-            GridLineWidth, GridColor, GridZOffset);
-  }
-  
-  ProfileEnd();
- }
- 
  if (!Editor->HideUI)
  {
   ProfileBegin("UI Update");
@@ -3629,6 +3632,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  
  UpdateCamera(&Editor->Camera, Input);
  UpdateFrameStats(&Editor->FrameStats, Input);
+ RenderGrid(Editor, RenderGroup);
  UpdateAndRenderEntities(Editor, RenderGroup);
  UpdateAndRenderAnimatingCurves(&Editor->AnimatingCurves, Input, RenderGroup);
  UpdateAndRenderNotifications(Editor, Input, RenderGroup);

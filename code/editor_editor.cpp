@@ -651,7 +651,7 @@ EndEditorFrame(editor *Editor)
  b32 HasPending = false;
  ListIter(Action, Group->ActionsHead, tracked_action)
  {
-  if (Action->Flags & TrackedActionFlag_Pending)
+  if (Action->IsPending)
   {
    HasPending = true;
    break;
@@ -776,7 +776,7 @@ internal tracked_action *
 NextTrackedActionFromGroup(editor *Editor, action_tracking_group *Group, b32 Partial)
 {
  tracked_action *Action = AllocTrackedAction(Editor);
- Action->Flags = (Partial ? TrackedActionFlag_Pending : 0);
+ Action->IsPending = Partial;
  DLLPushBack(Group->ActionsHead, Group->ActionsTail, Action);
  return Action;
 }
@@ -786,8 +786,8 @@ FinishPendingAction(editor *Editor, action_tracking_group *Group, tracked_action
 {
  if (Action != &NilTrackedAction)
  {
-  Assert(Action->Flags & TrackedActionFlag_Pending);
-  Action->Flags &= ~TrackedActionFlag_Pending;
+  Assert(Action->IsPending);
+  Action->IsPending = false;
   if (Cancel)
   {
    DeallocTrackedAction(Editor, Group, Action);

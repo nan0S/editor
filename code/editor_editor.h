@@ -33,11 +33,6 @@ struct notification
  f32 ScreenPosY;
 };
 
-enum
-{
- TrackedActionFlag_Pending = (1<<1),
-};
-typedef u32 tracked_action_flags;
 enum tracked_action_type
 {
  TrackedAction_AddEntity,
@@ -60,7 +55,7 @@ struct tracked_action
  control_point_handle ControlPointHandle;
  v2 OriginalEntityP;
  v2 MovedToEntityP;
- tracked_action_flags Flags;
+ b32 IsPending;
 };
 global tracked_action NilTrackedAction;
 struct action_tracking_group
@@ -195,6 +190,7 @@ struct editor
  b32 HelpWindow;
  b32 ProfilerWindow;
  b32 DevConsole;
+ b32 Grid;
  
  editor_left_click_state LeftClick;
  editor_right_click_state RightClick;

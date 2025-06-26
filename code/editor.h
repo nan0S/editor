@@ -44,6 +44,8 @@ TODO:
 - rename "Copy" button into "Duplicate"
 - add resource monitor - memory/texture handles - to investigate if there are any leaks
 - holding Ctrl-Z should do a bunch of undos in a row - aka. sticky keys or something
+- "sample"? tool - from point that lets us sample color from the application and use it to color curve for example
+- multiselect curves to change it's parameters at once - for example change line width/color, also maybe to move them at once
 
  Bugs:
  - ZOffset are fucked - if multiple images have the same ZOffset, make sure to check collisions in the reverse order they are renderer

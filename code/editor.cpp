@@ -1023,7 +1023,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
             UI_Text(false, Resources->X_ErrorMessage);
            }
           }
-          if (DEBUG_Settings->ParametricEquationDebugMode)
+          if (DEBUG_Vars->ParametricEquationDebugMode)
           {
            UI_ParametricEquationExpr(Parametric->X_Equation, StrLit("x(t) expr"));
           }
@@ -1056,7 +1056,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
             UI_Text(false, Resources->Y_ErrorMessage);
            }
           }
-          if (DEBUG_Settings->ParametricEquationDebugMode)
+          if (DEBUG_Vars->ParametricEquationDebugMode)
           {
            UI_ParametricEquationExpr(Parametric->Y_Equation, StrLit("y(t) expr"));
           }
@@ -3465,8 +3465,9 @@ RenderDevConsoleUI(editor *Editor)
                      "bla bla blablabl ablablablablab lablablablablablablablablablabla"
                      "blabla blab lablablablab lablabla blablablablablablablablablabla");
    }
-   UI_Checkbox(&DEBUG_Settings->ParametricEquationDebugMode, StrLit("Parametric Equation Debug Mode Enabled"));
+   UI_Checkbox(&DEBUG_Vars->ParametricEquationDebugMode, StrLit("Parametric Equation Debug Mode Enabled"));
    UI_ExponentialAnimation(&Camera->Animation);
+   UI_TextF(false, "DrawnGridLinesCount=%u", DEBUG_Vars->DrawnGridLinesCount);
   }
   UI_EndWindow();
  }
@@ -3476,7 +3477,62 @@ internal void
 InitGlobalsOnInitOrCodeReload(editor *Editor)
 {
  NilExpr = &Editor->NilParametricExpr;
- DEBUG_Settings = &Editor->DEBUG_Settings;
+ DEBUG_Vars = &Editor->DEBUG_Vars;
+}
+
+internal u32
+RenderGridLinesAlongAxis(render_group *RenderGroup, axis2 Axis)
+{
+ i32 LogBase = 5;
+ f32 LineZOffset = 0.0f;
+ v4 LineColor = GrayColor(122, 50);
+ f32 MajorLineWidthClip = 0.003f;
+ f32 MinorLineWidthClip = 0.001f;
+ 
+ v2 Corner0 = Unproject(RenderGroup, V2(-1.0f, -1.0f));
+ v2 Corner1 = Unproject(RenderGroup, V2(-1.0f, +1.0f));
+ v2 Corner2 = Unproject(RenderGroup, V2(+1.0f, -1.0f));
+ v2 Corner3 = Unproject(RenderGroup, V2(+1.0f, +1.0f));
+ 
+ rect2 ViewportWorld = {};
+ AddPointAABB(&ViewportWorld, Corner0);
+ AddPointAABB(&ViewportWorld, Corner1);
+ AddPointAABB(&ViewportWorld, Corner2);
+ AddPointAABB(&ViewportWorld, Corner3);
+ 
+ f32 MajorLineWidth = ClipSpaceLengthToWorldSpace(RenderGroup, MajorLineWidthClip);
+ f32 MinorLineWidth = ClipSpaceLengthToWorldSpace(RenderGroup, MinorLineWidthClip);
+ f32 LogBaseF = Cast(f32)LogBase;
+ f32 Span = ClipSpaceLengthToWorldSpace(RenderGroup, 2.0f / 5);
+ f32 Spacing = PowF32(LogBaseF, FloorF32(LogBF32(LogBaseF, Span)));
+ f32 InvWidth = 1.0f / Spacing;
+ i32 From = Cast(i32)CeilF32(ViewportWorld.Min.E[Axis] * InvWidth);
+ i32 To = Cast(i32)FloorF32(ViewportWorld.Max.E[Axis] * InvWidth);
+ 
+ u32 RenderedLineCount = 0;
+ for (i32 I = From;
+      I <= To;
+      ++I)
+ {
+  f32 A = I * Spacing;
+  
+  v2 Begin;
+  Begin.E[Axis] = A;
+  Begin.E[1-Axis] = ViewportWorld.Min.E[1-Axis];
+  
+  v2 End;
+  End.E[Axis] = A;
+  End.E[1-Axis] = ViewportWorld.Max.E[1-Axis];
+  
+  f32 Width = ((I % LogBase == 0) ? MajorLineWidth : MinorLineWidth);
+  PushLine(RenderGroup,
+           Begin, End,
+           Width, LineColor,
+           LineZOffset);
+  
+  ++RenderedLineCount;
+ }
+ return RenderedLineCount;
 }
 
 internal void
@@ -3485,40 +3541,12 @@ RenderGrid(editor *Editor, render_group *RenderGroup)
  ProfileFunctionBegin();
  if (Editor->Grid)
  {
-  f32 GridZOffset = 0.0f;
-  v4 GridColor = GrayColor(122, 70);
-  f32 GridLineWidthClip = 0.001f;
-  f32 GridLineWidth = ClipSpaceLengthToWorldSpace(RenderGroup, GridLineWidthClip);
-  
-  //- vertical part
-  for (i32 X = -2; X <= 2; ++X)
+  u32 GridLineCount = 0;
+  ForEachEnumVal(Axis, Axis2_Count, axis2)
   {
-   f32 BottomY = Unproject(RenderGroup, V2(0.0f, -1.0f)).Y;
-   f32 TopY = Unproject(RenderGroup, V2(0.0f, 1.0f)).Y;
-   f32 GridX = Cast(f32)X;
-   
-   v2 Bottom = V2(GridX, BottomY);
-   v2 Top = V2(GridX, TopY);
-   
-   PushLine(RenderGroup,
-            Bottom, Top,
-            GridLineWidth, GridColor, GridZOffset);
+   GridLineCount += RenderGridLinesAlongAxis(RenderGroup, Axis);
   }
-  
-  //- horizontal part
-  for (i32 Y = -2; Y <= 2; ++Y)
-  {
-   f32 LeftX = Unproject(RenderGroup, V2(-1.0f, 0.0f)).X;
-   f32 RightX = Unproject(RenderGroup, V2(1.0f, 0.0f)).X;
-   f32 GridY = Cast(f32)Y;
-   
-   v2 Left = V2(LeftX, GridY);
-   v2 Right = V2(RightX, GridY);
-   
-   PushLine(RenderGroup,
-            Left, Right,
-            GridLineWidth, GridColor, GridZOffset);
-  }
+  DEBUG_Vars->DrawnGridLinesCount = GridLineCount;
  }
  ProfileEnd();
 }

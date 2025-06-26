@@ -38,12 +38,12 @@ TODO:
  - update "help" - add info about moving cubic bezier helpers, add info about "undo/redo"
 - keyboard shortcuts in help
  - convex hull around pieces of b-spline segments
-- proper grid implementation
 - remove DLL loading in release mode
 - make undo/redo work with elevate/lower bezier curve degree
 - Checbyshev polynomial bezier degree lowering method
 - rename "Copy" button into "Duplicate"
 - add resource monitor - memory/texture handles - to investigate if there are any leaks
+- holding Ctrl-Z should do a bunch of undos in a row - aka. sticky keys or something
 
  Bugs:
  - ZOffset are fucked - if multiple images have the same ZOffset, make sure to check collisions in the reverse order they are renderer

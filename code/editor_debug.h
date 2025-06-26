@@ -3,11 +3,12 @@
 
 struct parametric_equation_expr;
 
-struct debug_settings
+struct debug_vars
 {
  b32 ParametricEquationDebugMode;
+ u32 DrawnGridLinesCount;
 };
-global debug_settings *DEBUG_Settings;
+global debug_vars *DEBUG_Vars;
 
 internal void UI_ParametricEquationExpr(parametric_equation_expr *Expr, string Label);
 

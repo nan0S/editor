@@ -147,6 +147,13 @@ inline f64 _F64Inf(void) { union { u64 I; f64 F; } X = {0x7ff0000000000000ull}; 
 
 typedef b32 success_b32;
 
+enum axis2
+{
+ Axis2_X,
+ Axis2_Y,
+ Axis2_Count,
+};
+
 union v2
 {
  struct { f32 X, Y; };

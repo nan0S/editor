@@ -25,6 +25,7 @@
 #define SqrtF32(X)             sqrtf(X)
 #define ExpF32(X)              expf(X)
 #define LogF32(X)              logf(X)
+#define LogBF32(Base, X)       (LogF32(X) / LogF32(Base))
 #define Log10F32(X)            log10f(X)
 #define TanhF32(X)             tanhf(X)
 #define SinhF32(X)             sinhf(X)

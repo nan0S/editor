@@ -432,6 +432,33 @@ struct control_point
  b32 IsBezier;
 };
 
+// defines visibility/draw order for different curve parts
+enum curve_part_visibility
+{
+ // this is at the bottom
+ CurvePartVisibility_LineShadow,
+ 
+ CurvePartVisibility_CurveLine,
+ CurvePartVisibility_CurveControlPoint,
+ 
+ CurvePartVisibility_CurvePolyline,
+ CurvePartVisibility_CurveConvexHull,
+ 
+ CurvePartVisibility_CubicBezierHelperLines,
+ CurvePartVisibility_CubicBezierHelperPoints,
+ 
+ CurvePartVisibility_DeCasteljauAlgorithmLines,
+ CurvePartVisibility_DeCasteljauAlgorithmPoints,
+ 
+ CurvePartVisibility_BezierSplitPoint,
+ 
+ CurvePartVisibility_B_SplineKnot,
+ // this is at the very top
+ 
+ CurvePartVisibility_Count,
+};
+internal f32 GetCurvePartVisibilityZOffset(curve_part_visibility Part);
+
 internal curve *SafeGetCurve(entity *Entity);
 internal image *SafeGetImage(entity *Entity);
 

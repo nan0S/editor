@@ -158,16 +158,58 @@ struct visual_profiler_state
  profiler_frame FrameSnapshot;
 };
 
+enum editor_command
+{
+ EditorCommand_New,
+ EditorCommand_Open,
+ EditorCommand_Save,
+ EditorCommand_SaveAs,
+ EditorCommand_Quit,
+ EditorCommand_ToggleDevConsole,
+ EditorCommand_Delete,
+ EditorCommand_Duplicate,
+ EditorCommand_ToggleProfiler,
+ EditorCommand_Undo,
+ EditorCommand_Redo,
+ EditorCommand_ToggleUI,
+ 
+ EditorCommand_Count,
+};
+global read_only string EditorCommandNames[] = {
+ StrLitComp("New"),
+ StrLitComp("Open"),
+ StrLitComp("Save"),
+ StrLitComp("Save As"),
+ StrLitComp("Quit"),
+ StrLitComp("Toggle Dev Console"),
+ StrLitComp("Delete"),
+ StrLitComp("Duplicate"),
+ StrLitComp("Toggle Profiler"),
+ StrLitComp("Undo"),
+ StrLitComp("Redo"),
+ StrLitComp("Toggle UI"),
+};
+struct editor_command_node
+{
+ editor_command_node *Next;
+ editor_command Command;
+};
+
 struct editor
 {
- camera Camera;
- frame_stats FrameStats;
+ arena *Arena;
  
  renderer_transfer_queue *RendererQueue;
- 
  string_cache StrCache;
  entity_store EntityStore;
- arena *Arena;
+ thread_task_memory_store ThreadTaskMemoryStore;
+ image_loading_store ImageLoadingStore;
+ 
+ struct work_queue *LowPriorityQueue;
+ struct work_queue *HighPriorityQueue;
+ 
+ camera Camera;
+ frame_stats FrameStats;
  
  entity_handle SelectedEntity;
  u64 EverIncreasingEntityCounter;
@@ -178,6 +220,10 @@ struct editor
  b32 IsPendingActionTrackingGroup;
  action_tracking_group PendingActionTrackingGroup;
  tracked_action *FreeTrackedAction;
+ 
+ editor_command_node *EditorCommandsHead;
+ editor_command_node *EditorCommandsTail;
+ editor_command_node *FreeEditorCommandNode;
  
 #define MAX_NOTIFICATION_COUNT 16
  u32 NotificationCount;
@@ -196,13 +242,7 @@ struct editor
  editor_right_click_state RightClick;
  editor_middle_click_state MiddleClick;
  
- thread_task_memory_store ThreadTaskMemoryStore;
- image_loading_store ImageLoadingStore;
- 
  parametric_equation_expr NilParametricExpr;
- 
- struct work_queue *LowPriorityQueue;
- struct work_queue *HighPriorityQueue;
  
  animating_curves_state AnimatingCurves;
  merging_curves_state MergingCurves;
@@ -242,7 +282,8 @@ internal tracked_action *BeginControlPointMove(editor *Editor, entity *Entity, c
 internal void EndControlPointMove(editor *Editor, tracked_action *MoveAction);
 
 internal void BeginEditorFrame(editor *Editor);
-internal void EndEditorFrame(editor *Editor);
+internal void EndEditorFrame(editor *Editor, platform_input_output *Input);
+internal void PushEditorCmd(editor *Editor, editor_command Command);
 
 //- merging curves
 internal void BeginMergingCurves(merging_curves_state *Merging);

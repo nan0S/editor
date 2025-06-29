@@ -61,6 +61,14 @@ EntityFromHandle(entity_handle Handle, b32 AllowDeactived)
  return Entity;
 }
 
+internal inline f32
+GetCurvePartVisibilityZOffset(curve_part_visibility Part)
+{
+ Assert(Part < CurvePartVisibility_Count);
+ f32 Result = Cast(f32)(CurvePartVisibility_Count-1 - Part) / CurvePartVisibility_Count;
+ return Result;
+}
+
 inline internal curve *
 SafeGetCurve(entity *Entity)
 {

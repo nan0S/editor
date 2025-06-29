@@ -62,13 +62,13 @@ GLFWMouseButtonToPlatformKey(int Button)
  return Result;
 }
 
-internal platform_event_flags
-GLFWModsToFlags(int Mods)
+internal platform_key_modifier_flags
+GLFWModsToPlatformMods(int Mods)
 {
- platform_event_flags Flags = 0;
- if (Mods & GLFW_MOD_SHIFT) Flags |= PlatformEventFlag_Shift;
- if (Mods & GLFW_MOD_CONTROL) Flags |= PlatformEventFlag_Ctrl;
- if (Mods & GLFW_MOD_ALT) Flags |= PlatformEventFlag_Alt;
+ platform_key_modifier_flags Flags = 0;
+ if (Mods & GLFW_MOD_SHIFT) Flags |= PlatformKeyModifierFlag_Shift;
+ if (Mods & GLFW_MOD_CONTROL) Flags |= PlatformKeyModifierFlag_Ctrl;
+ if (Mods & GLFW_MOD_ALT) Flags |= PlatformKeyModifierFlag_Alt;
  
  return Flags;
 }
@@ -92,7 +92,7 @@ GLFWKeyCallback(GLFWwindow *Window, int Key, int ScanCode, int Action, int Mods)
     if (Event)
     {
      Event->Key = GLFWState->GLFWToPlatformKeyTable[Key];
-     Event->Flags = GLFWModsToFlags(Mods);
+     Event->Modifiers = GLFWModsToPlatformMods(Mods);
     }
    }break;
    
@@ -156,7 +156,7 @@ GLFWMouseButtonCallback(GLFWwindow *Window, int Button, int Action, int Mods)
     {
      Event->Key = GLFWMouseButtonToPlatformKey(Button);
      Event->ClipSpaceMouseP = GLFWGetCursorPosInClipSpace(Window);
-     Event->Flags = GLFWModsToFlags(Mods);
+     Event->Modifiers = GLFWModsToPlatformMods(Mods);
     }
    }break;
    

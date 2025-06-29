@@ -152,29 +152,34 @@ StaticAssert(ArrayCount(PlatformKeyNames) == PlatformKey_Count,
 
 enum platform_key_modifier
 {
+ PlatformKeyModifier_Ctrl,
  PlatformKeyModifier_Alt,
  PlatformKeyModifier_Shift,
- PlatformKeyModifier_Ctrl,
+ 
  PlatformKeyModifier_Count,
 };
-#define NoKeyModifier PlatformEventFlag_None
+#define NoKeyModifier PlatformKeyModifierFlag_None
 #define KeyModifierFlag(Key) (1<<PlatformKeyModifier_##Key)
 #define AnyKeyModifier (KeyModifierFlag(Count) - 1)
-
-typedef u32 platform_event_flags;
+typedef u32 platform_key_modifier_flags;
 enum
 {
- PlatformEventFlag_None,
- PlatformEventFlag_Alt   = KeyModifierFlag(Alt),
- PlatformEventFlag_Shift = KeyModifierFlag(Shift),
- PlatformEventFlag_Ctrl  = KeyModifierFlag(Ctrl),
+ PlatformKeyModifierFlag_None,
+ PlatformKeyModifierFlag_Alt   = KeyModifierFlag(Alt),
+ PlatformKeyModifierFlag_Shift = KeyModifierFlag(Shift),
+ PlatformKeyModifierFlag_Ctrl  = KeyModifierFlag(Ctrl),
+};
+global read_only string PlatformKeyModifierNames[] = {
+ StrLitComp("Ctrl"),
+ StrLitComp("Alt"),
+ StrLitComp("Shift"),
 };
 
 struct platform_event
 {
  platform_event_type Type;
  platform_key Key;
- platform_event_flags Flags;
+ platform_key_modifier_flags Modifiers;
  v2 ClipSpaceMouseP;
  f32 ScrollDelta;
  
@@ -297,7 +302,10 @@ internal f32 UseAndExtractDeltaTime(platform_input_output *Input);
 internal f32 ExtractDeltaTimeOnly(platform_input_output *Input);
 
 //- event helpers
-internal b32 IsKeyPress(platform_event *Event, platform_key Key, platform_event_flags Flags = 0);
+internal b32 IsKeyPress(platform_event *Event, platform_key Key, platform_key_modifier_flags Flags = NoKeyModifier);
 internal b32 IsKeyRelease(platform_event *Event, platform_key Key);
+
+//- misc
+internal string PlatformKeyCombinationToString(arena *Arena, platform_key Key, platform_key_modifier_flags Modifiers);
 
 #endif //EDITOR_PLATFORM_H

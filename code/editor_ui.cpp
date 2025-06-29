@@ -799,13 +799,14 @@ UI_BeginPopup(string Label, ui_window_flags Flags)
 internal void UI_EndPopup(void) { Platform.ImGui.EndPopup(); }
 
 internal b32
-UI_MenuItem(b32 *Selected, char const *Shortcut, string Label)
+UI_MenuItem(b32 *Selected, string Shortcut, string Label)
 {
  temp_arena Temp = TempArena(0);
+ string CShortcut = CStrFromStr(Temp.Arena, Shortcut);
  string CLabel = CStrFromStr(Temp.Arena, Label);
  bool Selected_ = false;
  if (Selected) Selected_ = Cast(bool)(*Selected);
- b32 Result = Cast(b32)Platform.ImGui.MenuItem(CLabel.Data, Shortcut, &Selected_);
+ b32 Result = Cast(b32)Platform.ImGui.MenuItem(CLabel.Data, CShortcut.Data, &Selected_);
  if (Selected) *Selected = Cast(b32)Selected_;
  EndTemp(Temp);
  
@@ -813,7 +814,7 @@ UI_MenuItem(b32 *Selected, char const *Shortcut, string Label)
 }
 
 internal b32
-UI_MenuItemF(b32 *Selected, char const *Shortcut, char const *Format, ...)
+UI_MenuItemF(b32 *Selected, string Shortcut, char const *Format, ...)
 {
  temp_arena Temp = TempArena(0);
  va_list Args;
@@ -1026,4 +1027,32 @@ internal void
 UI_RenderDemoWindow(void)
 {
  Platform.ImGui.ShowDemoWindow();
+}
+
+internal b32
+UI_BeginTable(u32 Columns, string Label)
+{
+ temp_arena Temp = TempArena(0);
+ string CLabel = CStrFromStr(Temp.Arena, Label);
+ b32 Result = Cast(b32)Platform.ImGui.BeginTable(CLabel.Data, Columns, 0);
+ EndTemp(Temp);
+ return Result;
+}
+
+internal void
+UI_EndTable(void)
+{
+ Platform.ImGui.EndTable();
+}
+
+internal void
+UI_TableNextRow(void)
+{
+ Platform.ImGui.TableNextRow();
+}
+
+internal void
+UI_TableSetColumnIndex(u32 ColumnIndex)
+{
+ Platform.ImGui.TableSetColumnIndex(ColumnIndex);
 }

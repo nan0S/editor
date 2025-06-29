@@ -36,16 +36,15 @@ TODO:
 - parallelize curve recomputation
  - GPU buffer_index in the same way we have texture_index
  - update "help" - add info about moving cubic bezier helpers, add info about "undo/redo"
-- keyboard shortcuts in help
  - convex hull around pieces of b-spline segments
 - remove DLL loading in release mode
 - make undo/redo work with elevate/lower bezier curve degree
 - Checbyshev polynomial bezier degree lowering method
-- rename "Copy" button into "Duplicate"
 - add resource monitor - memory/texture handles - to investigate if there are any leaks
 - holding Ctrl-Z should do a bunch of undos in a row - aka. sticky keys or something
 - "sample"? tool - from point that lets us sample color from the application and use it to color curve for example
 - multiselect curves to change it's parameters at once - for example change line width/color, also maybe to move them at once
+- add scaling/rotating to undo/redo
 
  Bugs:
  - ZOffset are fucked - if multiple images have the same ZOffset, make sure to check collisions in the reverse order they are renderer
@@ -89,50 +88,40 @@ TODO:
  
  */
 
-// defines visibility/draw order for different curve parts
-enum curve_part
-{
- // this is at the bottom
- CurvePart_LineShadow,
- 
- CurvePart_CurveLine,
- CurvePart_CurveControlPoint,
- 
- CurvePart_CurvePolyline,
- CurvePart_CurveConvexHull,
- 
- CurvePart_CubicBezierHelperLines,
- CurvePart_CubicBezierHelperPoints,
- 
- CurvePart_DeCasteljauAlgorithmLines,
- CurvePart_DeCasteljauAlgorithmPoints,
- 
- CurvePart_BezierSplitPoint,
- 
- CurvePart_B_SplineKnot,
- // this is at the very top
- 
- CurvePart_Count,
-};
-
 struct rendering_entity_handle
 {
  entity *Entity;
  render_group *RenderGroup;
 };
 
-struct load_image_work
+struct editor_keyboard_shortcut
 {
- thread_task_memory_store *Store;
- thread_task_memory *TaskMemory;
- renderer_transfer_op *TextureOp;
- string ImagePath;
- image_loading_task *ImageLoading;
+ platform_key Key;
+ platform_key_modifier_flags Modifiers;
+};
+struct editor_keyboard_shortcut_group
+{
+ editor_command Command;
+ editor_keyboard_shortcut Shortcuts[2];
+ u32 Count;
+ b32 DevSpecific;
 };
 
-internal f32 GetCurvePartZOffset(curve_part Part);
-
-internal rendering_entity_handle BeginRenderingEntity(entity *Entity, render_group *RenderGroup);
-internal void EndRenderingEntity(rendering_entity_handle Handle);
+global read_only editor_keyboard_shortcut_group EditorKeyboardShortcuts[] =
+{
+ {EditorCommand_New, {{PlatformKey_N, KeyModifierFlag(Ctrl)}}, 1, false},
+ {EditorCommand_Open, {{PlatformKey_O, KeyModifierFlag(Ctrl)}}, 1, false},
+ {EditorCommand_Save, {{PlatformKey_S, KeyModifierFlag(Ctrl)}}, 1, false},
+ {EditorCommand_SaveAs, {{PlatformKey_S, KeyModifierFlag(Ctrl) | KeyModifierFlag(Shift)}}, 1, false},
+ {EditorCommand_Quit, {{PlatformKey_Escape, NoKeyModifier}}, 1, false},
+ {EditorCommand_ToggleDevConsole, {{PlatformKey_Backtick, NoKeyModifier}}, 1, true},
+ {EditorCommand_Delete, {{PlatformKey_X, KeyModifierFlag(Ctrl)}, {PlatformKey_Delete, NoKeyModifier}}, 2, false},
+ {EditorCommand_Duplicate, {{PlatformKey_D, KeyModifierFlag(Ctrl)}}, 1, false},
+ {EditorCommand_ToggleProfiler, {{PlatformKey_Q, KeyModifierFlag(Ctrl)}}, 1, true},
+ {EditorCommand_Undo, {{PlatformKey_Z, KeyModifierFlag(Ctrl)}}, 1, false},
+ {EditorCommand_Redo, {{PlatformKey_R, KeyModifierFlag(Ctrl)}}, 1, false},
+ {EditorCommand_ToggleUI, {{PlatformKey_Tab, NoKeyModifier}}, 1, false},
+};
+StaticAssert(ArrayCount(EditorKeyboardShortcuts) == EditorCommand_Count, EditorKeyboardShortcutsDefined);
 
 #endif //EDITOR_H

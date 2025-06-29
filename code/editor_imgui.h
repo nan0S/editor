@@ -83,6 +83,11 @@ X_Macro(BeginTabBar, BeginTabBar, bool, const char* str_id, str_id) \
 X_Macro(EndTabBar, EndTabBar, void, void, Nothing) \
 X_Macro(BeginTabItem, BeginTabItem, bool, char const *label, label) \
 X_Macro(EndTabItem, EndTabItem, void, void, Nothing) \
+X_Macro(BeginTable, BeginTable, bool, const char* str_id Comma int column Comma ImGuiTableFlags flags, str_id Comma column Comma flags) \
+X_Macro(EndTable, EndTable, void, Nothing, Nothing) \
+X_Macro(TableNextRow, TableNextRow, void, Nothing, Nothing) \
+X_Macro(TableNextColumn, TableNextColumn, bool, Nothing, Nothing) \
+X_Macro(TableSetColumnIndex, TableSetColumnIndex, bool, int column_n, column_n) \
 
 #define ImGuiVariadicFunctions \
 X_Macro(Text, Text, void, const char* fmt Comma ..., fmt) \

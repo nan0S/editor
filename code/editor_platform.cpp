@@ -12,12 +12,36 @@ ExtractDeltaTimeOnly(platform_input_output *Input)
  return Input->dtForFrame;
 }
 
+internal string
+PlatformKeyCombinationToString(arena *Arena,
+                               platform_key Key,
+                               platform_key_modifier_flags Modifiers)
+{
+ temp_arena Temp = TempArena(Arena);
+ 
+ string_list Strs = {};
+ ForEachEnumVal(Modifier, PlatformKeyModifier_Count, platform_key_modifier)
+ {
+  if (Modifiers & (1 << Modifier))
+  {
+   StrListPush(Temp.Arena, &Strs, PlatformKeyModifierNames[Modifier]);
+  }
+ }
+ StrListPush(Temp.Arena, &Strs, PlatformKeyNames[Key]);
+ 
+ string_list_join_options Opts = {};
+ Opts.Sep = StrLit("+");
+ string Result = StrListJoin(Arena, &Strs, Opts);
+ 
+ return Result;
+}
+
 internal b32
-IsKeyPress(platform_event *Event, platform_key Key, platform_event_flags Flags)
+IsKeyPress(platform_event *Event, platform_key Key, platform_key_modifier_flags Modifiers)
 {
  b32 Match = ((Event->Type == PlatformEvent_Press) &&
               (Event->Key == Key) &&
-              ((Flags == AnyKeyModifier) || ((Event->Flags & AnyKeyModifier) == Flags)));
+              ((Modifiers == AnyKeyModifier) || ((Event->Modifiers & AnyKeyModifier) == Modifiers)));
  return Match;
 }
 

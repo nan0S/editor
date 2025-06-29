@@ -23,14 +23,6 @@
 
 platform_api Platform;
 
-internal f32
-GetCurvePartZOffset(curve_part Part)
-{
- Assert(Part < CurvePart_Count);
- f32 Result = Cast(f32)(CurvePart_Count-1 - Part) / CurvePart_Count;
- return Result;
-}
-
 internal void
 MovePointAlongCurve(curve *Curve, v2 *TranslateInput, f32 *PointFractionInput, b32 Forward)
 {
@@ -87,7 +79,7 @@ ResetCtxMenu(string Label)
  }
  if (UI_BeginPopup(Label, UIWindowFlag_NoMove))
  {
-  Reset = UI_MenuItem(0, 0, StrLit("Reset"));
+  Reset = UI_MenuItem(0, NilStr, StrLit("Reset"));
   UI_EndPopup();
  }
  
@@ -135,7 +127,7 @@ UpdateAndRenderPointTracking(rendering_entity_handle Handle)
     PushCircle(RenderGroup,
                Tracking->LocalSpaceTrackedPoint,
                Radius, Color,
-               GetCurvePartZOffset(CurvePart_BezierSplitPoint),
+               GetCurvePartVisibilityZOffset(CurvePartVisibility_BezierSplitPoint),
                OutlineThickness, OutlineColor);
    }break;
    
@@ -159,14 +151,14 @@ UpdateAndRenderPointTracking(rendering_entity_handle Handle)
                      Tracking->LineVerticesPerIteration[Iteration].Vertices,
                      Tracking->LineVerticesPerIteration[Iteration].VertexCount,
                      Tracking->LineVerticesPerIteration[Iteration].Primitive,
-                     IterationColor, GetCurvePartZOffset(CurvePart_DeCasteljauAlgorithmLines));
+                     IterationColor, GetCurvePartVisibilityZOffset(CurvePartVisibility_DeCasteljauAlgorithmLines));
      
      for (u32 I = 0; I < IterationCount - Iteration; ++I)
      {
       v2 Point = Tracking->Intermediate.P[PointIndex];
       PushCircle(RenderGroup,
                  Point, PointSize, IterationColor,
-                 GetCurvePartZOffset(CurvePart_DeCasteljauAlgorithmPoints));
+                 GetCurvePartVisibilityZOffset(CurvePartVisibility_DeCasteljauAlgorithmPoints));
       ++PointIndex;
      }
      
@@ -251,81 +243,10 @@ UpdateAndRenderDegreeLowering(rendering_entity_handle Handle)
                    Lowering->SavedLineVertices.VertexCount,
                    Lowering->SavedLineVertices.Primitive,
                    Color,
-                   GetCurvePartZOffset(CurvePart_LineShadow));
+                   GetCurvePartVisibilityZOffset(CurvePartVisibility_LineShadow));
   }
   
   EndEntityModify(EntityWitness);
- }
-}
-
-internal void
-LoadImageWork(void *UserData)
-{
- load_image_work *Work = Cast(load_image_work *)UserData;
- 
- thread_task_memory_store *Store = Work->Store;
- thread_task_memory *Task = Work->TaskMemory;
- renderer_transfer_op *TextureOp = Work->TextureOp;
- string ImagePath = Work->ImagePath;
- image_loading_task *ImageLoading = Work->ImageLoading;
- arena *Arena = Task->Arena;
- 
- string ImageData = Platform.ReadEntireFile(Arena, Work->ImagePath);
- loaded_image LoadedImage = LoadImageFromMemory(Arena, ImageData.Data, ImageData.Count);
- 
- image_loading_state AsyncTaskState;
- renderer_transfer_op_state OpState;
- if (LoadedImage.Success)
- {
-  // TODO(hbr): Don't do memory copy, just read into that memory directly
-  MemoryCopy(TextureOp->Pixels, LoadedImage.Pixels, LoadedImage.Info.SizeInBytesUponLoad);
-  OpState = RendererOp_ReadyToTransfer;
-  AsyncTaskState = Image_Loaded;
- }
- else
- {
-  OpState = RendererOp_Empty;
-  AsyncTaskState = Image_Failed;
- }
- 
- CompilerWriteBarrier;
- TextureOp->State = OpState;
- ImageLoading->State = AsyncTaskState;
- 
- EndThreadTaskMemory(Store, Task);
-}
-
-internal void
-TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
-{
- work_queue *WorkQueue = Editor->LowPriorityQueue;
- entity_store *EntityStore = &Editor->EntityStore;
- thread_task_memory_store *ThreadTaskMemoryStore = &Editor->ThreadTaskMemoryStore;
- image_loading_store *ImageLoadingStore = &Editor->ImageLoadingStore;
- 
- ForEachIndex(FileIndex, FileCount)
- {
-  string FilePath = FilePaths[FileIndex];
-  
-  image_info ImageInfo = LoadImageInfo(FilePath);
-  render_texture_handle TextureHandle = AllocTextureHandle(EntityStore);
-  renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, ImageInfo.SizeInBytesUponLoad, TextureHandle);
-  thread_task_memory *TaskMemory = BeginThreadTaskMemory(ThreadTaskMemoryStore);
-  
-  image_loading_task *ImageLoading = BeginAsyncImageLoadingTask(ImageLoadingStore);
-  ImageLoading->ImageP = AtP;
-  ImageLoading->ImageInfo = ImageInfo;
-  ImageLoading->ImageFilePath = StrCopy(ImageLoading->Arena, FilePath);
-  ImageLoading->LoadingTexture = TextureHandle;
-  
-  load_image_work *Work = PushStruct(TaskMemory->Arena, load_image_work);
-  Work->Store = ThreadTaskMemoryStore;
-  Work->TaskMemory = TaskMemory;
-  Work->TextureOp = TextureOp;
-  Work->ImagePath = StrCopy(TaskMemory->Arena, FilePath);
-  Work->ImageLoading = ImageLoading;
-  
-  Platform.WorkQueueAddEntry(WorkQueue, LoadImageWork, Work);
  }
 }
 
@@ -442,7 +363,7 @@ RenderEntity(rendering_entity_handle Handle)
                     Curve->CurveVertices.VertexCount,
                     Curve->CurveVertices.Primitive,
                     Curve->Params.LineColor,
-                    GetCurvePartZOffset(CurvePart_CurveLine));
+                    GetCurvePartVisibilityZOffset(CurvePartVisibility_CurveLine));
    }
    
    if (IsPolylineVisible(Curve))
@@ -452,7 +373,7 @@ RenderEntity(rendering_entity_handle Handle)
                     Curve->PolylineVertices.VertexCount,
                     Curve->PolylineVertices.Primitive,
                     Curve->Params.PolylineColor,
-                    GetCurvePartZOffset(CurvePart_CurvePolyline));
+                    GetCurvePartVisibilityZOffset(CurvePartVisibility_CurvePolyline));
    }
    
    if (IsConvexHullVisible(Curve))
@@ -462,7 +383,7 @@ RenderEntity(rendering_entity_handle Handle)
                     Curve->ConvexHullVertices.VertexCount,
                     Curve->ConvexHullVertices.Primitive,
                     Curve->Params.ConvexHullColor,
-                    GetCurvePartZOffset(CurvePart_CurveConvexHull));
+                    GetCurvePartVisibilityZOffset(CurvePartVisibility_CurveConvexHull));
    }
    
    if (AreCurvePointsVisible(Curve))
@@ -487,11 +408,11 @@ RenderEntity(rendering_entity_handle Handle)
               Entity->P + CenterPoint,
               HelperLineWidth,
               CurveParams->LineColor,
-              GetCurvePartZOffset(CurvePart_CubicBezierHelperLines));
+              GetCurvePartVisibilityZOffset(CurvePartVisibility_CubicBezierHelperLines));
      PushCircle(RenderGroup,
                 BezierPoint,
                 BezierPointRadius, CurveParams->PointColor,
-                GetCurvePartZOffset(CurvePart_CubicBezierHelperPoints));
+                GetCurvePartVisibilityZOffset(CurvePartVisibility_CubicBezierHelperPoints));
     }
     
     u32 ControlPointCount = Curve->ControlPointCount;
@@ -505,7 +426,7 @@ RenderEntity(rendering_entity_handle Handle)
                 ControlPoints[PointIndex],
                 PointInfo.Radius,
                 PointInfo.Color,
-                GetCurvePartZOffset(CurvePart_CurveControlPoint),
+                GetCurvePartVisibilityZOffset(CurvePartVisibility_CurveControlPoint),
                 PointInfo.OutlineThickness,
                 PointInfo.OutlineColor);
     }
@@ -527,7 +448,7 @@ RenderEntity(rendering_entity_handle Handle)
                 Knot,
                 KnotPointInfo.Radius,
                 KnotPointInfo.Color,
-                GetCurvePartZOffset(CurvePart_B_SplineKnot),
+                GetCurvePartVisibilityZOffset(CurvePartVisibility_B_SplineKnot),
                 KnotPointInfo.OutlineThickness,
                 KnotPointInfo.OutlineColor);
     }
@@ -1483,29 +1404,51 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
 }
 
 internal void
-RenderMenuBarUI(editor *Editor,
-                b32 *NewProject, b32 *OpenFileDialog, b32 *SaveProject,
-                b32 *SaveProjectAs, b32 *QuitProject)
+RenderMenuBarUI(editor *Editor)
 {
+ temp_arena Temp = TempArena(0);
  if (UI_BeginMainMenuBar())
  {
   if (UI_BeginMenu(StrLit("File")))
   {
-   *NewProject     = UI_MenuItem(0, "Ctrl+N",       StrLit("New"));
-   *OpenFileDialog = UI_MenuItem(0, "Ctrl+O",       StrLit("Open"));
-   *SaveProject    = UI_MenuItem(0, "Ctrl+S",       StrLit("Save"));
-   *SaveProjectAs  = UI_MenuItem(0, "Ctrl+Shift+S", StrLit("Save As"));
-   *QuitProject    = UI_MenuItem(0, "Escape",       StrLit("Quit"));
+   editor_command Cmds[] =
+   {
+    EditorCommand_New,
+    EditorCommand_Open,
+    EditorCommand_Save,
+    EditorCommand_SaveAs,
+    EditorCommand_Quit,
+   };
+   ForEachElement(CmdIndex, Cmds)
+   {
+    editor_command Cmd = Cmds[CmdIndex];
+    editor_keyboard_shortcut_group *Group = EditorKeyboardShortcuts + Cmd;
+    string_list ShortcutStrsList = {};
+    ForEachIndex(ShortcutIndex, Group->Count)
+    {
+     editor_keyboard_shortcut *Shortcut = Group->Shortcuts + ShortcutIndex;
+     string ShortcutStr = PlatformKeyCombinationToString(Temp.Arena, Shortcut->Key, Shortcut->Modifiers);
+     StrListPush(Temp.Arena, &ShortcutStrsList, ShortcutStr);
+    }
+    string_list_join_options JoinOpts = {};
+    JoinOpts.Sep = StrLit("|");
+    string ShortcutString = StrListJoin(Temp.Arena, &ShortcutStrsList, JoinOpts);
+    string CommandString = EditorCommandNames[Cmd];
+    if (UI_MenuItem(0, ShortcutString, CommandString))
+    {
+     PushEditorCmd(Editor, Cmd);
+    }
+   }
    UI_EndMenu();
   }
   
   if(UI_BeginMenu(StrLit("Actions")))
   {
-   if (UI_MenuItem(0, 0, StrLit("Animate Curves")))
+   if (UI_MenuItem(0, NilStr, StrLit("Animate Curves")))
    {
     BeginAnimatingCurves(&Editor->AnimatingCurves);
    }
-   if (UI_MenuItem(0, 0, StrLit("Merge Curves")))
+   if (UI_MenuItem(0, NilStr, StrLit("Merge Curves")))
    {
     BeginMergingCurves(&Editor->MergingCurves);
    }
@@ -1514,10 +1457,10 @@ RenderMenuBarUI(editor *Editor,
   
   if (UI_BeginMenu(StrLit("View")))
   {
-   UI_MenuItem(&Editor->EntityListWindow, 0, StrLit("Entity List"));
-   UI_MenuItem(&Editor->SelectedEntityWindow, 0, StrLit("Selected Entity"));
-   UI_MenuItem(&Editor->ProfilerWindow, 0, StrLit("Profiler"));
-   UI_MenuItem(&Editor->Grid, 0, StrLit("Grid"));
+   UI_MenuItem(&Editor->EntityListWindow, NilStr, StrLit("Entity List"));
+   UI_MenuItem(&Editor->SelectedEntityWindow, NilStr, StrLit("Selected Entity"));
+   UI_MenuItem(&Editor->ProfilerWindow, NilStr, StrLit("Profiler"));
+   UI_MenuItem(&Editor->Grid, NilStr, StrLit("Grid"));
    UI_EndMenu();
   }
   
@@ -1555,10 +1498,11 @@ RenderMenuBarUI(editor *Editor,
    UI_EndMenu();
   }
   
-  UI_MenuItem(&Editor->HelpWindow, 0, StrLit("Help"));
+  UI_MenuItem(&Editor->HelpWindow, NilStr, StrLit("Help"));
   
   UI_EndMainMenuBar();
  }
+ EndTemp(Temp);
 }
 
 internal void
@@ -1605,23 +1549,23 @@ RenderEntityListWindowContents(editor *Editor, render_group *RenderGroup)
     }
     if (UI_BeginPopup(CtxMenu, 0))
     {
-     if(UI_MenuItem(0, 0, StrLit("Delete")))
+     if(UI_MenuItem(0, NilStr, StrLit("Delete")))
      {
       RemoveEntity(Editor, Entity);
      }
-     if(UI_MenuItem(0, 0, StrLit("Duplicate")))
+     if(UI_MenuItem(0, NilStr, StrLit("Duplicate")))
      {
       DuplicateEntity(Editor, Entity);
      }
-     if(UI_MenuItem(0, 0, (Entity->Flags & EntityFlag_Hidden) ? StrLit("Show") : StrLit("Hide")))
+     if(UI_MenuItem(0, NilStr, (Entity->Flags & EntityFlag_Hidden) ? StrLit("Show") : StrLit("Hide")))
      {
       Entity->Flags ^= EntityFlag_Hidden;
      }
-     if (UI_MenuItem(0, 0, (Selected ? StrLit("Deselect") : StrLit("Select"))))
+     if (UI_MenuItem(0, NilStr, (Selected ? StrLit("Deselect") : StrLit("Select"))))
      {
       SelectEntity(Editor, (Selected ? 0 : Entity));
      }
-     if(UI_MenuItem(0, 0, StrLit("Focus")))
+     if(UI_MenuItem(0, NilStr, StrLit("Focus")))
      {
       FocusCameraOnEntity(&Editor->Camera, Entity, RenderGroup);
      }
@@ -1698,6 +1642,7 @@ RenderDiagnosticsUI(editor *Editor, platform_input_output *Input)
 internal void
 RenderHelpUI(editor *Editor)
 {
+ temp_arena Temp = TempArena(0);
  if (Editor->HelpWindow)
  {
   if (UI_BeginWindow(&Editor->HelpWindow, UIWindowFlag_AutoResize, StrLit("Help")))
@@ -1712,13 +1657,85 @@ RenderHelpUI(editor *Editor)
    UI_NewRow();
    UI_Text(false,
            StrLit("NOTE: Most things that apply to curves and curve manipulation (i.e.\n"
-                  "move/select/delete) also apply to images, or in general - entities.\n\n"
-                  
-                  ));
+                  "move/select/delete) also apply to images, or in general - entities.\n\n"));
    
-   if (UI_CollapsingHeader(StrLit("Controls")))
+   if (UI_CollapsingHeader(StrLit("Keyboard shortcuts")))
    {
-    if (UI_BeginTree(StrLit("Left mouse button")))
+    if (UI_BeginTable(2, StrLit("KeyboardShortcuts")))
+    {
+     ForEachEnumVal(EditorCmd, EditorCommand_Count, editor_command)
+     {
+      editor_keyboard_shortcut_group *Group = EditorKeyboardShortcuts + EditorCmd;
+      if (!Group->DevSpecific)
+      {
+       string Description = NilStr;
+       switch (EditorCmd)
+       {
+        case EditorCommand_New: {
+         Description = StrLit("New project");
+        }break;
+        case EditorCommand_Open: {
+         Description = StrLit("Open file");
+        }break;
+        case EditorCommand_Save: {
+         Description = StrLit("Save project");
+        }break;
+        case EditorCommand_SaveAs: {
+         Description = StrLit("Save project as");
+        }break;
+        case EditorCommand_Quit: {
+         Description = StrLit("Quit");
+        }break;
+        case EditorCommand_ToggleDevConsole: {
+         Description = StrLit("Toggle developer console");
+        }break;
+        case EditorCommand_Delete: {
+         Description = StrLit("Delete currently selected curve control point or currently\nselected entity (depends on what is the current selection)");
+        }break;
+        case EditorCommand_Duplicate: {
+         Description = StrLit("Duplicate selected entity");
+        }break;
+        case EditorCommand_ToggleProfiler: {
+         Description = StrLit("Toggle profiling frames");
+        }break;
+        case EditorCommand_Undo: {
+         Description = StrLit("Undo action");
+        }break;
+        case EditorCommand_Redo: {
+         Description = StrLit("Redo action");
+        }break;
+        case EditorCommand_ToggleUI: {
+         Description = StrLit("Toggle UI");
+        }break;
+        
+        case EditorCommand_Count: InvalidPath;
+       }
+       
+       UI_TableNextRow();
+       UI_TableSetColumnIndex(0);
+       UI_Text(false, Description);
+       UI_TableSetColumnIndex(1);
+       ForEachIndex(ShortcutIndex, Group->Count)
+       {
+        editor_keyboard_shortcut *Shortcut = Group->Shortcuts + ShortcutIndex;
+        string ShortcutString = PlatformKeyCombinationToString(Temp.Arena, Shortcut->Key, Shortcut->Modifiers);
+        if (ShortcutIndex > 0)
+        {
+         UI_SameRow();
+         UI_Text(false, StrLit("or"));
+         UI_SameRow();
+        }
+        UI_Text(false, ShortcutString);
+       }
+      }
+     }
+     UI_EndTable();
+    }
+   }
+   
+   if (UI_CollapsingHeader(StrLit("Mouse controls")))
+   {
+    if (UI_BeginTree(StrLit("Left button")))
     {
      UI_NewRow();
      UI_Text(false, StrLit("Add/move/select control points."));
@@ -1740,7 +1757,7 @@ RenderHelpUI(editor *Editor)
      UI_EndTree();
     }
     
-    if (UI_BeginTree(StrLit("Left mouse button + Left Ctrl")))
+    if (UI_BeginTree(StrLit("Left button + Left Ctrl")))
     {
      UI_NewRow();
      UI_Text(false,
@@ -1760,7 +1777,7 @@ RenderHelpUI(editor *Editor)
      UI_EndTree();
     }
     
-    if (UI_BeginTree(StrLit("Left mouse button + Left Alt")))
+    if (UI_BeginTree(StrLit("Left button + Left Alt")))
     {
      UI_NewRow();
      UI_Text(false,
@@ -1779,7 +1796,7 @@ RenderHelpUI(editor *Editor)
      UI_EndTree();
     }
     
-    if (UI_BeginTree(StrLit("Right mouse button")))
+    if (UI_BeginTree(StrLit("Right button")))
     {
      UI_NewRow();
      UI_Text(false, StrLit("Remove/deselect curves/control points."));
@@ -1796,22 +1813,7 @@ RenderHelpUI(editor *Editor)
      UI_EndTree();
     }
     
-    if (UI_BeginTree(StrLit("Middle mouse button")))
-    {
-     UI_NewRow();
-     UI_Text(false, StrLit("Manipulate the camera."));
-     UI_NewRow();
-     
-     UI_Text(false, StrLit("In more detail:"));
-     UI_BulletText(StrLit("clicking and holding moves the camera"));
-     UI_BulletText(StrLit("scrolling (un)zooms the camera"));
-     
-     UI_NewRow();
-     
-     UI_EndTree();
-    }
-    
-    if (UI_BeginTree(StrLit("Middle mouse button (+ Left Ctrl)")))
+    if (UI_BeginTree(StrLit("Middle button (+ Left Ctrl)")))
     {
      UI_NewRow();
      UI_Text(false, StrLit("Manipulate the camera."));
@@ -1830,6 +1832,7 @@ RenderHelpUI(editor *Editor)
   }
   UI_EndWindow();
  }
+ EndTemp(Temp);
 }
 
 internal void
@@ -2176,9 +2179,7 @@ ProcessImageLoadingTasks(editor *Editor)
 internal void
 ProcessInputEvents(editor *Editor,
                    platform_input_output *Input,
-                   render_group *RenderGroup,
-                   b32 *NewProject, b32 *OpenFileDialog, b32 *SaveProject,
-                   b32 *SaveProjectAs, b32 *QuitProject)
+                   render_group *RenderGroup)
 {
  ProfileFunctionBegin();
  
@@ -2210,7 +2211,7 @@ ProcessInputEvents(editor *Editor,
    entity_array Entities = AllEntityArrayFromStore(&Editor->EntityStore);
    
    collision Collision = {};
-   if (Event->Flags & PlatformEventFlag_Alt)
+   if (Event->Modifiers & PlatformKeyModifierFlag_Alt)
    {
     // NOTE(hbr): Force no collision, so that user can add control point wherever they want
    }
@@ -2247,7 +2248,7 @@ ProcessInputEvents(editor *Editor,
     entity *SelectedEntity = GetSelectedEntity(Editor);
     curve *SelectedCurve = &SelectedEntity->Curve;
     
-    if ((Collision.Entity || SelectedEntity) && (Event->Flags & PlatformEventFlag_Ctrl))
+    if ((Collision.Entity || SelectedEntity) && (Event->Modifiers & PlatformKeyModifierFlag_Ctrl))
     {
      entity *Entity = (Collision.Entity ? Collision.Entity : SelectedEntity);
      // NOTE(hbr): just move entity if ctrl is pressed
@@ -2393,11 +2394,11 @@ ProcessInputEvents(editor *Editor,
       
       translate_curve_point_flags Flags = (TranslateCurvePoint_MatchBezierTwinDirection |
                                            TranslateCurvePoint_MatchBezierTwinLength);
-      if (Event->Flags & PlatformEventFlag_Shift)
+      if (Event->Modifiers & PlatformKeyModifierFlag_Shift)
       {
        Flags &= ~TranslateCurvePoint_MatchBezierTwinDirection;
       }
-      if (Event->Flags & PlatformEventFlag_Ctrl)
+      if (Event->Modifiers & PlatformKeyModifierFlag_Ctrl)
       {
        Flags &= ~TranslateCurvePoint_MatchBezierTwinLength;
       }
@@ -2494,7 +2495,7 @@ ProcessInputEvents(editor *Editor,
   if (!Eat && IsKeyPress(Event, PlatformKey_MiddleMouseButton, AnyKeyModifier))
   {
    Eat = true;
-   BeginMiddleClick(MiddleClick, Event->Flags & PlatformEventFlag_Ctrl, Event->ClipSpaceMouseP);
+   BeginMiddleClick(MiddleClick, Event->Modifiers & PlatformKeyModifierFlag_Ctrl, Event->ClipSpaceMouseP);
   }
   if (!Eat && IsKeyRelease(Event, PlatformKey_MiddleMouseButton))
   {
@@ -2532,113 +2533,20 @@ ProcessInputEvents(editor *Editor,
    ZoomCamera(&Editor->Camera, Event->ScrollDelta);
   }
   
-  if (!Eat && IsKeyPress(Event, PlatformKey_Tab, NoKeyModifier))
-  {
-   Eat = true;
-   Editor->HideUI = !Editor->HideUI;
-  }
-  
   //- shortcuts
-  if (!Eat && IsKeyPress(Event, PlatformKey_N, KeyModifierFlag(Ctrl)))
+  ForEachEnumVal(Command, EditorCommand_Count, editor_command)
   {
-   Eat = true;
-   *NewProject = true;
-  }
-  
-  if (!Eat && IsKeyPress(Event, PlatformKey_O, KeyModifierFlag(Ctrl)))
-  {
-   Eat = true;
-   *OpenFileDialog = true;
-  }
-  
-  if (!Eat && IsKeyPress(Event, PlatformKey_S, KeyModifierFlag(Ctrl)))
-  {
-   Eat = true;
-   *SaveProject = true;
-  }
-  
-  if (!Eat && IsKeyPress(Event, PlatformKey_S, KeyModifierFlag(Ctrl) | KeyModifierFlag(Shift)))
-  {
-   Eat = true;
-   *SaveProjectAs = true;
-  }
-  
-  if (!Eat && (IsKeyPress(Event, PlatformKey_Escape, NoKeyModifier) ||
-               (Event->Type == PlatformEvent_WindowClose)))
-  {
-   Eat = true;
-   *QuitProject = true;
-  }
-  
-#if BUILD_DEBUG
-  if (!Eat && IsKeyPress(Event, PlatformKey_Backtick, NoKeyModifier))
-  {
-   Eat = true;
-   Editor->DevConsole = !Editor->DevConsole;
-  }
-#endif
-  
-  if (!Eat &&
-      (IsKeyPress(Event, PlatformKey_Delete, PlatformEventFlag_None) ||
-       IsKeyPress(Event, PlatformKey_X, KeyModifierFlag(Ctrl))))
-  {
-   entity *Entity = GetSelectedEntity(Editor);
-   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
-   
-   if (Entity)
+   editor_keyboard_shortcut_group *Group = EditorKeyboardShortcuts + Command;
+   ForEachIndex(ShortcutIndex, Group->Count)
    {
-    Eat = true;
-    switch (Entity->Type)
+    editor_keyboard_shortcut *Shortcut = Group->Shortcuts + ShortcutIndex;
+    if (!Eat && IsKeyPress(Event, Shortcut->Key, Shortcut->Modifiers))
     {
-     case Entity_Curve: {
-      curve *Curve = SafeGetCurve(Entity);
-      if (IsControlPointSelected(Curve))
-      {
-       RemoveControlPoint(Editor, &EntityWitness, Curve->SelectedControlPoint);
-      }
-      else
-      {
-       RemoveEntity(Editor, Entity);
-      }
-     }break;
-     
-     case Entity_Image: {
-      RemoveEntity(Editor, Entity);
-     }break;
-     
-     case Entity_Count: InvalidPath;
+     Eat = true;
+     PushEditorCmd(Editor, Command);
+     break;
     }
    }
-   
-   EndEntityModify(EntityWitness);
-  }
-  
-  if (IsKeyPress(Event, PlatformKey_D, KeyModifierFlag(Ctrl)))
-  {
-   entity *Entity = GetSelectedEntity(Editor);
-   if (Entity)
-   {
-    Eat = true;
-    DuplicateEntity(Editor, Entity);
-   }
-  }
-  
-  if (!Eat && IsKeyPress(Event, PlatformKey_Q, KeyModifierFlag(Ctrl)))
-  {
-   Eat = true;
-   Editor->Profiler.Stopped = !Editor->Profiler.Stopped;
-  }
-  
-  if (!Eat && IsKeyPress(Event, PlatformKey_Z, KeyModifierFlag(Ctrl)))
-  {
-   Eat = true;
-   Undo(Editor);
-  }
-  
-  if (!Eat && IsKeyPress(Event, PlatformKey_R, KeyModifierFlag(Ctrl)))
-  {
-   Eat = true;
-   Redo(Editor);
   }
   
   //- misc
@@ -2647,6 +2555,12 @@ ProcessInputEvents(editor *Editor,
    Eat = true;
    v2 AtP = Unproject(RenderGroup, Event->ClipSpaceMouseP);
    TryLoadImages(Editor, Event->FileCount, Event->FilePaths, AtP);
+  }
+  
+  if (!Eat && Event->Type == PlatformEvent_WindowClose)
+  {
+   Eat = true;
+   PushEditorCmd(Editor, EditorCommand_Quit);
   }
  }
  
@@ -3586,6 +3500,28 @@ RenderRemoveIndicator(editor *Editor, render_group *RenderGroup)
 }
 
 internal void
+RenderCurveShadowWhenMoving(editor *Editor, render_group *RenderGroup)
+{
+ // TODO(hbr): This looks like a mess, probably use functions that already exist
+ editor_left_click_state *LeftClick = &Editor->LeftClick;
+ entity *Entity = EntityFromHandle(LeftClick->TargetEntity);
+ if (LeftClick->Active && Entity && LeftClick->OriginalVerticesCaptured && !Entity->Curve.Params.LineDisabled)
+ {
+  v4 ShadowColor = FadeColor(Entity->Curve.Params.LineColor, 0.15f);
+  rendering_entity_handle RenderingHandle = BeginRenderingEntity(Entity, RenderGroup);
+  
+  PushVertexArray(RenderGroup,
+                  LeftClick->OriginalCurveVertices.Vertices,
+                  LeftClick->OriginalCurveVertices.VertexCount,
+                  LeftClick->OriginalCurveVertices.Primitive,
+                  ShadowColor,
+                  GetCurvePartVisibilityZOffset(CurvePartVisibility_LineShadow));
+  
+  EndRenderingEntity(RenderingHandle);
+ }
+}
+
+internal void
 EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, struct render_frame *Frame)
 {
  editor *Editor = Memory->Editor;
@@ -3594,6 +3530,11 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
   Editor = Memory->Editor = PushStruct(Memory->PermamentArena, editor);
   InitGlobalsOnInitOrCodeReload(Editor);
   InitEditor(Editor, Memory);
+  // NOTE(hbr): Sanity check that I didn't mess up keyboard shortcut definitions
+  ForEachEnumVal(EditorCmd, EditorCommand_Count, editor_command)
+  {
+   Assert(EditorKeyboardShortcuts[EditorCmd].Command == EditorCmd);
+  }
  }
  
  BeginEditorFrame(Editor);
@@ -3608,45 +3549,14 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  }
  
  ProcessImageLoadingTasks(Editor);
- 
- //- process events and update click events
- b32 NewProject = false;
- b32 OpenFileDialog = false;
- b32 SaveProject = false;
- b32 SaveProjectAs = false;
- b32 QuitProject = false;
- 
- ProcessInputEvents(Editor, Input, RenderGroup,
-                    &NewProject, &OpenFileDialog, &SaveProject,
-                    &SaveProjectAs, &QuitProject);
- 
- //- render line shadow when moving
- {
-  // TODO(hbr): This looks like a mess, probably use functions that already exist
-  editor_left_click_state *LeftClick = &Editor->LeftClick;
-  entity *Entity = EntityFromHandle(LeftClick->TargetEntity);
-  if (LeftClick->Active && Entity && LeftClick->OriginalVerticesCaptured && !Entity->Curve.Params.LineDisabled)
-  {
-   v4 ShadowColor = FadeColor(Entity->Curve.Params.LineColor, 0.15f);
-   rendering_entity_handle RenderingHandle = BeginRenderingEntity(Entity, RenderGroup);
-   
-   PushVertexArray(RenderGroup,
-                   LeftClick->OriginalCurveVertices.Vertices,
-                   LeftClick->OriginalCurveVertices.VertexCount,
-                   LeftClick->OriginalCurveVertices.Primitive,
-                   ShadowColor,
-                   GetCurvePartZOffset(CurvePart_LineShadow));
-   
-   EndRenderingEntity(RenderingHandle);
-  }
- }
+ ProcessInputEvents(Editor, Input, RenderGroup);
  
  if (!Editor->HideUI)
  {
   ProfileBegin("UI Update");
   
   RenderSelectedEntityUI(Editor, RenderGroup);
-  RenderMenuBarUI(Editor, &NewProject, &OpenFileDialog, &SaveProject, &SaveProjectAs, &QuitProject);
+  RenderMenuBarUI(Editor);
   RenderEntityListUI(Editor, RenderGroup);
   RenderDiagnosticsUI(Editor, Input);
   RenderHelpUI(Editor);
@@ -3671,56 +3581,14 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  RenderMergingCurves(&Editor->MergingCurves, RenderGroup);
  RenderRotationIndicator(Editor, RenderGroup);
  RenderRemoveIndicator(Editor, RenderGroup);
- 
- if (OpenFileDialog)
- {
-  temp_arena Temp = TempArena(0);
-  
-  platform_file_dialog_filter PNG = {};
-  PNG.DisplayName = StrLit("PNG");
-  string PNG_Extensions[] = { StrLit("png") };
-  PNG.ExtensionCount = ArrayCount(PNG_Extensions);
-  PNG.Extensions = PNG_Extensions;
-  
-  platform_file_dialog_filter JPEG = {};
-  JPEG.DisplayName = StrLit("JPEG");
-  string JPEG_Extensions[] = { StrLit("jpg"), StrLit("jpeg"), StrLit("jpe") };
-  JPEG.ExtensionCount = ArrayCount(JPEG_Extensions);
-  JPEG.Extensions = JPEG_Extensions;
-  
-  platform_file_dialog_filter BMP = {};
-  BMP.DisplayName = StrLit("Windows BMP File");
-  string BMP_Extensions[] = { StrLit("bmp") };
-  BMP.ExtensionCount = ArrayCount(BMP_Extensions);
-  BMP.Extensions = BMP_Extensions;
-  
-  platform_file_dialog_filter AllFilters[] = { PNG, JPEG, BMP };
-  
-  platform_file_dialog_filters Filters = {};
-  Filters.AnyFileFilter = true;
-  Filters.FilterCount = ArrayCount(AllFilters);
-  Filters.Filters = AllFilters;
-  
-  platform_file_dialog_result OpenDialog = Platform.OpenFileDialog(Temp.Arena, Filters);
-  
-  camera *Camera = &Editor->Camera;
-  TryLoadImages(Editor, OpenDialog.FileCount, OpenDialog.FilePaths, Camera->P);
-  
-  EndTemp(Temp);
- }
- 
- if (QuitProject)
- {
-  Input->QuitRequested = true;
- }
+ RenderCurveShadowWhenMoving(Editor, RenderGroup);
  
  Input->ProfilingStopped = Editor->Profiler.Stopped;
- 
 #if BUILD_DEBUG
  Input->RefreshRequested = true;
 #endif
  
- EndEditorFrame(Editor);
+ EndEditorFrame(Editor, Input);
 }
 
 internal void

@@ -170,7 +170,7 @@ UpdateAndRenderPointTracking(rendering_entity_handle Handle)
 }
 
 internal void
-UpdateAndRenderDegreeLowering(rendering_entity_handle Handle)
+UpdateAndRenderDegreeLowering(editor *Editor, rendering_entity_handle Handle)
 {
  entity *Entity = Handle.Entity;
  render_group *RenderGroup = Handle.RenderGroup;
@@ -220,16 +220,14 @@ UpdateAndRenderDegreeLowering(rendering_entity_handle Handle)
    
    if (Revert)
    {
-    SetCurveControlPoints(&EntityWitness,
-                          Curve->ControlPointCount + 1,
-                          Lowering->SavedControlPoints,
-                          Lowering->SavedControlPointWeights,
-                          Lowering->SavedCubicBezierPoints);
+    curve_points *Points = Lowering->OriginalCurvePoints;
+    Assert(Points);
+    SetCurvePointsTracked(Editor, &EntityWitness, Points);
    }
    
    if (Ok || Revert || !IsDegreeLoweringWindowOpen)
    {
-    Lowering->Active = false;
+    EndLoweringBezierCurveDegree(Editor, Lowering);
    }
   }
   
@@ -237,11 +235,10 @@ UpdateAndRenderDegreeLowering(rendering_entity_handle Handle)
   {
    v4 Color = Curve->Params.LineColor;
    Color.A *= 0.5f;
-   
    PushVertexArray(RenderGroup,
-                   Lowering->SavedLineVertices.Vertices,
-                   Lowering->SavedLineVertices.VertexCount,
-                   Lowering->SavedLineVertices.Primitive,
+                   Lowering->OriginalCurveVertices.Vertices,
+                   Lowering->OriginalCurveVertices.VertexCount,
+                   Lowering->OriginalCurveVertices.Primitive,
                    Color,
                    GetCurvePartVisibilityZOffset(CurvePartVisibility_LineShadow));
   }
@@ -479,7 +476,7 @@ UpdateAndRenderEntities(editor *Editor, render_group *RenderGroup)
    rendering_entity_handle Handle = BeginRenderingEntity(Entity, RenderGroup);
    
    RenderEntity(Handle);
-   UpdateAndRenderDegreeLowering(Handle);
+   UpdateAndRenderDegreeLowering(Editor, Handle);
    UpdateAndRenderPointTracking(Handle);
    
    EndRenderingEntity(Handle);
@@ -1140,7 +1137,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
        {
         if (UI_Button(StrLit("Elevate Degree")))
         {
-         ElevateBezierCurveDegree(Entity);
+         ElevateBezierCurveDegree(Editor, Entity);
         }
         if (UI_IsItemHovered())
         {
@@ -1151,7 +1148,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
         
         if (UI_Button(StrLit("Lower Degree")))
         {
-         LowerBezierCurveDegree(Entity);
+         BeginLoweringBezierCurveDegree(Editor, Entity);
         }
         if (UI_IsItemHovered())
         {

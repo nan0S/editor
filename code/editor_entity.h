@@ -178,15 +178,22 @@ struct point_tracking_along_curve_state
  vertex_array *LineVerticesPerIteration;
 };
 
+struct curve_points
+{
+ // all points here are in local space
+ u32 ControlPointCount;
+#define MAX_CONTROL_POINT_COUNT 1024
+ v2 ControlPoints[MAX_CONTROL_POINT_COUNT];
+ f32 ControlPointWeights[MAX_CONTROL_POINT_COUNT];
+ cubic_bezier_point CubicBezierPoints[MAX_CONTROL_POINT_COUNT];
+};
+
 struct curve_degree_lowering_state
 {
  b32 Active;
  arena *Arena;
- // TODO(hbr): Replace Saved with Original or the other way around - I already used original somewhere
- v2 *SavedControlPoints;
- f32 *SavedControlPointWeights;
- cubic_bezier_point *SavedCubicBezierPoints;
- vertex_array SavedLineVertices;
+ curve_points *OriginalCurvePoints;
+ vertex_array OriginalCurveVertices;
  bezier_lower_degree LowerDegree;
  f32 MixParameter;
 };
@@ -240,6 +247,7 @@ struct curve
  control_point_handle SelectedControlPoint;
  
  // all points here are in local space
+ // TODO(hbr): replace with curve_points
  u32 ControlPointCount;
 #define MAX_CONTROL_POINT_COUNT 1024
  v2 ControlPoints[MAX_CONTROL_POINT_COUNT];
@@ -509,7 +517,6 @@ internal void RemoveControlPoint(entity_with_modify_witness *Entity, control_poi
 internal control_point_handle AppendControlPoint(entity_with_modify_witness *Entity, v2 P);
 internal control_point_handle InsertControlPoint(entity_with_modify_witness *Entity, control_point Point, u32 At);
 internal void SetCurveControlPoints(entity_with_modify_witness *Entity, u32 PointCount, v2 *Points, f32 *Weights, cubic_bezier_point *CubicBeziers);
-internal void RotateEntityAround(entity *Entity, v2 Rotate, v2 Around);
 internal void SelectControlPoint(curve *Curve, control_point_handle ControlPoint);
 internal void SelectControlPointFromCurvePoint(curve *Curve, curve_point_handle CurvePoint);
 internal void DeselectControlPoint(curve *Curve);
@@ -540,6 +547,7 @@ internal b32 Are_B_SplineKnotsVisible(curve *Curve);
 internal entity_colors ExtractEntityColors(entity *Entity);
 internal string GetEntityName(entity *Entity);
 internal control_point GetCurveControlPointInWorldSpace(entity *Entity, control_point_handle Point);
+internal void CopyCurvePointsTo(curve_points *Dst, curve *Curve);
 
 //- entity for merging tracker
 internal entity_snapshot_for_merging MakeEntitySnapshotForMerging(entity *Entity);

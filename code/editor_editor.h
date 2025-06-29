@@ -42,6 +42,7 @@ enum tracked_action_type
  TrackedAction_AddControlPoint,
  TrackedAction_RemoveControlPoint,
  TrackedAction_MoveControlPoint,
+ TrackedAction_ModifyCurvePoints,
 };
 struct tracked_action
 {
@@ -56,6 +57,8 @@ struct tracked_action
  v2 OriginalEntityP;
  v2 MovedToEntityP;
  b32 IsPending;
+ curve_points *CurvePoints;
+ curve_points *FinalCurvePoints;
 };
 global tracked_action NilTrackedAction;
 struct action_tracking_group
@@ -195,6 +198,12 @@ struct editor_command_node
  editor_command Command;
 };
 
+struct curve_points_node
+{
+ curve_points_node *Next;
+ curve_points Points;
+};
+
 struct editor
 {
  arena *Arena;
@@ -220,6 +229,7 @@ struct editor
  b32 IsPendingActionTrackingGroup;
  action_tracking_group PendingActionTrackingGroup;
  tracked_action *FreeTrackedAction;
+ curve_points_node *FreeCurvePointsNode;
  
  editor_command_node *EditorCommandsHead;
  editor_command_node *EditorCommandsTail;
@@ -259,13 +269,18 @@ struct editor
  curve_params CurveDefaultParams;
 };
 
+struct begin_modify_curve_points_tracked_result
+{
+ curve_points_modify_handle ModifyPoints;
+ tracked_action *ModifyAction;
+};
+
 //- editor
 internal void InitEditor(editor *Editor, editor_memory *Memory);
 internal void DuplicateEntity(editor *Editor, entity *Entity);
 internal void SplitCurveOnControlPoint(editor *Editor, entity *Entity);
 internal void PerformBezierCurveSplit(editor *Editor, entity *Entity);
-internal void ElevateBezierCurveDegree(entity *Entity);
-internal void LowerBezierCurveDegree(entity *Entity);
+internal void ElevateBezierCurveDegree(editor *Editor, entity *Entity);
 internal entity *GetSelectedEntity(editor *Editor);
 internal void Undo(editor *Editor);
 internal void Redo(editor *Editor);
@@ -280,6 +295,9 @@ internal tracked_action *BeginEntityMove(editor *Editor, entity *Entity);
 internal void EndEntityMove(editor *Editor, tracked_action *MoveAction);
 internal tracked_action *BeginControlPointMove(editor *Editor, entity *Entity, control_point_handle Point);
 internal void EndControlPointMove(editor *Editor, tracked_action *MoveAction);
+internal begin_modify_curve_points_tracked_result BeginModifyCurvePointsTracked(editor *Editor, entity_with_modify_witness *Entity, u32 RequestedPointCount, modify_curve_points_which_points Which);
+internal void EndModifyCurvePointsTracked(editor *Editor, tracked_action *ModifyAction, curve_points_modify_handle ModifyPoints);
+internal void SetCurvePointsTracked(editor *Editor, entity_with_modify_witness *Curve, curve_points *Points);
 
 internal void BeginEditorFrame(editor *Editor);
 internal void EndEditorFrame(editor *Editor, platform_input_output *Input);
@@ -299,6 +317,10 @@ internal b32 AnimationWantsInput(animating_curves_state *Animation);
 //- chosing curves
 internal void BeginChoosing2Curves(choose_2_curves_state *Choosing);
 internal b32 SupplyCurve(choose_2_curves_state *Choosing, entity *Curve);
+
+//- lowering bezier curve degree
+internal void BeginLoweringBezierCurveDegree(editor *Editor, entity *Entity);
+internal void EndLoweringBezierCurveDegree(editor *Editor, curve_degree_lowering_state *Lowering);
 
 //- click states
 internal void BeginMovingEntity(editor_left_click_state *Left, editor *Editor, entity *Entity);

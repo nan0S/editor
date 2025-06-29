@@ -681,6 +681,16 @@ GetCurveControlPointInWorldSpace(entity *Entity, control_point_handle Point)
 }
 
 internal void
+CopyCurvePointsTo(curve_points *Dst, curve *Curve)
+{
+ u32 Count = Curve->ControlPointCount;
+ Dst->ControlPointCount = Count;
+ ArrayCopy(Dst->ControlPoints, Curve->ControlPoints, Count);
+ ArrayCopy(Dst->ControlPointWeights, Curve->ControlPointWeights, Count);
+ ArrayCopy(Dst->CubicBezierPoints, Curve->CubicBezierPoints, Count);
+}
+
+internal void
 ControlPointAndBezierOffsetFromCurvePoint(curve_point_handle CurvePoint,
                                           control_point_handle *ControlPoint,
                                           u32 *BezierOffset)
@@ -995,7 +1005,6 @@ SetCurveControlPoints(entity_with_modify_witness *EntityWitness,
  ArrayCopy(Curve->CubicBezierPoints, CubicBeziers, PointCount);
  
  Curve->ControlPointCount = PointCount;
- // TODO(hbr): Make sure this is expected, maybe add to internal arguments
  DeselectControlPoint(Curve);
  
  MarkEntityModified(EntityWitness);

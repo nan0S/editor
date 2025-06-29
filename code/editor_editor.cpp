@@ -273,47 +273,25 @@ SplitCurveOnControlPoint(editor *Editor, entity *Entity)
 }
 
 internal void
-ElevateBezierCurveDegree(entity *Entity)
+ElevateBezierCurveDegree(editor *Editor, entity *Entity)
 {
+ temp_arena Temp = TempArena(0);
  curve *Curve = SafeGetCurve(Entity);
  Assert(IsRegularBezierCurve(Curve));
- temp_arena Temp = TempArena(0);
- 
  entity_with_modify_witness Witness = BeginEntityModify(Entity);
- 
- u32 ControlPointCount = Curve->ControlPointCount;
- v2 *ElevatedControlPoints = PushArrayNonZero(Temp.Arena,
-                                              ControlPointCount + 1,
-                                              v2);
- f32 *ElevatedControlPointWeights = PushArrayNonZero(Temp.Arena,
-                                                     ControlPointCount + 1,
-                                                     f32);
- MemoryCopy(ElevatedControlPoints,
-            Curve->ControlPoints,
-            ControlPointCount * SizeOf(ElevatedControlPoints[0]));
- MemoryCopy(ElevatedControlPointWeights,
-            Curve->ControlPointWeights,
-            ControlPointCount * SizeOf(ElevatedControlPointWeights[0]));
- 
- BezierCurveElevateDegreeWeighted(ElevatedControlPoints,
-                                  ElevatedControlPointWeights,
-                                  ControlPointCount);
- 
- cubic_bezier_point *ElevatedCubicBezierPoints = PushArrayNonZero(Temp.Arena,
-                                                                  (ControlPointCount + 1),
-                                                                  cubic_bezier_point);
- BezierCubicCalculateAllControlPoints(ControlPointCount + 1,
-                                      ElevatedControlPoints,
-                                      ElevatedCubicBezierPoints);
- 
- SetCurveControlPoints(&Witness,
-                       ControlPointCount + 1,
-                       ElevatedControlPoints,
-                       ElevatedControlPointWeights,
-                       ElevatedCubicBezierPoints);
- 
+ u32 PointCount = Curve->ControlPointCount;
+ begin_modify_curve_points_tracked_result BeginModify = BeginModifyCurvePointsTracked(Editor, &Witness, PointCount + 1,
+                                                                                      ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
+ curve_points_modify_handle ModifyPoints = BeginModify.ModifyPoints;
+ tracked_action *ModifyAction = BeginModify.ModifyAction;
+ if (ModifyPoints.PointCount == PointCount + 1)
+ {
+  BezierCurveElevateDegreeWeighted(ModifyPoints.ControlPoints,
+                                   ModifyPoints.Weights,
+                                   PointCount);
+ }
+ EndModifyCurvePointsTracked(Editor, ModifyAction, ModifyPoints);
  EndEntityModify(Witness);
- 
  EndTemp(Temp);
 }
 
@@ -327,65 +305,29 @@ CopyLineVertices(arena *Arena, vertex_array Vertices)
  return Result;
 }
 
-// TODO(hbr): Instead of copying all the verices and control points and weights manually, maybe just
-// wrap control points, weights and cubicbezier poiints in a structure and just assign data here.
-// In other words - refactor this function
-// TODO(hbr): Refactor this function big time!!!
-// TODO(hbr): This function is kind of broken - for example, we can modify the curve while we are in the "lowering degree failed" mode. While
-// this on its own can be useful, because one can fit the curve more tighly to the original one, when we add some control points due to modyfing this,
-// and then go back to tweaking the Middle_T value to tweak the middle point when fixing "failed lowering", the point that we tweak might no longer be
-// the point that was originally there. In other words, saved control point index got invalidated.
-internal void
-LowerBezierCurveDegree(entity *Entity)
+internal curve_points *
+AllocCurvePoints(editor *Editor)
 {
- curve *Curve = SafeGetCurve(Entity);
- Assert(IsRegularBezierCurve(Curve));
- curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
- 
- u32 PointCount = Curve->ControlPointCount;
- if (PointCount > 0)
+ curve_points_node *Node = Editor->FreeCurvePointsNode;
+ if (Node)
  {
-  temp_arena Temp = TempArena(0);
-  
-  entity_with_modify_witness Witness = BeginEntityModify(Entity);
-  
-  v2 *LowerPoints = PushArrayNonZero(Temp.Arena, PointCount, v2);
-  f32 *LowerWeights = PushArrayNonZero(Temp.Arena, PointCount, f32);
-  cubic_bezier_point *LowerBeziers = PushArrayNonZero(Temp.Arena, PointCount - 1, cubic_bezier_point);
-  ArrayCopy(LowerPoints, Curve->ControlPoints, PointCount);
-  ArrayCopy(LowerWeights, Curve->ControlPointWeights, PointCount);
-  
-  bezier_lower_degree LowerDegree = BezierCurveLowerDegree(LowerPoints, LowerWeights, PointCount);
-  if (LowerDegree.Failure)
-  {
-   Lowering->Active = true;
-   
-   ClearArena(Lowering->Arena);
-   
-   Lowering->SavedControlPoints = PushArrayNonZero(Lowering->Arena, PointCount, v2);
-   Lowering->SavedControlPointWeights = PushArrayNonZero(Lowering->Arena, PointCount, f32);
-   Lowering->SavedCubicBezierPoints = PushArrayNonZero(Lowering->Arena, PointCount, cubic_bezier_point);
-   ArrayCopy(Lowering->SavedControlPoints, Curve->ControlPoints, PointCount);
-   ArrayCopy(Lowering->SavedControlPointWeights, Curve->ControlPointWeights, PointCount);
-   ArrayCopy(Lowering->SavedCubicBezierPoints, Curve->CubicBezierPoints, PointCount);
-   
-   Lowering->SavedLineVertices = CopyLineVertices(Lowering->Arena, Curve->CurveVertices);
-   
-   f32 T = 0.5f;
-   Lowering->LowerDegree = LowerDegree;
-   Lowering->MixParameter = T;
-   LowerPoints[LowerDegree.MiddlePointIndex] = Lerp(LowerDegree.P_I, LowerDegree.P_II, T);
-   LowerWeights[LowerDegree.MiddlePointIndex] = Lerp(LowerDegree.W_I, LowerDegree.W_II, T);
-  }
-  
-  // TODO(hbr): refactor this, it only has to be here because we still modify control points above
-  BezierCubicCalculateAllControlPoints(PointCount - 1, LowerPoints, LowerBeziers);
-  SetCurveControlPoints(&Witness, PointCount - 1, LowerPoints, LowerWeights, LowerBeziers);
-  
-  EndEntityModify(Witness);
-  
-  EndTemp(Temp);
+  StackPop(Editor->FreeCurvePointsNode);
  }
+ else
+ {
+  Node = PushStructNonZero(Editor->Arena, curve_points_node);
+ }
+ curve_points *Points = &Node->Points;
+ // NOTE(hbr): Don't [StructZero] because it is a big struct and it's not necessary
+ Points->ControlPointCount = 0;
+ return Points;
+}
+
+internal void
+DeallocCurvePoints(editor *Editor, curve_points *Points)
+{
+ curve_points_node *Node = ContainerOf(Points, curve_points_node, Points);
+ StackPush(Editor->FreeCurvePointsNode, Node);
 }
 
 internal entity *
@@ -563,6 +505,54 @@ SupplyCurve(choose_2_curves_state *Choosing, entity *Curve)
  return AllSupplied;
 }
 
+internal void
+BeginLoweringBezierCurveDegree(editor *Editor, entity *Entity)
+{
+ curve *Curve = SafeGetCurve(Entity);
+ Assert(IsRegularBezierCurve(Curve));
+ curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
+ 
+ u32 PointCount = Curve->ControlPointCount;
+ if (PointCount > 0)
+ {
+  entity_with_modify_witness Witness = BeginEntityModify(Entity);
+  begin_modify_curve_points_tracked_result Modify = BeginModifyCurvePointsTracked(Editor, &Witness, PointCount - 1, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
+  curve_points_modify_handle ModifyPoints = Modify.ModifyPoints;
+  tracked_action *ModifyAction = Modify.ModifyAction;
+  
+  curve_points *OriginalPoints = AllocCurvePoints(Editor);
+  CopyCurvePointsTo(OriginalPoints, Curve);
+  
+  bezier_lower_degree LowerDegree = BezierCurveLowerDegree(ModifyPoints.ControlPoints, ModifyPoints.Weights, PointCount);
+  if (LowerDegree.Failure)
+  {
+   Lowering->Active = true;
+   Lowering->OriginalCurvePoints = OriginalPoints;
+   Lowering->OriginalCurveVertices = CopyLineVertices(Lowering->Arena, Curve->CurveVertices);
+   f32 T = 0.5f;
+   Lowering->LowerDegree = LowerDegree;
+   Lowering->MixParameter = T;
+   ModifyPoints.ControlPoints[LowerDegree.MiddlePointIndex] = Lerp(LowerDegree.P_I, LowerDegree.P_II, T);
+   ModifyPoints.Weights[LowerDegree.MiddlePointIndex] = Lerp(LowerDegree.W_I, LowerDegree.W_II, T);
+  }
+  else
+  {
+   DeallocCurvePoints(Editor, OriginalPoints);
+  }
+  
+  EndModifyCurvePointsTracked(Editor, ModifyAction, ModifyPoints);
+  EndEntityModify(Witness);
+ }
+}
+
+internal void
+EndLoweringBezierCurveDegree(editor *Editor, curve_degree_lowering_state *Lowering)
+{
+ Lowering->Active = false;
+ ClearArena(Lowering->Arena);
+ Assert(Lowering->OriginalCurvePoints);
+ DeallocCurvePoints(Editor, Lowering->OriginalCurvePoints);
+}
 
 internal void
 BeginEditorFrame(editor *Editor)
@@ -597,6 +587,14 @@ DeallocTrackedAction(editor *Editor,
 {
  DLLRemove(Group->ActionsHead, Group->ActionsTail, Action);
  StackPush(Editor->FreeTrackedAction, Action);
+ if (Action->CurvePoints)
+ {
+  DeallocCurvePoints(Editor, Action->CurvePoints);
+ }
+ if (Action->FinalCurvePoints)
+ {
+  DeallocCurvePoints(Editor, Action->FinalCurvePoints);
+ }
 }
 
 internal void
@@ -1074,6 +1072,60 @@ EndControlPointMove(editor *Editor, tracked_action *MoveAction)
  FinishPendingAction(Editor, Group, MoveAction, Cancel);
 }
 
+internal begin_modify_curve_points_tracked_result
+BeginModifyCurvePointsTracked(editor *Editor,
+                              entity_with_modify_witness *Entity,
+                              u32 RequestedPointCount,
+                              modify_curve_points_which_points Which)
+{
+ action_tracking_group *Group = GetPendingActionTrackingGroup(Editor);
+ tracked_action *Action = NextTrackedActionFromGroup(Editor, Group, true);
+ Action->Type = TrackedAction_ModifyCurvePoints;
+ Action->Entity = MakeEntityHandle(Entity->Entity);
+ curve_points *CurvePoints = AllocCurvePoints(Editor);
+ CopyCurvePointsTo(CurvePoints, SafeGetCurve(Entity->Entity));
+ Action->CurvePoints = CurvePoints;
+ curve_points_modify_handle Handle = BeginModifyCurvePoints(Entity, RequestedPointCount, Which);
+ begin_modify_curve_points_tracked_result Result = {};
+ Result.ModifyPoints = Handle;
+ Result.ModifyAction = Action;
+ return Result;
+}
+
+internal void
+EndModifyCurvePointsTracked(editor *Editor,
+                            tracked_action *ModifyAction,
+                            curve_points_modify_handle ModifyPoints)
+{
+ EndModifyCurvePoints(ModifyPoints);
+ action_tracking_group *Group = GetPendingActionTrackingGroup(Editor);
+ b32 Cancel = true;
+ entity *Entity = EntityFromHandle(ModifyAction->Entity);
+ if (Entity)
+ {
+  curve_points *CurvePoints = AllocCurvePoints(Editor);
+  CopyCurvePointsTo(CurvePoints, SafeGetCurve(Entity));
+  ModifyAction->FinalCurvePoints = CurvePoints;
+  Cancel = false;
+ }
+ FinishPendingAction(Editor, Group, ModifyAction, Cancel);
+}
+
+internal void
+SetCurvePointsTracked(editor *Editor, entity_with_modify_witness *Entity, curve_points *Points)
+{
+ begin_modify_curve_points_tracked_result Modify = BeginModifyCurvePointsTracked(Editor, Entity, Points->ControlPointCount,
+                                                                                 ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
+ curve_points_modify_handle ModifyPoints = Modify.ModifyPoints;
+ tracked_action *ModifyAction = Modify.ModifyAction;
+ SetCurveControlPoints(Entity,
+                       Points->ControlPointCount,
+                       Points->ControlPoints,
+                       Points->ControlPointWeights,
+                       Points->CubicBezierPoints);
+ EndModifyCurvePointsTracked(Editor, ModifyAction, ModifyPoints);
+}
+
 internal control_point_handle
 AddControlPoint(editor *Editor,
                 entity_with_modify_witness *Entity,
@@ -1195,6 +1247,11 @@ Undo(editor *Editor)
       entity *Previous = EntityFromHandle(Action->PreviouslySelectedEntity);
       SelectEntity(Editor, Previous);
      }break;
+     
+     case TrackedAction_ModifyCurvePoints: {
+      curve_points *Points = Action->CurvePoints;
+      SetCurveControlPoints(&Witness, Points->ControlPointCount, Points->ControlPoints, Points->ControlPointWeights, Points->CubicBezierPoints);
+     }break;
     }
     EndEntityModify(Witness);
    }
@@ -1247,6 +1304,11 @@ Redo(editor *Editor)
      
      case TrackedAction_SelectEntity: {
       SelectEntity(Editor, Entity);
+     }break;
+     
+     case TrackedAction_ModifyCurvePoints: {
+      curve_points *Points = Action->FinalCurvePoints;
+      SetCurveControlPoints(&Witness, Points->ControlPointCount, Points->ControlPoints, Points->ControlPointWeights, Points->CubicBezierPoints);
      }break;
     }
     EndEntityModify(Witness);

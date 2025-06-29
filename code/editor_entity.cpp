@@ -202,9 +202,9 @@ GetCubicBezierPoint(curve *Curve, cubic_bezier_point_handle Point)
 {
  v2 Result = {};
  u32 Index = IndexFromCubicBezierPointHandle(Point);
- if (Index < 3 * Curve->ControlPointCount)
+ if (Index < 3 * Curve->Points.ControlPointCount)
  {
-  v2 *Beziers = Cast(v2 *)Curve->CubicBezierPoints;
+  v2 *Beziers = Cast(v2 *)Curve->Points.CubicBezierPoints;
   Result = Beziers[Index];
  }
  return Result;
@@ -215,9 +215,9 @@ GetControlPointP(curve *Curve, control_point_handle Point)
 {
  v2 Result = {};
  u32 Index = IndexFromControlPointHandle(Point);
- if (Index < Curve->ControlPointCount)
+ if (Index < Curve->Points.ControlPointCount)
  {
-  Result = Curve->ControlPoints[Index];
+  Result = Curve->Points.ControlPoints[Index];
  }
  return Result;
 }
@@ -235,8 +235,8 @@ ControlPointIndexFromCurveSampleIndex(curve *Curve, u32 CurveSampleIndex)
 {
  Assert(!IsCurveTotalSamplesMode(Curve));
  u32 Index = SafeDiv0(CurveSampleIndex, Curve->Params.SamplesPerControlPoint);
- Assert(Index < Curve->ControlPointCount);
- Index = ClampTop(Index, Curve->ControlPointCount - 1);
+ Assert(Index < Curve->Points.ControlPointCount);
+ Index = ClampTop(Index, Curve->Points.ControlPointCount - 1);
  control_point_handle Control = ControlPointHandleFromIndex(Index);
  return Control;
 }
@@ -343,7 +343,7 @@ NextCubicBezierPoint(curve *Curve, cubic_bezier_point_handle *Point)
 {
  b32 Result = false;
  u32 Index = IndexFromCubicBezierPointHandle(*Point);
- if (Index + 1 < 3 * Curve->ControlPointCount)
+ if (Index + 1 < 3 * Curve->Points.ControlPointCount)
  {
   *Point = CubicBezierPointHandleFromIndex(Index + 1);
   Result = true;
@@ -604,7 +604,7 @@ GetCurveControlPointDrawInfo(entity *Entity, control_point_handle Point)
  point_draw_info Result = GetEntityPointInfo(Entity, Params->PointRadius, Params->PointColor);
  
  if (( (Entity->Flags & EntityFlag_CurveAppendFront) && Index == 0) ||
-     (!(Entity->Flags & EntityFlag_CurveAppendFront) && Index == Curve->ControlPointCount-1))
+     (!(Entity->Flags & EntityFlag_CurveAppendFront) && Index == Curve->Points.ControlPointCount-1))
  {
   Result.Radius *= 1.5f;
  }
@@ -661,15 +661,73 @@ MakeControlPoint(v2 Point, f32 Weight, cubic_bezier_point Bezier)
  return Result;
 }
 
+internal curve_points_handle
+MakeCurvePointsHandle(u32 ControlPointCount,
+                      v2 *ControlPoints,
+                      f32 *ControlPointWeights,
+                      cubic_bezier_point *CubicBezierPoints)
+{
+ curve_points_handle Points = {};
+ Points.ControlPointCount = ControlPointCount;
+ Points.ControlPoints = ControlPoints;
+ Points.ControlPointWeights = ControlPointWeights;
+ Points.CubicBezierPoints = CubicBezierPoints;
+ return Points;
+}
+
+internal curve_points_handle
+CurvePointsHandleZero(void)
+{
+ curve_points_handle Handle = {};
+ return Handle;
+}
+
+internal curve_points_handle
+CurvePointsHandleFromCurvePointsStatic(curve_points_static *Static)
+{
+ curve_points_handle Handle = MakeCurvePointsHandle(Static->ControlPointCount,
+                                                    Static->ControlPoints,
+                                                    Static->ControlPointWeights,
+                                                    Static->CubicBezierPoints);
+ return Handle;
+}
+
+internal curve_points_dynamic
+MakeCurvePointsDynamic(u32 *ControlPointCount,
+                       v2 *ControlPoints,
+                       f32 *ControlPointWeights,
+                       cubic_bezier_point *CubicBezierPoints,
+                       u32 Capacity)
+{
+ curve_points_dynamic Result = {};
+ Result.ControlPointCount = ControlPointCount;
+ Result.ControlPoints = ControlPoints;
+ Result.ControlPointWeights = ControlPointWeights;
+ Result.CubicBezierPoints = CubicBezierPoints;
+ Result.Capacity = Capacity;
+ return Result;
+}
+
+internal curve_points_dynamic
+CurvePointsDynamicFromStatic(curve_points_static *Static)
+{
+ curve_points_dynamic Dynamic = MakeCurvePointsDynamic(&Static->ControlPointCount,
+                                                       Static->ControlPoints,
+                                                       Static->ControlPointWeights,
+                                                       Static->CubicBezierPoints,
+                                                       CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT);
+ return Dynamic;
+}
+
 internal control_point
 GetCurveControlPointInWorldSpace(entity *Entity, control_point_handle Point)
 {
  curve *Curve = SafeGetCurve(Entity);
  u32 Index = IndexFromControlPointHandle(Point);
  
- v2 P = LocalToWorldEntityPosition(Entity, Curve->ControlPoints[Index]);
- f32 Weight = Curve->ControlPointWeights[Index];
- cubic_bezier_point B = Curve->CubicBezierPoints[Index];
+ v2 P = LocalToWorldEntityPosition(Entity, Curve->Points.ControlPoints[Index]);
+ f32 Weight = Curve->Points.ControlPointWeights[Index];
+ cubic_bezier_point B = Curve->Points.CubicBezierPoints[Index];
  cubic_bezier_point Bezier = {
   LocalToWorldEntityPosition(Entity, B.Ps[0]),
   LocalToWorldEntityPosition(Entity, B.Ps[1]),
@@ -681,13 +739,19 @@ GetCurveControlPointInWorldSpace(entity *Entity, control_point_handle Point)
 }
 
 internal void
-CopyCurvePointsTo(curve_points *Dst, curve *Curve)
+CopyCurvePointsFromCurve(curve *Curve, curve_points_dynamic Dst)
 {
- u32 Count = Curve->ControlPointCount;
- Dst->ControlPointCount = Count;
- ArrayCopy(Dst->ControlPoints, Curve->ControlPoints, Count);
- ArrayCopy(Dst->ControlPointWeights, Curve->ControlPointWeights, Count);
- ArrayCopy(Dst->CubicBezierPoints, Curve->CubicBezierPoints, Count);
+ CopyCurvePoints(Dst, CurvePointsHandleFromCurvePointsStatic(&Curve->Points));
+}
+
+internal void
+CopyCurvePoints(curve_points_dynamic Dst, curve_points_handle Src)
+{
+ u32 Copy = Min(Src.ControlPointCount, Dst.Capacity);
+ *Dst.ControlPointCount = Copy;
+ ArrayCopy(Dst.ControlPoints, Src.ControlPoints, Copy);
+ ArrayCopy(Dst.ControlPointWeights, Src.ControlPointWeights, Copy);
+ ArrayCopy(Dst.CubicBezierPoints, Src.CubicBezierPoints, Copy);
 }
 
 internal void
@@ -725,9 +789,9 @@ TranslateCurvePointTo(entity_with_modify_witness *EntityWitness,
  
  u32 ControlPointIndex = IndexFromControlPointHandle(ControlPoint);
  
- if (ControlPointIndex < Curve->ControlPointCount)
+ if (ControlPointIndex < Curve->Points.ControlPointCount)
  {
-  cubic_bezier_point *B = Curve->CubicBezierPoints + ControlPointIndex;
+  cubic_bezier_point *B = Curve->Points.CubicBezierPoints + ControlPointIndex;
   v2 *TranslatePoint = B->Ps + BezierOffset;
   v2 LocalP = WorldToLocalEntityPosition(Entity, P);
   
@@ -738,7 +802,7 @@ TranslateCurvePointTo(entity_with_modify_witness *EntityWitness,
    B->P0 += LocalTranslation;
    B->P2 += LocalTranslation;
    
-   Curve->ControlPoints[ControlPointIndex] += LocalTranslation;
+   Curve->Points.ControlPoints[ControlPointIndex] += LocalTranslation;
   }
   else
   {
@@ -800,7 +864,7 @@ SelectControlPointFromCurvePoint(curve *Curve, curve_point_handle CurvePoint)
 internal void
 RecomputeCurveB_SplineKnots(curve *Curve)
 {
- u32 ControlPointCount = Curve->ControlPointCount;
+ u32 ControlPointCount = Curve->Points.ControlPointCount;
  curve_params *CurveParams = &Curve->Params;
  b_spline_params *B_SplineParams = &CurveParams->B_Spline;
  f32 *Knots = Curve->B_SplineKnots;
@@ -828,18 +892,18 @@ RemoveControlPoint(entity_with_modify_witness *EntityWitness, control_point_hand
  curve *Curve = SafeGetCurve(Entity);
  u32 Index = IndexFromControlPointHandle(Point);
  
- if (Index < Curve->ControlPointCount)
+ if (Index < Curve->Points.ControlPointCount)
  {
 #define ArrayRemoveOrdered(Array, At, Count) \
 MemoryMove((Array) + (At), \
 (Array) + (At) + 1, \
 ((Count) - (At) - 1) * SizeOf((Array)[0]))
-  ArrayRemoveOrdered(Curve->ControlPoints,       Index, Curve->ControlPointCount);
-  ArrayRemoveOrdered(Curve->ControlPointWeights, Index, Curve->ControlPointCount);
-  ArrayRemoveOrdered(Curve->CubicBezierPoints,   Index, Curve->ControlPointCount);
+  ArrayRemoveOrdered(Curve->Points.ControlPoints,       Index, Curve->Points.ControlPointCount);
+  ArrayRemoveOrdered(Curve->Points.ControlPointWeights, Index, Curve->Points.ControlPointCount);
+  ArrayRemoveOrdered(Curve->Points.CubicBezierPoints,   Index, Curve->Points.ControlPointCount);
 #undef ArrayRemoveOrdered
   
-  --Curve->ControlPointCount;
+  --Curve->Points.ControlPointCount;
   
   // NOTE(hbr): Maybe fix selected control point
   if (IsControlPointSelected(Curve))
@@ -876,7 +940,7 @@ IsControlPointSelected(curve *Curve)
  if (!ControlPointHandleMatch(Curve->SelectedControlPoint, ControlPointHandleZero()))
  {
   u32 Index = IndexFromControlPointHandle(Curve->SelectedControlPoint);
-  Result = (Index < Curve->ControlPointCount);
+  Result = (Index < Curve->Points.ControlPointCount);
  }
  return Result;
 }
@@ -892,7 +956,7 @@ AppendControlPoint(entity_with_modify_witness *EntityWitness, v2 P)
  }
  else
  {
-  InsertAt = Entity->Curve.ControlPointCount;
+  InsertAt = Entity->Curve.Points.ControlPointCount;
  }
  control_point_handle Result = InsertControlPoint(EntityWitness, MakeControlPoint(P), InsertAt);
  return Result;
@@ -905,10 +969,10 @@ SetControlPoint(entity_with_modify_witness *Witness, control_point_handle Handle
  curve *Curve = SafeGetCurve(Entity);
  
  u32 I = IndexFromControlPointHandle(Handle);
- u32 N = Curve->ControlPointCount;
- v2 *P = Curve->ControlPoints;
- f32 *W = Curve->ControlPointWeights;
- cubic_bezier_point *B = Curve->CubicBezierPoints;
+ u32 N = Curve->Points.ControlPointCount;
+ v2 *P = Curve->Points.ControlPoints;
+ f32 *W = Curve->Points.ControlPointWeights;
+ cubic_bezier_point *B = Curve->Points.CubicBezierPoints;
  
  P[I] = WorldToLocalEntityPosition(Entity, Point.P);
  W[I] = (Point.IsWeight ? Point.Weight : 1.0f);
@@ -927,7 +991,7 @@ SetControlPoint(entity_with_modify_witness *Witness, control_point_handle Handle
   // for N<=2. At least I tried to "define" it but failed to do something
   // that was super useful. In that case, when the third point is added,
   // just recalculate all bezier points.
-  if (Curve->ControlPointCount == 2)
+  if (Curve->Points.ControlPointCount == 2)
   {
    BezierCubicCalculateAllControlPoints(N+1, P, B);
   }
@@ -948,16 +1012,16 @@ InsertControlPoint(entity_with_modify_witness *EntityWitness, control_point Poin
  curve *Curve = SafeGetCurve(Entity);
  
  if (Curve &&
-     Curve->ControlPointCount < MAX_CONTROL_POINT_COUNT &&
-     At <= Curve->ControlPointCount)
+     Curve->Points.ControlPointCount < CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT &&
+     At <= Curve->Points.ControlPointCount)
  {
   Assert(UsesControlPoints(Curve));
   
   control_point_handle Handle = ControlPointHandleFromIndex(At);
-  u32 N = Curve->ControlPointCount;
-  v2 *P = Curve->ControlPoints;
-  f32 *W = Curve->ControlPointWeights;
-  cubic_bezier_point *B = Curve->CubicBezierPoints;
+  u32 N = Curve->Points.ControlPointCount;
+  v2 *P = Curve->Points.ControlPoints;
+  f32 *W = Curve->Points.ControlPointWeights;
+  cubic_bezier_point *B = Curve->Points.CubicBezierPoints;
   
 #define ShiftRightArray(Array, ArrayLength, At, ShiftCount) \
 MemoryMove((Array) + ((At)+(ShiftCount)), \
@@ -980,7 +1044,7 @@ MemoryMove((Array) + ((At)+(ShiftCount)), \
    }
   }
   
-  ++Curve->ControlPointCount;
+  ++Curve->Points.ControlPointCount;
   Result = Handle;
  }
  
@@ -988,25 +1052,12 @@ MemoryMove((Array) + ((At)+(ShiftCount)), \
 }
 
 internal void
-SetCurveControlPoints(entity_with_modify_witness *EntityWitness,
-                      u32 PointCount,
-                      v2 *Points,
-                      f32 *Weights,
-                      cubic_bezier_point *CubicBeziers)
+SetCurvePoints(entity_with_modify_witness *EntityWitness, curve_points_handle Points)
 {
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
- 
- Assert(PointCount <= MAX_CONTROL_POINT_COUNT);
- PointCount = Min(PointCount, MAX_CONTROL_POINT_COUNT);
- 
- ArrayCopy(Curve->ControlPoints, Points, PointCount);
- ArrayCopy(Curve->ControlPointWeights, Weights, PointCount);
- ArrayCopy(Curve->CubicBezierPoints, CubicBeziers, PointCount);
- 
- Curve->ControlPointCount = PointCount;
+ CopyCurvePoints(CurvePointsDynamicFromStatic(&Curve->Points), Points);
  DeselectControlPoint(Curve);
- 
  MarkEntityModified(EntityWitness);
 }
 
@@ -1072,27 +1123,26 @@ SetControlPoint(entity_with_modify_witness *EntityWitness, control_point_handle 
  {
   curve *Curve = SafeGetCurve(Entity);
   u32 Index = IndexFromControlPointHandle(Handle);
-  Curve->ControlPointWeights[Index] = Weight;
+  Curve->Points.ControlPointWeights[Index] = Weight;
   MarkEntityModified(EntityWitness);
  }
 }
 
-internal curve_points_modify_handle
-BeginModifyCurvePoints(entity_with_modify_witness *EntityWitness, u32 RequestedPointCount, modify_curve_points_which_points Which)
+internal curve_points_static_modify_handle
+BeginModifyCurvePoints(entity_with_modify_witness *EntityWitness, u32 RequestedPointCount, modify_curve_points_static_which_points Which)
 {
- curve_points_modify_handle Result = {};
+ curve_points_static_modify_handle Result = {};
  
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
- 
- u32 ActualPointCount = Min(RequestedPointCount, MAX_CONTROL_POINT_COUNT);
+ curve_points_static *CurvePoints = &Curve->Points;
  Result.Curve = Curve;
+ u32 ActualPointCount = Min(RequestedPointCount, CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT);
  Result.PointCount = ActualPointCount;
- Result.ControlPoints = Curve->ControlPoints;
- Result.Weights = Curve->ControlPointWeights;
- Result.CubicBeziers = Curve->CubicBezierPoints;
+ Result.ControlPoints = CurvePoints->ControlPoints;
+ Result.Weights = CurvePoints->ControlPointWeights;
+ Result.CubicBeziers = CurvePoints->CubicBezierPoints;
  Result.Which = Which;
- 
  // NOTE(hbr): Assume (which is very reasonable) that the curve is always changing here
  MarkEntityModified(EntityWitness);
  
@@ -1100,30 +1150,27 @@ BeginModifyCurvePoints(entity_with_modify_witness *EntityWitness, u32 RequestedP
 }
 
 internal void
-EndModifyCurvePoints(curve_points_modify_handle Handle)
+EndModifyCurvePoints(curve_points_static_modify_handle Handle)
 {
  curve *Curve = Handle.Curve;
- 
- Curve->ControlPointCount = Handle.PointCount;
- 
- if (Handle.Which <= ModifyCurvePointsWhichPoints_JustControlPoints)
+ curve_points_static *Points = &Curve->Points;
+ Points->ControlPointCount = Handle.PointCount;
+ if (Handle.Which <= ModifyCurvePointsWhichPoints_ControlPointsOnly)
  {
   for (u32 PointIndex = 0;
-       PointIndex < Handle.PointCount;
+       PointIndex < Points->ControlPointCount;
        ++PointIndex)
   {
-   Handle.Weights[PointIndex] = 1.0f;
+   Points->ControlPointWeights[PointIndex] = 1.0f;
   }
  }
- 
  if (Handle.Which <= ModifyCurvePointsWhichPoints_ControlPointsWithWeights)
  {
-  BezierCubicCalculateAllControlPoints(Handle.PointCount,
-                                       Handle.ControlPoints,
-                                       Handle.CubicBeziers);
+  BezierCubicCalculateAllControlPoints(Points->ControlPointCount,
+                                       Points->ControlPoints,
+                                       Points->CubicBezierPoints);
  }
- 
- if (Handle.Which <= ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers)
+ if (Handle.Which <= ModifyCurvePointsWhichPoints_AllPoints)
  {
   // NOTE(hbr): Nothing to do
  }
@@ -1502,10 +1549,10 @@ CalcCurve(arena *EntityArena, curve *Curve, u32 SampleCount, v2 *OutSamples)
 {
  temp_arena Temp = TempArena(EntityArena);
  
- u32 PointCount = Curve->ControlPointCount;
- v2 *Controls = Curve->ControlPoints;
- f32 *Weights = Curve->ControlPointWeights;
- cubic_bezier_point *Beziers = Curve->CubicBezierPoints;
+ u32 PointCount = Curve->Points.ControlPointCount;
+ v2 *Controls = Curve->Points.ControlPoints;
+ f32 *Weights = Curve->Points.ControlPointWeights;
+ cubic_bezier_point *Beziers = Curve->Points.CubicBezierPoints;
  curve_params *Params = &Curve->Params;
  f32 *B_SplineKnots = Curve->B_SplineKnots;
  
@@ -1559,9 +1606,9 @@ RecomputeCurve(curve *Curve)
  
  curve_params *Params = &Curve->Params;
  arena *ComputeArena = Curve->ComputeArena;
- u32 PointCount = Curve->ControlPointCount;
- v2 *Controls = Curve->ControlPoints;
- f32 *Weights = Curve->ControlPointWeights;
+ u32 PointCount = Curve->Points.ControlPointCount;
+ v2 *Controls = Curve->Points.ControlPoints;
+ f32 *Weights = Curve->Points.ControlPointWeights;
  f32 LineWidth = Params->LineWidth;
  
  ClearArena(ComputeArena);

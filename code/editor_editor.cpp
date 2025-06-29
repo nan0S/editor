@@ -117,7 +117,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
   InitEntityAsCurve(Entity, StrLit("b-spline"), Params);
   
   u32 PointCount = 30;
-  curve_points_modify_handle Handle = BeginModifyCurvePoints(&Witness, PointCount, ModifyCurvePointsWhichPoints_JustControlPoints);
+  curve_points_static_modify_handle Handle = BeginModifyCurvePoints(&Witness, PointCount, ModifyCurvePointsWhichPoints_ControlPointsOnly);
   for (u32 PointIndex = 0;
        PointIndex < PointCount;
        ++PointIndex)
@@ -177,11 +177,7 @@ InitEntityFromEntity(entity_store *EntityStore, entity_with_modify_witness *DstW
   case Entity_Curve: {
    DstCurve->Params = SrcCurve->Params;
    DstCurve->B_SplineKnotParams = SrcCurve->B_SplineKnotParams;
-   SetCurveControlPoints(DstWitness,
-                         SrcCurve->ControlPointCount,
-                         SrcCurve->ControlPoints,
-                         SrcCurve->ControlPointWeights,
-                         SrcCurve->CubicBezierPoints);
+   SetCurvePoints(DstWitness, CurvePointsHandleFromCurvePointsStatic(&SrcCurve->Points));
    SelectControlPoint(DstCurve, SrcCurve->SelectedControlPoint);
   }break;
   
@@ -227,7 +223,7 @@ SplitCurveOnControlPoint(editor *Editor, entity *Entity)
   
   u32 SelectedIndex = IndexFromControlPointHandle(Curve->SelectedControlPoint);
   u32 HeadPointCount = SelectedIndex + 1;
-  u32 TailPointCount = Curve->ControlPointCount - SelectedIndex;
+  u32 TailPointCount = Curve->Points.ControlPointCount - SelectedIndex;
   
   entity *HeadEntity = AddEntity(Editor);
   entity *TailEntity = AddEntity(Editor);
@@ -246,19 +242,19 @@ SplitCurveOnControlPoint(editor *Editor, entity *Entity)
   SetEntityName(HeadEntity, HeadName);
   SetEntityName(TailEntity, TailName);
   
-  curve_points_modify_handle HeadPoints = BeginModifyCurvePoints(&HeadWitness, HeadPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
-  curve_points_modify_handle TailPoints = BeginModifyCurvePoints(&TailWitness, TailPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
+  curve_points_static_modify_handle HeadPoints = BeginModifyCurvePoints(&HeadWitness, HeadPointCount, ModifyCurvePointsWhichPoints_AllPoints);
+  curve_points_static_modify_handle TailPoints = BeginModifyCurvePoints(&TailWitness, TailPointCount, ModifyCurvePointsWhichPoints_AllPoints);
   Assert(HeadPoints.PointCount == HeadPointCount);
   Assert(TailPoints.PointCount == TailPointCount);
   
-  ArrayCopy(HeadPoints.ControlPoints, Curve->ControlPoints, HeadPoints.PointCount);
-  ArrayCopy(HeadPoints.Weights, Curve->ControlPointWeights, HeadPoints.PointCount);
-  ArrayCopy(HeadPoints.CubicBeziers, Curve->CubicBezierPoints, HeadPoints.PointCount);
+  ArrayCopy(HeadPoints.ControlPoints, Curve->Points.ControlPoints, HeadPoints.PointCount);
+  ArrayCopy(HeadPoints.Weights, Curve->Points.ControlPointWeights, HeadPoints.PointCount);
+  ArrayCopy(HeadPoints.CubicBeziers, Curve->Points.CubicBezierPoints, HeadPoints.PointCount);
   
   u32 SplitAt = SelectedIndex;
-  ArrayCopy(TailPoints.ControlPoints, Curve->ControlPoints + SplitAt, TailPoints.PointCount);
-  ArrayCopy(TailPoints.Weights, Curve->ControlPointWeights + SplitAt, TailPoints.PointCount);
-  ArrayCopy(TailPoints.CubicBeziers, Curve->CubicBezierPoints + SplitAt, TailPoints.PointCount);
+  ArrayCopy(TailPoints.ControlPoints, Curve->Points.ControlPoints + SplitAt, TailPoints.PointCount);
+  ArrayCopy(TailPoints.Weights, Curve->Points.ControlPointWeights + SplitAt, TailPoints.PointCount);
+  ArrayCopy(TailPoints.CubicBeziers, Curve->Points.CubicBezierPoints + SplitAt, TailPoints.PointCount);
   
   EndModifyCurvePoints(HeadPoints);
   EndModifyCurvePoints(TailPoints);
@@ -275,14 +271,13 @@ SplitCurveOnControlPoint(editor *Editor, entity *Entity)
 internal void
 ElevateBezierCurveDegree(editor *Editor, entity *Entity)
 {
- temp_arena Temp = TempArena(0);
  curve *Curve = SafeGetCurve(Entity);
  Assert(IsRegularBezierCurve(Curve));
  entity_with_modify_witness Witness = BeginEntityModify(Entity);
- u32 PointCount = Curve->ControlPointCount;
- begin_modify_curve_points_tracked_result BeginModify = BeginModifyCurvePointsTracked(Editor, &Witness, PointCount + 1,
-                                                                                      ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
- curve_points_modify_handle ModifyPoints = BeginModify.ModifyPoints;
+ u32 PointCount = Curve->Points.ControlPointCount;
+ begin_modify_curve_points_static_tracked_result BeginModify = BeginModifyCurvePointsTracked(Editor, &Witness, PointCount + 1,
+                                                                                             ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
+ curve_points_static_modify_handle ModifyPoints = BeginModify.ModifyPoints;
  tracked_action *ModifyAction = BeginModify.ModifyAction;
  if (ModifyPoints.PointCount == PointCount + 1)
  {
@@ -292,7 +287,6 @@ ElevateBezierCurveDegree(editor *Editor, entity *Entity)
  }
  EndModifyCurvePointsTracked(Editor, ModifyAction, ModifyPoints);
  EndEntityModify(Witness);
- EndTemp(Temp);
 }
 
 internal vertex_array
@@ -305,28 +299,28 @@ CopyLineVertices(arena *Arena, vertex_array Vertices)
  return Result;
 }
 
-internal curve_points *
+internal curve_points_static *
 AllocCurvePoints(editor *Editor)
 {
- curve_points_node *Node = Editor->FreeCurvePointsNode;
+ curve_points_static_node *Node = Editor->FreeCurvePointsNode;
  if (Node)
  {
   StackPop(Editor->FreeCurvePointsNode);
  }
  else
  {
-  Node = PushStructNonZero(Editor->Arena, curve_points_node);
+  Node = PushStructNonZero(Editor->Arena, curve_points_static_node);
  }
- curve_points *Points = &Node->Points;
+ curve_points_static *Points = &Node->Points;
  // NOTE(hbr): Don't [StructZero] because it is a big struct and it's not necessary
  Points->ControlPointCount = 0;
  return Points;
 }
 
 internal void
-DeallocCurvePoints(editor *Editor, curve_points *Points)
+DeallocCurvePoints(editor *Editor, curve_points_static *Points)
 {
- curve_points_node *Node = ContainerOf(Points, curve_points_node, Points);
+ curve_points_static_node *Node = ContainerOf(Points, curve_points_static_node, Points);
  StackPush(Editor->FreeCurvePointsNode, Node);
 }
 
@@ -345,7 +339,7 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  curve *Curve = SafeGetCurve(Entity);
  point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
  entity_store *EntityStore = &Editor->EntityStore;
- u32 ControlPointCount = Curve->ControlPointCount;
+ u32 ControlPointCount = Curve->Points.ControlPointCount;
  
  Assert(Tracking->Active);
  Tracking->Active = false;
@@ -364,13 +358,13 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  SetEntityName(LeftEntity, LeftName);
  SetEntityName(RightEntity, RightName);
  
- curve_points_modify_handle LeftPoints = BeginModifyCurvePoints(&LeftWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
- curve_points_modify_handle RightPoints = BeginModifyCurvePoints(&RightWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
+ curve_points_static_modify_handle LeftPoints = BeginModifyCurvePoints(&LeftWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
+ curve_points_static_modify_handle RightPoints = BeginModifyCurvePoints(&RightWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
  Assert(LeftPoints.PointCount == ControlPointCount);
  Assert(RightPoints.PointCount == ControlPointCount);
  
  BezierCurveSplit(Tracking->Fraction,
-                  ControlPointCount, Curve->ControlPoints, Curve->ControlPointWeights,
+                  ControlPointCount, Curve->Points.ControlPoints, Curve->Points.ControlPointWeights,
                   LeftPoints.ControlPoints, LeftPoints.Weights,
                   RightPoints.ControlPoints, RightPoints.Weights);
  
@@ -432,10 +426,9 @@ MaybeReverseCurvePoints(entity *Entity)
  if (IsCurveReversed(Entity))
  {
   curve *Curve = SafeGetCurve(Entity);
-  
-  ArrayReverse(Curve->ControlPoints,       Curve->ControlPointCount, v2);
-  ArrayReverse(Curve->ControlPointWeights, Curve->ControlPointCount, f32);
-  ArrayReverse(Curve->CubicBezierPoints,   Curve->ControlPointCount, cubic_bezier_point);
+  ArrayReverse(Curve->Points.ControlPoints,       Curve->Points.ControlPointCount, v2);
+  ArrayReverse(Curve->Points.ControlPointWeights, Curve->Points.ControlPointCount, f32);
+  ArrayReverse(Curve->Points.CubicBezierPoints,   Curve->Points.ControlPointCount, cubic_bezier_point);
  }
 }
 
@@ -512,16 +505,16 @@ BeginLoweringBezierCurveDegree(editor *Editor, entity *Entity)
  Assert(IsRegularBezierCurve(Curve));
  curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
  
- u32 PointCount = Curve->ControlPointCount;
+ u32 PointCount = Curve->Points.ControlPointCount;
  if (PointCount > 0)
  {
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
-  begin_modify_curve_points_tracked_result Modify = BeginModifyCurvePointsTracked(Editor, &Witness, PointCount - 1, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
-  curve_points_modify_handle ModifyPoints = Modify.ModifyPoints;
+  begin_modify_curve_points_static_tracked_result Modify = BeginModifyCurvePointsTracked(Editor, &Witness, PointCount - 1, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
+  curve_points_static_modify_handle ModifyPoints = Modify.ModifyPoints;
   tracked_action *ModifyAction = Modify.ModifyAction;
   
-  curve_points *OriginalPoints = AllocCurvePoints(Editor);
-  CopyCurvePointsTo(OriginalPoints, Curve);
+  curve_points_static *OriginalPoints = AllocCurvePoints(Editor);
+  CopyCurvePointsFromCurve(Curve, CurvePointsDynamicFromStatic(OriginalPoints));
   
   bezier_lower_degree LowerDegree = BezierCurveLowerDegree(ModifyPoints.ControlPoints, ModifyPoints.Weights, PointCount);
   if (LowerDegree.Failure)
@@ -1072,21 +1065,21 @@ EndControlPointMove(editor *Editor, tracked_action *MoveAction)
  FinishPendingAction(Editor, Group, MoveAction, Cancel);
 }
 
-internal begin_modify_curve_points_tracked_result
+internal begin_modify_curve_points_static_tracked_result
 BeginModifyCurvePointsTracked(editor *Editor,
                               entity_with_modify_witness *Entity,
                               u32 RequestedPointCount,
-                              modify_curve_points_which_points Which)
+                              modify_curve_points_static_which_points Which)
 {
  action_tracking_group *Group = GetPendingActionTrackingGroup(Editor);
  tracked_action *Action = NextTrackedActionFromGroup(Editor, Group, true);
  Action->Type = TrackedAction_ModifyCurvePoints;
  Action->Entity = MakeEntityHandle(Entity->Entity);
- curve_points *CurvePoints = AllocCurvePoints(Editor);
- CopyCurvePointsTo(CurvePoints, SafeGetCurve(Entity->Entity));
+ curve_points_static *CurvePoints = AllocCurvePoints(Editor);
+ CopyCurvePointsFromCurve(SafeGetCurve(Entity->Entity), CurvePointsDynamicFromStatic(CurvePoints));
  Action->CurvePoints = CurvePoints;
- curve_points_modify_handle Handle = BeginModifyCurvePoints(Entity, RequestedPointCount, Which);
- begin_modify_curve_points_tracked_result Result = {};
+ curve_points_static_modify_handle Handle = BeginModifyCurvePoints(Entity, RequestedPointCount, Which);
+ begin_modify_curve_points_static_tracked_result Result = {};
  Result.ModifyPoints = Handle;
  Result.ModifyAction = Action;
  return Result;
@@ -1095,7 +1088,7 @@ BeginModifyCurvePointsTracked(editor *Editor,
 internal void
 EndModifyCurvePointsTracked(editor *Editor,
                             tracked_action *ModifyAction,
-                            curve_points_modify_handle ModifyPoints)
+                            curve_points_static_modify_handle ModifyPoints)
 {
  EndModifyCurvePoints(ModifyPoints);
  action_tracking_group *Group = GetPendingActionTrackingGroup(Editor);
@@ -1103,8 +1096,8 @@ EndModifyCurvePointsTracked(editor *Editor,
  entity *Entity = EntityFromHandle(ModifyAction->Entity);
  if (Entity)
  {
-  curve_points *CurvePoints = AllocCurvePoints(Editor);
-  CopyCurvePointsTo(CurvePoints, SafeGetCurve(Entity));
+  curve_points_static *CurvePoints = AllocCurvePoints(Editor);
+  CopyCurvePointsFromCurve(SafeGetCurve(Entity), CurvePointsDynamicFromStatic(CurvePoints));
   ModifyAction->FinalCurvePoints = CurvePoints;
   Cancel = false;
  }
@@ -1112,17 +1105,13 @@ EndModifyCurvePointsTracked(editor *Editor,
 }
 
 internal void
-SetCurvePointsTracked(editor *Editor, entity_with_modify_witness *Entity, curve_points *Points)
+SetCurvePointsTracked(editor *Editor, entity_with_modify_witness *Entity, curve_points_handle Points)
 {
- begin_modify_curve_points_tracked_result Modify = BeginModifyCurvePointsTracked(Editor, Entity, Points->ControlPointCount,
-                                                                                 ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers);
- curve_points_modify_handle ModifyPoints = Modify.ModifyPoints;
+ begin_modify_curve_points_static_tracked_result Modify = BeginModifyCurvePointsTracked(Editor, Entity, Points.ControlPointCount,
+                                                                                        ModifyCurvePointsWhichPoints_AllPoints);
+ curve_points_static_modify_handle ModifyPoints = Modify.ModifyPoints;
  tracked_action *ModifyAction = Modify.ModifyAction;
- SetCurveControlPoints(Entity,
-                       Points->ControlPointCount,
-                       Points->ControlPoints,
-                       Points->ControlPointWeights,
-                       Points->CubicBezierPoints);
+ SetCurvePoints(Entity, Points);
  EndModifyCurvePointsTracked(Editor, ModifyAction, ModifyPoints);
 }
 
@@ -1249,8 +1238,8 @@ Undo(editor *Editor)
      }break;
      
      case TrackedAction_ModifyCurvePoints: {
-      curve_points *Points = Action->CurvePoints;
-      SetCurveControlPoints(&Witness, Points->ControlPointCount, Points->ControlPoints, Points->ControlPointWeights, Points->CubicBezierPoints);
+      curve_points_static *Points = Action->CurvePoints;
+      SetCurvePoints(&Witness, CurvePointsHandleFromCurvePointsStatic(Points));
      }break;
     }
     EndEntityModify(Witness);
@@ -1307,8 +1296,8 @@ Redo(editor *Editor)
      }break;
      
      case TrackedAction_ModifyCurvePoints: {
-      curve_points *Points = Action->FinalCurvePoints;
-      SetCurveControlPoints(&Witness, Points->ControlPointCount, Points->ControlPoints, Points->ControlPointWeights, Points->CubicBezierPoints);
+      curve_points_static *Points = Action->FinalCurvePoints;
+      SetCurvePoints(&Witness, CurvePointsHandleFromCurvePointsStatic(Points));
      }break;
     }
     EndEntityModify(Witness);

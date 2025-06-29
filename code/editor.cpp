@@ -204,7 +204,7 @@ UpdateAndRenderDegreeLowering(editor *Editor, rendering_entity_handle Handle)
    UI_EndWindow();
    
    //-
-   Assert(Lowering->LowerDegree.MiddlePointIndex < Curve->ControlPointCount);
+   Assert(Lowering->LowerDegree.MiddlePointIndex < Curve->Points.ControlPointCount);
    
    if (MixChanged)
    {
@@ -220,9 +220,9 @@ UpdateAndRenderDegreeLowering(editor *Editor, rendering_entity_handle Handle)
    
    if (Revert)
    {
-    curve_points *Points = Lowering->OriginalCurvePoints;
+    curve_points_static *Points = Lowering->OriginalCurvePoints;
     Assert(Points);
-    SetCurvePointsTracked(Editor, &EntityWitness, Points);
+    SetCurvePointsTracked(Editor, &EntityWitness, CurvePointsHandleFromCurvePointsStatic(Points));
    }
    
    if (Ok || Revert || !IsDegreeLoweringWindowOpen)
@@ -412,8 +412,8 @@ RenderEntity(rendering_entity_handle Handle)
                 GetCurvePartVisibilityZOffset(CurvePartVisibility_CubicBezierHelperPoints));
     }
     
-    u32 ControlPointCount = Curve->ControlPointCount;
-    v2 *ControlPoints = Curve->ControlPoints;
+    u32 ControlPointCount = Curve->Points.ControlPointCount;
+    v2 *ControlPoints = Curve->Points.ControlPoints;
     for (u32 PointIndex = 0;
          PointIndex < ControlPointCount;
          ++PointIndex)
@@ -995,7 +995,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
         
         case Curve_B_Spline: {
          b_spline_params *B_Spline = &CurveParams->B_Spline;
-         b_spline_degree_bounds Bounds = B_SplineDegreeBounds(Curve->ControlPointCount);
+         b_spline_degree_bounds Bounds = B_SplineDegreeBounds(Curve->Points.ControlPointCount);
          
          // TODO(hbr): I shouldn't just directly modify degree value
          CrucialEntityParamChanged |= UI_SliderInteger(SafeCastToPtr(Curve->B_SplineKnotParams.Degree, i32), Bounds.MinDegree, Bounds.MaxDegree, StrLit("Degree"));
@@ -1023,8 +1023,8 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
         UI_SeparatorText(StrLit("Control Points"));
         
         b32 WeightChanged = false;
-        u32 PointCount = Curve->ControlPointCount;
-        f32 *Weights = Curve->ControlPointWeights;
+        u32 PointCount = Curve->Points.ControlPointCount;
+        f32 *Weights = Curve->Points.ControlPointWeights;
         
         u32 Selected = 0;
         if (IsControlPointSelected(Curve))
@@ -1366,7 +1366,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
      {
       UI_Label(StrLit("Info"))
       {
-       UI_TextF(false, "Number of control points  %u", Curve->ControlPointCount);
+       UI_TextF(false, "Number of control points  %u", Curve->Points.ControlPointCount);
        UI_TextF(false, "Number of samples         %u", Curve->CurveSampleCount);
       }
      }
@@ -2600,17 +2600,17 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
  MaybeReverseCurvePoints(Entity0);
  MaybeReverseCurvePoints(Entity1);
  
- u32 PointCount0 = Curve0->ControlPointCount;
- u32 PointCount1 = Curve1->ControlPointCount;
+ u32 PointCount0 = Curve0->Points.ControlPointCount;
+ u32 PointCount1 = Curve1->Points.ControlPointCount;
  
- v2 *Points0 = Curve0->ControlPoints;
- v2 *Points1 = Curve1->ControlPoints;
+ v2 *Points0 = Curve0->Points.ControlPoints;
+ v2 *Points1 = Curve1->Points.ControlPoints;
  
- f32 *Weights0 = Curve0->ControlPointWeights;
- f32 *Weights1 = Curve1->ControlPointWeights;
+ f32 *Weights0 = Curve0->Points.ControlPointWeights;
+ f32 *Weights1 = Curve1->Points.ControlPointWeights;
  
- cubic_bezier_point *Beziers0 = Curve0->CubicBezierPoints;
- cubic_bezier_point *Beziers1 = Curve1->CubicBezierPoints;
+ cubic_bezier_point *Beziers0 = Curve0->Points.CubicBezierPoints;
+ cubic_bezier_point *Beziers1 = Curve1->Points.CubicBezierPoints;
  
  u32 DropCount1 = 0;
  v2 Fix1 = {};
@@ -2759,7 +2759,8 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
   Beziers[PointCount0 + 1].P2 += Fix_T;
  }
  
- SetCurveControlPoints(MergeWitness, PointCount, Points, Weights, Beziers);
+ curve_points_handle CurvePoints = MakeCurvePointsHandle(PointCount, Points, Weights, Beziers);
+ SetCurvePoints(MergeWitness, CurvePoints);
  
  MaybeReverseCurvePoints(MergeEntity);
  MaybeReverseCurvePoints(Entity0);
@@ -2813,7 +2814,7 @@ RenderMergingCurvesUI(editor *Editor)
     }
     else
     {
-     SetCurveControlPoints(&MergeWitness, 0, 0, 0, 0);
+     SetCurvePoints(&MergeWitness, CurvePointsHandleZero());
     }
     EndEntityModify(MergeWitness);
     

@@ -57,8 +57,8 @@ struct tracked_action
  v2 OriginalEntityP;
  v2 MovedToEntityP;
  b32 IsPending;
- curve_points *CurvePoints;
- curve_points *FinalCurvePoints;
+ curve_points_static *CurvePoints;
+ curve_points_static *FinalCurvePoints;
 };
 global tracked_action NilTrackedAction;
 struct action_tracking_group
@@ -198,10 +198,10 @@ struct editor_command_node
  editor_command Command;
 };
 
-struct curve_points_node
+struct curve_points_static_node
 {
- curve_points_node *Next;
- curve_points Points;
+ curve_points_static_node *Next;
+ curve_points_static Points;
 };
 
 struct editor
@@ -229,7 +229,7 @@ struct editor
  b32 IsPendingActionTrackingGroup;
  action_tracking_group PendingActionTrackingGroup;
  tracked_action *FreeTrackedAction;
- curve_points_node *FreeCurvePointsNode;
+ curve_points_static_node *FreeCurvePointsNode;
  
  editor_command_node *EditorCommandsHead;
  editor_command_node *EditorCommandsTail;
@@ -269,9 +269,9 @@ struct editor
  curve_params CurveDefaultParams;
 };
 
-struct begin_modify_curve_points_tracked_result
+struct begin_modify_curve_points_static_tracked_result
 {
- curve_points_modify_handle ModifyPoints;
+ curve_points_static_modify_handle ModifyPoints;
  tracked_action *ModifyAction;
 };
 
@@ -295,9 +295,9 @@ internal tracked_action *BeginEntityMove(editor *Editor, entity *Entity);
 internal void EndEntityMove(editor *Editor, tracked_action *MoveAction);
 internal tracked_action *BeginControlPointMove(editor *Editor, entity *Entity, control_point_handle Point);
 internal void EndControlPointMove(editor *Editor, tracked_action *MoveAction);
-internal begin_modify_curve_points_tracked_result BeginModifyCurvePointsTracked(editor *Editor, entity_with_modify_witness *Entity, u32 RequestedPointCount, modify_curve_points_which_points Which);
-internal void EndModifyCurvePointsTracked(editor *Editor, tracked_action *ModifyAction, curve_points_modify_handle ModifyPoints);
-internal void SetCurvePointsTracked(editor *Editor, entity_with_modify_witness *Curve, curve_points *Points);
+internal begin_modify_curve_points_static_tracked_result BeginModifyCurvePointsTracked(editor *Editor, entity_with_modify_witness *Entity, u32 RequestedPointCount, modify_curve_points_static_which_points Which);
+internal void EndModifyCurvePointsTracked(editor *Editor, tracked_action *ModifyAction, curve_points_static_modify_handle ModifyPoints);
+internal void SetCurvePointsTracked(editor *Editor, entity_with_modify_witness *Curve, curve_points_handle Points);
 
 internal void BeginEditorFrame(editor *Editor);
 internal void EndEditorFrame(editor *Editor, platform_input_output *Input);

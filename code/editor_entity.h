@@ -178,21 +178,37 @@ struct point_tracking_along_curve_state
  vertex_array *LineVerticesPerIteration;
 };
 
-struct curve_points
+struct curve_points_static
 {
- // all points here are in local space
  u32 ControlPointCount;
-#define MAX_CONTROL_POINT_COUNT 1024
- v2 ControlPoints[MAX_CONTROL_POINT_COUNT];
- f32 ControlPointWeights[MAX_CONTROL_POINT_COUNT];
- cubic_bezier_point CubicBezierPoints[MAX_CONTROL_POINT_COUNT];
+#define CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT 1024
+ v2 ControlPoints[CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT];
+ f32 ControlPointWeights[CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT];
+ cubic_bezier_point CubicBezierPoints[CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT];
+};
+
+struct curve_points_dynamic
+{
+ u32 *ControlPointCount;
+ v2 *ControlPoints;
+ f32 *ControlPointWeights;
+ cubic_bezier_point *CubicBezierPoints;
+ u32 Capacity;
+};
+
+struct curve_points_handle
+{
+ u32 ControlPointCount;
+ v2 *ControlPoints;
+ f32 *ControlPointWeights;
+ cubic_bezier_point *CubicBezierPoints;
 };
 
 struct curve_degree_lowering_state
 {
  b32 Active;
  arena *Arena;
- curve_points *OriginalCurvePoints;
+ curve_points_static *OriginalCurvePoints;
  vertex_array OriginalCurveVertices;
  bezier_lower_degree LowerDegree;
  f32 MixParameter;
@@ -247,15 +263,9 @@ struct curve
  control_point_handle SelectedControlPoint;
  
  // all points here are in local space
- // TODO(hbr): replace with curve_points
- u32 ControlPointCount;
-#define MAX_CONTROL_POINT_COUNT 1024
- v2 ControlPoints[MAX_CONTROL_POINT_COUNT];
- f32 ControlPointWeights[MAX_CONTROL_POINT_COUNT];
- cubic_bezier_point CubicBezierPoints[MAX_CONTROL_POINT_COUNT];
- 
+ curve_points_static Points;
  b_spline_knot_params B_SplineKnotParams;
-#define MAX_B_SPLINE_KNOT_COUNT (2 * MAX_CONTROL_POINT_COUNT)
+#define MAX_B_SPLINE_KNOT_COUNT (2 * CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT)
  f32 B_SplineKnots[MAX_B_SPLINE_KNOT_COUNT];
  
  arena *ComputeArena;
@@ -365,23 +375,20 @@ struct entity_array
  entity **Entities;
 };
 
-enum modify_curve_points_which_points
+enum modify_curve_points_static_which_points
 {
- ModifyCurvePointsWhichPoints_JustControlPoints,
+ ModifyCurvePointsWhichPoints_ControlPointsOnly,
  ModifyCurvePointsWhichPoints_ControlPointsWithWeights,
- // TODO(hbr): Rename this to all points or sth like that
- ModifyCurvePointsWhichPoints_ControlPointsWithCubicBeziers,
+ ModifyCurvePointsWhichPoints_AllPoints,
 };
-struct curve_points_modify_handle
+struct curve_points_static_modify_handle
 {
  curve *Curve;
- 
  u32 PointCount;
  v2 *ControlPoints;
  f32 *Weights;
  cubic_bezier_point *CubicBeziers;
- 
- modify_curve_points_which_points Which;
+ modify_curve_points_static_which_points Which;
 };
 
 union entity_colors
@@ -470,25 +477,30 @@ internal f32 GetCurvePartVisibilityZOffset(curve_part_visibility Part);
 internal curve *SafeGetCurve(entity *Entity);
 internal image *SafeGetImage(entity *Entity);
 
-//- indices
+//- indices/handles
+internal control_point_handle ControlPointHandleZero(void);
 internal control_point_handle ControlPointHandleFromIndex(u32 Index);
 internal u32 IndexFromControlPointHandle(control_point_handle Handle);
 internal b32 ControlPointHandleMatch(control_point_handle A, control_point_handle B);
-internal control_point_handle ControlPointHandleZero(void);
 internal control_point_handle ControlPointFromCubicBezierPoint(cubic_bezier_point_handle Bezier);
-
 internal cubic_bezier_point_handle CubicBezierPointHandleFromIndex(u32 Index);
 internal cubic_bezier_point_handle CubicBezierPointFromControlPoint(control_point_handle Handle);
 internal u32 IndexFromCubicBezierPointHandle(cubic_bezier_point_handle Handle);
 internal b32 CubicBezierPointHandleMatch(cubic_bezier_point_handle A, cubic_bezier_point_handle B);
 internal cubic_bezier_point_handle CubicBezierPointHandleZero(void);
-
 internal curve_point_handle CurvePointFromControlPoint(control_point_handle Handle);
 internal curve_point_handle CurvePointFromCubicBezierPoint(cubic_bezier_point_handle Handle);
 internal control_point_handle ControlPointFromCurvePoint(curve_point_handle Handle);
 
 internal control_point MakeControlPoint(v2 Point);
 internal control_point MakeControlPoint(v2 Point, f32 Weight, cubic_bezier_point Bezier);
+
+internal curve_points_handle MakeCurvePointsHandle(u32 ControlPointCount, v2 *ControlPoints, f32 *ControlPointWeights, cubic_bezier_point *CubicBezierPoints);
+internal curve_points_handle CurvePointsHandleZero(void);
+internal curve_points_handle CurvePointsHandleFromCurvePointsStatic(curve_points_static *Static);
+internal curve_points_dynamic MakeCurvePointsDynamic(u32 *ControlPointCount, v2 *ControlPoints, f32 *ControlPointWeights, cubic_bezier_point *CubicBezierPoints, u32 Capacity);
+internal curve_points_dynamic CurvePointsDynamicFromStatic(curve_points_static *Static);
+internal void CopyCurvePoints(curve_points_dynamic Dst, curve_points_handle Src);
 
 //- entity handles
 internal entity_handle MakeEntityHandle(entity *Entity);
@@ -498,8 +510,8 @@ internal entity_with_modify_witness BeginEntityModify(entity *Entity);
 internal void EndEntityModify(entity_with_modify_witness Witness);
 internal void MarkEntityModified(entity_with_modify_witness *Witness);
 
-internal curve_points_modify_handle BeginModifyCurvePoints(entity_with_modify_witness *Curve, u32 RequestedPointCount, modify_curve_points_which_points Which);
-internal void EndModifyCurvePoints(curve_points_modify_handle Handle);
+internal curve_points_static_modify_handle BeginModifyCurvePoints(entity_with_modify_witness *Curve, u32 RequestedPointCount, modify_curve_points_static_which_points Which);
+internal void EndModifyCurvePoints(curve_points_static_modify_handle Handle);
 
 //- entity initialization
 internal void InitEntityPart(entity *Entity, entity_type Type, v2 P, v2 Scale, v2 Rotation, string Name, i32 SortingLayer, entity_flags Flags);
@@ -516,14 +528,14 @@ internal void SetControlPoint(entity_with_modify_witness *Witness, control_point
 internal void RemoveControlPoint(entity_with_modify_witness *Entity, control_point_handle Point);
 internal control_point_handle AppendControlPoint(entity_with_modify_witness *Entity, v2 P);
 internal control_point_handle InsertControlPoint(entity_with_modify_witness *Entity, control_point Point, u32 At);
-internal void SetCurveControlPoints(entity_with_modify_witness *Entity, u32 PointCount, v2 *Points, f32 *Weights, cubic_bezier_point *CubicBeziers);
+internal void SetCurvePoints(entity_with_modify_witness *EntityWitness, curve_points_handle Points);
 internal void SelectControlPoint(curve *Curve, control_point_handle ControlPoint);
 internal void SelectControlPointFromCurvePoint(curve *Curve, curve_point_handle CurvePoint);
 internal void DeselectControlPoint(curve *Curve);
 internal void ApplyColorsToEntity(entity *Entity, entity_colors Colors);
 internal void MarkEntitySelected(entity *Entity);
 internal void MarkEntityDeselected(entity *Entity);
-internal void SwitchEntityVisibility(entity *Entity);
+internal void SetEntityVisibility(entity *Entity, b32 Visible);
 
 //- entity info
 internal b32 IsEntityVisible(entity *Entity);
@@ -547,7 +559,7 @@ internal b32 Are_B_SplineKnotsVisible(curve *Curve);
 internal entity_colors ExtractEntityColors(entity *Entity);
 internal string GetEntityName(entity *Entity);
 internal control_point GetCurveControlPointInWorldSpace(entity *Entity, control_point_handle Point);
-internal void CopyCurvePointsTo(curve_points *Dst, curve *Curve);
+internal void CopyCurvePointsFromCurve(curve *Curve, curve_points_dynamic *Dst);
 
 //- entity for merging tracker
 internal entity_snapshot_for_merging MakeEntitySnapshotForMerging(entity *Entity);

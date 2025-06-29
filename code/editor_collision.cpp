@@ -82,8 +82,8 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
    {
     case Entity_Curve: {
      curve *Curve = &Entity->Curve;
-     u32 ControlPointCount = Curve->ControlPointCount;
-     v2 *ControlPoints = Curve->ControlPoints;
+     u32 ControlPointCount = Curve->Points.ControlPointCount;
+     v2 *ControlPoints = Curve->Points.ControlPoints;
      curve_params *Params = &Curve->Params;
      point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
      

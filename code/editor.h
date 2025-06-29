@@ -26,37 +26,40 @@
 /* TODO(hbr):
 
 TODO:
+
+crucial:
 - saving/loading project from/to file
 - merging weighted bezier curves
 - parametric curve examples
 - extract animated curve - bezier can be 100% matching, other can do with interpolation
 - incluce imgui tutorial to get familiar with the ui widgets used throughout the project
-- better error msgs when curves fail to merge
 - moving partition knot along curve
-- parallelize curve recomputation
- - GPU buffer_index in the same way we have texture_index
- - update "help" - add info about moving cubic bezier helpers, add info about "undo/redo"
- - convex hull around pieces of b-spline segments
-- remove DLL loading in release mode
-- make undo/redo work with elevate/lower bezier curve degree
+- convex hull around pieces of b-spline segments
 - Checbyshev polynomial bezier degree lowering method
+- add scaling/rotating to undo/redo
+
+maybe:
+- better error msgs when curves fail to merge
+- parallelize curve recomputation
+- GPU buffer_index in the same way we have texture_index
+- update "help" - add info about moving cubic bezier helpers, add info about "undo/redo"
+- remove DLL loading in release mode
 - add resource monitor - memory/texture handles - to investigate if there are any leaks
 - holding Ctrl-Z should do a bunch of undos in a row - aka. sticky keys or something
 - "sample"? tool - from point that lets us sample color from the application and use it to color curve for example
 - multiselect curves to change it's parameters at once - for example change line width/color, also maybe to move them at once
-- add scaling/rotating to undo/redo
-
- Bugs:
- - ZOffset are fucked - if multiple images have the same ZOffset, make sure to check collisions in the reverse order they are renderer
+ 
+ bugs:
+ - ZOffset is fucked - if multiple images have the same ZOffset, make sure to check collisions in the reverse order they are renderer
  - adding points to periodic curve doesn't work again
  - I need to test what happens when queue texture memory is emptied - because I think there is a bug in there
  - usunac artefakty ktore sie pojawiaja gdy linia sie zagina w druga storne bardzo ostro
  - inserting control point in the middle of polynomial curve is sometimes broken
  - because clicks are now highly independent, we might now delete control point while moving the same control point which could lead to some weird behaviours, investigate that
  - focusing on entity is not 100% correct mathematically - if camera is rotated and entity is rotated, it zooms out a little too much compared to what it "should", although probably noone will notice anyway, I can't figure out the math behing this
- - undo/redo messes up what entity is selected - kind of, because we store EntityFlag_Selected in Entity itself. Maybe clear that flag on Deactivate?
+- jak robie undo/redo wiele razy z rzedu to czasami na chwilke pojawiaja sie pewne artefakty rysowania linii - tak jakbym rysowal wielki trojkat zamiast malych ktore skalaja sie na linie, wyglada to jakby jakis vertex linii zostal przesuniety (do (0,0)?)
 
- Ideas:
+  ideas:
  - confirm window when removing points
  - loop curve with checkbox - it seems useful
  - czesto jak rysuje to jestem mega zzoomwany na image - chce dodac nowa curve ale nie mam jak latwo odselectowac aktualnej bo wszedzie wokolo jest image

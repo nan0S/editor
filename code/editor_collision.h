@@ -24,7 +24,6 @@ struct multiline_collision
  u32 PointIndex;
 };
 
-internal multiline_collision CheckCollisionWithMultiLine(v2 LocalAtP, v2 *CurveSamples, u32 PointCount, f32 Width, f32 Tolerance);
 internal collision CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance);
 
 #endif //EDITOR_COLLISION_H

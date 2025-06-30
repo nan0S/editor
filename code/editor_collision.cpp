@@ -170,8 +170,11 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
        {
         v2 *CurveSamples = Points + PointIndex;
         u32 PointCount = IterationCount - Iteration;
-        multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP, CurveSamples, PointCount,
-                                                               Params->LineWidth, Tolerance);
+        multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP,
+                                                               CurveSamples,
+                                                               PointCount,
+                                                               Params->LineWidth,
+                                                               Tolerance);
         if (Line.Collided)
         {
          Result.Entity = Entity;
@@ -196,8 +199,10 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
      if (!Curve->Params.LineDisabled)
      {
       multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP,
-                                                             Curve->CurveSamples, Curve->CurveSampleCount,
-                                                             Params->LineWidth, Tolerance);
+                                                             Curve->CurveSamples,
+                                                             Curve->CurveSampleCount,
+                                                             Params->LineWidth,
+                                                             Tolerance);
       if (Line.Collided)
       {
        Result.Entity = Entity;
@@ -211,8 +216,10 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
      if (IsConvexHullVisible(Curve) && !Result.Entity)
      {
       multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP,
-                                                             Curve->ConvexHullPoints, Curve->ConvexHullCount,
-                                                             Params->ConvexHullWidth, Tolerance);
+                                                             Curve->ConvexHullPoints,
+                                                             Curve->ConvexHullCount,
+                                                             Params->ConvexHullWidth,
+                                                             Tolerance);
       if (Line.Collided)
       {
        Result.Entity = Entity;
@@ -224,8 +231,10 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
      if (IsPolylineVisible(Curve) && !Result.Entity)
      {
       multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP,
-                                                             ControlPoints, ControlPointCount,
-                                                             Params->PolylineWidth, Tolerance);
+                                                             ControlPoints,
+                                                             ControlPointCount,
+                                                             Params->PolylineWidth,
+                                                             Tolerance);
       if (Line.Collided)
       {
        Result.Entity = Entity;

@@ -1260,23 +1260,25 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
     {
      if (UI_BeginTabItem(StrLit("Settings")))
      {
-      UI_SeparatorText(StrLit("Line"));
+      UI_Label(StrLit("Line"))
       {
        b32 LineEnabled = !CurveParams->LineDisabled;
-       UI_Checkbox(&LineEnabled, StrLit("Visible"));
+       UI_Checkbox(&LineEnabled, NilStr);
        CurveParams->LineDisabled = !LineEnabled;
-       
-       UI_ColorPickerF(&CurveParams->LineColor, "Color");
-       if (ResetCtxMenu(StrLit("ColorReset")))
-       {
-        CurveParams->LineColor = DefaultParams->LineColor;
-       }
+       UI_SameRow();
+       UI_SeparatorText(StrLit("Line"));
        
        CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->LineWidth, 0.0f, FLT_MAX, 0, "Width");
        if (ResetCtxMenu(StrLit("WidthReset")))
        {
         CurveParams->LineWidth = DefaultParams->LineWidth;
         CrucialEntityParamChanged = true;
+       }
+       
+       UI_ColorPickerF(&CurveParams->LineColor, "Color");
+       if (ResetCtxMenu(StrLit("ColorReset")))
+       {
+        CurveParams->LineColor = DefaultParams->LineColor;
        }
        
        if (IsCurveTotalSamplesMode(Curve))
@@ -1301,23 +1303,24 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       
       if (UsesControlPoints(Curve))
       {
-       UI_SeparatorText(StrLit("Control Points"));
        UI_Label(StrLit("Control Points"))
        {
         b32 PointsEnabled = !CurveParams->PointsDisabled;
-        UI_Checkbox(&PointsEnabled, StrLit("Visible"));
+        UI_Checkbox(&PointsEnabled, NilStr);
         CurveParams->PointsDisabled = !PointsEnabled;
-        
-        UI_ColorPickerF(&CurveParams->PointColor, "Color");
-        if (ResetCtxMenu(StrLit("PointColorReset")))
-        {
-         CurveParams->PointColor = DefaultParams->PointColor;
-        }
+        UI_SameRow();
+        UI_SeparatorText(StrLit("Control Points"));
         
         UI_DragFloatF(&CurveParams->PointRadius, 0.0f, FLT_MAX, 0, "Radius");
         if (ResetCtxMenu(StrLit("PointRadiusReset")))
         {
          CurveParams->PointRadius = DefaultParams->PointRadius;
+        }
+        
+        UI_ColorPickerF(&CurveParams->PointColor, "Color");
+        if (ResetCtxMenu(StrLit("PointColorReset")))
+        {
+         CurveParams->PointColor = DefaultParams->PointColor;
         }
        }
       }
@@ -1325,38 +1328,33 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       if (CurveParams->Type == Curve_B_Spline)
       {
        b_spline_params *B_Spline = &CurveParams->B_Spline;
-       
-       UI_SeparatorText(StrLit("B-Spline Knots"));
        UI_Label(StrLit("B-Spline Knots"))
        {
-        UI_Checkbox(&B_Spline->ShowPartitionKnotPoints, StrLit("Visible"));
-        
-        UI_ColorPicker(&B_Spline->KnotPointColor, StrLit("Color"));
-        if (ResetCtxMenu(StrLit("ColorReset")))
-        {
-         B_Spline->KnotPointColor= DefaultParams->B_Spline.KnotPointColor;
-        }
+        UI_Checkbox(&B_Spline->ShowPartitionKnotPoints, NilStr);
+        UI_SameRow();
+        UI_SeparatorText(StrLit("B-Spline Knots"));
         
         UI_DragFloat(&B_Spline->KnotPointRadius, 0.0f, FLT_MAX, 0, StrLit("Radius"));
         if (ResetCtxMenu(StrLit("RadiusReset")))
         {
          B_Spline->KnotPointRadius = DefaultParams->B_Spline.KnotPointRadius;
         }
+        
+        UI_ColorPicker(&B_Spline->KnotPointColor, StrLit("Color"));
+        if (ResetCtxMenu(StrLit("ColorReset")))
+        {
+         B_Spline->KnotPointColor= DefaultParams->B_Spline.KnotPointColor;
+        }
        }
       }
       
       if (UsesControlPoints(Curve))
       {
-       UI_SeparatorText(StrLit("Polyline"));
        UI_Label(StrLit("Polyline"))
        {
-        UI_Checkbox(&CurveParams->PolylineEnabled, StrLit("Visible"));
-        
-        UI_ColorPickerF(&CurveParams->PolylineColor, "Color");
-        if (ResetCtxMenu(StrLit("PolylineColorReset")))
-        {
-         CurveParams->PolylineColor = DefaultParams->PolylineColor;
-        }
+        UI_Checkbox(&CurveParams->PolylineEnabled, NilStr);
+        UI_SameRow();
+        UI_SeparatorText(StrLit("Polyline"));
         
         CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->PolylineWidth, 0.0f, FLT_MAX, 0, "Width");
         if (ResetCtxMenu(StrLit("PolylineWidthReset")))
@@ -1364,24 +1362,31 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
          CurveParams->PolylineWidth = DefaultParams->PolylineWidth;
          CrucialEntityParamChanged = true;
         }
+        
+        UI_ColorPickerF(&CurveParams->PolylineColor, "Color");
+        if (ResetCtxMenu(StrLit("PolylineColorReset")))
+        {
+         CurveParams->PolylineColor = DefaultParams->PolylineColor;
+        }
        }
        
-       UI_SeparatorText(StrLit("Convex Hull"));
        UI_Label(StrLit("Convex Hull"))
        {
-        UI_Checkbox(&CurveParams->ConvexHullEnabled, StrLit("Visible"));
-        
-        UI_ColorPickerF(&CurveParams->ConvexHullColor, "Color");
-        if (ResetCtxMenu(StrLit("ConvexHullColorReset")))
-        {
-         CurveParams->ConvexHullColor = DefaultParams->ConvexHullColor;
-        }
+        UI_Checkbox(&CurveParams->ConvexHullEnabled, NilStr);
+        UI_SameRow();
+        UI_SeparatorText(StrLit("Convex Hull"));
         
         CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->ConvexHullWidth, 0.0f, FLT_MAX, 0, "Width");
         if (ResetCtxMenu(StrLit("ConvexHullWidthReset")))
         {
          CurveParams->ConvexHullWidth = DefaultParams->ConvexHullWidth;
          CrucialEntityParamChanged = true;
+        }
+        
+        UI_ColorPickerF(&CurveParams->ConvexHullColor, "Color");
+        if (ResetCtxMenu(StrLit("ConvexHullColorReset")))
+        {
+         CurveParams->ConvexHullColor = DefaultParams->ConvexHullColor;
         }
        }
       }

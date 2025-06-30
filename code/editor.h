@@ -30,13 +30,15 @@ TODO:
 crucial:
 - saving/loading project from/to file
 - merging weighted bezier curves
-- parametric curve examples
 - extract animated curve - bezier can be 100% matching, other can do with interpolation
-- incluce imgui tutorial to get familiar with the ui widgets used throughout the project
 - moving partition knot along curve
 - convex hull around pieces of b-spline segments
 - Checbyshev polynomial bezier degree lowering method
+
+important:
 - add scaling/rotating to undo/redo
+- incluce imgui tutorial to get familiar with the ui widgets used throughout the project
+- parametric curve examples
 
 maybe:
 - better error msgs when curves fail to merge
@@ -48,7 +50,8 @@ maybe:
 - holding Ctrl-Z should do a bunch of undos in a row - aka. sticky keys or something
 - "sample"? tool - from point that lets us sample color from the application and use it to color curve for example
 - multiselect curves to change it's parameters at once - for example change line width/color, also maybe to move them at once
- 
+  - resize "handles" for images
+
  bugs:
  - ZOffset is fucked - if multiple images have the same ZOffset, make sure to check collisions in the reverse order they are renderer
  - adding points to periodic curve doesn't work again

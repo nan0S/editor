@@ -37,7 +37,7 @@ enum tracked_action_type
 {
  TrackedAction_AddEntity,
  TrackedAction_RemoveEntity,
- TrackedAction_MoveEntity,
+ TrackedAction_TransformEntity,
  TrackedAction_SelectEntity,
  TrackedAction_AddControlPoint,
  TrackedAction_RemoveControlPoint,
@@ -54,8 +54,8 @@ struct tracked_action
  control_point ControlPoint;
  control_point MovedToControlPoint;
  control_point_handle ControlPointHandle;
- v2 OriginalEntityP;
- v2 MovedToEntityP;
+ entity_xform OriginalEntityXForm;
+ entity_xform XFormedToEntityXForm;
  b32 IsPending;
  curve_points_static *CurvePoints;
  curve_points_static *FinalCurvePoints;
@@ -204,6 +204,11 @@ struct curve_points_static_node
  curve_points_static Points;
 };
 
+struct selected_entity_transform_state
+{
+ tracked_action *TransformAction;
+};
+
 struct editor
 {
  arena *Arena;
@@ -220,6 +225,7 @@ struct editor
  camera Camera;
  frame_stats FrameStats;
  
+ selected_entity_transform_state SelectedEntityTransformState;
  entity_handle SelectedEntity;
  u64 EverIncreasingEntityCounter;
  
@@ -291,8 +297,8 @@ internal void SelectEntity(editor *Editor, entity *Entity);
 internal control_point_handle AppendControlPoint(editor *Editor, entity_with_modify_witness *Entity, v2 P);
 internal control_point_handle InsertControlPoint(editor *Editor, entity_with_modify_witness *Entity, v2 P, u32 At);
 internal void RemoveControlPoint(editor *Editor, entity_with_modify_witness *Entity, control_point_handle Point);
-internal tracked_action *BeginEntityMove(editor *Editor, entity *Entity);
-internal void EndEntityMove(editor *Editor, tracked_action *MoveAction);
+internal tracked_action *BeginEntityTransform(editor *Editor, entity *Entity);
+internal void EndEntityTransform(editor *Editor, tracked_action *MoveAction);
 internal tracked_action *BeginControlPointMove(editor *Editor, entity *Entity, control_point_handle Point);
 internal void EndControlPointMove(editor *Editor, tracked_action *MoveAction);
 internal begin_modify_curve_points_static_tracked_result BeginModifyCurvePointsTracked(editor *Editor, entity_with_modify_witness *Entity, u32 RequestedPointCount, modify_curve_points_static_which_points Which);

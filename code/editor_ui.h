@@ -59,8 +59,6 @@ enum ui_placement
  UIPlacement_Center,
 };
 
-internal void                 UI_Equip(imgui_bindings Bindings);
-
 internal void                 UI_PushLabel(string Label);
 internal void                 UI_PushLabelF(char const *Format, ...);
 internal void                 UI_PushId(u32 Id);
@@ -120,6 +118,8 @@ internal b32               UI_IsItemHovered(void);
 internal b32               UI_IsMouseClicked(ui_mouse_button Button);
 internal b32               UI_IsMouseDoubleClicked(ui_mouse_button Button);
 internal b32               UI_IsWindowHovered(void);
+internal b32               UI_IsItemActivated(void);
+internal b32               UI_IsItemDeactivated(void);
 
 internal void              UI_SetNextItemSize(v2 Size);
 internal void              UI_SetNextItemPos(v2 TopLeftP); // top-left corner
@@ -148,8 +148,8 @@ internal changed_b32       UI_SliderInteger(i32 *Value, i32 MinValue, i32 MaxVal
 internal changed_b32       UI_SliderIntegerF(i32 *Value, i32 MinValue, i32 MaxValue, char const *Format, ...);
 internal changed_b32       UI_SliderFloat(f32 *Value, f32 MinValue, f32 MaxValue, string Label);
 internal changed_b32       UI_SliderFloatF(f32 *Value, f32 MinValue, f32 MaxValue, char const *Format, ...);
-internal void              UI_AngleSlider(v2 *Rotation, string Label);
-internal void              UI_AngleSliderF(v2 *Rotation, char const *Format, ...);
+internal changed_b32       UI_AngleSlider(v2 *Rotation, string Label);
+internal changed_b32       UI_AngleSliderF(v2 *Rotation, char const *Format, ...);
 internal changed_b32       UI_ColorPicker(v4 *Color, string Label);
 internal changed_b32       UI_ColorPickerF(v4 *Color, char const *Format, ...);
 internal ui_input_result   UI_InputText2(arena *Arena, string Input, u32 InputWidthInChars, string Label);

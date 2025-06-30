@@ -93,7 +93,7 @@ BeginRenderingEntity(entity *Entity, render_group *RenderGroup)
  Handle.Entity = Entity;
  Handle.RenderGroup = RenderGroup;
  
- mat3 Model = ModelTransform(Entity->P, Entity->Rotation, Entity->Scale);
+ mat3 Model = ModelTransform(Entity->XForm.P, Entity->XForm.Rotation, Entity->XForm.Scale);
  SetTransform(RenderGroup, Model, Cast(f32)Entity->SortingLayer);
  
  return Handle;
@@ -401,8 +401,8 @@ RenderEntity(rendering_entity_handle Handle)
      // TODO(hbr): It is really fucked up I have to add Entity->P when I do [SetTransform] above.
      // clean up this mess
      PushLine(RenderGroup,
-              Entity->P + BezierPoint,
-              Entity->P + CenterPoint,
+              Entity->XForm.P + BezierPoint,
+              Entity->XForm.P + CenterPoint,
               HelperLineWidth,
               CurveParams->LineColor,
               GetCurvePartVisibilityZOffset(CurvePartVisibility_CubicBezierHelperLines));
@@ -700,6 +700,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
  b32 DeleteEntity = false;
  b32 CrucialEntityParamChanged = false;
+ selected_entity_transform_state *SelectedTransform = &Editor->SelectedEntityTransformState;
  
  if (Editor->SelectedEntityWindow && Entity)
  {
@@ -725,35 +726,63 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
     {
      UI_InputText2(&Entity->NameBuffer, 0, StrLit("Name"));
      
-     UI_DragFloat2(Entity->P.E, 0.0f, 0.0f, 0, StrLit("Position"));
+     entity_xform NewXForm = Entity->XForm;
+     b32 ModifyActivated = false;
+     b32 ModifyDeactivated = false;
+     
+     UI_DragFloat2(NewXForm.P.E, 0.0f, 0.0f, 0, StrLit("Position"));
+     ModifyActivated |= UI_IsItemActivated();
+     ModifyDeactivated |= UI_IsItemDeactivated();
      if (ResetCtxMenu(StrLit("PositionReset")))
      {
-      Entity->P = V2(0.0f, 0.0f);
+      NewXForm.P = V2(0.0f, 0.0f);
+      ModifyActivated = ModifyDeactivated = true;
      }
      
-     UI_AngleSlider(&Entity->Rotation, StrLit("Rotation"));
+     UI_AngleSlider(&NewXForm.Rotation, StrLit("Rotation"));
+     ModifyActivated |= UI_IsItemActivated();
+     ModifyDeactivated |= UI_IsItemDeactivated();
      if (ResetCtxMenu(StrLit("RotationReset")))
      {
-      Entity->Rotation = Rotation2DZero();
+      NewXForm.Rotation = Rotation2DZero();
+      ModifyActivated = ModifyDeactivated = true;
      }
      
-     UI_DragFloat2(Entity->Scale.E, 0.0f, 0.0f, 0, StrLit("Scale"));
+     UI_DragFloat2(NewXForm.Scale.E, 0.0f, 0.0f, 0, StrLit("Scale"));
+     ModifyActivated |= UI_IsItemActivated();
+     ModifyDeactivated |= UI_IsItemDeactivated();
      if (ResetCtxMenu(StrLit("ScaleReset")))
      {
-      Entity->Scale = V2(1.0f, 1.0f);
+      NewXForm.Scale = V2(1.0f, 1.0f);
+      ModifyActivated = ModifyDeactivated = true;
      }
      
+     UI_Label(StrLit("DragMe"))
      {
-      UI_PushLabel(StrLit("DragMe"));
       f32 UniformScale = 0.0f;
       UI_DragFloat(&UniformScale, 0.0f, 0.0f, "Drag Me!", StrLit("Uniform Scale"));
-      f32 WidthOverHeight = Entity->Scale.X / Entity->Scale.Y;
-      Entity->Scale = Entity->Scale + V2(WidthOverHeight * UniformScale, UniformScale);
+      ModifyActivated |= UI_IsItemActivated();
+      ModifyDeactivated |= UI_IsItemDeactivated();
+      f32 WidthOverHeight = NewXForm.Scale.X / NewXForm.Scale.Y;
+      NewXForm.Scale = NewXForm.Scale + V2(WidthOverHeight * UniformScale, UniformScale);
       if (ResetCtxMenu(StrLit("DragMeReset")))
       {
-       Entity->Scale = V2(1.0f, 1.0f);
+       NewXForm.Scale = V2(1.0f, 1.0f);
+       ModifyActivated = ModifyDeactivated = true;
       }
-      UI_PopLabel();
+     }
+     
+     if (ModifyActivated)
+     {
+      Assert(SelectedTransform->TransformAction == 0);
+      SelectedTransform->TransformAction = BeginEntityTransform(Editor, Entity);
+     }
+     Entity->XForm = NewXForm;
+     if (ModifyDeactivated)
+     {
+      Assert(SelectedTransform->TransformAction != 0);
+      EndEntityTransform(Editor, SelectedTransform->TransformAction);
+      SelectedTransform->TransformAction = 0;
      }
      
      {     
@@ -2403,7 +2432,7 @@ ProcessInputEvents(editor *Editor,
      }break;
      
      case EditorLeftClick_MovingEntity: {
-      Entity->P += Translate;
+      Entity->XForm.P += Translate;
      }break;
     }
     

@@ -167,7 +167,7 @@ InitEntityFromEntity(entity_store *EntityStore, entity_with_modify_witness *DstW
  
  InitEntityPart(Dst,
                 Src->Type,
-                Src->P, Src->Scale, Src->Rotation,
+                Src->XForm,
                 GetEntityName(Src),
                 Src->SortingLayer,
                 Src->Flags);
@@ -205,7 +205,7 @@ DuplicateEntity(editor *Editor, entity *Entity)
  
  f32 SlightTranslationX = 5 * Copy->Curve.Params.LineWidth;
  v2 SlightTranslation = V2(SlightTranslationX, 0.0f);
- Copy->P += SlightTranslation;
+ Copy->XForm.P += SlightTranslation;
  
  EndEntityModify(CopyWitness);
  EndTemp(Temp);
@@ -866,7 +866,7 @@ BeginMovingEntity(editor_left_click_state *Left, editor *Editor, entity *Target)
  Left->Active = true;
  Left->Mode = EditorLeftClick_MovingEntity;
  Left->TargetEntity = MakeEntityHandle(Target);
- Left->PendingTrackedAction = BeginEntityMove(Editor, Target);
+ Left->PendingTrackedAction = BeginEntityTransform(Editor, Target);
 }
 
 internal void
@@ -909,7 +909,7 @@ EndLeftClick(editor *Editor, editor_left_click_state *Left)
  }
  else if (Left->Mode == EditorLeftClick_MovingEntity)
  {
-  EndEntityMove(Editor, Left->PendingTrackedAction);
+  EndEntityTransform(Editor, Left->PendingTrackedAction);
  }
  
  arena *OriginalVerticesArena = Left->OriginalVerticesArena;
@@ -999,32 +999,32 @@ RemoveControlPoint(editor *Editor,
 }
 
 internal tracked_action *
-BeginEntityMove(editor *Editor, entity *Entity)
+BeginEntityTransform(editor *Editor, entity *Entity)
 {
  action_tracking_group *Group = GetPendingActionTrackingGroup(Editor);
  tracked_action *Action = NextTrackedActionFromGroup(Editor, Group, true);
- Action->Type = TrackedAction_MoveEntity;
- Action->OriginalEntityP = Entity->P;
+ Action->Type = TrackedAction_TransformEntity;
+ Action->OriginalEntityXForm = Entity->XForm;
  Action->Entity = MakeEntityHandle(Entity);
  return Action;
 }
 
 internal void
-EndEntityMove(editor *Editor, tracked_action *MoveAction)
+EndEntityTransform(editor *Editor, tracked_action *MoveAction)
 {
  action_tracking_group *Group = GetPendingActionTrackingGroup(Editor);
  entity *Entity = EntityFromHandle(MoveAction->Entity);
  b32 Cancel = false;
  if (Entity)
  {
-  v2 P = Entity->P;
-  if (StructsEqual(P, MoveAction->OriginalEntityP))
+  entity_xform XForm = Entity->XForm;
+  if (StructsEqual(XForm, MoveAction->OriginalEntityXForm))
   {
    Cancel = true;
   }
   else
   {
-   MoveAction->MovedToEntityP = P;
+   MoveAction->XFormedToEntityXForm = XForm;
   }
  }
  FinishPendingAction(Editor, Group, MoveAction, Cancel);
@@ -1220,8 +1220,8 @@ Undo(editor *Editor)
       SetControlPoint(&Witness, Action->ControlPointHandle, Action->ControlPoint);
      }break;
      
-     case TrackedAction_MoveEntity: {
-      Entity->P = Action->OriginalEntityP;
+     case TrackedAction_TransformEntity: {
+      Entity->XForm = Action->OriginalEntityXForm;
      }break;
      
      case TrackedAction_RemoveEntity: {
@@ -1279,8 +1279,8 @@ Redo(editor *Editor)
       SetControlPoint(&Witness, Action->ControlPointHandle, Action->MovedToControlPoint);
      }break;
      
-     case TrackedAction_MoveEntity: {
-      Entity->P = Action->MovedToEntityP;
+     case TrackedAction_TransformEntity: {
+      Entity->XForm = Action->XFormedToEntityXForm;
      }break;
      
      case TrackedAction_RemoveEntity: {

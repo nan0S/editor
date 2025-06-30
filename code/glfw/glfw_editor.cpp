@@ -438,7 +438,9 @@ Table[GLFWButton] = PlatformButton
      WindowDim = V2U(Width, Height);
     }
     
+#if 0    
     Platform_PrintDebugInputEvents(&Input);
+#endif
     
     render_frame *Frame = GLFWRendererBeginFrame(Renderer, &RendererMemory, WindowDim);
     

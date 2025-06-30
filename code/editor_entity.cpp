@@ -5,9 +5,7 @@ MakeEntitySnapshotForMerging(entity *Entity)
  Result.Entity = Entity;
  if (Entity)
  {
-  Result.P = Entity->P;
-  Result.Scale = Entity->Scale;
-  Result.Rotation = Entity->Rotation;
+  Result.XForm = Entity->XForm;
   Result.Flags = Entity->Flags;
   Result.Version = Entity->Version;
  }
@@ -19,9 +17,7 @@ EntityModified(entity_snapshot_for_merging Versioned, entity *Entity)
 {
  b32 Result = false;
  if (Versioned.Entity != Entity ||
-     (Entity && (!StructsEqual(Entity->P, Versioned.P) ||
-                 !StructsEqual(Entity->Scale, Versioned.Scale) ||
-                 !StructsEqual(Entity->Rotation, Versioned.Rotation) ||
+     (Entity && (!StructsEqual(Entity->XForm, Versioned.XForm) ||
                  !StructsEqual(Entity->Flags, Versioned.Flags) ||
                  !StructsEqual(Entity->Version, Versioned.Version))))
  {
@@ -81,6 +77,30 @@ SafeGetImage(entity *Entity)
 {
  Assert(Entity->Type == Entity_Image);
  return &Entity->Image;
+}
+
+inline internal entity_xform
+MakeEntityXForm(v2 P, v2 Scale, v2 Rotation)
+{
+ entity_xform XForm = {};
+ XForm.P = P;
+ XForm.Scale = Scale;
+ XForm.Rotation = Rotation;
+ return XForm;
+}
+
+inline internal entity_xform
+EntityXFormZero(void)
+{
+ entity_xform XForm = EntityXFormFromP(V2(0, 0));
+ return XForm;
+}
+
+inline internal entity_xform
+EntityXFormFromP(v2 P)
+{
+ entity_xform XForm = MakeEntityXForm(P, V2(1, 1), Rotation2DZero());
+ return XForm;
 }
 
 inline internal control_point_handle
@@ -1071,15 +1091,13 @@ SetEntityName(entity *Entity, string Name)
 internal void
 InitEntityPart(entity *Entity,
                entity_type Type,
-               v2 P, v2 Scale, v2 Rotation,
+               entity_xform XForm,
                string Name,
                i32 SortingLayer,
                entity_flags Flags)
 {
  Entity->Type = Type;
- Entity->P = P;
- Entity->Scale = Scale;
- Entity->Rotation = Rotation;
+ Entity->XForm = XForm;
  SetEntityName(Entity, Name);
  Entity->SortingLayer = SortingLayer;
  Entity->Flags = Flags;
@@ -1090,7 +1108,7 @@ InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams)
 {
  InitEntityPart(Entity,
                 Entity_Curve,
-                V2(0, 0), V2(1, 1), Rotation2DZero(),
+                EntityXFormZero(),
                 Name, 0, 0);
  curve *Curve = &Entity->Curve;
  Curve->Params = CurveParams;
@@ -1105,7 +1123,7 @@ InitEntityAsImage(entity *Entity,
 {
  InitEntityPart(Entity,
                 Entity_Image,
-                P, V2(1, 1), Rotation2DZero(),
+                EntityXFormFromP(P),
                 Name, 0, 0);
  image *Image = &Entity->Image;
  Image->Dim = V2(Cast(f32)Width / Height, 1.0f);
@@ -1176,25 +1194,39 @@ EndModifyCurvePoints(curve_points_static_modify_handle Handle)
  }
 }
 
+internal v2
+ProjectThroughXForm(entity_xform *XForm, v2 P)
+{
+ v2 Q = P;
+ Q = Hadamard(Q, XForm->Scale);
+ Q = RotateAround(Q, V2(0.0f, 0.0f), XForm->Rotation);
+ Q = Q + XForm->P;
+ return Q;
+}
+
+internal v2
+UnprojectThroughXForm(entity_xform *XForm, v2 P)
+{
+ v2 Q = P;
+ Q = Q - XForm->P;
+ Q = RotateAround(Q, V2(0, 0), Rotation2DInverse(XForm->Rotation));
+ Q = Hadamard(Q, V2(1.0f / XForm->Scale.X, 1.0f / XForm->Scale.Y));
+ return Q;
+}
+
 // TODO(hbr): Consider using ModelTransform instead (might be a little slower but probably doesn't matter)
 internal v2
 WorldToLocalEntityPosition(entity *Entity, v2 P)
 {
- v2 Q = P;
- Q = Q - Entity->P;
- Q = RotateAround(Q, V2(0, 0), Rotation2DInverse(Entity->Rotation));
- Q = Hadamard(Q, V2(1.0f / Entity->Scale.X, 1.0f / Entity->Scale.Y));
- return Q;
+ v2 Result = UnprojectThroughXForm(&Entity->XForm, P);
+ return Result;
 }
 
 internal v2
 LocalToWorldEntityPosition(entity *Entity, v2 P)
 {
- v2 Q = P;
- Q = Hadamard(Q, Entity->Scale);
- Q = RotateAround(Q, V2(0.0f, 0.0f), Entity->Rotation);
- Q = Q + Entity->P;
- return Q;
+ v2 Result = ProjectThroughXForm(&Entity->XForm, P);
+ return Result;
 }
 
 internal void

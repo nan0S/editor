@@ -315,14 +315,19 @@ enum
 };
 typedef u32 entity_internal_flags;
 
+struct entity_xform
+{
+ v2 P;
+ v2 Rotation;
+ v2 Scale;
+};
+
 struct entity
 {
  entity *Next;
  entity *Prev;
  
- v2 P;
- v2 Scale;
- v2 Rotation;
+ entity_xform XForm;
  char_buffer NameBuffer;
  i32 SortingLayer;
  entity_flags Flags;
@@ -359,13 +364,8 @@ struct entity_handle_node
 struct entity_snapshot_for_merging
 {
  entity *Entity;
- 
- v2 P;
- v2 Scale;
- v2 Rotation;
- 
+ entity_xform XForm;
  entity_flags Flags;
- 
  u32 Version;
 };
 
@@ -474,10 +474,17 @@ enum curve_part_visibility
 };
 internal f32 GetCurvePartVisibilityZOffset(curve_part_visibility Part);
 
-internal curve *SafeGetCurve(entity *Entity);
-internal image *SafeGetImage(entity *Entity);
+//- entity handles/indices
+internal entity_handle MakeEntityHandle(entity *Entity);
+internal entity *EntityFromHandle(entity_handle Handle, b32 AllowDeactived = false);
 
-//- indices/handles
+internal entity_with_modify_witness BeginEntityModify(entity *Entity);
+internal void EndEntityModify(entity_with_modify_witness Witness);
+internal void MarkEntityModified(entity_with_modify_witness *Witness);
+
+internal curve_points_static_modify_handle BeginModifyCurvePoints(entity_with_modify_witness *Curve, u32 RequestedPointCount, modify_curve_points_static_which_points Which);
+internal void EndModifyCurvePoints(curve_points_static_modify_handle Handle);
+
 internal control_point_handle ControlPointHandleZero(void);
 internal control_point_handle ControlPointHandleFromIndex(u32 Index);
 internal u32 IndexFromControlPointHandle(control_point_handle Handle);
@@ -502,24 +509,10 @@ internal curve_points_dynamic MakeCurvePointsDynamic(u32 *ControlPointCount, v2 
 internal curve_points_dynamic CurvePointsDynamicFromStatic(curve_points_static *Static);
 internal void CopyCurvePoints(curve_points_dynamic Dst, curve_points_handle Src);
 
-//- entity handles
-internal entity_handle MakeEntityHandle(entity *Entity);
-internal entity *EntityFromHandle(entity_handle Handle, b32 AllowDeactived = false);
-
-internal entity_with_modify_witness BeginEntityModify(entity *Entity);
-internal void EndEntityModify(entity_with_modify_witness Witness);
-internal void MarkEntityModified(entity_with_modify_witness *Witness);
-
-internal curve_points_static_modify_handle BeginModifyCurvePoints(entity_with_modify_witness *Curve, u32 RequestedPointCount, modify_curve_points_static_which_points Which);
-internal void EndModifyCurvePoints(curve_points_static_modify_handle Handle);
-
 //- entity initialization
-internal void InitEntityPart(entity *Entity, entity_type Type, v2 P, v2 Scale, v2 Rotation, string Name, i32 SortingLayer, entity_flags Flags);
+internal void InitEntityPart(entity *Entity, entity_type Type, entity_xform XForm, string Name, i32 SortingLayer, entity_flags Flags);
 internal void InitEntityAsImage(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath);
 internal void InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams);
-
-internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
-internal v2 LocalToWorldEntityPosition(entity *Entity, v2 P);
 
 //- entity modify
 internal void TranslateCurvePointTo(entity_with_modify_witness *Entity, curve_point_handle Handle, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
@@ -537,7 +530,10 @@ internal void MarkEntitySelected(entity *Entity);
 internal void MarkEntityDeselected(entity *Entity);
 internal void SetEntityVisibility(entity *Entity, b32 Visible);
 
-//- entity info
+internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
+internal v2 LocalToWorldEntityPosition(entity *Entity, v2 P);
+
+//- entity query
 internal b32 IsEntityVisible(entity *Entity);
 internal b32 IsEntitySelected(entity *Entity);
 internal b32 IsControlPointSelected(curve *Curve);
@@ -564,8 +560,13 @@ internal void CopyCurvePointsFromCurve(curve *Curve, curve_points_dynamic *Dst);
 //- entity for merging tracker
 internal entity_snapshot_for_merging MakeEntitySnapshotForMerging(entity *Entity);
 internal b32 EntityModified(entity_snapshot_for_merging Versioned, entity *Entity);
-
-//- misc
 internal curve_merge_compatibility AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method Method);
+
+//- misc/helpers
+internal curve *SafeGetCurve(entity *Entity);
+internal image *SafeGetImage(entity *Entity);
+internal entity_xform MakeEntityXForm(v2 P, v2 Scale, v2 Rotation);
+internal entity_xform EntityXFormZero(void);
+internal entity_xform EntityXFormFromP(v2 P);
 
 #endif //EDITOR_ENTITY_H

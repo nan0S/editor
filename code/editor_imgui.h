@@ -88,6 +88,8 @@ X_Macro(EndTable, EndTable, void, Nothing, Nothing) \
 X_Macro(TableNextRow, TableNextRow, void, Nothing, Nothing) \
 X_Macro(TableNextColumn, TableNextColumn, bool, Nothing, Nothing) \
 X_Macro(TableSetColumnIndex, TableSetColumnIndex, bool, int column_n, column_n) \
+X_Macro(IsItemActivated, IsItemActivated, bool, Nothing, Nothing) \
+X_Macro(IsItemDeactivated, IsItemDeactivated, bool, Nothing, Nothing) \
 
 #define ImGuiVariadicFunctions \
 X_Macro(Text, Text, void, const char* fmt Comma ..., fmt) \

@@ -57,6 +57,20 @@ UI_IsWindowHovered(void)
  return Result;
 }
 
+internal b32
+UI_IsItemActivated(void)
+{
+ b32 Result = Cast(b32)Platform.ImGui.IsItemActivated();
+ return Result;
+}
+
+internal b32
+UI_IsItemDeactivated(void)
+{
+ b32 Result = Cast(b32)Platform.ImGui.IsItemDeactivated();
+ return Result;
+}
+
 global v2 UI_GlobalNextItemSize;
 global b32 UI_GlobalNextItemSizeSet;
 internal void
@@ -248,27 +262,29 @@ UI_ButtonF(char const *Format, ...)
  return Result;
 }
 
-internal void
+internal b32
 UI_AngleSlider(v2 *Rotation, string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
  f32 RotationRad = Rotation2DToRadians(*Rotation);
- Platform.ImGui.SliderAngle(CLabel.Data, &RotationRad);
+ b32 Result = Cast(b32)Platform.ImGui.SliderAngle(CLabel.Data, &RotationRad);
  *Rotation = Rotation2DFromRadians(RotationRad);
  EndTemp(Temp);
+ return Result;
 }
 
-internal void
+internal b32
 UI_AngleSliderF(v2 *Rotation, char const *Format, ...)
 {
  temp_arena Temp = TempArena(0);
  va_list Args;
  va_start(Args, Format);
  string Label = StrFV(Temp.Arena, Format, Args);
- UI_AngleSlider(Rotation, Label);
+ b32 Result = UI_AngleSlider(Rotation, Label);
  va_end(Args);
  EndTemp(Temp);
+ return Result;
 }
 
 internal void

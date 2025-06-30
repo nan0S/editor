@@ -257,9 +257,9 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
     
     case Entity_Image: {
      image *Image = &Entity->Image;
-     v2 Dim = Image->Dim;
-     if (-Dim.X <= LocalAtP.X && LocalAtP.X <= Dim.X &&
-         -Dim.Y <= LocalAtP.Y && LocalAtP.Y <= Dim.Y)
+     scale2d Dim = Image->Dim;
+     if (-Dim.V.X <= LocalAtP.X && LocalAtP.X <= Dim.V.X &&
+         -Dim.V.Y <= LocalAtP.Y && LocalAtP.Y <= Dim.V.Y)
      {
       Result.Entity = Entity;
      }

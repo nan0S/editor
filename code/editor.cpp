@@ -623,11 +623,11 @@ FocusCameraOnEntity(camera *Camera, entity *Entity, render_group *RenderGroup)
   
   case Entity_Image: {
    image *Image = SafeGetImage(Entity);
-   v2 Dim = Image->Dim;
-   AddPointAABB(&AABB, V2( Dim.X,  Dim.Y));
-   AddPointAABB(&AABB, V2( Dim.X, -Dim.Y));
-   AddPointAABB(&AABB, V2(-Dim.X,  Dim.Y));
-   AddPointAABB(&AABB, V2(-Dim.X, -Dim.Y));
+   scale2d Dim = Image->Dim;
+   AddPointAABB(&AABB, V2( Dim.V.X,  Dim.V.Y));
+   AddPointAABB(&AABB, V2( Dim.V.X, -Dim.V.Y));
+   AddPointAABB(&AABB, V2(-Dim.V.X,  Dim.V.Y));
+   AddPointAABB(&AABB, V2(-Dim.V.X, -Dim.V.Y));
   } break;
   
   case Entity_Count: InvalidPath; break;
@@ -730,7 +730,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
      b32 ModifyActivated = false;
      b32 ModifyDeactivated = false;
      
-     UI_DragFloat2(NewXForm.P.E, 0.0f, 0.0f, 0, StrLit("Position"));
+     UI_DragFloat2(&NewXForm.P, 0.0f, 0.0f, 0, StrLit("Position"));
      ModifyActivated |= UI_IsItemActivated();
      ModifyDeactivated |= UI_IsItemDeactivated();
      if (ResetCtxMenu(StrLit("PositionReset")))
@@ -748,12 +748,12 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       ModifyActivated = ModifyDeactivated = true;
      }
      
-     UI_DragFloat2(NewXForm.Scale.E, 0.0f, 0.0f, 0, StrLit("Scale"));
+     UI_DragFloat2(&NewXForm.Scale.V, 0.0f, 0.0f, 0, StrLit("Scale"));
      ModifyActivated |= UI_IsItemActivated();
      ModifyDeactivated |= UI_IsItemDeactivated();
      if (ResetCtxMenu(StrLit("ScaleReset")))
      {
-      NewXForm.Scale = V2(1.0f, 1.0f);
+      NewXForm.Scale = Scale2DOne();
       ModifyActivated = ModifyDeactivated = true;
      }
      
@@ -763,11 +763,11 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       UI_DragFloat(&UniformScale, 0.0f, 0.0f, "Drag Me!", StrLit("Uniform Scale"));
       ModifyActivated |= UI_IsItemActivated();
       ModifyDeactivated |= UI_IsItemDeactivated();
-      f32 WidthOverHeight = NewXForm.Scale.X / NewXForm.Scale.Y;
-      NewXForm.Scale = NewXForm.Scale + V2(WidthOverHeight * UniformScale, UniformScale);
+      f32 WidthOverHeight = NewXForm.Scale.V.X / NewXForm.Scale.V.Y;
+      NewXForm.Scale.V = NewXForm.Scale.V + V2(WidthOverHeight * UniformScale, UniformScale);
       if (ResetCtxMenu(StrLit("DragMeReset")))
       {
-       NewXForm.Scale = V2(1.0f, 1.0f);
+       NewXForm.Scale = Scale2DOne();
        ModifyActivated = ModifyDeactivated = true;
       }
      }
@@ -1495,7 +1495,7 @@ RenderMenuBarUI(editor *Editor)
    UI_SeparatorText(StrLit("Camera"));
    {
     camera *Camera = &Editor->Camera;
-    UI_DragFloat2(Camera->P.E, 0.0f, 0.0f, 0, StrLit("Position"));
+    UI_DragFloat2(&Camera->P, 0.0f, 0.0f, 0, StrLit("Position"));
     if (ResetCtxMenu(StrLit("PositionReset")))
     {
      TranslateCamera(Camera, -Camera->P);
@@ -2541,7 +2541,7 @@ ProcessInputEvents(editor *Editor,
     if (NormSquared(FromP - CenterP) >= Square(RotationRadius) &&
         NormSquared(ToP   - CenterP) >= Square(RotationRadius))
     {
-     v2 Rotation = Rotation2DFromMovementAroundPoint(FromP, ToP, CenterP);
+     rotation2d Rotation = Rotation2DFromMovementAroundPoint(FromP, ToP, CenterP);
      RotateCameraAround(Camera, Rotation2DInverse(Rotation), CenterP);
     }
    }

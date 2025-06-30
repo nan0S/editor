@@ -33,7 +33,7 @@ SetCameraZoom(camera *Camera, f32 Zoom)
 }
 
 internal void
-RotateCameraAround(camera *Camera, v2 Rotate, v2 Around)
+RotateCameraAround(camera *Camera, rotation2d Rotate, v2 Around)
 {
  Camera->P = RotateAround(Camera->P, Around, Rotate);
  Camera->Rotation = CombineRotations2D(Camera->Rotation, Rotate);

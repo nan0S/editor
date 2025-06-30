@@ -80,7 +80,7 @@ SafeGetImage(entity *Entity)
 }
 
 inline internal entity_xform
-MakeEntityXForm(v2 P, v2 Scale, v2 Rotation)
+MakeEntityXForm(v2 P, scale2d Scale, rotation2d Rotation)
 {
  entity_xform XForm = {};
  XForm.P = P;
@@ -99,7 +99,7 @@ EntityXFormZero(void)
 inline internal entity_xform
 EntityXFormFromP(v2 P)
 {
- entity_xform XForm = MakeEntityXForm(P, V2(1, 1), Rotation2DZero());
+ entity_xform XForm = MakeEntityXForm(P, Scale2DOne(), Rotation2DZero());
  return XForm;
 }
 
@@ -1126,7 +1126,7 @@ InitEntityAsImage(entity *Entity,
                 EntityXFormFromP(P),
                 Name, 0, 0);
  image *Image = &Entity->Image;
- Image->Dim = V2(Cast(f32)Width / Height, 1.0f);
+ Image->Dim = Scale2D(Cast(f32)Width / Height, 1.0f);
  Image->TextureHandle = TextureHandle;
 }
 
@@ -1194,23 +1194,23 @@ EndModifyCurvePoints(curve_points_static_modify_handle Handle)
  }
 }
 
-internal v2
-ProjectThroughXForm(entity_xform *XForm, v2 P)
+inline internal v2
+ProjectThroughXForm(entity_xform XForm, v2 P)
 {
  v2 Q = P;
- Q = Hadamard(Q, XForm->Scale);
- Q = RotateAround(Q, V2(0.0f, 0.0f), XForm->Rotation);
- Q = Q + XForm->P;
+ Q = Hadamard(Q, XForm.Scale.V);
+ Q = RotateAround(Q, V2(0.0f, 0.0f), XForm.Rotation);
+ Q = Q + XForm.P;
  return Q;
 }
 
-internal v2
-UnprojectThroughXForm(entity_xform *XForm, v2 P)
+inline internal v2
+UnprojectThroughXForm(entity_xform XForm, v2 P)
 {
  v2 Q = P;
- Q = Q - XForm->P;
- Q = RotateAround(Q, V2(0, 0), Rotation2DInverse(XForm->Rotation));
- Q = Hadamard(Q, V2(1.0f / XForm->Scale.X, 1.0f / XForm->Scale.Y));
+ Q = Q - XForm.P;
+ Q = RotateAround(Q, V2(0, 0), Rotation2DInverse(XForm.Rotation));
+ Q = Hadamard(Q, V2(1.0f / XForm.Scale.V.X, 1.0f / XForm.Scale.V.Y));
  return Q;
 }
 
@@ -1218,14 +1218,14 @@ UnprojectThroughXForm(entity_xform *XForm, v2 P)
 internal v2
 WorldToLocalEntityPosition(entity *Entity, v2 P)
 {
- v2 Result = UnprojectThroughXForm(&Entity->XForm, P);
+ v2 Result = UnprojectThroughXForm(Entity->XForm, P);
  return Result;
 }
 
 internal v2
 LocalToWorldEntityPosition(entity *Entity, v2 P)
 {
- v2 Result = ProjectThroughXForm(&Entity->XForm, P);
+ v2 Result = ProjectThroughXForm(Entity->XForm, P);
  return Result;
 }
 

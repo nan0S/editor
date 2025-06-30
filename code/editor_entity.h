@@ -289,7 +289,7 @@ struct curve
 
 struct image
 {
- v2 Dim;
+ scale2d Dim;
  render_texture_handle TextureHandle;
 };
 
@@ -318,8 +318,8 @@ typedef u32 entity_internal_flags;
 struct entity_xform
 {
  v2 P;
- v2 Rotation;
- v2 Scale;
+ scale2d Scale;
+ rotation2d Rotation;
 };
 
 struct entity

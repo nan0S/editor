@@ -10,7 +10,7 @@ struct exponential_animation
 struct camera
 {
  v2 P;
- v2 Rotation;
+ rotation2d Rotation;
  f32 Zoom;
  f32 ZoomSensitivity;
  

@@ -31,7 +31,20 @@
 #define SinhF32(X)             sinhf(X)
 #define CoshF32(X)             coshf(X)
 
-//~ Basic operations
+//~ Basic
+union rotation2d
+{
+ v2 V;
+ struct { f32 X; f32 Y; };
+};
+
+union scale2d
+{
+ v2 V;
+ struct { f32 X; f32 Y; };
+};
+
+//- operations
 inline internal v2  operator+ (v2 U, v2 V)   { return V2(U.X + V.X, U.Y + V.Y); }
 inline internal v2  operator- (v2 U, v2 V)   { return V2(U.X - V.X, U.Y - V.Y); }
 inline internal v2  operator- (v2 U)            { return V2(-U.X, -U.Y); }
@@ -91,19 +104,23 @@ internal v2 ProjectOnto(v2 U, v2 Onto);
 typedef u32 hull_point_count32;
 internal hull_point_count32 CalcConvexHull(u32 PointCount, v2 *Points, v2 *OutPoints);
 
-internal v2 Rotation2D(f32 X, f32 Y);
-internal v2 Rotation2DZero(void);
-internal v2 Rotation2DFromVector(v2 Vector);
-internal v2 Rotation2DFromDegrees(f32 Degrees);
-internal v2 Rotation2DFromRadians(f32 Radians);
-internal f32 Rotation2DToDegrees(v2 Rotation);
-internal f32 Rotation2DToRadians(v2 Rotation);
-internal v2 Rotation2DInverse(v2 Rotation);
-internal v2 Rotate90DegreesAntiClockwise(v2 Rotation);
-internal v2 Rotate90DegreesClockwise(v2 Rotation);
-internal v2 Rotation2DFromMovementAroundPoint(v2 From, v2 To, v2 Center);
-internal v2 RotateAround(v2 Point, v2 Center, v2 Rotation);
-internal v2 CombineRotations2D(v2 RotationA, v2 RotationB);
+internal rotation2d Rotation2D(f32 X, f32 Y);
+internal rotation2d Rotation2D(v2 V);
+internal rotation2d Rotation2DZero(void);
+internal rotation2d Rotation2DFromVector(v2 Vector);
+internal rotation2d Rotation2DFromDegrees(f32 Degrees);
+internal rotation2d Rotation2DFromRadians(f32 Radians);
+internal f32 Rotation2DToDegrees(rotation2d Rotation);
+internal f32 Rotation2DToRadians(rotation2d Rotation);
+internal rotation2d Rotation2DInverse(rotation2d Rotation);
+internal rotation2d Rotate90DegreesAntiClockwise(rotation2d Rotation);
+internal rotation2d Rotate90DegreesClockwise(v2 Rotation);
+internal rotation2d Rotation2DFromMovementAroundPoint(v2 From, v2 To, v2 Center);
+internal v2 RotateAround(v2 Point, v2 Center, rotation2d Rotation);
+internal rotation2d CombineRotations2D(rotation2d RotationA, rotation2d RotationB);
+
+internal scale2d Scale2D(f32 X, f32 Y);
+internal scale2d Scale2DOne(void);
 
 internal mat3 Identity3x3(void);
 internal mat3 Transpose3x3(mat3 M);
@@ -129,7 +146,7 @@ internal i32 GaussianElimination(f32 *A, f32 *B, u32 Rows, u32 Cols); // returns
 internal void EquidistantPoints(f32 *Ti, u32 N, f32 A, f32 B);
 internal void ChebychevPoints(f32 *Ti, u32 N);
 
-//- Barycentric form polynomial
+// Barycentric form polynomial
 internal void BarycentricOmega(f32 *Omega, f32 *Ti, u32 N);
 internal void BarycentricOmegaWerner(f32 *Omega, f32 *Ti, u32 N);
 internal void BarycentricOmegaEquidistant(f32 *Omega, f32 *Ti, u32 N);

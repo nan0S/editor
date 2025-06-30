@@ -107,13 +107,13 @@ struct render_group
  f32 CameraZoom;
  f32 AspectRatio;
 };
-internal render_group BeginRenderGroup(render_frame *Frame, v2 CameraP, v2 CameraRot, f32 CameraZoom, v4 ClearColor);
+internal render_group BeginRenderGroup(render_frame *Frame, v2 CameraP, rotation2d CameraRot, f32 CameraZoom, v4 ClearColor);
 internal void PushVertexArray(render_group *Group, v2 *Vertices, u32 VertexCount, render_primitive_type Primitive, v4 Color, f32 ZOffset);
 internal void PushCircle(render_group *Group, v2 P, f32 Radius, v4 Color, f32 ZOffset, f32 OutlineThickness = 0, v4 OutlineColor = V4(0, 0, 0, 0));
-internal void PushRectangle(render_group *Group, v2 P, v2 Size, v2 Rotation, v4 Color, f32 ZOffset);
+internal void PushRectangle(render_group *Group, v2 P, v2 Size, rotation2d Rotation, v4 Color, f32 ZOffset);
 internal void PushLine(render_group *Group, v2 BeginPoint, v2 EndPoint, f32 LineWidth, v4 Color, f32 ZOffset);
 internal void PushTriangle(render_group *Group, v2 P0, v2 P1, v2 P2, v4 Color, f32 ZOffset);
-internal void PushImage(render_group *Group, v2 Dim, render_texture_handle TextureHandle);
+internal void PushImage(render_group *Group, scale2d Dim, render_texture_handle TextureHandle);
 internal f32 ClipSpaceLengthToWorldSpace(render_group *RenderGroup, f32 Clip);
 internal void SetTransform(render_group *RenderGroup, mat3 Model, f32 ZOffset);
 internal void ResetTransform(render_group *RenderGroup);

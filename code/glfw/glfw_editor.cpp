@@ -1,6 +1,5 @@
 #include "platform_shared.h"
 #include "editor_glfw.h"
-#include "editor_math.h"
 #include "glfw/glfw_editor.h"
 #include "glfw/glfw_editor_renderer_opengl.h"
 #include "third_party/imgui/imgui_impl_glfw.h"

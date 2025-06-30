@@ -11,8 +11,8 @@
 #include "editor_profiler.h"
 #include "editor_imgui.h"
 #include "editor_platform.h"
-#include "editor_renderer.h"
 #include "editor_math.h"
+#include "editor_renderer.h"
 #include "editor_sort.h"
 #include "editor_parametric_equation.h"
 #include "editor_entity.h"
@@ -36,7 +36,6 @@ crucial:
 - Checbyshev polynomial bezier degree lowering method
 
 important:
-- add scaling/rotating to undo/redo
 - incluce imgui tutorial to get familiar with the ui widgets used throughout the project
 - parametric curve examples
 

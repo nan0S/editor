@@ -263,7 +263,7 @@ UI_ButtonF(char const *Format, ...)
 }
 
 internal b32
-UI_AngleSlider(v2 *Rotation, string Label)
+UI_AngleSlider(rotation2d *Rotation, string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
@@ -275,7 +275,7 @@ UI_AngleSlider(v2 *Rotation, string Label)
 }
 
 internal b32
-UI_AngleSliderF(v2 *Rotation, char const *Format, ...)
+UI_AngleSliderF(rotation2d *Rotation, char const *Format, ...)
 {
  temp_arena Temp = TempArena(0);
  va_list Args;
@@ -502,16 +502,16 @@ UI_DragFloatF(f32 *Value, f32 MinValue, f32 MaxValue, char const *ValueFormat, c
 }
 
 internal b32
-UI_DragFloat2(f32 Values[2], f32 MinValue, f32 MaxValue, char const *ValueFormat, string Label)
+UI_DragFloat2(v2 *Value, f32 MinValue, f32 MaxValue, char const *ValueFormat, string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
- f32 CurrentVal = (Abs(Values[0]) + Abs(Values[1])) / 2;
+ f32 CurrentVal = (Abs(Value->X) + Abs(Value->Y)) / 2;
  f32 Speed = PowF32(CurrentVal, 0.7f) / 100.0f;
  Speed = ClampBot(0.001f, Speed);
  char const *Format = ValueFormat;
  if (Format == 0) Format = "%.3f";
- b32 Result = Cast(b32)Platform.ImGui.DragFloat2(CLabel.Data, Values, Speed, MinValue,
+ b32 Result = Cast(b32)Platform.ImGui.DragFloat2(CLabel.Data, Value->E, Speed, MinValue,
                                                  MaxValue, Format, ImGuiSliderFlags_NoRoundToFormat);
  EndTemp(Temp);
  
@@ -519,13 +519,13 @@ UI_DragFloat2(f32 Values[2], f32 MinValue, f32 MaxValue, char const *ValueFormat
 }
 
 internal b32
-UI_DragFloat2F(f32 Values[2], f32 MinValue, f32 MaxValue, char const *ValueFormat, char const *Format, ...)
+UI_DragFloat2F(v2 *Value, f32 MinValue, f32 MaxValue, char const *ValueFormat, char const *Format, ...)
 {
  temp_arena Temp = TempArena(0);
  va_list Args;
  va_start(Args, Format);
  string Label = StrFV(Temp.Arena, Format, Args);
- b32 Result = UI_DragFloat2(Values, MinValue, MaxValue, ValueFormat, Label);
+ b32 Result = UI_DragFloat2(Value, MinValue, MaxValue, ValueFormat, Label);
  va_end(Args);
  EndTemp(Temp);
  

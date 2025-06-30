@@ -124,50 +124,55 @@ ProjectOnto(v2 U, v2 Onto)
  return Result;
 }
 
-internal v2
+inline internal rotation2d
 Rotation2D(f32 X, f32 Y)
 {
- v2 Rotation = {};
- Rotation.X = X;
- Rotation.Y = Y;
- 
+ rotation2d Rotation = Rotation2D(V2(X, Y));
  return Rotation;
 }
 
-internal v2
+inline internal rotation2d
+Rotation2D(v2 V)
+{
+ rotation2d Rotation = {};
+ Rotation.V = V;
+ return Rotation;
+}
+
+inline internal rotation2d
 Rotation2DZero(void)
 {
- v2 Result = Rotation2D(1.0f, 0.0f);
+ rotation2d Result = Rotation2D(1.0f, 0.0f);
  return Result;
 }
 
-internal v2
+internal rotation2d
 Rotation2DFromVector(v2 Vector)
 {
  Normalize(&Vector);
- v2 Result = Rotation2D(Vector.X, Vector.Y);
+ rotation2d Result = Rotation2D(Vector.X, Vector.Y);
  
  return Result;
 }
 
-internal v2
+internal rotation2d
 Rotation2DFromDegrees(f32 Degrees)
 {
  f32 Radians = DegToRad32 * Degrees;
- v2 Result = Rotation2DFromRadians(Radians);
+ rotation2d Result = Rotation2DFromRadians(Radians);
  
  return Result;
 }
 
-internal v2
+internal rotation2d
 Rotation2DFromRadians(f32 Radians)
 {
- v2 Result = Rotation2D(CosF32(Radians), SinF32(Radians));
+ rotation2d Result = Rotation2D(CosF32(Radians), SinF32(Radians));
  return Result;
 }
 
 internal f32
-Rotation2DToDegrees(v2 Rotation)
+Rotation2DToDegrees(rotation2d Rotation)
 {
  f32 Radians = Rotation2DToRadians(Rotation);
  f32 Degrees = RadToDeg32 * Radians;
@@ -176,34 +181,34 @@ Rotation2DToDegrees(v2 Rotation)
 }
 
 internal f32
-Rotation2DToRadians(v2 Rotation)
+Rotation2DToRadians(rotation2d Rotation)
 {
- f32 Radians = Atan2F32(Rotation.Y, Rotation.X);
+ f32 Radians = Atan2F32(Rotation.V.Y, Rotation.V.X);
  return Radians;
 }
 
-internal v2
-Rotation2DInverse(v2 Rotation)
+internal rotation2d
+Rotation2DInverse(rotation2d Rotation)
 {
- v2 InverseRotation = Rotation2D(Rotation.X, -Rotation.Y);
+ rotation2d InverseRotation = Rotation2D(Rotation.V.X, -Rotation.V.Y);
  return InverseRotation;
 }
 
-internal v2
-Rotate90DegreesAntiClockwise(v2 Rotation)
+internal rotation2d
+Rotate90DegreesAntiClockwise(rotation2d Rotation)
 {
- v2 Result = Rotation2D(-Rotation.Y, Rotation.X);
+ rotation2d Result = Rotation2D(-Rotation.V.Y, Rotation.V.X);
  return Result;
 }
 
-internal v2
-Rotate90DegreesClockwise(v2 Rotation)
+internal rotation2d
+Rotate90DegreesClockwise(rotation2d Rotation)
 {
- v2 Result = Rotation2D(Rotation.Y, -Rotation.X);
+ rotation2d Result = Rotation2D(Rotation.V.Y, -Rotation.V.X);
  return Result;
 }
 
-internal v2
+internal rotation2d
 Rotation2DFromMovementAroundPoint(v2 From, v2 To, v2 Center)
 {
  v2 FromTranslated = From - Center;
@@ -221,31 +226,46 @@ Rotation2DFromMovementAroundPoint(v2 From, v2 To, v2 Center)
  }
  Assert(ApproxEq32(Cos*Cos + Sin*Sin, 1.0f));
  
- v2 Rotation = Rotation2D(Cos, Sin);
+ rotation2d Rotation = Rotation2D(Cos, Sin);
  return Rotation;
 }
 
 internal v2
-RotateAround(v2 Point, v2 Center, v2 Rotation)
+RotateAround(v2 Point, v2 Center, rotation2d Rotation)
 {
  v2 Translated = Point - Center;
- v2 Rotated = V2(Rotation.X * Translated.X - Rotation.Y * Translated.Y,
-                 Rotation.X * Translated.Y + Rotation.Y * Translated.X);
+ v2 Rotated = V2(Rotation.V.X * Translated.X - Rotation.V.Y * Translated.Y,
+                 Rotation.V.X * Translated.Y + Rotation.V.Y * Translated.X);
  v2 Result = Rotated + Center;
  
  return Result;
 }
 
-internal v2
-CombineRotations2D(v2 RotationA, v2 RotationB)
+internal rotation2d
+CombineRotations2D(rotation2d A, rotation2d B)
 {
- f32 RotationX = RotationA.X * RotationB.X - RotationA.Y * RotationB.Y;
- f32 RotationY = RotationA.X * RotationB.Y + RotationA.Y * RotationB.X;
+ f32 RotationX = A.V.X * B.V.X - A.V.Y * B.V.Y;
+ f32 RotationY = A.V.X * B.V.Y + A.V.Y * B.V.X;
  v2 RotationVector = V2(RotationX, RotationY);
  Normalize(&RotationVector);
  
- v2 Result = Rotation2D(RotationVector.X, RotationVector.Y);
+ rotation2d Result = Rotation2D(RotationVector.X, RotationVector.Y);
  return Result;
+}
+
+inline internal scale2d
+Scale2D(f32 X, f32 Y)
+{
+ scale2d Scale = {};
+ Scale.V = V2(X, Y);
+ return Scale;
+}
+
+inline internal scale2d
+Scale2DOne(void)
+{
+ scale2d Scale = Scale2D(1, 1);
+ return Scale;
 }
 
 internal b32
@@ -383,11 +403,11 @@ ComputeVerticesOfThickLine(arena *Arena, u32 PointCount, v2 *LinePoints, f32 Wid
   v2 B = LinePoints[1];
   
   v2 V_Line = B - A;
-  v2 NV_Line = Rotate90DegreesAntiClockwise(V_Line);
-  Normalize(&NV_Line);
+  rotation2d NV_Line = Rotate90DegreesAntiClockwise(Rotation2D(V_Line));
+  Normalize(&NV_Line.V);
   
-  Vertices[VertexIndex + 0] = (A + 0.5f * Width * NV_Line);
-  Vertices[VertexIndex + 1] = (A - 0.5f * Width * NV_Line);
+  Vertices[VertexIndex + 0] = (A + 0.5f * Width * NV_Line.V);
+  Vertices[VertexIndex + 1] = (A - 0.5f * Width * NV_Line.V);
   
   VertexIndex += 2;
   
@@ -404,19 +424,19 @@ ComputeVerticesOfThickLine(arena *Arena, u32 PointCount, v2 *LinePoints, f32 Wid
   
   v2 V_Line = B - A;
   Normalize(&V_Line);
-  v2 NV_Line = Rotate90DegreesAntiClockwise(V_Line);
+  rotation2d NV_Line = Rotate90DegreesAntiClockwise(Rotation2D(V_Line));
   
   v2 V_Succ = C - B;
   Normalize(&V_Succ);
-  v2 NV_Succ = Rotate90DegreesAntiClockwise(V_Succ);
+  rotation2d NV_Succ = Rotate90DegreesAntiClockwise(Rotation2D(V_Succ));
   
   b32 LeftTurn = (Cross(V_Line, V_Succ) >= 0.0f);
   f32 TurnedHalfWidth = (LeftTurn ? 1.0f : -1.0f) * 0.5f * Width;
   
-  line_intersection Intersection = LineIntersection(A + TurnedHalfWidth * NV_Line,
-                                                    B + TurnedHalfWidth * NV_Line,
-                                                    B + TurnedHalfWidth * NV_Succ,
-                                                    C + TurnedHalfWidth * NV_Succ);
+  line_intersection Intersection = LineIntersection(A + TurnedHalfWidth * NV_Line.V,
+                                                    B + TurnedHalfWidth * NV_Line.V,
+                                                    B + TurnedHalfWidth * NV_Succ.V,
+                                                    C + TurnedHalfWidth * NV_Succ.V);
   
   v2 IntersectionPoint = {};
   if (Intersection.IsOneIntersection)
@@ -425,11 +445,11 @@ ComputeVerticesOfThickLine(arena *Arena, u32 PointCount, v2 *LinePoints, f32 Wid
   }
   else
   {
-   IntersectionPoint = B + TurnedHalfWidth * NV_Line;
+   IntersectionPoint = B + TurnedHalfWidth * NV_Line.V;
   }
   
-  v2 B_Line = B - TurnedHalfWidth * NV_Line;
-  v2 B_Succ = B - TurnedHalfWidth * NV_Succ;
+  v2 B_Line = B - TurnedHalfWidth * NV_Line.V;
+  v2 B_Succ = B - TurnedHalfWidth * NV_Succ.V;
   
   if ((LeftTurn && IsLastInside) || (!LeftTurn && !IsLastInside))
   {
@@ -460,11 +480,11 @@ ComputeVerticesOfThickLine(arena *Arena, u32 PointCount, v2 *LinePoints, f32 Wid
    v2 B = LinePoints[N-1];
    
    v2 V_Line = B - A;
-   v2 NV_Line = Rotate90DegreesAntiClockwise(V_Line);
-   Normalize(&NV_Line);
+   rotation2d NV_Line = Rotate90DegreesAntiClockwise(Rotation2D(V_Line));
+   Normalize(&NV_Line.V);
    
-   v2 B_Inside  = B + 0.5f * Width * NV_Line;
-   v2 B_Outside = B - 0.5f * Width * NV_Line;
+   v2 B_Inside  = B + 0.5f * Width * NV_Line.V;
+   v2 B_Outside = B - 0.5f * Width * NV_Line.V;
    
    if (IsLastInside)
    {
@@ -1626,8 +1646,8 @@ AABBSignedDistance(v2 P, v2 BoxP, v2 BoxSize)
 internal f32
 SegmentSignedDistance(v2 P, v2 SegmentBegin, v2 SegmentEnd, f32 SegmentWidth)
 {
- v2 Rotation = Rotation2DFromVector(SegmentEnd - SegmentBegin);
- v2 InvRotation = Rotation2DInverse(Rotation);
+ rotation2d Rotation = Rotation2DFromVector(SegmentEnd - SegmentBegin);
+ rotation2d InvRotation = Rotation2DInverse(Rotation);
  v2 SegmentEndAligned = RotateAround(SegmentEnd, SegmentBegin, InvRotation);
  v2 SegmentSize = V2(Abs(SegmentEndAligned.X - SegmentBegin.X), SegmentWidth);
  
@@ -1788,23 +1808,23 @@ operator*(mat3 A, mat3 B)
 }
 
 internal mat3_inv
-CameraTransform(v2 P, v2 Rotation, f32 Zoom)
+CameraTransform(v2 P, rotation2d Rotation, f32 Zoom)
 {
  mat3_inv Result = {};
  
- v2 XAxis = Rotation;
- v2 YAxis = Rotate90DegreesAntiClockwise(Rotation);
+ rotation2d XAxis = Rotation;
+ rotation2d YAxis = Rotate90DegreesAntiClockwise(Rotation);
  
  // TODO(hbr): It isn't strictly correct order to first do Rows3x3 and then Scale3x3.
  // It should be the other way around. But we scale uniformly by scalar anyway so it
  // doesn't matter.
- mat3 A = Rows3x3(XAxis, YAxis);
+ mat3 A = Rows3x3(XAxis.V, YAxis.V);
  A = Scale3x3(A, Zoom);
  v2 AP = -(A*P);
  A = Translate3x3(A, AP);
  Result.Forward = A;
  
- mat3 iA = Cols3x3(XAxis, YAxis);
+ mat3 iA = Cols3x3(XAxis.V, YAxis.V);
  iA = Scale3x3(iA, 1 / Zoom);
  iA = Translate3x3(iA, P);
  Result.Inverse = iA;
@@ -1823,16 +1843,16 @@ ClipTransform(f32 AspectRatio)
 }
 
 internal mat3
-ModelTransform(v2 P, v2 Rotation, v2 Scale)
+ModelTransform(v2 P, rotation2d Rotation, scale2d Scale)
 {
- v2 XAxis = Rotation;
- v2 YAxis = Rotate90DegreesAntiClockwise(Rotation);
+ rotation2d XAxis = Rotation;
+ rotation2d YAxis = Rotate90DegreesAntiClockwise(Rotation);
  
  // NOTE(hbr): First scale, then rotate, then translate.
  // It's crucial to do that in that order
  mat3 A = Identity3x3();
- A = Scale3x3(A, Scale);
- A = Cols3x3(XAxis, YAxis) * A;
+ A = Scale3x3(A, Scale.V);
+ A = Cols3x3(XAxis.V, YAxis.V) * A;
  A = Translate3x3(A, P);
  
  return A;

@@ -103,7 +103,7 @@ PushCircle(render_group *Group,
 
 internal void
 PushRectangle(render_group *Group,
-              v2 P, v2 Size, v2 Rotation,
+              v2 P, v2 Size, rotation2d Rotation,
               v4 Color, f32 ZOffset)
 {
  ProfileFunctionBegin();
@@ -167,7 +167,7 @@ PushLine(render_group *Group,
  v2 Line = EndPoint - BeginPoint;
  f32 Length = Norm(Line);
  v2 Size = V2(Length, LineWidth);
- v2 Rotation = Rotation2DFromVector(Line);
+ rotation2d Rotation = Rotation2DFromVector(Line);
  PushRectangle(Group, Position, Size, Rotation, Color, ZOffset);
  
  ProfileEnd();
@@ -205,7 +205,7 @@ PushTriangle(render_group *Group,
 }
 
 internal void
-PushImage(render_group *Group, v2 Dim, render_texture_handle TextureHandle)
+PushImage(render_group *Group, scale2d Dim, render_texture_handle TextureHandle)
 {
  render_frame *Frame = Group->Frame;
  if (Frame->ImageCount < Frame->MaxImageCount)
@@ -223,7 +223,7 @@ PushImage(render_group *Group, v2 Dim, render_texture_handle TextureHandle)
 
 internal render_group
 BeginRenderGroup(render_frame *Frame,
-                 v2 CameraP, v2 CameraRot, f32 CameraZoom,
+                 v2 CameraP, rotation2d CameraRot, f32 CameraZoom,
                  v4 ClearColor)
 {
  render_group Result = {};

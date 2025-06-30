@@ -1017,7 +1017,7 @@ EndEntityTransform(editor *Editor, tracked_action *MoveAction)
  b32 Cancel = false;
  if (Entity)
  {
-  entity_xform XForm = Entity->XForm;
+  xform2d XForm = Entity->XForm;
   if (StructsEqual(XForm, MoveAction->OriginalEntityXForm))
   {
    Cancel = true;

@@ -79,30 +79,6 @@ SafeGetImage(entity *Entity)
  return &Entity->Image;
 }
 
-inline internal entity_xform
-MakeEntityXForm(v2 P, scale2d Scale, rotation2d Rotation)
-{
- entity_xform XForm = {};
- XForm.P = P;
- XForm.Scale = Scale;
- XForm.Rotation = Rotation;
- return XForm;
-}
-
-inline internal entity_xform
-EntityXFormZero(void)
-{
- entity_xform XForm = EntityXFormFromP(V2(0, 0));
- return XForm;
-}
-
-inline internal entity_xform
-EntityXFormFromP(v2 P)
-{
- entity_xform XForm = MakeEntityXForm(P, Scale2DOne(), Rotation2DZero());
- return XForm;
-}
-
 inline internal control_point_handle
 ControlPointHandleFromIndex(u32 Index)
 {
@@ -1091,7 +1067,7 @@ SetEntityName(entity *Entity, string Name)
 internal void
 InitEntityPart(entity *Entity,
                entity_type Type,
-               entity_xform XForm,
+               xform2d XForm,
                string Name,
                i32 SortingLayer,
                entity_flags Flags)
@@ -1108,7 +1084,7 @@ InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams)
 {
  InitEntityPart(Entity,
                 Entity_Curve,
-                EntityXFormZero(),
+                XForm2DZero(),
                 Name, 0, 0);
  curve *Curve = &Entity->Curve;
  Curve->Params = CurveParams;
@@ -1123,7 +1099,7 @@ InitEntityAsImage(entity *Entity,
 {
  InitEntityPart(Entity,
                 Entity_Image,
-                EntityXFormFromP(P),
+                XForm2DFromP(P),
                 Name, 0, 0);
  image *Image = &Entity->Image;
  Image->Dim = Scale2D(Cast(f32)Width / Height, 1.0f);
@@ -1195,7 +1171,7 @@ EndModifyCurvePoints(curve_points_static_modify_handle Handle)
 }
 
 inline internal v2
-ProjectThroughXForm(entity_xform XForm, v2 P)
+ProjectThroughXForm(xform2d XForm, v2 P)
 {
  v2 Q = P;
  Q = Hadamard(Q, XForm.Scale.V);
@@ -1205,7 +1181,7 @@ ProjectThroughXForm(entity_xform XForm, v2 P)
 }
 
 inline internal v2
-UnprojectThroughXForm(entity_xform XForm, v2 P)
+UnprojectThroughXForm(xform2d XForm, v2 P)
 {
  v2 Q = P;
  Q = Q - XForm.P;

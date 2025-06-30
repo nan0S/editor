@@ -44,6 +44,13 @@ union scale2d
  struct { f32 X; f32 Y; };
 };
 
+struct xform2d
+{
+ v2 P;
+ scale2d Scale;
+ rotation2d Rotation;
+};
+
 //- operations
 inline internal v2  operator+ (v2 U, v2 V)   { return V2(U.X + V.X, U.Y + V.Y); }
 inline internal v2  operator- (v2 U, v2 V)   { return V2(U.X - V.X, U.Y - V.Y); }
@@ -121,6 +128,10 @@ internal rotation2d CombineRotations2D(rotation2d RotationA, rotation2d Rotation
 
 internal scale2d Scale2D(f32 X, f32 Y);
 internal scale2d Scale2DOne(void);
+
+internal xform2d XForm2D(v2 P, v2 Scale, v2 Rotation);
+internal xform2d XForm2DZero(void);
+internal xform2d XForm2DFromP(v2 P);
 
 internal mat3 Identity3x3(void);
 internal mat3 Transpose3x3(mat3 M);

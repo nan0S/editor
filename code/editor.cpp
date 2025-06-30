@@ -726,7 +726,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
     {
      UI_InputText2(&Entity->NameBuffer, 0, StrLit("Name"));
      
-     entity_xform NewXForm = Entity->XForm;
+     xform2d NewXForm = Entity->XForm;
      b32 ModifyActivated = false;
      b32 ModifyDeactivated = false;
      
@@ -872,12 +872,13 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
          string *VarNames = PushArrayNonZero(Temp.Arena, MAX_ADDITIONAL_VAR_COUNT, string);
          f32 *VarValues = PushArrayNonZero(Temp.Arena, MAX_ADDITIONAL_VAR_COUNT, f32);
          b32 VarChanged = false;
+         u32 VarInputBoxWidthInChars = 4;
          
          ListIter(Var, Resources->AdditionalVarsHead, parametric_curve_var)
          {
           UI_PushId(Var->Id);
           
-          ui_input_result VarName = UI_InputText(Var->VarNameBuffer, MAX_VAR_NAME_BUFFER_LENGTH, 4, StrLit("##Var"));
+          ui_input_result VarName = UI_InputText(Var->VarNameBuffer, MAX_VAR_NAME_BUFFER_LENGTH, VarInputBoxWidthInChars, StrLit("##Var"));
           if (VarName.Changed)
           {
            VarChanged = true;
@@ -910,7 +911,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
          {
           UI_Disabled(true)
           {
-           UI_InputText("t_min", 0, 4, StrLit("##t_min_label"));
+           UI_InputText("t_min", 0, VarInputBoxWidthInChars, StrLit("##t_min_label"));
           }
           UI_SameRow();
           UI_Text(false, StrLit(" := "));
@@ -928,7 +929,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
          {
           UI_Disabled(true)
           {
-           UI_InputText("t_max", 0, 4, StrLit("##t_max_label"));
+           UI_InputText("t_max", 0, VarInputBoxWidthInChars, StrLit("##t_max_label"));
           }
           UI_SameRow();
           UI_Text(false, StrLit(" := "));
@@ -947,7 +948,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
          {
           UI_Disabled(true)
           {
-           UI_InputText("x(t)", 0, 4, StrLit("##x(t)_label"));
+           UI_InputText("x(t)", 0, VarInputBoxWidthInChars, StrLit("##x(t)_label"));
           }
           UI_SameRow();
           UI_Text(false, StrLit(" := "));
@@ -980,7 +981,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
          {
           UI_Disabled(true)
           {
-           UI_InputText("y(t)", 0, 4, StrLit("##y(t)_label"));
+           UI_InputText("y(t)", 0, VarInputBoxWidthInChars, StrLit("##y(t)_label"));
           }
           UI_SameRow();
           UI_Text(false, StrLit(" := "));

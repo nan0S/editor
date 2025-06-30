@@ -315,19 +315,12 @@ enum
 };
 typedef u32 entity_internal_flags;
 
-struct entity_xform
-{
- v2 P;
- scale2d Scale;
- rotation2d Rotation;
-};
-
 struct entity
 {
  entity *Next;
  entity *Prev;
  
- entity_xform XForm;
+ xform2d XForm;
  char_buffer NameBuffer;
  i32 SortingLayer;
  entity_flags Flags;
@@ -364,7 +357,7 @@ struct entity_handle_node
 struct entity_snapshot_for_merging
 {
  entity *Entity;
- entity_xform XForm;
+ xform2d XForm;
  entity_flags Flags;
  u32 Version;
 };
@@ -510,7 +503,7 @@ internal curve_points_dynamic CurvePointsDynamicFromStatic(curve_points_static *
 internal void CopyCurvePoints(curve_points_dynamic Dst, curve_points_handle Src);
 
 //- entity initialization
-internal void InitEntityPart(entity *Entity, entity_type Type, entity_xform XForm, string Name, i32 SortingLayer, entity_flags Flags);
+internal void InitEntityPart(entity *Entity, entity_type Type, xform2d XForm, string Name, i32 SortingLayer, entity_flags Flags);
 internal void InitEntityAsImage(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath);
 internal void InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams);
 
@@ -565,8 +558,5 @@ internal curve_merge_compatibility AreCurvesCompatibleForMerging(curve *Curve0, 
 //- misc/helpers
 internal curve *SafeGetCurve(entity *Entity);
 internal image *SafeGetImage(entity *Entity);
-internal entity_xform MakeEntityXForm(v2 P, v2 Scale, v2 Rotation);
-internal entity_xform EntityXFormZero(void);
-internal entity_xform EntityXFormFromP(v2 P);
 
 #endif //EDITOR_ENTITY_H

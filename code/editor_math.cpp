@@ -268,6 +268,30 @@ Scale2DOne(void)
  return Scale;
 }
 
+inline internal xform2d
+XForm2D(v2 P, scale2d Scale, rotation2d Rotation)
+{
+ xform2d XForm = {};
+ XForm.P = P;
+ XForm.Scale = Scale;
+ XForm.Rotation = Rotation;
+ return XForm;
+}
+
+inline internal xform2d
+XForm2DZero(void)
+{
+ xform2d XForm = XForm2DFromP(V2(0, 0));
+ return XForm;
+}
+
+inline internal xform2d
+XForm2DFromP(v2 P)
+{
+ xform2d XForm = XForm2D(P, Scale2DOne(), Rotation2DZero());
+ return XForm;
+}
+
 internal b32
 AngleCompareLess(v2 A, v2 B, v2 O)
 {

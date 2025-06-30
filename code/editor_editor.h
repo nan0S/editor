@@ -54,8 +54,8 @@ struct tracked_action
  control_point ControlPoint;
  control_point MovedToControlPoint;
  control_point_handle ControlPointHandle;
- entity_xform OriginalEntityXForm;
- entity_xform XFormedToEntityXForm;
+ xform2d OriginalEntityXForm;
+ xform2d XFormedToEntityXForm;
  b32 IsPending;
  curve_points_static *CurvePoints;
  curve_points_static *FinalCurvePoints;

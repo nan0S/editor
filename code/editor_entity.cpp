@@ -1287,7 +1287,7 @@ GetCubicBezierCurveSegment(cubic_bezier_point *BezierPoints, u32 PointCount, u32
 internal void
 CalcBarycentricPolynomial(v2 *Controls, u32 PointCount, point_spacing PointSpacing, f32 *Ti,
                           u32 SampleCount, v2 *OutSamples,
-                          f32 Min_T, f32 Max_T)
+                          f32 Min_T, f32 Max_T, u32 SamplesPerControlPoint)
 {
  if (PointCount > 0)
  {
@@ -1309,19 +1309,27 @@ CalcBarycentricPolynomial(v2 *Controls, u32 PointCount, point_spacing PointSpaci
   
   points_soa SOA = SplitPointsIntoComponents(Temp.Arena, Controls, PointCount);
   
-  f32 T = Min_T;
-  f32 Delta_T = (Max_T - Min_T) / (SampleCount - 1);
-  
-  for (u32 SampleIndex = 0;
-       SampleIndex < SampleCount;
-       ++SampleIndex)
+  // TODO(hbr): This is kinda of awful, refactor this
+  v2 *Out = OutSamples;
+  for (u32 PointIndex = 1;
+       PointIndex < PointCount;
+       ++PointIndex)
   {
-   f32 X = BarycentricEvaluate(T, Omega, Ti, SOA.Xs, PointCount);
-   f32 Y = BarycentricEvaluate(T, Omega, Ti, SOA.Ys, PointCount);
-   OutSamples[SampleIndex] = V2(X, Y);
-   
-   T += Delta_T;
+   f32 Min_TT = Ti[PointIndex - 1];
+   f32 Max_TT = Ti[PointIndex - 0];
+   f32 Delta_TT = (Max_TT - Min_TT) / SamplesPerControlPoint;
+   f32 TT = Min_TT;
+   for (u32 SampleIndex = 0;
+        SampleIndex < SamplesPerControlPoint;
+        ++SampleIndex)
+   {
+    f32 X = BarycentricEvaluate(TT, Omega, Ti, SOA.Xs, PointCount);
+    f32 Y = BarycentricEvaluate(TT, Omega, Ti, SOA.Ys, PointCount);
+    *Out++ = V2(X, Y);
+    TT += Delta_TT;
+   }
   }
+  *Out++ = Controls[PointCount - 1];
   
   EndTemp(Temp);
  }
@@ -1330,7 +1338,7 @@ CalcBarycentricPolynomial(v2 *Controls, u32 PointCount, point_spacing PointSpaci
 internal void
 CalcNewtonPolynomial(v2 *Controls, u32 PointCount, f32 *Ti,
                      u32 SampleCount, v2 *OutSamples,
-                     f32 Min_T, f32 Max_T)
+                     f32 Min_T, f32 Max_T, u32 SamplesPerControlPoint)
 {
  if (PointCount > 0)
  {
@@ -1343,19 +1351,27 @@ CalcNewtonPolynomial(v2 *Controls, u32 PointCount, f32 *Ti,
   NewtonBetaFast(Beta_X, Ti, SOA.Xs, PointCount);
   NewtonBetaFast(Beta_Y, Ti, SOA.Ys, PointCount);
   
-  f32 T = Min_T;
-  f32 Delta_T = (Max_T - Min_T) / (SampleCount - 1);
-  
-  for (u32 SampleIndex = 0;
-       SampleIndex < SampleCount;
-       ++SampleIndex)
+  // TODO(hbr): This is kinda of awful, refactor this
+  v2 *Out = OutSamples;
+  for (u32 PointIndex = 1;
+       PointIndex < PointCount;
+       ++PointIndex)
   {
-   f32 X = NewtonEvaluate(T, Beta_X, Ti, PointCount);
-   f32 Y = NewtonEvaluate(T, Beta_Y, Ti, PointCount);
-   OutSamples[SampleIndex] = V2(X, Y);
-   
-   T += Delta_T;
+   f32 Min_TT = Ti[PointIndex - 1];
+   f32 Max_TT = Ti[PointIndex - 0];
+   f32 Delta_TT = (Max_TT - Min_TT) / SamplesPerControlPoint;
+   f32 TT = Min_TT;
+   for (u32 SampleIndex = 0;
+        SampleIndex < SamplesPerControlPoint;
+        ++SampleIndex)
+   {
+    f32 X = NewtonEvaluate(TT, Beta_X, Ti, PointCount);
+    f32 Y = NewtonEvaluate(TT, Beta_Y, Ti, PointCount);
+    *Out++ = V2(X, Y);
+    TT += Delta_TT;
+   }
   }
+  *Out++ = Controls[PointCount - 1];
   
   EndTemp(Temp);
  }
@@ -1364,7 +1380,8 @@ CalcNewtonPolynomial(v2 *Controls, u32 PointCount, f32 *Ti,
 internal void
 CalcPolynomial(v2 *Controls, u32 PointCount,
                polynomial_interpolation_params Polynomial,
-               u32 SampleCount, v2 *OutSamples)
+               u32 SampleCount, v2 *OutSamples,
+               u32 SamplesPerControlPoint)
 {
  temp_arena Temp = TempArena(0);
  
@@ -1388,8 +1405,8 @@ CalcPolynomial(v2 *Controls, u32 PointCount,
  
  switch (Polynomial.Type)
  {
-  case PolynomialInterpolation_Barycentric: {CalcBarycentricPolynomial(Controls, PointCount, PointSpacing, Ti, SampleCount, OutSamples, Min_T, Max_T);}break;
-  case PolynomialInterpolation_Newton:      {CalcNewtonPolynomial(Controls, PointCount, Ti, SampleCount, OutSamples, Min_T, Max_T);}break;
+  case PolynomialInterpolation_Barycentric: {CalcBarycentricPolynomial(Controls, PointCount, PointSpacing, Ti, SampleCount, OutSamples, Min_T, Max_T, SamplesPerControlPoint);}break;
+  case PolynomialInterpolation_Newton:      {CalcNewtonPolynomial(Controls, PointCount, Ti, SampleCount, OutSamples, Min_T, Max_T, SamplesPerControlPoint);}break;
   case PolynomialInterpolation_Count: InvalidPath;
  }
  
@@ -1563,10 +1580,11 @@ CalcCurve(arena *EntityArena, curve *Curve, u32 SampleCount, v2 *OutSamples)
  cubic_bezier_point *Beziers = Curve->Points.CubicBezierPoints;
  curve_params *Params = &Curve->Params;
  f32 *B_SplineKnots = Curve->B_SplineKnots;
+ u32 SamplesPerControlPoint = Params->SamplesPerControlPoint;
  
  switch (Params->Type)
  {
-  case Curve_Polynomial: {CalcPolynomial(Controls, PointCount, Params->Polynomial, SampleCount, OutSamples);} break;
+  case Curve_Polynomial: {CalcPolynomial(Controls, PointCount, Params->Polynomial, SampleCount, OutSamples, SamplesPerControlPoint);} break;
   case Curve_CubicSpline: {CalcCubicSpline(Controls, PointCount, Params->CubicSpline, SampleCount, OutSamples);} break;
   
   case Curve_Bezier: {
@@ -1607,6 +1625,12 @@ CalcCurve(arena *EntityArena, curve *Curve, u32 SampleCount, v2 *OutSamples)
  EndTemp(Temp);
 }
 
+// TODO(hbr): This function needs some serious refactoring.
+// First of all, don't break down all the "Compute" functions into hierarchical structure.
+// It's very fragile. It's just better (I think) to duplicate some code but have it more independent.
+// Second of all just refactor stupid code duplication here.
+// Basically inline everything and work your way up from there.
+// Then parallelize this heavily. I mean, we can unroll, we can simd, we can multithread this.
 internal void
 RecomputeCurve(curve *Curve)
 {
@@ -1628,9 +1652,10 @@ RecomputeCurve(curve *Curve)
  }
  else
  {
-  if (PointCount > 0)
+  u32 PointCountWithLooped = (IsCurveLooped(Curve) ? PointCount + 1 : PointCount);
+  if (PointCountWithLooped > 0)
   {
-   SampleCount = (PointCount - 1) * Params->SamplesPerControlPoint + 1;
+   SampleCount = (PointCountWithLooped - 1) * Params->SamplesPerControlPoint + 1;
   }
  }
  v2 *Samples = PushArrayNonZero(ComputeArena, SampleCount, v2);

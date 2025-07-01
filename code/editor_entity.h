@@ -25,7 +25,8 @@ enum polynomial_interpolation_type : u32
  PolynomialInterpolation_Newton,
  PolynomialInterpolation_Count,
 };
-global read_only string PolynomialInterpolationTypeNames[] = {
+global read_only string
+PolynomialInterpolationTypeNames[] = {
  StrLitComp("Barycentric"),
  StrLitComp("Newton")
 };
@@ -255,6 +256,46 @@ struct parametric_curve_resources
  parametric_curve_var *FirstFreeAdditionalVar;
  parametric_curve_var *AdditionalVarsHead;
  parametric_curve_var *AdditionalVarsTail;
+};
+
+enum parametric_curve_predefined_example_type
+{
+ ParametricCurvePredefinedExample_Circle,
+ ParametricCurvePredefinedExample_LissajousCurve,
+};
+struct parametric_curve_predefined_example_var
+{
+ string Name;
+ string Equation;
+};
+struct parametric_curve_predefined_example
+{
+ string X_Equation;
+ string Y_Equation;
+ parametric_curve_predefined_example_var Min_T;
+ parametric_curve_predefined_example_var Max_T;
+ parametric_curve_predefined_example_var AdditionalVars[MAX_ADDITIONAL_VAR_COUNT];
+};
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleCircle = 
+{ 
+ StrLit("cos(t)"),
+ StrLit("sin(t)"),
+ { StrLit("t_min"), StrLit("0") },
+ { StrLit("t_max"), StrLit("2pi") },
+ {},
+};
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleLissajousCurve =
+{ 
+ StrLit("a*cos(k_x*t)"),
+ StrLit("b*sin(k_y*t)"),
+ { StrLit("t_min"), StrLit("0") },
+ { StrLit("t_max"), StrLit("2pi") },
+ {
+  { StrLit("a"), StrLit("1") },
+  { StrLit("b"), StrLit("1") },
+  { StrLit("k_x"), StrLit("3") },
+  { StrLit("k_y"), StrLit("2") },
+ },
 };
 
 struct curve

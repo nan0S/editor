@@ -4,15 +4,14 @@ CheckCollisionWithMultiLine(v2 LocalAtP, v2 *CurveSamples, u32 PointCount, f32 W
  multiline_collision Result = {};
  
  f32 CheckWidth = Width + Tolerance;
+ f32 MinDistance = 0.0f;
  u32 MinDistancePointIndex = 0;
- f32 MinDistance = 1.0f;
  for (u32 PointIndex = 0;
       PointIndex + 1 < PointCount;
       ++PointIndex)
  {
   v2 P1 = CurveSamples[PointIndex + 0];
   v2 P2 = CurveSamples[PointIndex + 1];
-  
   f32 Distance = SegmentSignedDistance(LocalAtP, P1, P2, CheckWidth);
   if (Distance < MinDistance)
   {
@@ -21,7 +20,7 @@ CheckCollisionWithMultiLine(v2 LocalAtP, v2 *CurveSamples, u32 PointCount, f32 W
   }
  }
  
- if (MinDistance <= 0.0f)
+ if (MinDistance < 0)
  {
   Result.Collided = true;
   Result.PointIndex = MinDistancePointIndex;

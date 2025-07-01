@@ -3451,7 +3451,7 @@ RenderGridLinesAlongAxis(render_group *RenderGroup, axis2 Axis)
  f32 MinorLineWidth = ClipSpaceLengthToWorldSpace(RenderGroup, MinorLineWidthClip);
  f32 LogBaseF = Cast(f32)LogBase;
  f32 Span = ClipSpaceLengthToWorldSpace(RenderGroup, 2.0f / 5);
- f32 Spacing = PowF32(LogBaseF, FloorF32(LogBF32(LogBaseF, Span)));
+ f32 Spacing = PowF32(LogBaseF, FloorF32(LogBaseF32(LogBaseF, Span)));
  f32 InvWidth = 1.0f / Spacing;
  i32 From = Cast(i32)CeilF32(ViewportWorld.Min.E[Axis] * InvWidth);
  i32 To = Cast(i32)FloorF32(ViewportWorld.Max.E[Axis] * InvWidth);

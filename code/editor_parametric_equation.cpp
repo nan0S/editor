@@ -1014,9 +1014,9 @@ EvalApplicationExpr(parametric_equation_identifier Identifier,
   case ParametricEquationIdentifier_mod:   {Result =   ModF32(ArgValues[0], ArgValues[1]);}break;
   case ParametricEquationIdentifier_atan2:  {Result = Atan2F32(ArgValues[0], ArgValues[1]);}break;
   
-  case ParametricEquationIdentifier_pi:    {Result =        Pi32;}break;
-  case ParametricEquationIdentifier_tau:   {Result =       Tau32;}break;
-  case ParametricEquationIdentifier_euler: {Result =     Euler32;}break;
+  case ParametricEquationIdentifier_pi:    {Result =        PiF32;}break;
+  case ParametricEquationIdentifier_tau:   {Result =       TauF32;}break;
+  case ParametricEquationIdentifier_euler: {Result =     EulerF32;}break;
   
   case ParametricEquationIdentifier_t:     {
    Assert(Env->T_Mode == ParametricEquationT_BoundAndValueProvided);

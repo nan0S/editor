@@ -3,12 +3,13 @@
 
 #include <math.h>
 
-#define Pi32    3.14159265358979323846f
-#define Euler32 2.71828182845904523536f
-#define Tau32   6.28318530717958647692f
+// TODO(hbr): rename to F32
+#define PiF32    3.14159265358979323846f
+#define EulerF32 2.71828182845904523536f
+#define TauF32   6.28318530717958647692f
 
-#define DegToRad32 (Pi32 / 180.0f)
-#define RadToDeg32 (180.0f / Pi32)
+#define DegToRad32 (PiF32 / 180.0f)
+#define RadToDeg32 (180.0f / PiF32)
 
 #define SinF32(X)              sinf(X)
 #define CosF32(X)              cosf(X)
@@ -25,7 +26,7 @@
 #define SqrtF32(X)             sqrtf(X)
 #define ExpF32(X)              expf(X)
 #define LogF32(X)              logf(X)
-#define LogBF32(Base, X)       (LogF32(X) / LogF32(Base))
+#define LogBaseF32(Base, X)    (LogF32(X) / LogF32(Base))
 #define Log10F32(X)            log10f(X)
 #define TanhF32(X)             tanhf(X)
 #define SinhF32(X)             sinhf(X)

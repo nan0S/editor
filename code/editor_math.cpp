@@ -588,7 +588,7 @@ ChebyshevPoints(f32 *Ti, u32 N)
 {
  for (u32 K = 0; K < N; ++K)
  {
-  Ti[K] = CosF32(Pi32 * (2*K+1) / (2*N));
+  Ti[K] = CosF32(PiF32 * (2*K+1) / (2*N));
  }
 }
 
@@ -691,8 +691,8 @@ BarycentricOmegaChebychev(f32 *Omega, u32 N)
   f32 PowOf2 = PowerOf2(N-1);
   for (u32 I = 0; I < N; ++I)
   {
-   f32 Num = PowOf2 * SinF32(Pi32 * (2*I+1) / (2*N));
-   f32 Den = (N * SinF32(Pi32 * (2*I+1) * 0.5f));
+   f32 Num = PowOf2 * SinF32(PiF32 * (2*I+1) / (2*N));
+   f32 Den = (N * SinF32(PiF32 * (2*I+1) * 0.5f));
    Omega[I] = Num / Den;
   }
  }

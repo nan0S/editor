@@ -3,13 +3,12 @@
 
 #include <math.h>
 
-// TODO(hbr): rename to F32
 #define PiF32    3.14159265358979323846f
 #define EulerF32 2.71828182845904523536f
 #define TauF32   6.28318530717958647692f
 
-#define DegToRad32 (PiF32 / 180.0f)
-#define RadToDeg32 (180.0f / PiF32)
+#define DegToRadF32 (PiF32 / 180.0f)
+#define RadToDegF32 (180.0f / PiF32)
 
 #define SinF32(X)              sinf(X)
 #define CosF32(X)              cosf(X)

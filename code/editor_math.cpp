@@ -158,7 +158,7 @@ Rotation2DFromVector(v2 Vector)
 internal rotation2d
 Rotation2DFromDegrees(f32 Degrees)
 {
- f32 Radians = DegToRad32 * Degrees;
+ f32 Radians = DegToRadF32 * Degrees;
  rotation2d Result = Rotation2DFromRadians(Radians);
  
  return Result;
@@ -175,7 +175,7 @@ internal f32
 Rotation2DToDegrees(rotation2d Rotation)
 {
  f32 Radians = Rotation2DToRadians(Rotation);
- f32 Degrees = RadToDeg32 * Radians;
+ f32 Degrees = RadToDegF32 * Radians;
  
  return Degrees;
 }

@@ -258,14 +258,39 @@ struct parametric_curve_resources
  parametric_curve_var *AdditionalVarsTail;
 };
 
-enum parametric_curve_predefined_example_type
+enum parametric_curve_predefined_example_type : u32
 {
- ParametricCurvePredefinedExample_Circle,
+ ParametricCurvePredefinedExample_None,
+ ParametricCurvePredefinedExample_CircleEllipse,
  ParametricCurvePredefinedExample_LissajousCurve,
+ ParametricCurvePredefinedExample_Hypotrochoid3,
+ ParametricCurvePredefinedExample_Hypotrochoid5,
+ ParametricCurvePredefinedExample_Hypotrochoid7_1,
+ ParametricCurvePredefinedExample_Hypotrochoid7_2,
+ ParametricCurvePredefinedExample_Hypotrochoid8,
+ ParametricCurvePredefinedExample_Hypotrochoid15,
+ ParametricCurvePredefinedExample_ButterflyCurve,
+ ParametricCurvePredefinedExample_Count,
 };
+global read_only string ParametricCurvePredefinedExampleNames[] = {
+ StrLit("<choose>"),
+ StrLit("Circle/Ellipse"),
+ StrLit("Lissajous Curve"),
+ StrLit("Hypotrochoid 3"),
+ StrLit("Hypotrochoid 5"),
+ StrLit("Hypotrochoid 7.1"),
+ StrLit("Hypotrochoid 7.2"),
+ StrLit("Hypotrochoid 8"),
+ StrLit("Hypotrochoid 15"),
+ StrLit("Butterfly Curve"),
+};
+StaticAssert(ArrayCount(ParametricCurvePredefinedExampleNames) == ParametricCurvePredefinedExample_Count,
+             ParametricCurvePredefinedExampleNamesDefined);
 struct parametric_curve_predefined_example_var
 {
  string Name;
+ b32 EquationMode;
+ f32 Value;
  string Equation;
 };
 struct parametric_curve_predefined_example
@@ -276,27 +301,76 @@ struct parametric_curve_predefined_example
  parametric_curve_predefined_example_var Max_T;
  parametric_curve_predefined_example_var AdditionalVars[MAX_ADDITIONAL_VAR_COUNT];
 };
-global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleCircle = 
+
+#define ParametricCurvePredefinedExampleVarEquation(Name, Equation) { Name, true, 0, Equation }
+#define ParametricCurvePredefinedExampleVarValue(Name, Value, Equation) { Name, false, Value, Equation }
+global read_only parametric_curve_predefined_example NilParametricCurvePredefinedExample;
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleCircleEllipse = 
 { 
- StrLit("cos(t)"),
- StrLit("sin(t)"),
- { StrLit("t_min"), StrLit("0") },
- { StrLit("t_max"), StrLit("2pi") },
- {},
+ StrLit("a*cos(t)"),
+ StrLit("b*sin(t)"),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_min"), 0, StrLit("0")),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_max"), 2*PiF32, StrLit("2pi")),
+ {
+  ParametricCurvePredefinedExampleVarValue(StrLit("a"), 1, StrLit("1")),
+  ParametricCurvePredefinedExampleVarValue(StrLit("b"), 1, StrLit("1")),
+ },
 };
 global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleLissajousCurve =
 { 
  StrLit("a*cos(k_x*t)"),
  StrLit("b*sin(k_y*t)"),
- { StrLit("t_min"), StrLit("0") },
- { StrLit("t_max"), StrLit("2pi") },
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_min"), 0, StrLit("0")),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_max"), 2*PiF32, StrLit("2pi")),
  {
-  { StrLit("a"), StrLit("1") },
-  { StrLit("b"), StrLit("1") },
-  { StrLit("k_x"), StrLit("3") },
-  { StrLit("k_y"), StrLit("2") },
+  ParametricCurvePredefinedExampleVarValue(StrLit("a"), 1, StrLit("1")),
+  ParametricCurvePredefinedExampleVarValue(StrLit("b"), 1, StrLit("1")),
+  ParametricCurvePredefinedExampleVarValue(StrLit("k_x"), 3, StrLit("3")),
+  ParametricCurvePredefinedExampleVarValue(StrLit("k_y"), 2, StrLit("2")),
  },
 };
+// TODO(hbr): There is a gcd missing in this definition
+#define DefineHypotrochoid(R, r, d) \
+{ \
+StrLit("(R-r)*cos(t) + d*cos((R-r)/r*t)"), \
+StrLit("(R-r)*sin(t) - d*sin((R-r)/r*t)"), \
+ParametricCurvePredefinedExampleVarValue(StrLit("t_min"), 0, StrLit("0")), \
+ParametricCurvePredefinedExampleVarValue(StrLit("t_max"), 2*PiF32 * R*r/R, StrLit("2pi * " #R "*" #r "/" #R)), \
+{ \
+ParametricCurvePredefinedExampleVarValue(StrLit("R"), R, StrLit(#R)), \
+ParametricCurvePredefinedExampleVarValue(StrLit("r"), r, StrLit(#r)), \
+ParametricCurvePredefinedExampleVarValue(StrLit("d"), d, StrLit(#d)), \
+}, \
+}
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleHypotrochoid5 = DefineHypotrochoid(5, 3, 5);
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleHypotrochoid3 = DefineHypotrochoid(6, 4, 1);
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleHypotrochoid7_1 = DefineHypotrochoid(7, 4 ,1);
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleHypotrochoid8 = DefineHypotrochoid(8, 3, 2);
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleHypotrochoid7_2 = DefineHypotrochoid(7, 4, 2);
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleHypotrochoid15 = DefineHypotrochoid(15, 14, 1);
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleButterflyCurve =
+{
+ StrLit("sin(t) * (exp(cos(t)) - 2*cos(4*t) - sin(t/12)^5)"),
+ StrLit("cos(t) * (exp(cos(t)) - 2*cos(4*t) - sin(t/12)^5)"),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_min"), 0, StrLit("0")),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_max"), 12*PiF32, StrLit("12pi")),
+ {}
+};
+
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExamples[] = {
+ NilParametricCurvePredefinedExample,
+ ParametricCurvePredefinedExampleCircleEllipse,
+ ParametricCurvePredefinedExampleLissajousCurve,
+ ParametricCurvePredefinedExampleHypotrochoid3,
+ ParametricCurvePredefinedExampleHypotrochoid5,
+ ParametricCurvePredefinedExampleHypotrochoid7_1,
+ ParametricCurvePredefinedExampleHypotrochoid7_2,
+ ParametricCurvePredefinedExampleHypotrochoid8,
+ ParametricCurvePredefinedExampleHypotrochoid15,
+ ParametricCurvePredefinedExampleButterflyCurve,
+};
+StaticAssert(ArrayCount(ParametricCurvePredefinedExamples) == ParametricCurvePredefinedExample_Count,
+             ParametricCurvePredefinedExamplesDefined);
 
 struct curve
 {

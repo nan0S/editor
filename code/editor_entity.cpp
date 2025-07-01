@@ -1758,7 +1758,7 @@ CanAddAdditionalVar(parametric_curve_resources *Resources)
  return Result;
 }
 
-internal void
+internal parametric_curve_var *
 AddNewAdditionalVar(parametric_curve_resources *Resources)
 {
  parametric_curve_var *Var = Resources->FirstFreeAdditionalVar;
@@ -1784,6 +1784,8 @@ AddNewAdditionalVar(parametric_curve_resources *Resources)
               Resources->AdditionalVarsTail,
               Var);
  }
+ 
+ return Var;
 }
 
 internal void

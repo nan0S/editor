@@ -37,7 +37,6 @@ crucial:
 
 important:
 - incluce imgui tutorial to get familiar with the ui widgets used throughout the project
-- parametric curve examples
 
 maybe:
 - better error msgs when curves fail to merge
@@ -60,6 +59,7 @@ maybe:
  - because clicks are now highly independent, we might now delete control point while moving the same control point which could lead to some weird behaviours, investigate that
  - focusing on entity is not 100% correct mathematically - if camera is rotated and entity is rotated, it zooms out a little too much compared to what it "should", although probably noone will notice anyway, I can't figure out the math behing this
 - jak robie undo/redo wiele razy z rzedu to czasami na chwilke pojawiaja sie pewne artefakty rysowania linii - tak jakbym rysowal wielki trojkat zamiast malych ktore skalaja sie na linie, wyglada to jakby jakis vertex linii zostal przesuniety (do (0,0)?)
+- this is not working properly for parametric expression: unexpected error but this should evaluate: StrLit("sin(t) * (exp(sin(t)) - 2*cos(4t))"),
 
   ideas:
  - confirm window when removing points

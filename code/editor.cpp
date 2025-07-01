@@ -856,6 +856,65 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
           ClearArena(EquationArena);
          }
          
+         //- predefined examples
+         // TODO(hbr): This is very adhoc, refactor this
+         local parametric_curve_predefined_example_type PredefinedExample = {};
+         UI_Combo(SafeCastToPtr(PredefinedExample, u32),
+                  ParametricCurvePredefinedExample_Count,
+                  ParametricCurvePredefinedExampleNames,
+                  StrLit("##Predefined Example"));
+         UI_SameRow();
+         UI_Disabled(PredefinedExample == ParametricCurvePredefinedExample_None)
+         {
+          if (UI_Button(StrLit("Load Example")))
+          {
+           parametric_curve_predefined_example Example = ParametricCurvePredefinedExamples[PredefinedExample];
+#define StrCopyToStaticArrayWithZeroPadding(DstStaticArray, Str) \
+do { \
+ArrayCopy(DstStaticArray, Str.Data, Min(Str.Count, ArrayCount(DstStaticArray)-1)); \
+DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
+} while(0)
+           
+           StrCopyToStaticArrayWithZeroPadding(Resources->X_EquationBuffer, Example.X_Equation);
+           StrCopyToStaticArrayWithZeroPadding(Resources->Y_EquationBuffer, Example.Y_Equation);
+           
+           StrCopyToStaticArrayWithZeroPadding(Resources->MinT_Var.VarNameBuffer, Example.Min_T.Name);
+           StrCopyToStaticArrayWithZeroPadding(Resources->MinT_Var.VarEquationBuffer, Example.Min_T.Equation);
+           Resources->MinT_Var.EquationMode = Example.Min_T.EquationMode;
+           Resources->MinT_Var.DragValue = Example.Min_T.Value;
+           
+           StrCopyToStaticArrayWithZeroPadding(Resources->MaxT_Var.VarNameBuffer, Example.Max_T.Name);
+           StrCopyToStaticArrayWithZeroPadding(Resources->MaxT_Var.VarEquationBuffer, Example.Max_T.Equation);
+           Resources->MaxT_Var.EquationMode = Example.Max_T.EquationMode;
+           Resources->MaxT_Var.DragValue = Example.Max_T.Value;
+           
+           // TODO(hbr): First deallocate everything
+           ListIter(Var, Resources->AdditionalVarsHead, parametric_curve_var)
+           {
+            RemoveAdditionalVar(Resources, Var);
+           }
+           
+           ForEachElement(AdditionalVar, Example.AdditionalVars)
+           {
+            parametric_curve_predefined_example_var *SrcVar = Example.AdditionalVars + AdditionalVar;
+            if (SrcVar->Name.Count > 0)
+            {
+             parametric_curve_var *DstVar = AddNewAdditionalVar(Resources);
+             Assert(DstVar);
+             
+             StrCopyToStaticArrayWithZeroPadding(DstVar->VarNameBuffer, SrcVar->Name);
+             StrCopyToStaticArrayWithZeroPadding(DstVar->VarEquationBuffer, SrcVar->Equation);
+             DstVar->EquationMode = SrcVar->EquationMode;
+             DstVar->DragValue = SrcVar->Value;
+            }
+           }
+           
+           EquationChanged = true;
+           
+#undef StrCopyToStaticArrayWithZeroPadding
+          }
+         }
+         
          //- additional vars
          UI_Text(false, StrLit("Additional Vars"));
          UI_SameRow();

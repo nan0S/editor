@@ -263,26 +263,58 @@ enum parametric_curve_predefined_example_type : u32
  ParametricCurvePredefinedExample_None,
  ParametricCurvePredefinedExample_CircleEllipse,
  ParametricCurvePredefinedExample_LissajousCurve,
+ ParametricCurvePredefinedExample_ButterflyCurve,
+ ParametricCurvePredefinedExample_Spiral,
+ ParametricCurvePredefinedExample_SpiralSkewed,
+ ParametricCurvePredefinedExample_WavyCircle,
+ ParametricCurvePredefinedExample_FlowerPetal,
+ ParametricCurvePredefinedExample_Wave,
+ ParametricCurvePredefinedExample_Epicycloid2,
+ ParametricCurvePredefinedExample_Epicycloid3,
+ ParametricCurvePredefinedExample_Epicycloid4,
+ ParametricCurvePredefinedExample_Epicycloid5,
+ ParametricCurvePredefinedExample_Hypocycloid3,
+ ParametricCurvePredefinedExample_Hypocycloid4,
+ ParametricCurvePredefinedExample_Hypocycloid5,
+ ParametricCurvePredefinedExample_Epitrochoid3,
+ ParametricCurvePredefinedExample_Epitrochoid5,
+ ParametricCurvePredefinedExample_Epitrochoid7,
+ ParametricCurvePredefinedExample_Epitrochoid8,
  ParametricCurvePredefinedExample_Hypotrochoid3,
  ParametricCurvePredefinedExample_Hypotrochoid5,
  ParametricCurvePredefinedExample_Hypotrochoid7_1,
  ParametricCurvePredefinedExample_Hypotrochoid7_2,
  ParametricCurvePredefinedExample_Hypotrochoid8,
  ParametricCurvePredefinedExample_Hypotrochoid15,
- ParametricCurvePredefinedExample_ButterflyCurve,
  ParametricCurvePredefinedExample_Count,
 };
 global read_only string ParametricCurvePredefinedExampleNames[] = {
  StrLit("<choose>"),
  StrLit("Circle/Ellipse"),
  StrLit("Lissajous Curve"),
+ StrLit("Butterfly Curve"),
+ StrLit("Spiral"),
+ StrLit("Spiral Skewed"),
+ StrLit("Wavy Circle"),
+ StrLit("Flower Petal"),
+ StrLit("Wave"),
+ StrLit("Epicycloid 2"),
+ StrLit("Epicycloid 3"),
+ StrLit("Epicycloid 4"),
+ StrLit("Epicycloid 5"),
+ StrLit("Hypocycloid 3"),
+ StrLit("Hypocycloid 4"),
+ StrLit("Hypocycloid 5"),
+ StrLit("Epitrochoid 3"),
+ StrLit("Epitrochoid 5"),
+ StrLit("Epitrochoid 7"),
+ StrLit("Epitrochoid 8"),
  StrLit("Hypotrochoid 3"),
  StrLit("Hypotrochoid 5"),
  StrLit("Hypotrochoid 7.1"),
  StrLit("Hypotrochoid 7.2"),
  StrLit("Hypotrochoid 8"),
  StrLit("Hypotrochoid 15"),
- StrLit("Butterfly Curve"),
 };
 StaticAssert(ArrayCount(ParametricCurvePredefinedExampleNames) == ParametricCurvePredefinedExample_Count,
              ParametricCurvePredefinedExampleNamesDefined);
@@ -301,7 +333,6 @@ struct parametric_curve_predefined_example
  parametric_curve_predefined_example_var Max_T;
  parametric_curve_predefined_example_var AdditionalVars[MAX_ADDITIONAL_VAR_COUNT];
 };
-
 #define ParametricCurvePredefinedExampleVarEquation(Name, Equation) { Name, true, 0, Equation }
 #define ParametricCurvePredefinedExampleVarValue(Name, Value, Equation) { Name, false, Value, Equation }
 global read_only parametric_curve_predefined_example NilParametricCurvePredefinedExample;
@@ -329,6 +360,103 @@ global read_only parametric_curve_predefined_example ParametricCurvePredefinedEx
   ParametricCurvePredefinedExampleVarValue(StrLit("k_y"), 2, StrLit("2")),
  },
 };
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleButterflyCurve =
+{
+ StrLit("sin(t) * (exp(cos(t)) - 2*cos(4*t) - sin(t/12)^5)"),
+ StrLit("cos(t) * (exp(cos(t)) - 2*cos(4*t) - sin(t/12)^5)"),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_min"), 0, StrLit("0")),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_max"), 12*PiF32, StrLit("12pi")),
+ {}
+};
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleSpiral =
+{
+ StrLit("t*cos(2*pi*t)"),
+ StrLit("t*sin(2*pi*t)"),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_min"), 0, StrLit("0")),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_max"), 4, StrLit("4")),
+ {}
+};
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleSpiralSkewed =
+{
+ StrLit("t*cos(2*pi*t) + t"),
+ StrLit("t*sin(2*pi*t)"),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_min"), 0, StrLit("0")),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_max"), 4, StrLit("4")),
+ {}
+};
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleWavyCircle =
+{
+ StrLit("(r + h*sin(d*pi*t)) * cos(2*pi*t)"),
+ StrLit("(r + h*sin(d*pi*t)) * sin(2*pi*t)"),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_min"), 0, StrLit("0")),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_max"), 1, StrLit("1")),
+ {
+  ParametricCurvePredefinedExampleVarValue(StrLit("r"), 1, StrLit("1")),
+  ParametricCurvePredefinedExampleVarValue(StrLit("h"), 0.1f, StrLit("0.1")),
+  ParametricCurvePredefinedExampleVarValue(StrLit("d"), 50, StrLit("50")),
+ }
+};
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleFlowerPetal =
+{
+ StrLit("2.5*sin(-5*t)^2 * 2^(cos(cos(4.28*2.3*t)))"),
+ StrLit("2.5*sin(sin(-5*t)) * cos(4.28*2.3*t)^2"),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_min"), -6, StrLit("-6")),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_max"), 6, StrLit("6")),
+ {}
+};
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleWave =
+{
+ StrLit("10*sin(2.78*t) * round(sqrt(cos(cos(8.2*t))))"),
+ StrLit("9*cos(2.78*t)^2 * sin(sin(8.2*t))"),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_min"), -6.2f, StrLit("-6.2")),
+ ParametricCurvePredefinedExampleVarValue(StrLit("t_max"), 6.2f, StrLit("6.2")),
+ {}
+};
+#define DefineEpicycloid(R, r) \
+{ \
+StrLit("(R+r)*cos(t) - r*cos((R+r)/r*t)"), \
+StrLit("(R+r)*sin(t) - r*sin((R+r)/r*t)"), \
+ParametricCurvePredefinedExampleVarValue(StrLit("t_min"), 0, StrLit("0")), \
+ParametricCurvePredefinedExampleVarValue(StrLit("t_max"), 2*PiF32, StrLit("2pi")), \
+{ \
+ParametricCurvePredefinedExampleVarValue(StrLit("R"), R, StrLit(#R)), \
+ParametricCurvePredefinedExampleVarValue(StrLit("r"), r, StrLit(#r)), \
+}, \
+}
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleEpicycloid2 = DefineEpicycloid(2, 1);
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleEpicycloid3 = DefineEpicycloid(3, 1);
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleEpicycloid4 = DefineEpicycloid(4, 1);
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleEpicycloid5 = DefineEpicycloid(5, 1);
+#define DefineHypocycloid(R, r) \
+{ \
+StrLit("(R-r)*cos(t) + r*cos((R-r)/r*t)"), \
+StrLit("(R-r)*sin(t) - r*sin((R-r)/r*t)"), \
+ParametricCurvePredefinedExampleVarValue(StrLit("t_min"), 0, StrLit("0")), \
+ParametricCurvePredefinedExampleVarValue(StrLit("t_max"), 2*PiF32, StrLit("2pi")), \
+{ \
+ParametricCurvePredefinedExampleVarValue(StrLit("R"), R, StrLit(#R)), \
+ParametricCurvePredefinedExampleVarValue(StrLit("r"), r, StrLit(#r)), \
+}, \
+}
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleHypocycloid3 = DefineHypocycloid(3, 1);
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleHypocycloid4 = DefineHypocycloid(4, 1);
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleHypocycloid5 = DefineHypocycloid(5, 1);
+#define DefineEpitrochoid(R, r, d) \
+{ \
+StrLit("(R+r)*cos(t) - d*cos((R+r)/r*t)"), \
+StrLit("(R+r)*sin(t) - d*sin((R+r)/r*t)"), \
+ParametricCurvePredefinedExampleVarValue(StrLit("t_min"), 0, StrLit("0")), \
+ParametricCurvePredefinedExampleVarValue(StrLit("t_max"), 2*PiF32 * R*r/R, StrLit("2pi * " #R "*" #r "/" #R)), \
+{ \
+ParametricCurvePredefinedExampleVarValue(StrLit("R"), R, StrLit(#R)), \
+ParametricCurvePredefinedExampleVarValue(StrLit("r"), r, StrLit(#r)), \
+ParametricCurvePredefinedExampleVarValue(StrLit("d"), d, StrLit(#d)), \
+}, \
+}
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleEpitrochoid5 = DefineEpitrochoid(5, 3, 5);
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleEpitrochoid3 = DefineEpitrochoid(6, 4, 1);
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleEpitrochoid7 = DefineEpitrochoid(7, 4, 2);
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleEpitrochoid8 = DefineEpitrochoid(8, 3, 2);
 // TODO(hbr): There is a gcd missing in this definition
 #define DefineHypotrochoid(R, r, d) \
 { \
@@ -345,29 +473,36 @@ ParametricCurvePredefinedExampleVarValue(StrLit("d"), d, StrLit(#d)), \
 global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleHypotrochoid5 = DefineHypotrochoid(5, 3, 5);
 global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleHypotrochoid3 = DefineHypotrochoid(6, 4, 1);
 global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleHypotrochoid7_1 = DefineHypotrochoid(7, 4 ,1);
-global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleHypotrochoid8 = DefineHypotrochoid(8, 3, 2);
 global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleHypotrochoid7_2 = DefineHypotrochoid(7, 4, 2);
+global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleHypotrochoid8 = DefineHypotrochoid(8, 3, 2);
 global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleHypotrochoid15 = DefineHypotrochoid(15, 14, 1);
-global read_only parametric_curve_predefined_example ParametricCurvePredefinedExampleButterflyCurve =
-{
- StrLit("sin(t) * (exp(cos(t)) - 2*cos(4*t) - sin(t/12)^5)"),
- StrLit("cos(t) * (exp(cos(t)) - 2*cos(4*t) - sin(t/12)^5)"),
- ParametricCurvePredefinedExampleVarValue(StrLit("t_min"), 0, StrLit("0")),
- ParametricCurvePredefinedExampleVarValue(StrLit("t_max"), 12*PiF32, StrLit("12pi")),
- {}
-};
-
 global read_only parametric_curve_predefined_example ParametricCurvePredefinedExamples[] = {
  NilParametricCurvePredefinedExample,
  ParametricCurvePredefinedExampleCircleEllipse,
  ParametricCurvePredefinedExampleLissajousCurve,
+ ParametricCurvePredefinedExampleButterflyCurve,
+ ParametricCurvePredefinedExampleSpiral,
+ ParametricCurvePredefinedExampleSpiralSkewed,
+ ParametricCurvePredefinedExampleWavyCircle,
+ ParametricCurvePredefinedExampleFlowerPetal,
+ ParametricCurvePredefinedExampleWave,
+ ParametricCurvePredefinedExampleEpicycloid2,
+ ParametricCurvePredefinedExampleEpicycloid3,
+ ParametricCurvePredefinedExampleEpicycloid4,
+ ParametricCurvePredefinedExampleEpicycloid5,
+ ParametricCurvePredefinedExampleHypocycloid3,
+ ParametricCurvePredefinedExampleHypocycloid4,
+ ParametricCurvePredefinedExampleHypocycloid5,
+ ParametricCurvePredefinedExampleEpitrochoid3,
+ ParametricCurvePredefinedExampleEpitrochoid5,
+ ParametricCurvePredefinedExampleEpitrochoid7,
+ ParametricCurvePredefinedExampleEpitrochoid8,
  ParametricCurvePredefinedExampleHypotrochoid3,
  ParametricCurvePredefinedExampleHypotrochoid5,
  ParametricCurvePredefinedExampleHypotrochoid7_1,
  ParametricCurvePredefinedExampleHypotrochoid7_2,
  ParametricCurvePredefinedExampleHypotrochoid8,
  ParametricCurvePredefinedExampleHypotrochoid15,
- ParametricCurvePredefinedExampleButterflyCurve,
 };
 StaticAssert(ArrayCount(ParametricCurvePredefinedExamples) == ParametricCurvePredefinedExample_Count,
              ParametricCurvePredefinedExamplesDefined);

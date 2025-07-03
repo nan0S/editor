@@ -60,6 +60,7 @@ maybe:
  - focusing on entity is not 100% correct mathematically - if camera is rotated and entity is rotated, it zooms out a little too much compared to what it "should", although probably noone will notice anyway, I can't figure out the math behing this
 - jak robie undo/redo wiele razy z rzedu to czasami na chwilke pojawiaja sie pewne artefakty rysowania linii - tak jakbym rysowal wielki trojkat zamiast malych ktore skalaja sie na linie, wyglada to jakby jakis vertex linii zostal przesuniety (do (0,0)?)
 - this is not working properly for parametric expression: unexpected error but this should evaluate: StrLit("sin(t) * (exp(sin(t)) - 2*cos(4t))"),
+- undo/redo doesn't seem to work well with entity list and what is selected - I tend to have multiple things that are selected
 
   ideas:
  - confirm window when removing points
@@ -91,6 +92,14 @@ maybe:
  - try to highlight entity that is about to be removed - maybe even in general - highlight stuff upon sliding mouse into its collider
  - curves should have mesh_id/model_id in the same way images have texture_id
  
+new things added:
+- undo/redo
+ - fixed inactive buttons
+- improved help
+- parametric curves predefined examples
+- grid
+- multiple bug fixes
+
  */
 
 struct rendering_entity_handle

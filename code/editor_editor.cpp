@@ -1018,7 +1018,7 @@ EndEntityTransform(editor *Editor, tracked_action *MoveAction)
  if (Entity)
  {
   xform2d XForm = Entity->XForm;
-  if (StructsEqual(XForm, MoveAction->OriginalEntityXForm))
+  if (StructsEqual(&XForm, &MoveAction->OriginalEntityXForm))
   {
    Cancel = true;
   }
@@ -1053,7 +1053,7 @@ EndControlPointMove(editor *Editor, tracked_action *MoveAction)
  if (Entity)
  {
   control_point MovedToControlPoint = GetCurveControlPointInWorldSpace(Entity, MoveAction->ControlPointHandle);
-  if (StructsEqual(MoveAction->MovedToControlPoint, MoveAction->ControlPoint))
+  if (StructsEqual(&MoveAction->MovedToControlPoint, &MoveAction->ControlPoint))
   {
    Cancel = true;
   }

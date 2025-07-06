@@ -17,9 +17,9 @@ EntityModified(entity_snapshot_for_merging Versioned, entity *Entity)
 {
  b32 Result = false;
  if (Versioned.Entity != Entity ||
-     (Entity && (!StructsEqual(Entity->XForm, Versioned.XForm) ||
-                 !StructsEqual(Entity->Flags, Versioned.Flags) ||
-                 !StructsEqual(Entity->Version, Versioned.Version))))
+     (Entity && (!StructsEqual(&Entity->XForm, &Versioned.XForm) ||
+                 !StructsEqual(&Entity->Flags, &Versioned.Flags) ||
+                 !StructsEqual(&Entity->Version, &Versioned.Version))))
  {
   Result = true;
  }
@@ -863,22 +863,24 @@ RecomputeCurveB_SplineKnots(curve *Curve)
  u32 ControlPointCount = Curve->Points.ControlPointCount;
  curve_params *CurveParams = &Curve->Params;
  b_spline_params *B_SplineParams = &CurveParams->B_Spline;
- f32 *Knots = Curve->B_SplineKnots;
  
- b_spline_degree_bounds DegreeBounds = B_SplineDegreeBounds(ControlPointCount);
- u32 Degree = Clamp(Curve->B_SplineKnotParams.Degree, DegreeBounds.MinDegree, DegreeBounds.MaxDegree);
- b_spline_knot_params KnotParams = B_SplineKnotsParamsFromDegree(Degree, ControlPointCount);
+ b_spline_knot_params *B_SplineKnotParams = &Curve->B_SplineKnotParams;
+ b_spline_knot_params AdjustedB_SplineKnotParams = B_SplineKnotParamsFromDegree(B_SplineKnotParams->Degree, ControlPointCount);
  
- Assert(KnotParams.KnotCount <= MAX_B_SPLINE_KNOT_COUNT);
- B_SplineBaseKnots(KnotParams, Knots);
- switch (B_SplineParams->Partition)
+ if (!StructsEqual(B_SplineKnotParams, &AdjustedB_SplineKnotParams))
  {
-  case B_SplinePartition_Natural: {B_SplineKnotsNaturalExtension(KnotParams, Knots);}break;
-  case B_SplinePartition_Periodic: {B_SplineKnotsPeriodicExtension(KnotParams, Knots);}break;
-  case B_SplinePartition_Count: InvalidPath;
+  f32 *Knots = Curve->B_SplineKnots;
+  Assert(AdjustedB_SplineKnotParams.KnotCount <= MAX_B_SPLINE_KNOT_COUNT);
+  B_SplineBaseKnots(AdjustedB_SplineKnotParams, Knots);
+  switch (B_SplineParams->Partition)
+  {
+   case B_SplinePartition_Natural: {B_SplineKnotsNaturalExtension(AdjustedB_SplineKnotParams, Knots);}break;
+   case B_SplinePartition_Periodic: {B_SplineKnotsPeriodicExtension(AdjustedB_SplineKnotParams, Knots);}break;
+   case B_SplinePartition_Count: InvalidPath;
+  }
+  
+  Curve->B_SplineKnotParams = AdjustedB_SplineKnotParams;
  }
- 
- Curve->B_SplineKnotParams = KnotParams;
 }
 
 internal void

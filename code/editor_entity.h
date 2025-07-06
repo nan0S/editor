@@ -711,6 +711,8 @@ enum curve_part_visibility
  CurvePartVisibility_BezierSplitPoint,
  
  CurvePartVisibility_B_SplineKnot,
+ 
+ CurvePartVisibility_CurveSamplePoint,
  // this is at the very top
  
  CurvePartVisibility_Count,
@@ -810,3 +812,19 @@ internal curve *SafeGetCurve(entity *Entity);
 internal image *SafeGetImage(entity *Entity);
 
 #endif //EDITOR_ENTITY_H
+
+internal void
+BeginModifyB_SplineKnots()
+{
+ 
+ 
+ 
+}
+
+internal void
+EndModifyB_SplineKnots()
+{
+ 
+ 
+ 
+}

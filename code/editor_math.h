@@ -227,9 +227,9 @@ struct b_spline_degree_bounds
 
 struct b_spline_knot_params
 {
- u32 Degree;
+ u32 Degree; // this should be preserved in case of other numbers changed
  u32 PartitionSize;
- u32 KnotCount;
+ u32 KnotCount; // in general KnotCount = PartitionSize + 2*Degree
  f32 A;
  f32 B;
 };
@@ -239,7 +239,7 @@ internal void                   B_SplineKnotsNaturalExtension(b_spline_knot_para
 internal void                   B_SplineKnotsPeriodicExtension(b_spline_knot_params KnotParams, f32 *Knots);
 internal v2                     B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *Knots);
 internal b_spline_degree_bounds B_SplineDegreeBounds(u32 ControlPointCount);
-internal b_spline_knot_params   B_SplineKnotsParamsFromDegree(u32 Degree, u32 ControlPointCount);
+internal b_spline_knot_params   B_SplineKnotParamsFromDegree(u32 Degree, u32 ControlPointCount);
 
 //~ Collisions, intersections, geometry
 struct line_intersection

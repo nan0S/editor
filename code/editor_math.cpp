@@ -556,18 +556,6 @@ ComputeVerticesOfThickLine(arena *Arena, u32 PointCount, v2 *LinePoints, f32 Wid
  return Result;
 }
 
-internal v4
-LerpColor(v4 From, v4 To, f32 T)
-{
- v4 Result = {};
- Result.R = Cast(u8)((1-T) * From.R + T * To.R);
- Result.G = Cast(u8)((1-T) * From.G + T * To.G);
- Result.B = Cast(u8)((1-T) * From.B + T * To.B);
- Result.A = Cast(u8)((1-T) * From.A + T * To.A);
- 
- return Result;
-}
-
 internal void
 EquidistantPoints(f32 *Ti, u32 N, f32 A, f32 B)
 {
@@ -916,6 +904,17 @@ B_SplineBaseKnots(b_spline_knot_params KnotParams, f32 *Knots)
                    KnotParams.PartitionSize,
                    KnotParams.A,
                    KnotParams.B);
+#if 1
+ // TODO(hbr): remove
+ if (KnotParams.PartitionSize > 0)
+ {
+  f32 Eps = 0.001f;
+  //f32 Eps = 0.0f;
+  Knots[KnotParams.Degree] = 0.0f + Eps;
+  Knots[KnotParams.Degree + KnotParams.PartitionSize - 1] = 1.0f - Eps;
+  //Knots[KnotParams.Degree + 1] = 0.0f;
+ }
+#endif
 }
 
 internal void
@@ -957,11 +956,11 @@ B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 
  
  T = Clamp(T, Knots.A, Knots.B - F32_EPS);
  
- u32 Degree = Knots.Degree;
- u32 PartitionSize = Knots.PartitionSize;
+ i32 Degree = Cast(i32)Knots.Degree;
+ i32 PartitionSize = Cast(i32)Knots.PartitionSize;
  
- u32 Rows = Degree;
- u32 Cols = Degree;
+ i32 Rows = Cast(i32)Degree;
+ i32 Cols = Cast(i32)Degree;
  v2 *C = PushArray2DNonZero(Temp.Arena, Rows, Cols, v2);
  
 #define c(k, i) C[Index2D(k, i+m, Cols)]
@@ -1017,11 +1016,13 @@ B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 
  // NOTE(hbr): This is unfortunately necessary. Otherwise it freaks out on tail.
  T = Clamp(T, KnotParams.A, KnotParams.B - F32_EPS);
  
- u32 Degree = KnotParams.Degree;
- u32 PartitionSize = KnotParams.PartitionSize;
+ T = Clamp(T, Knots[0] + 10*F32_EPS, Knots[KnotParams.KnotCount - 1] - 10*F32_EPS);
  
- u32 Rows = Degree;
- u32 Cols = Degree;
+ i32 Degree = Cast(i32)KnotParams.Degree;
+ i32 PartitionSize = Cast(i32)KnotParams.PartitionSize;
+ 
+ i32 Rows = Cast(i32)Degree;
+ i32 Cols = Cast(i32)Degree;
  // TODO(hbr): I noticed, that it is a bug to not add 1 here, investiagate whether this is enough or there is something more to it.
  v2 *C = PushArray2DNonZero(Temp.Arena, Rows+1, Cols+1, v2);
  
@@ -1126,8 +1127,11 @@ B_SplineDegreeBounds(u32 ControlPointCount)
 }
 
 internal b_spline_knot_params
-B_SplineKnotsParamsFromDegree(u32 Degree, u32 ControlPointCount)
+B_SplineKnotParamsFromDegree(u32 Degree, u32 ControlPointCount)
 {
+ b_spline_degree_bounds DegreeBounds = B_SplineDegreeBounds(ControlPointCount);
+ Degree = Clamp(Degree, DegreeBounds.MinDegree, DegreeBounds.MaxDegree);
+ 
  u32 PartitionSize = ControlPointCount - Degree + 1;
  if (ControlPointCount == 0)
  {

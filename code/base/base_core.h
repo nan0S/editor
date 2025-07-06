@@ -338,7 +338,7 @@ StaticAssert(COMPILATION_UNIT_INDEX < COMPILATION_UNIT_COUNT, CompilationUnitMac
 #define MemoryCmp(Ptr1, Ptr2, Bytes) memcmp(Ptr1, Ptr2, Bytes)
 #define MemoryEqual(Ptr1, Ptr2, Bytes) (MemoryCmp(Ptr1, Ptr2, Bytes) == 0)
 #define StructZero(Ptr) MemoryZero(Ptr, SizeOf(*(Ptr)))
-#define StructsEqual(Struct1, Struct2) MemoryEqual(&(Struct1), &(Struct2), SizeOf(Struct1))
+#define StructsEqual(Ptr1, Ptr2) MemoryEqual(Ptr1, Ptr2, SizeOf(*(Ptr1)))
 #define ArrayCopy(Dst, Src, ElemCount) MemoryCopy(Dst, Src, (ElemCount) * SizeOf((Dst)[0]))
 #define ArrayCopyUntyped(Dst, Src, ElemCount, ElemSize) MemoryCopy(Dst, Src, (ElemCount) * (ElemSize))
 #define ArrayReverse(Array, Count, Type) do { for (u64 _I_ = 0; _I_ < ((Count)>>1); ++_I_) { Swap((Array)[_I_], (Array)[(Count) - 1 - _I_], Type); } } while (0)

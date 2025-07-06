@@ -7,6 +7,7 @@ struct debug_vars
 {
  b32 ParametricEquationDebugMode;
  u32 DrawnGridLinesCount;
+ b32 ShowSampleCurvePoints;
 };
 global debug_vars *DEBUG_Vars;
 

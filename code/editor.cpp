@@ -451,6 +451,25 @@ RenderEntity(rendering_entity_handle Handle)
     }
    }
    
+   if (DEBUG_Vars->ShowSampleCurvePoints)
+   {
+    v2 *Samples = Curve->CurveSamples;
+    u32 SampleCount = Curve->CurveSampleCount;
+    v4 GradientA = RGBA_Color(255, 0, 144);
+    v4 GradientB = RGBA_Color(155, 200, 0);
+    ForEachIndex(SampleIndex, SampleCount)
+    {
+     v2 Sample = Samples[SampleIndex];
+     f32 T = Cast(f32)SampleIndex / (SampleCount - 1);
+     v4 Color = Lerp(GradientA, GradientB, T);
+     PushCircle(RenderGroup,
+                Sample,
+                CurveParams->PointRadius,
+                Color,
+                GetCurvePartVisibilityZOffset(CurvePartVisibility_CurveSamplePoint));
+    }
+   }
+   
   } break;
   
   case Entity_Image: {
@@ -716,7 +735,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
   curve_params *CurveParams = &Curve->Params;
   curve_params *DefaultParams = &Editor->CurveDefaultParams;
   
-  if (UI_BeginWindow(&Editor->SelectedEntityWindow, UIWindowFlag_AutoResize, StrLit("Selected")))
+  if (UI_BeginWindow(&Editor->SelectedEntityWindow, UIWindowFlag_AutoResize, StrLit("Selected Entity")))
   {
    UI_PushLabelF("SelectedEntity %u", Entity->Id);
    
@@ -2267,6 +2286,28 @@ ProcessImageLoadingTasks(editor *Editor)
  }
 }
 
+// TODO(hbr): remove
+internal b32
+IsSorted(f32 *Array, u32 Count)
+{
+ b32 Result = true;
+ for (u32 Index = 1;
+      Index < Count;
+      ++Index)
+ {
+  if (Array[Index - 1] <= Array[Index])
+  {
+   // NOTE(hbr): Nothing to do
+  }
+  else
+  {
+   Result = false;
+   break;
+  }
+ }
+ return Result;
+}
+
 internal void
 ProcessInputEvents(editor *Editor,
                    platform_input_output *Input,
@@ -2464,13 +2505,50 @@ ProcessInputEvents(editor *Editor,
       b_spline_knot_params KnotParams = Curve->B_SplineKnotParams;
       f32 *Knots = Curve->B_SplineKnots;
       
+      //@ move B-spline knot point along the curve
       f32 KnotFraction = Knots[KnotParams.Degree + KnotIndex];
       MovePointAlongCurve(Curve, &TranslateLocal, &KnotFraction, true);
       MovePointAlongCurve(Curve, &TranslateLocal, &KnotFraction, false);
+      KnotFraction = Clamp(KnotFraction, KnotParams.A, KnotParams.B);
+      
+      Assert(IsSorted(Knots, KnotParams.KnotCount));
       
       // TODO(hbr): Move this out to a function
-      OS_PrintDebugF("index: %u, before: %f, after: %f\n", KnotIndex, Knots[KnotIndex], KnotFraction);
       Knots[KnotParams.Degree + KnotIndex] = KnotFraction;
+      
+      u32 Index = KnotParams.Degree + KnotIndex;
+      while (Index + 1 < KnotParams.KnotCount)
+      {
+       if (Knots[Index] > Knots[Index + 1])
+       {
+        Swap(Knots[Index], Knots[Index + 1], f32);
+        ++Index;
+       }
+       else
+       {
+        break;
+       }
+      }
+      while (Index > 0)
+      {
+       if (Knots[Index] < Knots[Index - 1])
+       {
+        Swap(Knots[Index], Knots[Index - 1], f32);
+        --Index;
+       }
+       else
+       {
+        break;
+       }
+      }
+      
+      Assert(IsSorted(Knots, KnotParams.KnotCount));
+      
+      OS_PrintDebugF("%f\n", KnotFraction);
+      
+      Assert(Index >= KnotParams.Degree);
+      LeftClick->B_SplineKnotIndex = Index - KnotParams.Degree;
+      
       MarkEntityModified(&EntityWitness);
      }break;
      
@@ -3472,6 +3550,7 @@ RenderDevConsoleUI(editor *Editor)
                      "blabla blab lablablablab lablabla blablablablablablablablablabla");
    }
    UI_Checkbox(&DEBUG_Vars->ParametricEquationDebugMode, StrLit("Parametric Equation Debug Mode Enabled"));
+   UI_Checkbox(&DEBUG_Vars->ShowSampleCurvePoints, StrLit("Show Sample Curve Points"));
    UI_ExponentialAnimation(&Camera->Animation);
    UI_TextF(false, "DrawnGridLinesCount=%u", DEBUG_Vars->DrawnGridLinesCount);
   }

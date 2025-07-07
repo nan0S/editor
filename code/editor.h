@@ -30,8 +30,6 @@ TODO: features
 crucial:
 - saving/loading project from/to file
 - extract animated curve - bezier can be 100% matching, other can do with interpolation
-- moving partition knot along curve
-- convex hull around pieces of b-spline segments
 - Checbyshev polynomial bezier degree lowering method
 
 important:
@@ -109,6 +107,8 @@ new things added:
 - multiple bug fixes
 - moving b-spline point (partial)
 - merging weighted bezier curves
+- moving partition knot along curve
+- convex hull around pieces of b-spline segments
 
  */
 

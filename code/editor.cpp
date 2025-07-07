@@ -749,12 +749,14 @@ RenderDrawParamsUI(string Label, draw_params *Params, draw_params *Default, b32 
   if (ResetCtxMenu(StrLit("FloatReset")))
   {
    Params->Float = Default->Float;
+   Changed = true;
   }
   
   Changed |= UI_ColorPickerF(&Params->Color, "Color");
   if (ResetCtxMenu(StrLit("ColorReset")))
   {
    Params->Color = Params->Color;
+   Changed = true;
   }
  }
  return Changed;
@@ -1211,8 +1213,10 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
            if (KnotIndex > Degree && KnotIndex + 1 < Degree + PartitionSize)
            {
             u32 RelativeIndex = KnotIndex - Degree - 1;
-            UI_SliderFloatF(&Knot, A, B, "Knot %u", RelativeIndex);
-            SetBSplineKnotPoint(&EntityWitness, BSplineKnotHandleFromKnotIndex(KnotIndex), Knot);
+            if (UI_SliderFloatF(&Knot, A, B, "Knot %u", RelativeIndex))
+            {
+             SetBSplineKnotPoint(&EntityWitness, BSplineKnotHandleFromKnotIndex(KnotIndex), Knot);
+            }
            }
            else
            {

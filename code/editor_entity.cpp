@@ -1616,12 +1616,55 @@ CalcCubicBezier(cubic_bezier_point *Beziers, u32 PointCount,
  }
 }
 
-internal void
-Calc_BSpline(v2 *Controls,
-             b_spline_knot_params KnotParams, f32 *Knots,
-             u32 SampleCount, v2 *OutSamples)
+inline internal u32
+PartitionKnotIndexToKnotIndex(u32 PartitionKnotIndex, b_spline_knot_params KnotParams)
 {
- temp_arena Temp = TempArena(0);
+ Assert(PartitionKnotIndex < KnotParams.PartitionSize);
+ u32 Result = PartitionKnotIndex + KnotParams.Degree;
+ return Result;
+}
+
+internal void
+CalcBSpline(v2 *Controls,
+            b_spline_knot_params KnotParams, f32 *Knots,
+            u32 SampleCount, v2 *OutSamples)
+{
+ // TODO(hbr): This slightly breakes moving BSpline along the curve.
+ // When we calculate how much to move point forward or backwards, we
+ // convert from [0,1] fraction into [SampleIndex], assuming that
+ // sample points are sampled uniformly. This isn't the case with the code below.
+#if 0
+ v2 *Out = OutSamples;
+ u32 SamplesPerPartitionKnot = (SampleCount - 1) / (KnotParams.PartitionSize - 1);
+ u32 SamplesLeft = SampleCount - 1 - SamplesPerPartitionKnot * (KnotParams.PartitionSize - 1);
+ 
+ for (u32 PartitionKnotIndex = 1;
+      PartitionKnotIndex < KnotParams.PartitionSize;
+      ++PartitionKnotIndex)
+ {
+  u32 PrevKnot = PartitionKnotIndexToKnotIndex(PartitionKnotIndex - 1, KnotParams);
+  u32 NextKnot = PartitionKnotIndexToKnotIndex(PartitionKnotIndex - 0, KnotParams);
+  
+  f32 PrevT = Knots[PrevKnot];
+  f32 NextT = Knots[NextKnot];
+  
+  u32 CurrentSampleCount = SamplesPerPartitionKnot;
+  if (PartitionKnotIndex == 1) CurrentSampleCount += SamplesLeft;
+  
+  f32 T = PrevT;
+  Assert(NextT >= PrevT);
+  f32 DeltaT = (NextT - PrevT) / CurrentSampleCount;
+  
+  ForEachIndex(Index, CurrentSampleCount)
+  {
+   *Out++ = BSplineEvaluate(T, Controls, KnotParams, Knots);
+   T += DeltaT;
+  }
+ }
+ *Out++ = BSplineEvaluate(KnotParams.B, Controls, KnotParams, Knots);
+ Assert(Cast(u64)(Out - OutSamples) == SampleCount);
+ 
+#else
  
  f32 T = KnotParams.A;
  f32 Delta_T = (KnotParams.B - KnotParams.A) / (SampleCount - 1);
@@ -1634,7 +1677,7 @@ Calc_BSpline(v2 *Controls,
   T += Delta_T;
  }
  
- EndTemp(Temp);
+#endif
 }
 
 internal void
@@ -1704,7 +1747,7 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
     v2 KnotPoint = BSplineEvaluate(T, Controls, KnotParams, BSplineKnots);
     PartitionKnots[PartitionKnotIndex] = KnotPoint;
    }
-   Calc_BSpline(Controls, KnotParams, BSplineKnots, SampleCount, OutSamples);
+   CalcBSpline(Controls, KnotParams, BSplineKnots, SampleCount, OutSamples);
   }break;
   case Curve_Parametric: {CalcParametric(Params->Parametric, SampleCount, OutSamples);}break;
   

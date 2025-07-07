@@ -182,10 +182,10 @@ struct platform_event
  platform_key_modifier_flags Modifiers;
  v2 ClipSpaceMouseP;
  f32 ScrollDelta;
- 
  u32 FileCount;
  string *FilePaths; // absolute paths
 };
+global platform_event NilPlatformEvent;
 
 struct platform_input_output
 {

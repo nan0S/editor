@@ -35,19 +35,48 @@ GLFWImGuiMaybeCaptureInput(void)
  return ImGuiCapture;
 }
 
+internal v2u
+GLFWWindowSize(GLFWwindow *Window)
+{
+ int Width;
+ int Height;
+ glfwGetWindowSize(Window, &Width, &Height);
+ Assert(Width > 0);
+ Assert(Height > 0);
+ 
+ v2u Size = V2U(Width, Height);
+ return Size;
+}
+
+internal v2
+GLFWCursorPosToClipSpace(GLFWwindow *Window, double X_Pos, double Y_Pos)
+{
+ v2u WindowSize = GLFWWindowSize(Window);
+ f32 X = +(2.0f * (Cast(f32)X_Pos / WindowSize.X) - 1.0f);
+ f32 Y = -(2.0f * (Cast(f32)Y_Pos / WindowSize.Y) - 1.0f);
+ v2 Result = V2(X, Y);
+ return Result;
+}
+
 internal platform_event *
-GLFWPushPlatformEvent(platform_event_type Type)
+GLFWPushPlatformEvent(GLFWwindow *Window, platform_event_type Type)
 {
  glfw_state *GLFWState = &GlobalGLFWState;
- platform_event *Result = 0;
+ platform_event *Event = &NilPlatformEvent;
  glfw_platform_input *Input = &GLFWState->GLFWInput;
  if (Input->EventCount < GLFW_MAX_EVENT_COUNT)
  {
-  Result = Input->Events + Input->EventCount++;
-  Result->Type = Type;
+  Event = Input->Events + Input->EventCount++;
+  Event->Type = Type;
+  double X, Y;
+  glfwGetCursorPos(Window, &X, &Y);
+  Event->ClipSpaceMouseP = GLFWCursorPosToClipSpace(Window, X, Y);
+  if (glfwGetKey(Window, GLFW_KEY_LEFT_SHIFT)) Event->Modifiers |= KeyModifierFlag(Shift);
+  if (glfwGetKey(Window, GLFW_KEY_LEFT_CONTROL)) Event->Modifiers |= KeyModifierFlag(Ctrl);
+  if (glfwGetKey(Window, GLFW_KEY_LEFT_ALT)) Event->Modifiers |= KeyModifierFlag(Alt);
  }
  
- return Result;
+ return Event;
 }
 
 internal platform_key
@@ -87,12 +116,9 @@ GLFWKeyCallback(GLFWwindow *Window, int Key, int ScanCode, int Action, int Mods)
    case GLFW_PRESS:
    case GLFW_RELEASE: {
     platform_event_type Type = (Action == GLFW_PRESS ? PlatformEvent_Press : PlatformEvent_Release);
-    platform_event *Event = GLFWPushPlatformEvent(Type);
-    if (Event)
-    {
-     Event->Key = GLFWState->GLFWToPlatformKeyTable[Key];
-     Event->Modifiers = GLFWModsToPlatformMods(Mods);
-    }
+    platform_event *Event = GLFWPushPlatformEvent(Window, Type);
+    Event->Key = GLFWState->GLFWToPlatformKeyTable[Key];
+    Event->Modifiers = GLFWModsToPlatformMods(Mods);
    }break;
    
    case GLFW_REPEAT: {}break;
@@ -100,31 +126,6 @@ GLFWKeyCallback(GLFWwindow *Window, int Key, int ScanCode, int Action, int Mods)
    default: InvalidPath;
   }
  }
-}
-
-internal v2u
-GLFWWindowSize(GLFWwindow *Window)
-{
- int Width;
- int Height;
- glfwGetWindowSize(Window, &Width, &Height);
- Assert(Width > 0);
- Assert(Height > 0);
- 
- v2u Size = V2U(Width, Height);
- return Size;
-}
-
-internal v2
-GLFWCursorPosToClipSpace(GLFWwindow *Window, double X_Pos, double Y_Pos)
-{
- v2u WindowSize = GLFWWindowSize(Window);
- 
- f32 X = +(2.0f * (Cast(f32)X_Pos / WindowSize.X) - 1.0f);
- f32 Y = -(2.0f * (Cast(f32)Y_Pos / WindowSize.Y) - 1.0f);
- 
- v2 Result = V2(X, Y);
- return Result;
 }
 
 internal v2
@@ -150,13 +151,8 @@ GLFWMouseButtonCallback(GLFWwindow *Window, int Button, int Action, int Mods)
    case GLFW_PRESS:
    case GLFW_RELEASE: {
     platform_event_type Type = (Action == GLFW_PRESS ? PlatformEvent_Press : PlatformEvent_Release);
-    platform_event *Event = GLFWPushPlatformEvent(Type);
-    if (Event)
-    {
-     Event->Key = GLFWMouseButtonToPlatformKey(Button);
-     Event->ClipSpaceMouseP = GLFWGetCursorPosInClipSpace(Window);
-     Event->Modifiers = GLFWModsToPlatformMods(Mods);
-    }
+    platform_event *Event = GLFWPushPlatformEvent(Window, Type);
+    Event->Key = GLFWMouseButtonToPlatformKey(Button);
    }break;
    
    case GLFW_REPEAT: {}break;
@@ -169,11 +165,10 @@ GLFWMouseButtonCallback(GLFWwindow *Window, int Button, int Action, int Mods)
 internal void
 GLFWMouseMoveCallback(GLFWwindow *Window, double X, double Y)
 {
- platform_event *Event = GLFWPushPlatformEvent(PlatformEvent_MouseMove);
- if (Event)
- {
-  Event->ClipSpaceMouseP = GLFWCursorPosToClipSpace(Window, X, Y);
- }
+ MarkUnused(X);
+ MarkUnused(Y);
+ platform_event *Event = GLFWPushPlatformEvent(Window, PlatformEvent_MouseMove);
+ MarkUnused(Event);
 }
 
 internal void
@@ -184,11 +179,8 @@ GLFWMouseScrollCallback(GLFWwindow *Window, double XOffset, double YOffset)
  glfw_imgui_maybe_capture_input_result ImGuiCapture = GLFWImGuiMaybeCaptureInput();
  if (!ImGuiCapture.ImGuiWantCaptureMouse)
  {
-  platform_event *Event = GLFWPushPlatformEvent(PlatformEvent_Scroll);
-  if (Event)
-  {
-   Event->ScrollDelta = Cast(f32)YOffset;
-  }
+  platform_event *Event = GLFWPushPlatformEvent(Window, PlatformEvent_Scroll);
+  Event->ScrollDelta = Cast(f32)YOffset;
  }
 }
 
@@ -196,26 +188,20 @@ internal void
 GLFWDropCallback(GLFWwindow *Window, int PathCount, char const *Paths[])
 {
  glfw_state *GLFWState = &GlobalGLFWState;
+ platform_event *Event = GLFWPushPlatformEvent(Window, PlatformEvent_FilesDrop);
+ arena *Arena = GLFWState->InputArena;
  
- platform_event *Event = GLFWPushPlatformEvent(PlatformEvent_FilesDrop);
- if (Event)
+ u32 FileCount = SafeCastU32(PathCount);
+ string *FilePaths = PushArray(Arena, FileCount, string);
+ for (u32 FileIndex = 0;
+      FileIndex < FileCount;
+      ++FileIndex)
  {
-  arena *Arena = GLFWState->InputArena;
-  
-  u32 FileCount = SafeCastU32(PathCount);
-  string *FilePaths = PushArray(Arena, FileCount, string);
-  for (u32 FileIndex = 0;
-       FileIndex < FileCount;
-       ++FileIndex)
-  {
-   FilePaths[FileIndex] = StrFromCStr(Paths[FileIndex]);
-  }
-  
-  Event->FilePaths = FilePaths;
-  Event->FileCount = FileCount;
-  
-  Event->ClipSpaceMouseP = GLFWGetCursorPosInClipSpace(Window);
+  FilePaths[FileIndex] = StrFromCStr(Paths[FileIndex]);
  }
+ 
+ Event->FilePaths = FilePaths;
+ Event->FileCount = FileCount;
 }
 
 internal void
@@ -408,7 +394,7 @@ Table[GLFWButton] = PlatformButton
      
      if (glfwWindowShouldClose(Window))
      {
-      platform_event *Event = GLFWPushPlatformEvent(PlatformEvent_WindowClose);
+      platform_event *Event = GLFWPushPlatformEvent(Window, PlatformEvent_WindowClose);
       MarkUnused(Event);
      }
      

@@ -829,7 +829,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
      UI_Label(StrLit("DragMe"))
      {
       f32 UniformScale = 0.0f;
-      UI_DragFloat(&UniformScale, 0.0f, 0.0f, "Drag Me!", StrLit("Uniform Scale"));
+      UI_DragFloat(&UniformScale, 0.0f, 0.0f, "Scale Uniformly", StrLit("##Uniform Scale"));
       ModifyActivated |= UI_IsItemActivated();
       ModifyDeactivated |= UI_IsItemDeactivated();
       f32 WidthOverHeight = NewXForm.Scale.V.X / NewXForm.Scale.V.Y;
@@ -860,19 +860,19 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       SetEntityVisibility(Entity, Visible);
      }
      
-     if (UsesControlPoints(Curve))
-     {
-      temp_arena Temp = TempArena(0);
-      control_point_handle Selected = Curve->SelectedControlPoint;
-      string SelectedStr = (ControlPointHandleMatch(Selected, ControlPointHandleZero()) ?
-                            StrLit("None") :
-                            StrF(Temp.Arena, "%u", IndexFromControlPointHandle(Selected)));
-      UI_TextF(false, "Selected Control Point Index: %S", SelectedStr);
-      EndTemp(Temp);
-     }
-     
      if (Curve)
      {
+      if (UsesControlPoints(Curve))
+      {
+       temp_arena Temp = TempArena(0);
+       control_point_handle Selected = Curve->SelectedControlPoint;
+       string SelectedStr = (ControlPointHandleMatch(Selected, ControlPointHandleZero()) ?
+                             StrLit("None") :
+                             StrF(Temp.Arena, "%u", IndexFromControlPointHandle(Selected)));
+       UI_TextF(false, "Selected Control Point Index: %S", SelectedStr);
+       EndTemp(Temp);
+      }
+      
       UI_SeparatorText(StrLit("Curve"));
       UI_LabelF("Curve")
       {

@@ -133,7 +133,7 @@ inline internal cubic_bezier_point_handle
 CubicBezierPointFromControlPoint(control_point_handle Handle)
 {
  cubic_bezier_point_handle Bezier = {};
- if (ControlPointHandleMatch(Handle, ControlPointHandleZero()))
+ if (!ControlPointHandleMatch(Handle, ControlPointHandleZero()))
  {
   u32 I = IndexFromControlPointHandle(Handle);
   Bezier = CubicBezierPointHandleFromIndex(3 * I + 1);

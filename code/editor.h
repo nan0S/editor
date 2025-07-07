@@ -55,7 +55,6 @@ maybe:
 
 crucial:
 - jak robie undo/redo wiele razy z rzedu to czasami na chwilke pojawiaja sie pewne artefakty rysowania linii - tak jakbym rysowal wielki trojkat zamiast malych ktore skalaja sie na linie, wyglada to jakby jakis vertex linii zostal przesuniety (do (0,0)?
-- mergeing linii z sama soba sprawia ze cos sie dziwnego dzieje z undo/redo
 - this is not working properly for parametric expression: unexpected error but this should evaluate: StrLit("sin(t) * (exp(sin(t)) - 2*cos(4t))"),
 - undo/redo doesn't seem to work well with entity list and what is selected - I tend to have multiple things that are selected
 
@@ -69,6 +68,7 @@ maybe:
 fixed:
 - adding points to periodic curve doesn't work again
 - inserting control point in the middle of polynomial curve is sometimes broken
+- mergeing linii z sama soba sprawia ze cos sie dziwnego dzieje z undo/redo
 
   ideas:
  - confirm window when removing points

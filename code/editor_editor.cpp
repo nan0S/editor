@@ -400,11 +400,11 @@ EndMergingCurves(editor *Editor, b32 Merged)
   EndEntityModify(EntityWitness);
   
   entity *Entity0 = EntityFromHandle(Merging->Choose2Curves.Curves[0]);
-  entity *Entity1 = EntityFromHandle(Merging->Choose2Curves.Curves[1]);
   if (Entity0)
   {
    RemoveEntity(Editor, Entity0);
   }
+  entity *Entity1 = EntityFromHandle(Merging->Choose2Curves.Curves[1]);
   if (Entity1)
   {
    RemoveEntity(Editor, Entity1);

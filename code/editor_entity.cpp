@@ -240,7 +240,7 @@ ControlPointIndexFromCurveSampleIndex(curve *Curve, u32 CurveSampleIndex)
 internal b32
 AreCurvePointsVisible(curve *Curve)
 {
- b32 Result = (!Curve->Params.PointsDisabled && UsesControlPoints(Curve));
+ b32 Result = (Curve->Params.Points.Enabled && UsesControlPoints(Curve));
  return Result;
 }
 
@@ -248,7 +248,7 @@ internal b32
 IsPolylineVisible(curve *Curve)
 {
  curve_params *CurveParams = &Curve->Params;
- b32 Result = (CurveParams->PolylineEnabled && UsesControlPoints(Curve));
+ b32 Result = (CurveParams->Polyline.Enabled && UsesControlPoints(Curve));
  return Result;
 }
 
@@ -256,7 +256,23 @@ internal b32
 IsConvexHullVisible(curve *Curve)
 {
  curve_params *CurveParams = &Curve->Params;
- b32 Result = (CurveParams->ConvexHullEnabled && UsesControlPoints(Curve));
+ b32 Result = (CurveParams->ConvexHull.Enabled && UsesControlPoints(Curve));
+ return Result;
+}
+
+internal b32
+IsBSplineCurve(curve *Curve)
+{
+ curve_params *CurveParams = &Curve->Params;
+ b32 Result = (CurveParams->Type == Curve_BSpline);
+ return Result;
+}
+
+internal b32
+AreBSplineConvexHullsVisible(curve *Curve)
+{
+ curve_params *CurveParams = &Curve->Params;
+ b32 Result = (IsBSplineCurve(Curve) && CurveParams->BSplinePartialConvexHull.Enabled);
  return Result;
 }
 
@@ -269,7 +285,7 @@ UsesControlPoints(curve *Curve)
   case Curve_CubicSpline:
   case Curve_Bezier:
   case Curve_Polynomial:
-  case Curve_B_Spline: {Result = true;}break;
+  case Curve_BSpline: {Result = true;}break;
   
   case Curve_Parametric: {}break;
   
@@ -309,7 +325,7 @@ IsEntitySelected(entity *Entity)
 internal f32
 GetCurveTrackedPointRadius(curve *Curve)
 {
- f32 Result = 1.5f * Curve->Params.LineWidth;
+ f32 Result = 1.5f * Curve->Params.Line.Width;
  return Result;
 }
 
@@ -412,7 +428,7 @@ IsCurveTotalSamplesMode(curve *Curve)
   case Curve_CubicSpline:
   case Curve_Bezier:
   case Curve_Polynomial:
-  case Curve_B_Spline: {}break;
+  case Curve_BSpline: {}break;
   
   case Curve_Parametric: {
    Result = true;
@@ -447,9 +463,9 @@ IsRegularBezierCurve(curve *Curve)
 }
 
 internal b32
-Are_B_SplineKnotsVisible(curve *Curve)
+AreBSplineKnotsVisible(curve *Curve)
 {
- b32 Result = (Curve->Params.Type == Curve_B_Spline && Curve->Params.B_Spline.ShowPartitionKnotPoints);
+ b32 Result = (Curve->Params.Type == Curve_BSpline && Curve->Params.BSpline.ShowPartitionKnotPoints);
  return Result;
 }
 
@@ -512,7 +528,7 @@ AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method M
     }
    }break;
    
-   case Curve_B_Spline: {
+   case Curve_BSpline: {
     if (Concat) Compatible = true;
     else WhyIncompatible = StrLit("B-spline curves" Concat_Str);
    }break;
@@ -540,10 +556,10 @@ ExtractEntityColors(entity *Entity)
  entity_colors Colors = {};
  
  curve_params *Params = &Entity->Curve.Params;
- Colors.CurveLineColor = Params->LineColor;
- Colors.CurvePointColor = Params->PointColor;
- Colors.CurvePolylineColor = Params->PolylineColor;
- Colors.CurveConvexHullColor = Params->ConvexHullColor;
+ Colors.CurveLineColor = Params->Line.Color;
+ Colors.CurvePointColor = Params->Points.Color;
+ Colors.CurvePolylineColor = Params->Polyline.Color;
+ Colors.CurveConvexHullColor = Params->ConvexHull.Color;
  
  return Colors;
 }
@@ -552,10 +568,10 @@ internal void
 ApplyColorsToEntity(entity *Entity, entity_colors Colors)
 {
  curve_params *Params = &Entity->Curve.Params;
- Params->LineColor = Colors.CurveLineColor;
- Params->PointColor = Colors.CurvePointColor;
- Params->PolylineColor = Colors.CurvePolylineColor;
- Params->ConvexHullColor = Colors.CurveConvexHullColor;
+ Params->Line.Color = Colors.CurveLineColor;
+ Params->Points.Color = Colors.CurvePointColor;
+ Params->Polyline.Color = Colors.CurvePolylineColor;
+ Params->ConvexHull.Color = Colors.CurveConvexHullColor;
 }
 
 internal void
@@ -597,7 +613,7 @@ GetCurveControlPointDrawInfo(entity *Entity, control_point_handle Point)
  curve_params *Params = &Curve->Params;
  u32 Index = IndexFromControlPointHandle(Point);
  
- point_draw_info Result = GetEntityPointInfo(Entity, Params->PointRadius, Params->PointColor);
+ point_draw_info Result = GetEntityPointInfo(Entity, Params->Points.Radius, Params->Points.Color);
  
  if (( (Entity->Flags & EntityFlag_CurveAppendFront) && Index == 0) ||
      (!(Entity->Flags & EntityFlag_CurveAppendFront) && Index == Curve->Points.ControlPointCount-1))
@@ -614,12 +630,12 @@ GetCurveControlPointDrawInfo(entity *Entity, control_point_handle Point)
 }
 
 internal point_draw_info
-Get_B_SplineKnotPointDrawInfo(entity *Entity)
+GetBSplinePartitionKnotPointDrawInfo(entity *Entity)
 {
  curve *Curve = SafeGetCurve(Entity);
  curve_params *Params = &Curve->Params;
- b_spline_params *B_Spline = &Params->B_Spline;
- point_draw_info Result = GetEntityPointInfo(Entity, B_Spline->KnotPointRadius, B_Spline->KnotPointColor);
+ b_spline_params *BSpline = &Params->BSpline;
+ point_draw_info Result = GetEntityPointInfo(Entity, BSpline->KnotPointRadius, BSpline->KnotPointColor);
  return Result;
 }
 
@@ -627,7 +643,7 @@ internal f32
 GetCurveCubicBezierPointRadius(curve *Curve)
 {
  // TODO(hbr): Make bezier points smaller
- f32 Result = Curve->Params.PointRadius;
+ f32 Result = Curve->Params.Points.Radius;
  return Result;
 }
 
@@ -750,6 +766,46 @@ CopyCurvePoints(curve_points_dynamic Dst, curve_points_handle Src)
  ArrayCopy(Dst.CubicBezierPoints, Src.CubicBezierPoints, Copy);
 }
 
+internal b32
+BSplineKnotHandleMatch(b_spline_knot_handle A, b_spline_knot_handle B)
+{
+ b32 Result = (A.__Index == B.__Index);
+ return Result;
+}
+
+internal b_spline_knot_handle
+BSplineKnotHandleZero(void)
+{
+ b_spline_knot_handle Handle = {};
+ return Handle;
+}
+
+internal u32
+KnotIndexFromBSplineKnotHandle(b_spline_knot_handle Handle)
+{
+ Assert(!BSplineKnotHandleMatch(Handle, BSplineKnotHandleZero()));
+ u32 Index = Handle.__Index - 1;
+ return Index;
+}
+
+internal u32
+PartitionKnotIndexFromBSplineKnotHandle(curve *Curve, b_spline_knot_handle Handle)
+{
+ u32 KnotIndex = KnotIndexFromBSplineKnotHandle(Handle);
+ Assert(KnotIndex >= Curve->BSplineKnotParams.Degree);
+ u32 PartitionKnotIndex = KnotIndex - Curve->BSplineKnotParams.Degree;
+ return PartitionKnotIndex;
+}
+
+internal b_spline_knot_handle
+BSplineKnotHandleFromPartitionKnotIndex(curve *Curve, u32 PartitionKnotIndex)
+{
+ b_spline_knot_handle Handle = {};
+ u32 KnotIndex = Curve->BSplineKnotParams.Degree + PartitionKnotIndex;
+ Handle.__Index = KnotIndex + 1;
+ return Handle;
+}
+
 internal void
 ControlPointAndBezierOffsetFromCurvePoint(curve_point_handle CurvePoint,
                                           control_point_handle *ControlPoint,
@@ -858,28 +914,27 @@ SelectControlPointFromCurvePoint(curve *Curve, curve_point_handle CurvePoint)
 }
 
 internal void
-RecomputeCurveB_SplineKnots(curve *Curve)
+RecomputeCurveBSplineKnots(curve *Curve)
 {
  u32 ControlPointCount = Curve->Points.ControlPointCount;
  curve_params *CurveParams = &Curve->Params;
- b_spline_params *B_SplineParams = &CurveParams->B_Spline;
+ b_spline_params *BSplineParams = &CurveParams->BSpline;
+ b_spline_knot_params *BSplineKnotParams = &Curve->BSplineKnotParams;
+ b_spline_knot_params AdjustedBSplineKnotParams = BSplineKnotParamsFromDegree(BSplineKnotParams->Degree, ControlPointCount);
  
- b_spline_knot_params *B_SplineKnotParams = &Curve->B_SplineKnotParams;
- b_spline_knot_params AdjustedB_SplineKnotParams = B_SplineKnotParamsFromDegree(B_SplineKnotParams->Degree, ControlPointCount);
- 
- if (!StructsEqual(B_SplineKnotParams, &AdjustedB_SplineKnotParams))
+ if (!StructsEqual(BSplineKnotParams, &AdjustedBSplineKnotParams))
  {
-  f32 *Knots = Curve->B_SplineKnots;
-  Assert(AdjustedB_SplineKnotParams.KnotCount <= MAX_B_SPLINE_KNOT_COUNT);
-  B_SplineBaseKnots(AdjustedB_SplineKnotParams, Knots);
-  switch (B_SplineParams->Partition)
+  f32 *Knots = Curve->BSplineKnots;
+  Assert(AdjustedBSplineKnotParams.KnotCount <= MAX_B_SPLINE_KNOT_COUNT);
+  BSplineBaseKnots(AdjustedBSplineKnotParams, Knots);
+  switch (BSplineParams->Partition)
   {
-   case B_SplinePartition_Natural: {B_SplineKnotsNaturalExtension(AdjustedB_SplineKnotParams, Knots);}break;
-   case B_SplinePartition_Periodic: {B_SplineKnotsPeriodicExtension(AdjustedB_SplineKnotParams, Knots);}break;
-   case B_SplinePartition_Count: InvalidPath;
+   case BSplinePartition_Natural: {BSplineKnotsNaturalExtension(AdjustedBSplineKnotParams, Knots);}break;
+   case BSplinePartition_Periodic: {BSplineKnotsPeriodicExtension(AdjustedBSplineKnotParams, Knots);}break;
+   case BSplinePartition_Count: InvalidPath;
   }
   
-  Curve->B_SplineKnotParams = AdjustedB_SplineKnotParams;
+  Curve->BSplineKnotParams = AdjustedBSplineKnotParams;
  }
 }
 
@@ -1523,9 +1578,9 @@ CalcCubicBezier(cubic_bezier_point *Beziers, u32 PointCount,
 }
 
 internal void
-Calc_B_Spline(v2 *Controls,
-              b_spline_knot_params KnotParams, f32 *Knots,
-              u32 SampleCount, v2 *OutSamples)
+Calc_BSpline(v2 *Controls,
+             b_spline_knot_params KnotParams, f32 *Knots,
+             u32 SampleCount, v2 *OutSamples)
 {
  temp_arena Temp = TempArena(0);
  
@@ -1536,7 +1591,7 @@ Calc_B_Spline(v2 *Controls,
       SampleIndex < SampleCount;
       ++SampleIndex)
  {
-  OutSamples[SampleIndex] = B_SplineEvaluate(T, Controls, KnotParams, Knots);
+  OutSamples[SampleIndex] = BSplineEvaluate(T, Controls, KnotParams, Knots);
   T += Delta_T;
  }
  
@@ -1572,16 +1627,14 @@ CalcParametric(parametric_curve_params Parametric,
 }
 
 internal void
-CalcCurve(arena *EntityArena, curve *Curve, u32 SampleCount, v2 *OutSamples)
+CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
 {
- temp_arena Temp = TempArena(EntityArena);
- 
  u32 PointCount = Curve->Points.ControlPointCount;
  v2 *Controls = Curve->Points.ControlPoints;
  f32 *Weights = Curve->Points.ControlPointWeights;
  cubic_bezier_point *Beziers = Curve->Points.CubicBezierPoints;
  curve_params *Params = &Curve->Params;
- f32 *B_SplineKnots = Curve->B_SplineKnots;
+ f32 *BSplineKnots = Curve->BSplineKnots;
  u32 SamplesPerControlPoint = Params->SamplesPerControlPoint;
  
  switch (Params->Type)
@@ -1598,33 +1651,26 @@ CalcCurve(arena *EntityArena, curve *Curve, u32 SampleCount, v2 *OutSamples)
    }
   } break;
   
-  case Curve_B_Spline: {
-   RecomputeCurveB_SplineKnots(Curve);
-   
-   b_spline_knot_params KnotParams = Curve->B_SplineKnotParams;
+  case Curve_BSpline: {
+   RecomputeCurveBSplineKnots(Curve);
+   b_spline_knot_params KnotParams = Curve->BSplineKnotParams;
    u32 PartitionSize = KnotParams.PartitionSize;
    u32 Degree = KnotParams.Degree;
-   
-   v2 *PartitionKnotPoints = PushArrayNonZero(EntityArena, PartitionSize, v2);
-   
+   v2 *PartitionKnots = Curve->BSplinePartitionKnots;
    for (u32 PartitionKnotIndex = 0;
         PartitionKnotIndex < PartitionSize;
         ++PartitionKnotIndex)
    {
-    f32 T = B_SplineKnots[Degree + PartitionKnotIndex];
-    v2 KnotPoint = B_SplineEvaluate(T, Controls, KnotParams, B_SplineKnots);
-    PartitionKnotPoints[PartitionKnotIndex] = KnotPoint;
+    f32 T = BSplineKnots[Degree + PartitionKnotIndex];
+    v2 KnotPoint = BSplineEvaluate(T, Controls, KnotParams, BSplineKnots);
+    PartitionKnots[PartitionKnotIndex] = KnotPoint;
    }
-   Curve->B_SplinePartitionKnotPoints = PartitionKnotPoints;
-   
-   Calc_B_Spline(Controls, KnotParams, B_SplineKnots, SampleCount, OutSamples);
+   Calc_BSpline(Controls, KnotParams, BSplineKnots, SampleCount, OutSamples);
   }break;
   case Curve_Parametric: {CalcParametric(Params->Parametric, SampleCount, OutSamples);}break;
   
   case Curve_Count: InvalidPath;
  }
- 
- EndTemp(Temp);
 }
 
 // TODO(hbr): This function needs some serious refactoring.
@@ -1640,10 +1686,10 @@ RecomputeCurve(curve *Curve)
  
  curve_params *Params = &Curve->Params;
  arena *ComputeArena = Curve->ComputeArena;
- u32 PointCount = Curve->Points.ControlPointCount;
+ u32 ControlCount = Curve->Points.ControlPointCount;
  v2 *Controls = Curve->Points.ControlPoints;
  f32 *Weights = Curve->Points.ControlPointWeights;
- f32 LineWidth = Params->LineWidth;
+ f32 LineWidth = Params->Line.Width;
  
  ClearArena(ComputeArena);
  
@@ -1654,21 +1700,21 @@ RecomputeCurve(curve *Curve)
  }
  else
  {
-  u32 PointCountWithLooped = (IsCurveLooped(Curve) ? PointCount + 1 : PointCount);
-  if (PointCountWithLooped > 0)
+  u32 ControlCountWithLooped = (IsCurveLooped(Curve) ? ControlCount + 1 : ControlCount);
+  if (ControlCountWithLooped > 0)
   {
-   SampleCount = (PointCountWithLooped - 1) * Params->SamplesPerControlPoint + 1;
+   SampleCount = (ControlCountWithLooped - 1) * Params->SamplesPerControlPoint + 1;
   }
  }
  v2 *Samples = PushArrayNonZero(ComputeArena, SampleCount, v2);
- CalcCurve(ComputeArena, Curve, SampleCount, Samples);
+ CalcCurve(Curve, SampleCount, Samples);
  
  vertex_array CurveVertices = ComputeVerticesOfThickLine(ComputeArena, SampleCount, Samples, LineWidth, IsCurveLooped(Curve));
- vertex_array PolylineVertices = ComputeVerticesOfThickLine(ComputeArena, PointCount, Controls, Params->PolylineWidth, false);
+ vertex_array PolylineVertices = ComputeVerticesOfThickLine(ComputeArena, ControlCount, Controls, Params->Polyline.Width, false);
  
- v2 *ConvexHullPoints = PushArrayNonZero(ComputeArena, PointCount, v2);
- u32 ConvexHullCount = CalcConvexHull(PointCount, Controls, ConvexHullPoints);
- vertex_array ConvexHullVertices = ComputeVerticesOfThickLine(ComputeArena, ConvexHullCount, ConvexHullPoints, Params->ConvexHullWidth, true);
+ v2 *ConvexHullPoints = PushArrayNonZero(ComputeArena, ControlCount, v2);
+ u32 ConvexHullCount = CalcConvexHull(ControlCount, Controls, ConvexHullPoints);
+ vertex_array ConvexHullVertices = ComputeVerticesOfThickLine(ComputeArena, ConvexHullCount, ConvexHullPoints, Params->ConvexHull.Width, true);
  
  point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
  if (IsCurveEligibleForPointTracking(Curve))
@@ -1677,12 +1723,12 @@ RecomputeCurve(curve *Curve)
   {
    f32 Fraction = Tracking->Fraction;
    
-   v2 LocalSpaceTrackedPoint = BezierCurveEvaluateWeighted(Fraction, Controls, Weights, PointCount);
+   v2 LocalSpaceTrackedPoint = BezierCurveEvaluateWeighted(Fraction, Controls, Weights, ControlCount);
    Tracking->LocalSpaceTrackedPoint = LocalSpaceTrackedPoint;
    
    if (Tracking->Type == PointTrackingAlongCurve_DeCasteljauVisualization)
    {
-    all_de_casteljau_intermediate_results Intermediate = DeCasteljauAlgorithm(ComputeArena, Fraction, Controls, Weights, PointCount);
+    all_de_casteljau_intermediate_results Intermediate = DeCasteljauAlgorithm(ComputeArena, Fraction, Controls, Weights, ControlCount);
     vertex_array *LineVerticesPerIteration = PushArray(ComputeArena, Intermediate.IterationCount, vertex_array);
     
     u32 IterationPointsOffset = 0;
@@ -1710,6 +1756,29 @@ RecomputeCurve(curve *Curve)
   Tracking->Active = false;
  }
  
+ u32 BSplineConvexHullCount = 0;
+ b_spline_convex_hull *BSplineConvexHulls = 0;
+ if (IsBSplineCurve(Curve))
+ {
+  b_spline_knot_params *BSpline = &Curve->BSplineKnotParams;
+  u32 Degree = BSpline->Degree;
+  Assert(Degree <= ControlCount);
+  u32 ConvexHullCount = ControlCount - Degree;
+  b_spline_convex_hull *Hulls = PushArray(ComputeArena, ConvexHullCount, b_spline_convex_hull);
+  ForEachIndex(ConvexHullIndex, ConvexHullCount)
+  {
+   u32 PointCount = Degree + 1;
+   v2 *Points = PushArray(ComputeArena, PointCount, v2);
+   PointCount = CalcConvexHull(PointCount, Controls + ConvexHullIndex, Points);
+   vertex_array Vertices = ComputeVerticesOfThickLine(ComputeArena, PointCount, Points, Params->BSplinePartialConvexHull.Width, true);
+   b_spline_convex_hull *Hull = Hulls + ConvexHullIndex;
+   Hull->Points = Points;
+   Hull->Vertices = Vertices;
+  }
+  BSplineConvexHullCount = ConvexHullCount;
+  BSplineConvexHulls = Hulls;
+ }
+ 
  Curve->CurveSampleCount = SampleCount;
  Curve->CurveSamples = Samples;
  Curve->CurveVertices = CurveVertices;
@@ -1717,6 +1786,8 @@ RecomputeCurve(curve *Curve)
  Curve->ConvexHullPoints = ConvexHullPoints;
  Curve->ConvexHullCount = ConvexHullCount;
  Curve->ConvexHullVertices = ConvexHullVertices;
+ Curve->BSplineConvexHullCount = BSplineConvexHullCount;
+ Curve->BSplineConvexHulls = BSplineConvexHulls;
  
  ProfileEnd();
 }

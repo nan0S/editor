@@ -7,7 +7,7 @@ enum
  Collision_CurvePoint   = (1<<0),
  Collision_CurveLine    = (1<<1),
  Collision_TrackedPoint = (1<<2),
- Collision_B_SplineKnot = (1<<3),
+ Collision_BSplineKnot = (1<<3),
 };
 struct collision
 {
@@ -15,7 +15,7 @@ struct collision
  collision_flags Flags;
  curve_point_handle CurvePoint;
  u32 CurveSampleIndex;
- u32 KnotIndex;
+ b_spline_knot_handle BSplineKnot;
 };
 
 struct multiline_collision

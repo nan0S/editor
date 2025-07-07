@@ -7,7 +7,7 @@ enum curve_type : u32
  Curve_Bezier,
  Curve_Polynomial,
  Curve_Parametric,
- Curve_B_Spline,
+ Curve_BSpline,
  Curve_Count
 };
 global read_only string CurveTypeNames[] = {
@@ -85,15 +85,15 @@ struct parametric_curve_params
 
 enum b_spline_partition_type : u32
 {
- B_SplinePartition_Natural,
- B_SplinePartition_Periodic,
- B_SplinePartition_Count,
+ BSplinePartition_Natural,
+ BSplinePartition_Periodic,
+ BSplinePartition_Count,
 };
-global read_only string B_SplinePartitionNames[] = {
+global read_only string BSplinePartitionNames[] = {
  StrLitComp("Natural"),
  StrLitComp("Periodic")
 };
-StaticAssert(ArrayCount(B_SplinePartitionNames) == B_SplinePartition_Count, B_SplinePartitionNamesDefined);
+StaticAssert(ArrayCount(BSplinePartitionNames) == BSplinePartition_Count, BSplinePartitionNamesDefined);
 
 struct b_spline_params
 {
@@ -103,6 +103,16 @@ struct b_spline_params
  v4 KnotPointColor;
 };
 
+struct draw_params
+{
+ b32 Enabled;
+ v4 Color;
+ union {
+  f32 Width;
+  f32 Radius;
+ };
+};
+
 struct curve_params
 {
  curve_type Type;
@@ -110,23 +120,13 @@ struct curve_params
  cubic_spline_type CubicSpline;
  bezier_type Bezier;
  parametric_curve_params Parametric;
- b_spline_params B_Spline;
+ b_spline_params BSpline;
  
- b32 LineDisabled;
- v4 LineColor;
- f32 LineWidth;
- 
- b32 PointsDisabled;
- v4 PointColor;
- f32 PointRadius;
- 
- b32 PolylineEnabled;
- v4 PolylineColor;
- f32 PolylineWidth;
- 
- b32 ConvexHullEnabled;
- v4 ConvexHullColor;
- f32 ConvexHullWidth;
+ draw_params Line;
+ draw_params Points;
+ draw_params Polyline;
+ draw_params ConvexHull;
+ draw_params BSplinePartialConvexHull;
  
  u32 SamplesPerControlPoint;
  u32 TotalSamples;
@@ -507,34 +507,42 @@ global read_only parametric_curve_predefined_example ParametricCurvePredefinedEx
 StaticAssert(ArrayCount(ParametricCurvePredefinedExamples) == ParametricCurvePredefinedExample_Count,
              ParametricCurvePredefinedExamplesDefined);
 
+struct b_spline_convex_hull
+{
+ v2 *Points;
+ vertex_array Vertices;
+};
+
+struct b_spline_knot_handle
+{
+ u32 __Index;
+};
+
 struct curve
 {
- curve_params Params;
+ curve_params Params; // used to compute curve shape from (might be still validated and not used "as-is")
  control_point_handle SelectedControlPoint;
- 
- // all points here are in local space
- curve_points_static Points;
- b_spline_knot_params B_SplineKnotParams;
-#define MAX_B_SPLINE_KNOT_COUNT (2 * CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT)
- f32 B_SplineKnots[MAX_B_SPLINE_KNOT_COUNT];
- 
- arena *ComputeArena;
- 
- u32 CurveSampleCount;
- v2 *CurveSamples;
- 
- u32 ConvexHullCount;
- v2 *ConvexHullPoints;
- 
- v2 *B_SplinePartitionKnotPoints;
- 
- vertex_array CurveVertices;
- vertex_array PolylineVertices;
- vertex_array ConvexHullVertices;
- 
+ b_spline_knot_params BSplineKnotParams;
  point_tracking_along_curve_state PointTracking;
  curve_degree_lowering_state DegreeLowering;
  parametric_curve_resources ParametricResources;
+ 
+ // all points here are in local space
+ curve_points_static Points;
+#define MAX_B_SPLINE_KNOT_COUNT (2 * CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT)
+ f32 BSplineKnots[MAX_B_SPLINE_KNOT_COUNT];
+ v2 BSplinePartitionKnots[MAX_B_SPLINE_KNOT_COUNT];
+ 
+ arena *ComputeArena;
+ u32 CurveSampleCount;
+ v2 *CurveSamples;
+ u32 ConvexHullCount;
+ v2 *ConvexHullPoints;
+ vertex_array CurveVertices;
+ vertex_array PolylineVertices;
+ vertex_array ConvexHullVertices;
+ u32 BSplineConvexHullCount;
+ b_spline_convex_hull *BSplineConvexHulls;
 };
 
 struct image
@@ -710,7 +718,7 @@ enum curve_part_visibility
  
  CurvePartVisibility_BezierSplitPoint,
  
- CurvePartVisibility_B_SplineKnot,
+ CurvePartVisibility_BSplineKnot,
  
  CurvePartVisibility_CurveSamplePoint,
  // this is at the very top
@@ -754,6 +762,12 @@ internal curve_points_dynamic MakeCurvePointsDynamic(u32 *ControlPointCount, v2 
 internal curve_points_dynamic CurvePointsDynamicFromStatic(curve_points_static *Static);
 internal void CopyCurvePoints(curve_points_dynamic Dst, curve_points_handle Src);
 
+internal b_spline_knot_handle BSplineKnotHandleZero(void);
+internal b_spline_knot_handle BSplineKnotHandleFromPartitionKnotIndex(curve *Curve, u32 Index);
+internal b32 BSplineKnotHandleMatch(b_spline_knot_handle A, b_spline_knot_handle B);
+internal u32 KnotIndexFromBSplineKnotHandle(b_spline_knot_handle Handle);
+internal u32 PartitionKnotIndexFromBSplineKnotHandle(curve *Curve, b_spline_knot_handle Handle);
+
 //- entity initialization
 internal void InitEntityPart(entity *Entity, entity_type Type, xform2d XForm, string Name, i32 SortingLayer, entity_flags Flags);
 internal void InitEntityAsImage(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath);
@@ -787,7 +801,6 @@ internal b32 UsesControlPoints(curve *Curve);
 internal b32 IsPolylineVisible(curve *Curve);
 internal b32 IsConvexHullVisible(curve *Curve);
 internal point_draw_info GetCurveControlPointDrawInfo(entity *Curve, control_point_handle Point);
-internal point_draw_info Get_B_SplineKnotPointDrawInfo(entity *Entity);
 internal f32 GetCurveTrackedPointRadius(curve *Curve);
 internal f32 GetCurveCubicBezierPointRadius(curve *Curve);
 internal visible_cubic_bezier_points GetVisibleCubicBezierPoints(entity *Entity);
@@ -796,11 +809,16 @@ internal b32 CurveHasWeights(curve *Curve);
 internal b32 IsCurveTotalSamplesMode(curve *Curve);
 internal b32 IsCurveReversed(entity *Curve);
 internal b32 IsRegularBezierCurve(curve *Curve);
-internal b32 Are_B_SplineKnotsVisible(curve *Curve);
+internal b32 AreBSplineKnotsVisible(curve *Curve);
 internal entity_colors ExtractEntityColors(entity *Entity);
 internal string GetEntityName(entity *Entity);
 internal control_point GetCurveControlPointInWorldSpace(entity *Entity, control_point_handle Point);
 internal void CopyCurvePointsFromCurve(curve *Curve, curve_points_dynamic *Dst);
+
+//- b-spline specific
+internal point_draw_info GetBSplinePartitionKnotPointDrawInfo(entity *Entity);
+internal b32 IsBSplineCurve(curve *Curve);
+internal b32 AreBSplineConvexHullsVisible(curve *Curve);
 
 //- entity for merging tracker
 internal entity_snapshot_for_merging MakeEntitySnapshotForMerging(entity *Entity);
@@ -812,19 +830,3 @@ internal curve *SafeGetCurve(entity *Entity);
 internal image *SafeGetImage(entity *Entity);
 
 #endif //EDITOR_ENTITY_H
-
-internal void
-BeginModifyB_SplineKnots()
-{
- 
- 
- 
-}
-
-internal void
-EndModifyB_SplineKnots()
-{
- 
- 
- 
-}

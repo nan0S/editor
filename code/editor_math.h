@@ -234,12 +234,12 @@ struct b_spline_knot_params
  f32 B;
 };
 
-internal void                   B_SplineBaseKnots(b_spline_knot_params KnotParams, f32 *Knots);
-internal void                   B_SplineKnotsNaturalExtension(b_spline_knot_params KnotParams, f32 *Knots);
-internal void                   B_SplineKnotsPeriodicExtension(b_spline_knot_params KnotParams, f32 *Knots);
-internal v2                     B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *Knots);
-internal b_spline_degree_bounds B_SplineDegreeBounds(u32 ControlPointCount);
-internal b_spline_knot_params   B_SplineKnotParamsFromDegree(u32 Degree, u32 ControlPointCount);
+internal void                   BSplineBaseKnots(b_spline_knot_params KnotParams, f32 *Knots);
+internal void                   BSplineKnotsNaturalExtension(b_spline_knot_params KnotParams, f32 *Knots);
+internal void                   BSplineKnotsPeriodicExtension(b_spline_knot_params KnotParams, f32 *Knots);
+internal v2                     BSplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *Knots);
+internal b_spline_degree_bounds BSplineDegreeBounds(u32 ControlPointCount);
+internal b_spline_knot_params   BSplineKnotParamsFromDegree(u32 Degree, u32 ControlPointCount);
 
 //~ Collisions, intersections, geometry
 struct line_intersection

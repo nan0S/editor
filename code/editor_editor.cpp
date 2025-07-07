@@ -6,21 +6,25 @@ DefaultCurveParams(void)
  f32 LineWidth = 0.009f;
  v4 PolylineColor = RGBA_Color(16, 31, 31, 200);
  
- Params.LineColor = RGBA_Color(21, 69, 98);
- Params.LineWidth = LineWidth;
- Params.PointColor = RGBA_Color(0, 138, 138, 148);
- Params.PointRadius = 0.014f;
- Params.PolylineColor = PolylineColor;
- Params.PolylineWidth = LineWidth;
- Params.ConvexHullColor = PolylineColor;
- Params.ConvexHullWidth = LineWidth;
+ Params.Line.Enabled = true;
+ Params.Line.Color = RGBA_Color(21, 69, 98);
+ Params.Line.Width = LineWidth;
+ Params.Points.Enabled = true;
+ Params.Points.Color = RGBA_Color(0, 138, 138, 148);
+ Params.Points.Radius = 0.014f;
+ Params.Polyline.Color = PolylineColor;
+ Params.Polyline.Width = LineWidth;
+ Params.ConvexHull.Color = PolylineColor;
+ Params.ConvexHull.Width = LineWidth;
  Params.SamplesPerControlPoint = 50;
  Params.TotalSamples = 1000;
  Params.Parametric.MaxT = 1.0f;
  Params.Parametric.X_Equation = NilExpr;
  Params.Parametric.Y_Equation = NilExpr;
- Params.B_Spline.KnotPointRadius = 0.010f;
- Params.B_Spline.KnotPointColor = RGBA_Color(138, 0, 0, 148);
+ Params.BSpline.KnotPointRadius = 0.010f;
+ Params.BSpline.KnotPointColor = RGBA_Color(138, 0, 0, 148);
+ Params.BSplinePartialConvexHull.Color = PolylineColor;
+ Params.BSplinePartialConvexHull.Width = LineWidth;
  
  return Params;
 }
@@ -113,7 +117,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
   
   curve_params Params = Editor->CurveDefaultParams;
-  Params.Type = Curve_B_Spline;
+  Params.Type = Curve_BSpline;
   InitEntityAsCurve(Entity, StrLit("b-spline"), Params);
   
   u32 PointCount = 30;
@@ -176,7 +180,7 @@ InitEntityFromEntity(entity_store *EntityStore, entity_with_modify_witness *DstW
  {
   case Entity_Curve: {
    DstCurve->Params = SrcCurve->Params;
-   DstCurve->B_SplineKnotParams = SrcCurve->B_SplineKnotParams;
+   DstCurve->BSplineKnotParams = SrcCurve->BSplineKnotParams;
    SetCurvePoints(DstWitness, CurvePointsHandleFromCurvePointsStatic(&SrcCurve->Points));
    SelectControlPoint(DstCurve, SrcCurve->SelectedControlPoint);
   }break;
@@ -203,7 +207,7 @@ DuplicateEntity(editor *Editor, entity *Entity)
  InitEntityFromEntity(EntityStore, &CopyWitness, Entity);
  SelectEntity(Editor, Copy);
  
- f32 SlightTranslationX = 5 * Copy->Curve.Params.LineWidth;
+ f32 SlightTranslationX = 5 * Copy->Curve.Params.Line.Width;
  v2 SlightTranslation = V2(SlightTranslationX, 0.0f);
  Copy->XForm.P += SlightTranslation;
  
@@ -892,12 +896,14 @@ BeginMovingTrackingPoint(editor_left_click_state *Left, entity *Target)
 }
 
 internal void
-BeginMovingBSplineKnot(editor_left_click_state *Left, entity *Target, u32 B_SplineKnotIndex)
+BeginMovingBSplineKnot(editor_left_click_state *Left,
+                       entity *Target,
+                       b_spline_knot_handle BSplineKnot)
 {
  Left->Active = true;
  Left->Mode = EditorLeftClick_MovingBSplineKnot;
  Left->TargetEntity = MakeEntityHandle(Target);
- Left->B_SplineKnotIndex = B_SplineKnotIndex;
+ Left->BSplineKnot = BSplineKnot;
 }
 
 internal void

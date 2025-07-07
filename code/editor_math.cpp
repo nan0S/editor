@@ -898,27 +898,16 @@ GaussianElimination(f32 *A, f32 *B, u32 Rows, u32 Cols)
 }
 
 internal void
-B_SplineBaseKnots(b_spline_knot_params KnotParams, f32 *Knots)
+BSplineBaseKnots(b_spline_knot_params KnotParams, f32 *Knots)
 {
  EquidistantPoints(Knots + KnotParams.Degree,
                    KnotParams.PartitionSize,
                    KnotParams.A,
                    KnotParams.B);
-#if 1
- // TODO(hbr): remove
- if (KnotParams.PartitionSize > 0)
- {
-  f32 Eps = 0.001f;
-  //f32 Eps = 0.0f;
-  Knots[KnotParams.Degree] = 0.0f + Eps;
-  Knots[KnotParams.Degree + KnotParams.PartitionSize - 1] = 1.0f - Eps;
-  //Knots[KnotParams.Degree + 1] = 0.0f;
- }
-#endif
 }
 
 internal void
-B_SplineKnotsNaturalExtension(b_spline_knot_params KnotParams, f32 *Knots)
+BSplineKnotsNaturalExtension(b_spline_knot_params KnotParams, f32 *Knots)
 {
  for (u32 I = 0; I < KnotParams.Degree; ++I)
  {
@@ -931,7 +920,7 @@ B_SplineKnotsNaturalExtension(b_spline_knot_params KnotParams, f32 *Knots)
 }
 
 internal void
-B_SplineKnotsPeriodicExtension(b_spline_knot_params KnotParams, f32 *Knots)
+BSplineKnotsPeriodicExtension(b_spline_knot_params KnotParams, f32 *Knots)
 {
  f32 A = KnotParams.A;
  f32 B = KnotParams.B;
@@ -950,7 +939,7 @@ B_SplineKnotsPeriodicExtension(b_spline_knot_params KnotParams, f32 *Knots)
 
 // NOTE(hbr): Reference implementation
 internal v2
-B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *Knots)
+BSplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *Knots)
 {
  temp_arena Temp = TempArena(0);
  
@@ -984,7 +973,7 @@ B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 
  for (i32 i = j-m; i <= j; ++i)
  {
   c(0, i) = ControlPoints[i];
- }
+ } 
  
  for (i32 k = 1; k <= m; ++k)
  {
@@ -1009,14 +998,14 @@ B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 
 
 // TODO(hbr): This can be ppb optimized to use only O(m) memory
 internal v2
-B_SplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *Knots)
+BSplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *Knots)
 {
  temp_arena Temp = TempArena(0);
  
  // NOTE(hbr): This is unfortunately necessary. Otherwise it freaks out on tail.
  T = Clamp(T, KnotParams.A, KnotParams.B - F32_EPS);
- 
- T = Clamp(T, Knots[0] + 10*F32_EPS, Knots[KnotParams.KnotCount - 1] - 10*F32_EPS);
+ //T = Clamp(T, Knots[0] + 10*F32_EPS, Knots[KnotParams.KnotCount - 1] - 10*F32_EPS);
+ //T = Clamp(T, KnotParams.A, KnotParams.B);
  
  i32 Degree = Cast(i32)KnotParams.Degree;
  i32 PartitionSize = Cast(i32)KnotParams.PartitionSize;
@@ -1115,7 +1104,7 @@ CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u32 N)
 }
 
 internal b_spline_degree_bounds
-B_SplineDegreeBounds(u32 ControlPointCount)
+BSplineDegreeBounds(u32 ControlPointCount)
 {
  b_spline_degree_bounds Result = {};
  if (ControlPointCount > 1)
@@ -1127,9 +1116,9 @@ B_SplineDegreeBounds(u32 ControlPointCount)
 }
 
 internal b_spline_knot_params
-B_SplineKnotParamsFromDegree(u32 Degree, u32 ControlPointCount)
+BSplineKnotParamsFromDegree(u32 Degree, u32 ControlPointCount)
 {
- b_spline_degree_bounds DegreeBounds = B_SplineDegreeBounds(ControlPointCount);
+ b_spline_degree_bounds DegreeBounds = BSplineDegreeBounds(ControlPointCount);
  Degree = Clamp(Degree, DegreeBounds.MinDegree, DegreeBounds.MaxDegree);
  
  u32 PartitionSize = ControlPointCount - Degree + 1;

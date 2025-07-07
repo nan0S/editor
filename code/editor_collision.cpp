@@ -172,7 +172,7 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
         multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP,
                                                                CurveSamples,
                                                                PointCount,
-                                                               Params->LineWidth,
+                                                               Params->Line.Width,
                                                                Tolerance);
         if (Line.Collided)
         {
@@ -182,7 +182,7 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
         
         for (u32 I = 0; I < PointCount; ++I)
         {
-         if (PointCollision(LocalAtP, Points[PointIndex], Curve->Params.PointRadius + Tolerance))
+         if (PointCollision(LocalAtP, Points[PointIndex], Curve->Params.Points.Radius + Tolerance))
          {
           Result.Entity = Entity;
           goto collided_label;
@@ -195,12 +195,12 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
       }
      }
      
-     if (!Curve->Params.LineDisabled)
+     if (Curve->Params.Line.Enabled)
      {
       multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP,
                                                              Curve->CurveSamples,
                                                              Curve->CurveSampleCount,
-                                                             Params->LineWidth,
+                                                             Params->Line.Width,
                                                              Tolerance);
       if (Line.Collided)
       {
@@ -217,7 +217,7 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
       multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP,
                                                              Curve->ConvexHullPoints,
                                                              Curve->ConvexHullCount,
-                                                             Params->ConvexHullWidth,
+                                                             Params->ConvexHull.Width,
                                                              Tolerance);
       if (Line.Collided)
       {
@@ -232,7 +232,7 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
       multiline_collision Line = CheckCollisionWithMultiLine(LocalAtP,
                                                              ControlPoints,
                                                              ControlPointCount,
-                                                             Params->PolylineWidth,
+                                                             Params->Polyline.Width,
                                                              Tolerance);
       if (Line.Collided)
       {
@@ -240,23 +240,23 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
       }
      }
      
-     if (Are_B_SplineKnotsVisible(Curve))
+     if (AreBSplineKnotsVisible(Curve))
      {
-      //b_spline_knots Knots = Curve->B_SplineKnots;
-      u32 PartitionSize = Curve->B_SplineKnotParams.PartitionSize;
-      v2 *PartitionKnotPoints = Curve->B_SplinePartitionKnotPoints;
-      point_draw_info KnotPointInfo = Get_B_SplineKnotPointDrawInfo(Entity);
+      u32 PartitionSize = Curve->BSplineKnotParams.PartitionSize;
+      v2 *PartitionKnotPoints = Curve->BSplinePartitionKnots;
+      point_draw_info KnotPointInfo = GetBSplinePartitionKnotPointDrawInfo(Entity);
       
-      for (u32 KnotIndex = 0;
-           KnotIndex < PartitionSize;
-           ++KnotIndex)
+      // NOTE(hbr): Skip first and last points because they are not moveable
+      for (u32 PartitionKnotIndex = 1;
+           PartitionKnotIndex + 1 < PartitionSize;
+           ++PartitionKnotIndex)
       {
-       v2 Knot = PartitionKnotPoints[KnotIndex];
+       v2 Knot = PartitionKnotPoints[PartitionKnotIndex];
        if (PointCollision(LocalAtP, Knot, KnotPointInfo.Radius))
        {
         Result.Entity = Entity;
-        Result.Flags |= Collision_B_SplineKnot;
-        Result.KnotIndex = KnotIndex;
+        Result.Flags |= Collision_BSplineKnot;
+        Result.BSplineKnot = BSplineKnotHandleFromPartitionKnotIndex(Curve, PartitionKnotIndex);
         break;
        }
       }

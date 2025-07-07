@@ -83,7 +83,7 @@ struct editor_left_click_state
  editor_left_click_mode Mode;
  curve_point_handle CurvePoint;
  v2 LastMouseP;
- u32 B_SplineKnotIndex;
+ b_spline_knot_handle BSplineKnot;
  control_point_handle ControlPointHandle;
  control_point InitialControlPoint;
  b32 Moved;
@@ -332,7 +332,7 @@ internal void EndLoweringBezierCurveDegree(editor *Editor, curve_degree_lowering
 internal void BeginMovingEntity(editor_left_click_state *Left, editor *Editor, entity *Entity);
 internal void BeginMovingCurvePoint(editor_left_click_state *Left, editor *Editor, action_tracking_group *TrackingGroup, entity *Target, curve_point_handle CurvePoint);
 internal void BeginMovingTrackingPoint(editor_left_click_state *Left, entity_handle Target);
-internal void BeginMovingBSplineKnot(editor_left_click_state *Left, entity_handle Target, u32 B_SplineKnotIndex);
+internal void BeginMovingBSplineKnot(editor_left_click_state *Left, entity_handle Target, u32 BSplineKnotIndex);
 internal void EndLeftClick(editor *Editor, editor_left_click_state *Left);
 
 internal void BeginMiddleClick(editor_middle_click_state *Middle, b32 Rotate, v2 ClipSpaceLastMouseP);

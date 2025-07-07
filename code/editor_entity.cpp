@@ -272,7 +272,7 @@ internal b32
 AreBSplineConvexHullsVisible(curve *Curve)
 {
  curve_params *CurveParams = &Curve->Params;
- b32 Result = (IsBSplineCurve(Curve) && CurveParams->BSplinePartialConvexHull.Enabled);
+ b32 Result = (IsBSplineCurve(Curve) && CurveParams->BSpline.PartialConvexHull.Enabled);
  return Result;
 }
 
@@ -465,7 +465,7 @@ IsRegularBezierCurve(curve *Curve)
 internal b32
 AreBSplineKnotsVisible(curve *Curve)
 {
- b32 Result = (Curve->Params.Type == Curve_BSpline && Curve->Params.BSpline.ShowPartitionKnotPoints);
+ b32 Result = (Curve->Params.Type == Curve_BSpline && Curve->Params.BSpline.Knots.Enabled);
  return Result;
 }
 
@@ -635,7 +635,7 @@ GetBSplinePartitionKnotPointDrawInfo(entity *Entity)
  curve *Curve = SafeGetCurve(Entity);
  curve_params *Params = &Curve->Params;
  b_spline_params *BSpline = &Params->BSpline;
- point_draw_info Result = GetEntityPointInfo(Entity, BSpline->KnotPointRadius, BSpline->KnotPointColor);
+ point_draw_info Result = GetEntityPointInfo(Entity, BSpline->Knots.Radius, BSpline->Knots.Color);
  return Result;
 }
 
@@ -798,11 +798,18 @@ PartitionKnotIndexFromBSplineKnotHandle(curve *Curve, b_spline_knot_handle Handl
 }
 
 internal b_spline_knot_handle
-BSplineKnotHandleFromPartitionKnotIndex(curve *Curve, u32 PartitionKnotIndex)
+BSplineKnotHandleFromKnotIndex(u32 KnotIndex)
 {
  b_spline_knot_handle Handle = {};
- u32 KnotIndex = Curve->BSplineKnotParams.Degree + PartitionKnotIndex;
  Handle.__Index = KnotIndex + 1;
+ return Handle;
+}
+
+internal b_spline_knot_handle
+BSplineKnotHandleFromPartitionKnotIndex(curve *Curve, u32 PartitionKnotIndex)
+{
+ u32 KnotIndex = Curve->BSplineKnotParams.Degree + PartitionKnotIndex;
+ b_spline_knot_handle Handle = BSplineKnotHandleFromKnotIndex(KnotIndex);
  return Handle;
 }
 
@@ -990,7 +997,8 @@ internal b32
 IsControlPointSelected(curve *Curve)
 {
  b32 Result = false;
- if (!ControlPointHandleMatch(Curve->SelectedControlPoint, ControlPointHandleZero()))
+ if (UsesControlPoints(Curve) &&
+     !ControlPointHandleMatch(Curve->SelectedControlPoint, ControlPointHandleZero()))
  {
   u32 Index = IndexFromControlPointHandle(Curve->SelectedControlPoint);
   Result = (Index < Curve->Points.ControlPointCount);
@@ -1268,9 +1276,40 @@ SetTrackingPointFraction(entity_with_modify_witness *EntityWitness, f32 Fraction
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
  point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
- 
  Tracking->Fraction = Clamp01(Fraction);
  MarkEntityModified(EntityWitness);
+}
+
+internal void
+SetBSplineKnotPoint(entity_with_modify_witness *EntityWitness,
+                    b_spline_knot_handle Knot,
+                    f32 KnotFraction)
+{
+ entity *Entity = EntityWitness->Entity;
+ curve *Curve = SafeGetCurve(Entity);
+ b_spline_knot_params *KnotParams =  &Curve->BSplineKnotParams;
+ f32 *Knots = Curve->BSplineKnots;
+ u32 KnotIndex = KnotIndexFromBSplineKnotHandle(Knot);
+ b32 Moveable = ((KnotIndex >= KnotParams->Degree + 1) &&
+                 (KnotIndex + 1 < KnotParams->Degree + KnotParams->PartitionSize));
+ Assert(Moveable);
+ if (Moveable)
+ {
+  for (u32 Index = KnotIndex;
+       Index > 0;
+       --Index)
+  {
+   Knots[Index - 1] = Min(KnotFraction, Knots[Index - 1]);
+  }
+  for (u32 Index = KnotIndex + 1;
+       Index < KnotParams->KnotCount;
+       ++Index)
+  {
+   Knots[Index] = Max(KnotFraction, Knots[Index]);
+  }
+  Knots[KnotIndex] = KnotFraction;
+  MarkEntityModified(EntityWitness);
+ }
 }
 
 // TODO(hbr): Try to get rid of this function entirely
@@ -1770,7 +1809,7 @@ RecomputeCurve(curve *Curve)
    u32 PointCount = Degree + 1;
    v2 *Points = PushArray(ComputeArena, PointCount, v2);
    PointCount = CalcConvexHull(PointCount, Controls + ConvexHullIndex, Points);
-   vertex_array Vertices = ComputeVerticesOfThickLine(ComputeArena, PointCount, Points, Params->BSplinePartialConvexHull.Width, true);
+   vertex_array Vertices = ComputeVerticesOfThickLine(ComputeArena, PointCount, Points, Params->BSpline.PartialConvexHull.Width, true);
    b_spline_convex_hull *Hull = Hulls + ConvexHullIndex;
    Hull->Points = Points;
    Hull->Vertices = Vertices;

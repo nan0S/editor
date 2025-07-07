@@ -395,7 +395,7 @@ RenderEntity(rendering_entity_handle Handle)
       u32 HullIndex = Clamp(ControlPointIndex, 0, HullCount - 1);
       b_spline_convex_hull *Hulls = Curve->BSplineConvexHulls;
       b_spline_convex_hull *Hull = Hulls + HullIndex;
-      v4 Color = CurveParams->BSplinePartialConvexHull.Color;
+      v4 Color = CurveParams->BSpline.PartialConvexHull.Color;
       PushVertexArray(RenderGroup,
                       Hull->Vertices.Vertices, 
                       Hull->Vertices.VertexCount,
@@ -735,6 +735,31 @@ FocusCameraOnEntity(camera *Camera, entity *Entity, render_group *RenderGroup)
  }
 }
 
+internal b32
+RenderDrawParamsUI(string Label, draw_params *Params, draw_params *Default, b32 IsPoint)
+{
+ b32 Changed = false;
+ UI_Label(Label)
+ {
+  UI_Checkbox(&Params->Enabled, NilStr);
+  UI_SameRow();
+  UI_SeparatorText(Label);
+  
+  Changed |= UI_DragFloat(&Params->Float, 0.0f, FLT_MAX, 0, (IsPoint ? StrLit("Radius") : StrLit("Width")));
+  if (ResetCtxMenu(StrLit("FloatReset")))
+  {
+   Params->Float = Default->Float;
+  }
+  
+  Changed |= UI_ColorPickerF(&Params->Color, "Color");
+  if (ResetCtxMenu(StrLit("ColorReset")))
+  {
+   Params->Color = Params->Color;
+  }
+ }
+ return Changed;
+}
+
 internal void
 RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
 {
@@ -831,6 +856,17 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       b32 Visible = IsEntityVisible(Entity);
       UI_Checkbox(&Visible, StrLit("Visible"));
       SetEntityVisibility(Entity, Visible);
+     }
+     
+     if (UsesControlPoints(Curve))
+     {
+      temp_arena Temp = TempArena(0);
+      control_point_handle Selected = Curve->SelectedControlPoint;
+      string SelectedStr = (ControlPointHandleMatch(Selected, ControlPointHandleZero()) ?
+                            StrLit("None") :
+                            StrF(Temp.Arena, "%u", IndexFromControlPointHandle(Selected)));
+      UI_TextF(false, "Selected Control Point Index: %S", SelectedStr);
+      EndTemp(Temp);
      }
      
      if (Curve)
@@ -1124,6 +1160,7 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
          EndTemp(Temp);
         }break;
         
+        //-@ render b-spline curve ui
         case Curve_BSpline: {
          b_spline_params *BSpline = &CurveParams->BSpline;
          b_spline_degree_bounds Bounds = BSplineDegreeBounds(Curve->Points.ControlPointCount);
@@ -1143,7 +1180,52 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
           CrucialEntityParamChanged = true;
          }
          
-         UI_Checkbox(&BSpline->ShowPartitionKnotPoints, StrLit("Partition Knots Visible"));
+         UI_Checkbox(&BSpline->Knots.Enabled, StrLit("Partition Knots Visible"));
+         
+         UI_Checkbox(&BSpline->PartialConvexHull.Enabled, StrLit("Partial Partition Convex Hull Visible"));
+         if (UI_IsItemHovered())
+         {
+          UI_Tooltip(StrLit("Toggle convex hull that encompasses curve\n"
+                            "points between two consecutive knot points.\n"
+                            "Drawn convex hull is dependent on currently\n"
+                            "selected control point and a degree of the\n"
+                            "B-spline curve."));
+         }
+         
+         //-@ render b-spline knots ui
+         if (UI_BeginTree(StrLit("Knots")))
+         {         
+          b_spline_knot_params *KnotParams = &Curve->BSplineKnotParams;
+          u32 KnotCount = KnotParams->KnotCount;
+          u32 Degree = KnotParams->Degree;
+          u32 PartitionSize = KnotParams->PartitionSize;
+          f32 A = KnotParams->A;
+          f32 B = KnotParams->B;
+          f32 *Knots = Curve->BSplineKnots;
+          for (u32 KnotIndex = 0;
+               KnotIndex < KnotCount;
+               ++KnotIndex)
+          {
+           UI_PushId(KnotIndex);
+           f32 Knot = Knots[KnotIndex];
+           if (KnotIndex > Degree && KnotIndex + 1 < Degree + PartitionSize)
+           {
+            u32 RelativeIndex = KnotIndex - Degree - 1;
+            UI_SliderFloatF(&Knot, A, B, "Knot %u", RelativeIndex);
+            SetBSplineKnotPoint(&EntityWitness, BSplineKnotHandleFromKnotIndex(KnotIndex), Knot);
+           }
+           else
+           {
+            UI_Disabled(true)
+            {
+             b32 IsBorder = ((KnotIndex == Degree) || (KnotIndex + 1 == Degree + PartitionSize));
+             UI_DragFloat(&Knot, A, B, 0, (IsBorder ? StrLit("Border Knot") : StrLit("External Knot")));
+            }
+           }
+           UI_PopId();
+          }
+          UI_EndTree();
+         }
         }break;
         
         case Curve_Count: InvalidPath;
@@ -1151,8 +1233,6 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
        
        if (CurveHasWeights(Curve))
        {
-        UI_SeparatorText(StrLit("Control Points"));
-        
         b32 WeightChanged = false;
         u32 PointCount = Curve->Points.ControlPointCount;
         f32 *Weights = Curve->Points.ControlPointWeights;
@@ -1169,7 +1249,7 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
          }
         }
         
-        if (UI_BeginTree(StrLit("List of all weights")))
+        if (UI_BeginTree(StrLit("Weights")))
         {
          // NOTE(hbr): Limit the number of points displayed in the case
          // curve has A LOT of them
@@ -1186,7 +1266,7 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
          {
           UI_Id(PointIndex)
           {                              
-           WeightChanged |= UI_DragFloatF(&Weights[PointIndex], 0.0f, FLT_MAX, 0, "Point (%u)", PointIndex);
+           WeightChanged |= UI_DragFloatF(&Weights[PointIndex], 0.0f, FLT_MAX, 0, "Point %u", PointIndex);
            if (ResetCtxMenu(StrLit("WeightReset")))
            {
             Weights[PointIndex] = 1.0f;
@@ -1363,26 +1443,14 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
      {
       UI_Label(StrLit("Line"))
       {
-       UI_Checkbox(&CurveParams->Line.Enabled , NilStr);
-       UI_SameRow();
-       UI_SeparatorText(StrLit("Line"));
-       
-       CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->Line.Width, 0.0f, FLT_MAX, 0, "Width");
-       if (ResetCtxMenu(StrLit("WidthReset")))
-       {
-        CurveParams->Line.Width = DefaultParams->Line.Width;
-        CrucialEntityParamChanged = true;
-       }
-       
-       UI_ColorPickerF(&CurveParams->Line.Color, "Color");
-       if (ResetCtxMenu(StrLit("ColorReset")))
-       {
-        CurveParams->Line.Color = DefaultParams->Line.Color;
-       }
+       CrucialEntityParamChanged |= RenderDrawParamsUI(StrLit("Line"),
+                                                       &CurveParams->Line,
+                                                       &DefaultParams->Line,
+                                                       false);
        
        if (IsCurveTotalSamplesMode(Curve))
        {
-        CrucialEntityParamChanged |= UI_SliderIntegerF(SafeCastToPtr(CurveParams->TotalSamples, i32), 1, 5000, "Total Samples");
+        CrucialEntityParamChanged |= UI_SliderInteger(SafeCastToPtr(CurveParams->TotalSamples, i32), 1, 5000, StrLit("Total Samples"));
         if (ResetCtxMenu(StrLit("Samples")))
         {
          CurveParams->TotalSamples = DefaultParams->TotalSamples;
@@ -1391,7 +1459,7 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
        }
        else
        {
-        CrucialEntityParamChanged |= UI_SliderIntegerF(SafeCastToPtr(CurveParams->SamplesPerControlPoint, i32), 1, 500, "Samples per Control Point");
+        CrucialEntityParamChanged |= UI_SliderInteger(SafeCastToPtr(CurveParams->SamplesPerControlPoint, i32), 1, 500, StrLit("Samples per Control Point"));
         if (ResetCtxMenu(StrLit("Samples")))
         {
          CurveParams->SamplesPerControlPoint = DefaultParams->SamplesPerControlPoint;
@@ -1402,110 +1470,33 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
       
       if (UsesControlPoints(Curve))
       {
-       UI_Label(StrLit("Control Points"))
-       {
-        UI_Checkbox(&CurveParams->Points.Enabled, NilStr);
-        UI_SameRow();
-        UI_SeparatorText(StrLit("Control Points"));
-        
-        UI_DragFloatF(&CurveParams->Points.Radius, 0.0f, FLT_MAX, 0, "Radius");
-        if (ResetCtxMenu(StrLit("PointRadiusReset")))
-        {
-         CurveParams->Points.Radius = DefaultParams->Points.Radius;
-        }
-        
-        UI_ColorPickerF(&CurveParams->Points.Color, "Color");
-        if (ResetCtxMenu(StrLit("PointColorReset")))
-        {
-         CurveParams->Points.Color = DefaultParams->Points.Color;
-        }
-       }
+       RenderDrawParamsUI(StrLit("Control Points"),
+                          &CurveParams->Points,
+                          &DefaultParams->Points,
+                          true);
+       
+       CrucialEntityParamChanged |= RenderDrawParamsUI(StrLit("Polyline"),
+                                                       &CurveParams->Polyline,
+                                                       &DefaultParams->Polyline,
+                                                       false);
+       
+       CrucialEntityParamChanged |= RenderDrawParamsUI(StrLit("Convex Hull"),
+                                                       &CurveParams->ConvexHull,
+                                                       &DefaultParams->ConvexHull,
+                                                       false);
       }
       
-      if (CurveParams->Type == Curve_BSpline)
+      if (IsBSplineCurve(Curve))
       {
-       b_spline_params *BSpline = &CurveParams->BSpline;
-       UI_Label(StrLit("B-Spline Knots"))
-       {
-        UI_Checkbox(&BSpline->ShowPartitionKnotPoints, NilStr);
-        UI_SameRow();
-        UI_SeparatorText(StrLit("B-Spline Knots"));
-        
-        UI_DragFloat(&BSpline->KnotPointRadius, 0.0f, FLT_MAX, 0, StrLit("Radius"));
-        if (ResetCtxMenu(StrLit("RadiusReset")))
-        {
-         BSpline->KnotPointRadius = DefaultParams->BSpline.KnotPointRadius;
-        }
-        
-        UI_ColorPicker(&BSpline->KnotPointColor, StrLit("Color"));
-        if (ResetCtxMenu(StrLit("ColorReset")))
-        {
-         BSpline->KnotPointColor= DefaultParams->BSpline.KnotPointColor;
-        }
-       }
-      }
-      
-      if (UsesControlPoints(Curve))
-      {
-       UI_Label(StrLit("Polyline"))
-       {
-        UI_Checkbox(&CurveParams->Polyline.Enabled, NilStr);
-        UI_SameRow();
-        UI_SeparatorText(StrLit("Polyline"));
-        
-        CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->Polyline.Width, 0.0f, FLT_MAX, 0, "Width");
-        if (ResetCtxMenu(StrLit("PolylineWidthReset")))
-        {
-         CurveParams->Polyline.Width = DefaultParams->Polyline.Width;
-         CrucialEntityParamChanged = true;
-        }
-        
-        UI_ColorPickerF(&CurveParams->Polyline.Color, "Color");
-        if (ResetCtxMenu(StrLit("PolylineColorReset")))
-        {
-         CurveParams->Polyline.Color = DefaultParams->Polyline.Color;
-        }
-       }
+       CrucialEntityParamChanged |= RenderDrawParamsUI(StrLit("B-Spline Knots"),
+                                                       &CurveParams->BSpline.Knots,
+                                                       &DefaultParams->BSpline.Knots,
+                                                       true);
        
-       UI_Label(StrLit("Convex Hull"))
-       {
-        UI_Checkbox(&CurveParams->ConvexHull.Enabled, NilStr);
-        UI_SameRow();
-        UI_SeparatorText(StrLit("Convex Hull"));
-        
-        CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->ConvexHull.Width, 0.0f, FLT_MAX, 0, "Width");
-        if (ResetCtxMenu(StrLit("ConvexHullWidthReset")))
-        {
-         CurveParams->ConvexHull.Width = DefaultParams->ConvexHull.Width;
-         CrucialEntityParamChanged = true;
-        }
-        
-        UI_ColorPickerF(&CurveParams->ConvexHull.Color, "Color");
-        if (ResetCtxMenu(StrLit("ConvexHullColorReset")))
-        {
-         CurveParams->ConvexHull.Color = DefaultParams->ConvexHull.Color;
-        }
-       }
-       
-       UI_Label(StrLit("B-Spline Partial Convex Hull"))
-       {
-        UI_Checkbox(&CurveParams->BSplinePartialConvexHull.Enabled, NilStr);
-        UI_SameRow();
-        UI_SeparatorText(StrLit("B-Spline Partial Convex Hull"));
-        
-        CrucialEntityParamChanged |= UI_DragFloatF(&CurveParams->BSplinePartialConvexHull.Width, 0.0f, FLT_MAX, 0, "Width");
-        if (ResetCtxMenu(StrLit("BSplinePartialConvexHullWidthReset")))
-        {
-         CurveParams->BSplinePartialConvexHull.Width = DefaultParams->BSplinePartialConvexHull.Width;
-         CrucialEntityParamChanged = true;
-        }
-        
-        UI_ColorPickerF(&CurveParams->BSplinePartialConvexHull.Color, "Color");
-        if (ResetCtxMenu(StrLit("BSplinePartialConvexHullColorReset")))
-        {
-         CurveParams->BSplinePartialConvexHull.Color = DefaultParams->BSplinePartialConvexHull.Color;
-        }
-       }
+       CrucialEntityParamChanged |= RenderDrawParamsUI(StrLit("B-Spline Partial Convex Hull"),
+                                                       &CurveParams->BSpline.PartialConvexHull,
+                                                       &DefaultParams->BSpline.PartialConvexHull,
+                                                       false);
       }
       
       UI_EndTabItem();
@@ -2325,28 +2316,6 @@ ProcessImageLoadingTasks(editor *Editor)
  }
 }
 
-// TODO(hbr): remove
-internal b32
-IsSorted(f32 *Array, u32 Count)
-{
- b32 Result = true;
- for (u32 Index = 1;
-      Index < Count;
-      ++Index)
- {
-  if (Array[Index - 1] <= Array[Index])
-  {
-   // NOTE(hbr): Nothing to do
-  }
-  else
-  {
-   Result = false;
-   break;
-  }
- }
- return Result;
-}
-
 internal void
 ProcessInputEvents(editor *Editor,
                    platform_input_output *Input,
@@ -2543,19 +2512,10 @@ ProcessInputEvents(editor *Editor,
       f32 *Knots = Curve->BSplineKnots;
       b_spline_knot_handle Knot = LeftClick->BSplineKnot;
       u32 KnotIndex = KnotIndexFromBSplineKnotHandle(Knot);
-      
-      //@ move B-spline knot point along the curve
       f32 KnotFraction = Knots[KnotIndex];
       MovePointAlongCurve(Curve, &TranslateLocal, &KnotFraction, true);
       MovePointAlongCurve(Curve, &TranslateLocal, &KnotFraction, false);
-      // TODO(hbr): remove [IsSorted]
-      Assert(IsSorted(Knots, KnotParams->KnotCount));
-      Assert(KnotIndex > 0 && KnotIndex + 1 < KnotParams->KnotCount);
-      KnotFraction = Clamp(KnotFraction, Knots[KnotIndex - 1], Knots[KnotIndex + 1]);
-      // TODO(hbr): Move this out to a function
-      Knots[KnotIndex] = KnotFraction;
-      
-      MarkEntityModified(&EntityWitness);
+      SetBSplineKnotPoint(&EntityWitness, Knot, KnotFraction);
      }break;
      
      case EditorLeftClick_MovingCurvePoint: {

@@ -21,10 +21,10 @@ DefaultCurveParams(void)
  Params.Parametric.MaxT = 1.0f;
  Params.Parametric.X_Equation = NilExpr;
  Params.Parametric.Y_Equation = NilExpr;
- Params.BSpline.KnotPointRadius = 0.010f;
- Params.BSpline.KnotPointColor = RGBA_Color(138, 0, 0, 148);
- Params.BSplinePartialConvexHull.Color = PolylineColor;
- Params.BSplinePartialConvexHull.Width = LineWidth;
+ Params.BSpline.Knots.Radius = 0.010f;
+ Params.BSpline.Knots.Color = RGBA_Color(138, 0, 0, 148);
+ Params.BSpline.PartialConvexHull.Color = PolylineColor;
+ Params.BSpline.PartialConvexHull.Width = LineWidth;
  
  return Params;
 }

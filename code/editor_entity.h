@@ -95,14 +95,6 @@ global read_only string BSplinePartitionNames[] = {
 };
 StaticAssert(ArrayCount(BSplinePartitionNames) == BSplinePartition_Count, BSplinePartitionNamesDefined);
 
-struct b_spline_params
-{
- b_spline_partition_type Partition;
- b32 ShowPartitionKnotPoints;
- f32 KnotPointRadius;
- v4 KnotPointColor;
-};
-
 struct draw_params
 {
  b32 Enabled;
@@ -110,7 +102,15 @@ struct draw_params
  union {
   f32 Width;
   f32 Radius;
+  f32 Float;
  };
+};
+
+struct b_spline_params
+{
+ b_spline_partition_type Partition;
+ draw_params Knots;
+ draw_params PartialConvexHull;
 };
 
 struct curve_params
@@ -126,7 +126,6 @@ struct curve_params
  draw_params Points;
  draw_params Polyline;
  draw_params ConvexHull;
- draw_params BSplinePartialConvexHull;
  
  u32 SamplesPerControlPoint;
  u32 TotalSamples;
@@ -522,6 +521,7 @@ struct curve
 {
  curve_params Params; // used to compute curve shape from (might be still validated and not used "as-is")
  control_point_handle SelectedControlPoint;
+ b_spline_knot_handle SelectedBSplineKnot;
  b_spline_knot_params BSplineKnotParams;
  point_tracking_along_curve_state PointTracking;
  curve_degree_lowering_state DegreeLowering;
@@ -763,6 +763,7 @@ internal curve_points_dynamic CurvePointsDynamicFromStatic(curve_points_static *
 internal void CopyCurvePoints(curve_points_dynamic Dst, curve_points_handle Src);
 
 internal b_spline_knot_handle BSplineKnotHandleZero(void);
+internal b_spline_knot_handle BSplineKnotHandleFromKnotIndex(u32 KnotIndex);
 internal b_spline_knot_handle BSplineKnotHandleFromPartitionKnotIndex(curve *Curve, u32 Index);
 internal b32 BSplineKnotHandleMatch(b_spline_knot_handle A, b_spline_knot_handle B);
 internal u32 KnotIndexFromBSplineKnotHandle(b_spline_knot_handle Handle);
@@ -788,9 +789,8 @@ internal void ApplyColorsToEntity(entity *Entity, entity_colors Colors);
 internal void MarkEntitySelected(entity *Entity);
 internal void MarkEntityDeselected(entity *Entity);
 internal void SetEntityVisibility(entity *Entity, b32 Visible);
-
-internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
-internal v2 LocalToWorldEntityPosition(entity *Entity, v2 P);
+internal void SetTrackingPointFraction(entity_with_modify_witness *EntityWitness, f32 Fraction);
+internal void SetBSplineKnotPoint(entity_with_modify_witness *EntityWitness, b_spline_knot_handle Knot, f32 KnotFraction);
 
 //- entity query
 internal b32 IsEntityVisible(entity *Entity);
@@ -828,5 +828,8 @@ internal curve_merge_compatibility AreCurvesCompatibleForMerging(curve *Curve0, 
 //- misc/helpers
 internal curve *SafeGetCurve(entity *Entity);
 internal image *SafeGetImage(entity *Entity);
+
+internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
+internal v2 LocalToWorldEntityPosition(entity *Entity, v2 P);
 
 #endif //EDITOR_ENTITY_H

@@ -25,11 +25,10 @@
 
 /* TODO(hbr):
 
-TODO:
+TODO: features
 
 crucial:
 - saving/loading project from/to file
-- merging weighted bezier curves
 - extract animated curve - bezier can be 100% matching, other can do with interpolation
 - moving partition knot along curve
 - convex hull around pieces of b-spline segments
@@ -42,7 +41,9 @@ maybe:
 - better error msgs when curves fail to merge
 - parallelize curve recomputation
 - GPU buffer_index in the same way we have texture_index
-- update "help" - add info about moving cubic bezier helpers, add info about "undo/redo"
+- section about moving cubic bezier helpers in help
+- section about undo/redo in help
+- section about parametric equations in help
 - remove DLL loading in release mode
 - add resource monitor - memory/texture handles - to investigate if there are any leaks
 - holding Ctrl-Z should do a bunch of undos in a row - aka. sticky keys or something
@@ -50,17 +51,24 @@ maybe:
 - multiselect curves to change it's parameters at once - for example change line width/color, also maybe to move them at once
   - resize "handles" for images
 
- bugs:
- - ZOffset is fucked - if multiple images have the same ZOffset, make sure to check collisions in the reverse order they are renderer
- - adding points to periodic curve doesn't work again
- - I need to test what happens when queue texture memory is emptied - because I think there is a bug in there
- - usunac artefakty ktore sie pojawiaja gdy linia sie zagina w druga storne bardzo ostro
- - inserting control point in the middle of polynomial curve is sometimes broken
- - because clicks are now highly independent, we might now delete control point while moving the same control point which could lead to some weird behaviours, investigate that
- - focusing on entity is not 100% correct mathematically - if camera is rotated and entity is rotated, it zooms out a little too much compared to what it "should", although probably noone will notice anyway, I can't figure out the math behing this
-- jak robie undo/redo wiele razy z rzedu to czasami na chwilke pojawiaja sie pewne artefakty rysowania linii - tak jakbym rysowal wielki trojkat zamiast malych ktore skalaja sie na linie, wyglada to jakby jakis vertex linii zostal przesuniety (do (0,0)?)
+ TODO bugs:
+
+crucial:
+- jak robie undo/redo wiele razy z rzedu to czasami na chwilke pojawiaja sie pewne artefakty rysowania linii - tak jakbym rysowal wielki trojkat zamiast malych ktore skalaja sie na linie, wyglada to jakby jakis vertex linii zostal przesuniety (do (0,0)?
+- mergeing linii z sama soba sprawia ze cos sie dziwnego dzieje z undo/redo
 - this is not working properly for parametric expression: unexpected error but this should evaluate: StrLit("sin(t) * (exp(sin(t)) - 2*cos(4t))"),
 - undo/redo doesn't seem to work well with entity list and what is selected - I tend to have multiple things that are selected
+
+maybe:
+- usunac artefakty ktore sie pojawiaja gdy linia sie zagina w druga storne bardzo ostro
+- ZOffset is fucked - if multiple images have the same ZOffset, make sure to check collisions in the reverse order they are renderer
+- I need to test what happens when queue texture memory is emptied - because I think there is a bug in there
+ - because clicks are now highly independent, we might now delete control point while moving the same control point which could lead to some weird behaviours, investigate that
+ - focusing on entity is not 100% correct mathematically - if camera is rotated and entity is rotated, it zooms out a little too much compared to what it "should", although probably noone will notice anyway, I can't figure out the math behing this
+ 
+fixed:
+- adding points to periodic curve doesn't work again
+- inserting control point in the middle of polynomial curve is sometimes broken
 
   ideas:
  - confirm window when removing points
@@ -99,6 +107,8 @@ new things added:
 - parametric curves predefined examples
 - grid
 - multiple bug fixes
+- moving b-spline point (partial)
+- merging weighted bezier curves
 
  */
 

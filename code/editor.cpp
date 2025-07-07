@@ -2866,6 +2866,12 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
  v2 R = (R_Exists ? Points[PointCount0 - 0] : V2(0,0));
  v2 T = (T_Exists ? Points[PointCount0 + 1] : V2(0,0));
  
+ f32 s = (S_Exists ? Weights[PointCount0 - 3] : 0);
+ f32 q = (Q_Exists ? Weights[PointCount0 - 2] : 0);
+ f32 p = (P_Exists ? Weights[PointCount0 - 1] : 0);
+ f32 r = (R_Exists ? Weights[PointCount0 - 0] : 0);
+ f32 t = (T_Exists ? Weights[PointCount0 + 1] : 0);
+ 
  v2 R_ = R;
  v2 T_ = T;
  
@@ -2889,21 +2895,54 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
   case CurveMerge_C2: {
    // NOTE(hbr): C1 merge:
    // - C0 and
-   // - n/(b-a) * (P-Q) = m/(c-b) * (R-P)
+   // - n/(b-a) * q/p * (P-Q) = m/(c-b) * r/p * (R-P)
    // - assuming (b-a) = (c-b) = 1
-   // - which gives us: n * (P-Q) = m * (R-P)
-   // - solving for R: R = n/m * (P-Q) + P
-   R_ = n/m * (P-Q) + P;
+   // - which gives us: n * q/p * (P-Q) = m * r/p * (R-P)
+   // - solving for R: R = n/m * q/r * (P-Q) + P
+   R_ = n/m * q/r * (P-Q) + P;
    
    if (Method == CurveMerge_C2)
    {
-    // NOTE(hbr): C2 merge:
+    // NOTE(hbr): C2 merge (version without weights):
     // - C0 and C1 and
     // - n*(n-1)/(b-a)^2 * (P-2Q+S) = m*(m-1)/(c-b)^2 * (T-2R+P)
     // - assuming (b-a) = (c-b) = 1
     // - which gives us: n*(n-1) * (P-2Q+S) = m*(m-1) * (T-2R+P)
     // - solving for T: T = (n*(n-1))/(m*(m-1)) * (P-2Q+S) + (2R-P)
-    T_ = (n*(n-1))/(m*(m-1)) * (P-2*Q+S) + (2*R_-P);
+    // T_ = (n*(n-1))/(m*(m-1)) * (P-2*Q+S) + (2*R_-P);
+    
+    // NOTE(hbr): C2 merge (version with weights):
+    // - C0 and C1 and
+    // - n*(n-1)/(b-a)^2 * (m_n*P_n+m_n_1*P_n_1*+m_n_2*P_n_2) = m*(m-1)/(c-b)^2 * (m2*P2+m1*P1+m0*P0)
+    // - assuming (b-a) = (c-b) = 1
+    // - which gives us: n*(n-1) * (m_n*P_n+m_n_1*P_n_1*+m_n_2*P_n_2) = m*(m-1) * (m2*P2+m1*P1+m0*P0)
+    // - solving for T: T = (n*(n-1))/(m*(m-1)) * [(m_n*P_n+m_n_1*P_n_1*+m_n_2*P_n_2) - (m1*P1+m0*P0)] / m2
+    
+    v2 P2 = T;
+    v2 P1 = R_;
+    v2 P0 = P;
+    
+    f32 w2 = t;
+    f32 w1 = r;
+    f32 w0 = p;
+    
+    f32 m2 = m*(m-1) * w2/w0;
+    f32 m1 = -2*m*(m-1) * w1/w0 - 2*Square(m) * w1*(w1-w0)/Square(w0);
+    f32 m0 = 2*m*(m-1) * w1/w0 + 2*Square(m) * (w1-w0)/w0 - m*(m-1)* w2/w0 + 2*Square(m * (w1-w0)/w0);
+    
+    v2 P_n = P;
+    v2 P_n_1 = Q;
+    v2 P_n_2 = S;
+    
+    f32 w_n = p;
+    f32 w_n_1 = q;
+    f32 w_n_2 = s;
+    
+    f32 m_n = 2*n*(n-1) * w_n_1/w_n - 2*Square(n) * (w_n - w_n_1)/w_n - n*(n-1) * w_n_2/w_n + 2*Square(n * (w_n - w_n_1)/w_n);
+    f32 m_n_1 = -2*n*(n-1) * w_n_1/w_n + 2*Square(n) * w_n_1*(w_n-w_n_1)/Square(w_n);
+    f32 m_n_2 = n*(n-1) * w_n_2/w_n;
+    
+    T_ = (n*(n-1))/(m*(m-1)*m2) * (m_n*P_n + m_n_1*P_n_1 + m_n_2*P_n_2 - m1*P1 - m0*P0);
    }
   }break;
   

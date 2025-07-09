@@ -1,34 +1,3 @@
-internal curve_params
-DefaultCurveParams(void)
-{
- curve_params Params = {};
- 
- f32 LineWidth = 0.009f;
- v4 PolylineColor = RGBA_Color(16, 31, 31, 200);
- 
- Params.Line.Enabled = true;
- Params.Line.Color = RGBA_Color(21, 69, 98);
- Params.Line.Width = LineWidth;
- Params.Points.Enabled = true;
- Params.Points.Color = RGBA_Color(0, 138, 138, 148);
- Params.Points.Radius = 0.014f;
- Params.Polyline.Color = PolylineColor;
- Params.Polyline.Width = LineWidth;
- Params.ConvexHull.Color = PolylineColor;
- Params.ConvexHull.Width = LineWidth;
- Params.SamplesPerControlPoint = 50;
- Params.TotalSamples = 1000;
- Params.Parametric.MaxT = 1.0f;
- Params.Parametric.X_Equation = NilExpr;
- Params.Parametric.Y_Equation = NilExpr;
- Params.BSpline.Knots.Radius = 0.010f;
- Params.BSpline.Knots.Color = RGBA_Color(138, 0, 0, 148);
- Params.BSpline.PartialConvexHull.Color = PolylineColor;
- Params.BSpline.PartialConvexHull.Width = LineWidth;
- 
- return Params;
-}
-
 internal void
 InitLeftClickState(editor_left_click_state *LeftClick)
 {
@@ -57,15 +26,16 @@ InitVisualProfiler(visual_profiler_state *VisualProfiler, profiler *Profiler)
 }
 
 internal void
-InitAnimatingCurvesState(animating_curves_state *State)
+InitAnimatingCurvesState(animating_curves_state *State,
+                         entity_store *EntityStore)
 {
- State->Arena = AllocArena(Megabytes(32));
+ State->ExtractEntity = AllocEntity(EntityStore, true);
 }
 
 internal void
 InitEditor(editor *Editor, editor_memory *Memory)
 {
- Editor->BackgroundColor = Editor->DefaultBackgroundColor = RGBA_Color(21, 21, 21);
+ Editor->BackgroundColor = Editor->DefaultBackgroundColor = RGBA_U8(21, 21, 21);
  Editor->CollisionToleranceClip = 0.04f;
  Editor->RotationRadiusClip = 0.1f;
  Editor->CurveDefaultParams = DefaultCurveParams();
@@ -87,7 +57,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
  InitLeftClickState(&Editor->LeftClick);
  InitMergingCurvesState(&Editor->MergingCurves, &Editor->EntityStore);
  InitVisualProfiler(&Editor->Profiler, Memory->Profiler);
- InitAnimatingCurvesState(&Editor->AnimatingCurves);
+ InitAnimatingCurvesState(&Editor->AnimatingCurves, &Editor->EntityStore);
  InitThreadTaskMemoryStore(&Editor->ThreadTaskMemoryStore);
  InitImageLoadingStore(&Editor->ImageLoadingStore);
  
@@ -121,7 +91,7 @@ InitEditor(editor *Editor, editor_memory *Memory)
   InitEntityAsCurve(Entity, StrLit("b-spline"), Params);
   
   u32 PointCount = 30;
-  curve_points_static_modify_handle Handle = BeginModifyCurvePoints(&Witness, PointCount, ModifyCurvePointsWhichPoints_ControlPointsOnly);
+  curve_points_modify_handle Handle = BeginModifyCurvePoints(&Witness, PointCount, ModifyCurvePointsWhichPoints_ControlPointsOnly);
   for (u32 PointIndex = 0;
        PointIndex < PointCount;
        ++PointIndex)
@@ -207,7 +177,7 @@ DuplicateEntity(editor *Editor, entity *Entity)
  InitEntityFromEntity(EntityStore, &CopyWitness, Entity);
  SelectEntity(Editor, Copy);
  
- f32 SlightTranslationX = 5 * Copy->Curve.Params.Line.Width;
+ f32 SlightTranslationX = 5 * Copy->Curve.Params.DrawParams.Line.Width;
  v2 SlightTranslation = V2(SlightTranslationX, 0.0f);
  Copy->XForm.P += SlightTranslation;
  
@@ -246,8 +216,8 @@ SplitCurveOnControlPoint(editor *Editor, entity *Entity)
   SetEntityName(HeadEntity, HeadName);
   SetEntityName(TailEntity, TailName);
   
-  curve_points_static_modify_handle HeadPoints = BeginModifyCurvePoints(&HeadWitness, HeadPointCount, ModifyCurvePointsWhichPoints_AllPoints);
-  curve_points_static_modify_handle TailPoints = BeginModifyCurvePoints(&TailWitness, TailPointCount, ModifyCurvePointsWhichPoints_AllPoints);
+  curve_points_modify_handle HeadPoints = BeginModifyCurvePoints(&HeadWitness, HeadPointCount, ModifyCurvePointsWhichPoints_AllPoints);
+  curve_points_modify_handle TailPoints = BeginModifyCurvePoints(&TailWitness, TailPointCount, ModifyCurvePointsWhichPoints_AllPoints);
   Assert(HeadPoints.PointCount == HeadPointCount);
   Assert(TailPoints.PointCount == TailPointCount);
   
@@ -281,7 +251,7 @@ ElevateBezierCurveDegree(editor *Editor, entity *Entity)
  u32 PointCount = Curve->Points.ControlPointCount;
  begin_modify_curve_points_static_tracked_result BeginModify = BeginModifyCurvePointsTracked(Editor, &Witness, PointCount + 1,
                                                                                              ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
- curve_points_static_modify_handle ModifyPoints = BeginModify.ModifyPoints;
+ curve_points_modify_handle ModifyPoints = BeginModify.ModifyPoints;
  tracked_action *ModifyAction = BeginModify.ModifyAction;
  if (ModifyPoints.PointCount == PointCount + 1)
  {
@@ -362,8 +332,8 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  SetEntityName(LeftEntity, LeftName);
  SetEntityName(RightEntity, RightName);
  
- curve_points_static_modify_handle LeftPoints = BeginModifyCurvePoints(&LeftWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
- curve_points_static_modify_handle RightPoints = BeginModifyCurvePoints(&RightWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
+ curve_points_modify_handle LeftPoints = BeginModifyCurvePoints(&LeftWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
+ curve_points_modify_handle RightPoints = BeginModifyCurvePoints(&RightWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
  Assert(LeftPoints.PointCount == ControlPointCount);
  Assert(RightPoints.PointCount == ControlPointCount);
  
@@ -449,19 +419,18 @@ MakeBouncingParam(void)
 internal void
 BeginAnimatingCurves(animating_curves_state *Animation)
 {
- arena *Arena = Animation->Arena;
+ entity *ExtractEntity = Animation->ExtractEntity;
  StructZero(Animation);
  Animation->Flags = AnimatingCurves_Active;
  BeginChoosing2Curves(&Animation->Choose2Curves);
  Animation->Bouncing = MakeBouncingParam();
- Animation->Arena = Arena;
+ Animation->ExtractEntity = ExtractEntity;
 }
 
 internal void
 EndAnimatingCurves(animating_curves_state *Animation)
 {
  Animation->Flags &= ~AnimatingCurves_Active;
- ClearArena(Animation->Arena);
 }
 
 internal b32
@@ -514,7 +483,7 @@ BeginLoweringBezierCurveDegree(editor *Editor, entity *Entity)
  {
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
   begin_modify_curve_points_static_tracked_result Modify = BeginModifyCurvePointsTracked(Editor, &Witness, PointCount - 1, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
-  curve_points_static_modify_handle ModifyPoints = Modify.ModifyPoints;
+  curve_points_modify_handle ModifyPoints = Modify.ModifyPoints;
   tracked_action *ModifyAction = Modify.ModifyAction;
   
   curve_points_static *OriginalPoints = AllocCurvePoints(Editor);
@@ -1084,7 +1053,7 @@ BeginModifyCurvePointsTracked(editor *Editor,
  curve_points_static *CurvePoints = AllocCurvePoints(Editor);
  CopyCurvePointsFromCurve(SafeGetCurve(Entity->Entity), CurvePointsDynamicFromStatic(CurvePoints));
  Action->CurvePoints = CurvePoints;
- curve_points_static_modify_handle Handle = BeginModifyCurvePoints(Entity, RequestedPointCount, Which);
+ curve_points_modify_handle Handle = BeginModifyCurvePoints(Entity, RequestedPointCount, Which);
  begin_modify_curve_points_static_tracked_result Result = {};
  Result.ModifyPoints = Handle;
  Result.ModifyAction = Action;
@@ -1094,7 +1063,7 @@ BeginModifyCurvePointsTracked(editor *Editor,
 internal void
 EndModifyCurvePointsTracked(editor *Editor,
                             tracked_action *ModifyAction,
-                            curve_points_static_modify_handle ModifyPoints)
+                            curve_points_modify_handle ModifyPoints)
 {
  EndModifyCurvePoints(ModifyPoints);
  action_tracking_group *Group = GetPendingActionTrackingGroup(Editor);
@@ -1115,7 +1084,7 @@ SetCurvePointsTracked(editor *Editor, entity_with_modify_witness *Entity, curve_
 {
  begin_modify_curve_points_static_tracked_result Modify = BeginModifyCurvePointsTracked(Editor, Entity, Points.ControlPointCount,
                                                                                         ModifyCurvePointsWhichPoints_AllPoints);
- curve_points_static_modify_handle ModifyPoints = Modify.ModifyPoints;
+ curve_points_modify_handle ModifyPoints = Modify.ModifyPoints;
  tracked_action *ModifyAction = Modify.ModifyAction;
  SetCurvePoints(Entity, Points);
  EndModifyCurvePointsTracked(Editor, ModifyAction, ModifyPoints);

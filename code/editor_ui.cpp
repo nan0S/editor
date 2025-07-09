@@ -207,18 +207,18 @@ UI_CheckboxF(b32 *Enabled, char const *Format, ...)
 }
 
 internal b32
-UI_ColorPicker(v4 *Color, string Label)
+UI_ColorPicker(rgba *Color, string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
- b32 Result = Cast(b32)Platform.ImGui.ColorEdit4(CLabel.Data, Color->E);
+ b32 Result = Cast(b32)Platform.ImGui.ColorEdit4(CLabel.Data, Color->C.E);
  EndTemp(Temp);
  
  return Result;
 }
 
 internal b32
-UI_ColorPickerF(v4 *Color, char const *Format, ...)
+UI_ColorPickerF(rgba *Color, char const *Format, ...)
 {
  temp_arena Temp = TempArena(0);
  va_list Args;
@@ -405,19 +405,19 @@ internal void UI_BeginDisabled(b32 Disabled) { Platform.ImGui.BeginDisabled(Cast
 internal void UI_EndDisabled(void) { Platform.ImGui.EndDisabled(); }
 
 internal ImVec4
-V4ToImColor(v4 Color)
+V4ToImColor(rgba Color)
 {
  ImVec4 Result = ImVec4(Color.R, Color.G, Color.B, Color.A);
  return Result;
 }
 
 internal ui_push_color_handle
-UI_PushColor(ui_color_apply Apply, v4 Color)
+UI_PushColor(ui_color_apply Apply, rgba Color)
 {
  ui_push_color_handle Result = {};
  
  ImGuiCol ImCols[3] = {};
- v4 Colors[3] = {};
+ rgba Colors[3] = {};
  StaticAssert(ArrayCount(Colors) == ArrayCount(ImCols), ArrayLengthsMatch);
  u32 ColCount = 0;
  switch (Apply)
@@ -432,7 +432,7 @@ UI_PushColor(ui_color_apply Apply, v4 Color)
    ImCols[0] = ImGuiCol_Button;
    Colors[0] = Color;
    ImCols[1] = ImGuiCol_ButtonHovered;
-   Colors[1] = BrightenColor(Color, 0.5f);
+   Colors[1] = RGBA_Brighten(Color, 0.5f);
    ImCols[2] = ImGuiCol_ButtonActive;
    Colors[2] = Color;
    ColCount = 3;
@@ -612,7 +612,6 @@ UI_SliderInteger(i32 *Value, i32 MinValue, i32 MaxValue, string Label)
  b32 Result = Cast(b32)Platform.ImGui.SliderInt(CLabel.Data, &ValueInt, SafeCastInt(MinValue), SafeCastInt(MaxValue));
  *Value = ValueInt;
  EndTemp(Temp);
- 
  return Result;
 }
 
@@ -626,7 +625,31 @@ UI_SliderIntegerF(i32 *Value, i32 MinValue, i32 MaxValue, char const *Format, ..
  b32 Result = UI_SliderInteger(Value, MinValue, MaxValue, Label);
  EndTemp(Temp);
  va_end(Args);
- 
+ return Result;
+}
+
+internal b32
+UI_SliderUnsigned(u32 *Value, u32 MinValue, u32 MaxValue, string Label)
+{
+ temp_arena Temp = TempArena(0);
+ string CLabel = CStrFromStr(Temp.Arena, Label);
+ int ValueInt = SafeCastU32ToInt(*Value);
+ b32 Result = Cast(b32)Platform.ImGui.SliderInt(CLabel.Data, &ValueInt, SafeCastU32ToInt(MinValue), SafeCastU32ToInt(MaxValue));
+ *Value = SafeCastIntToU32(ValueInt);
+ EndTemp(Temp);
+ return Result;
+}
+
+internal b32
+UI_SliderUnsignedF(u32 *Value, u32 MinValue, u32 MaxValue, char const *Format, ...)
+{
+ va_list Args;
+ va_start(Args, Format);
+ temp_arena Temp = TempArena(0);
+ string Label = StrFV(Temp.Arena, Format, Args);
+ b32 Result = UI_SliderUnsigned(Value, MinValue, MaxValue, Label);
+ EndTemp(Temp);
+ va_end(Args);
  return Result;
 }
 
@@ -1071,4 +1094,17 @@ internal void
 UI_TableSetColumnIndex(u32 ColumnIndex)
 {
  Platform.ImGui.TableSetColumnIndex(ColumnIndex);
+}
+
+internal void
+UI_HelpMarkerWithTooltip(string HelpText)
+{
+ UI_Disabled(true)
+ {
+  UI_Text(false, StrLit("(?)"));
+ }
+ if (UI_IsItemHovered())
+ {
+  UI_Tooltip(HelpText);
+ }
 }

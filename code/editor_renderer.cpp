@@ -48,7 +48,7 @@ PushVertexArray(render_group *Group,
                 v2 *Vertices,
                 u32 VertexCount,
                 render_primitive_type Primitive,
-                v4 Color,
+                rgba Color,
                 f32 ZOffset)
 {
  ProfileFunctionBegin();
@@ -71,10 +71,10 @@ PushVertexArray(render_group *Group,
 internal void
 PushCircle(render_group *Group,
            v2 P,
-           f32 Radius, v4 Color,
+           f32 Radius, rgba Color,
            f32 ZOffset,
            f32 OutlineThickness,
-           v4 OutlineColor)
+           rgba OutlineColor)
 {
  ProfileFunctionBegin();
  
@@ -104,7 +104,7 @@ PushCircle(render_group *Group,
 internal void
 PushRectangle(render_group *Group,
               v2 P, v2 Size, rotation2d Rotation,
-              v4 Color, f32 ZOffset)
+              rgba Color, f32 ZOffset)
 {
  ProfileFunctionBegin();
  
@@ -158,7 +158,7 @@ PushRectangle(render_group *Group,
 internal void
 PushLine(render_group *Group,
          v2 BeginPoint, v2 EndPoint,
-         f32 LineWidth, v4 Color,
+         f32 LineWidth, rgba Color,
          f32 ZOffset)
 {
  ProfileFunctionBegin();
@@ -176,7 +176,7 @@ PushLine(render_group *Group,
 internal void
 PushTriangle(render_group *Group,
              v2 P0, v2 P1, v2 P2,
-             v4 Color, f32 ZOffset)
+             rgba Color, f32 ZOffset)
 {
  ProfileFunctionBegin();
  
@@ -224,7 +224,7 @@ PushImage(render_group *Group, scale2d Dim, render_texture_handle TextureHandle)
 internal render_group
 BeginRenderGroup(render_frame *Frame,
                  v2 CameraP, rotation2d CameraRot, f32 CameraZoom,
-                 v4 ClearColor)
+                 rgba ClearColor)
 {
  render_group Result = {};
  

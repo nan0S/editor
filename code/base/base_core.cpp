@@ -51,3 +51,41 @@ DetectOS(void)
 #endif
  return OS;
 }
+
+internal rect2
+EmptyAABB(void)
+{
+ rect2 Result = {};
+ Result.Min = V2(F32_INF, F32_INF);
+ Result.Max = V2(-F32_INF, -F32_INF);
+ 
+ return Result;
+}
+
+internal void
+AddPointAABB(rect2 *AABB, v2 P)
+{
+ if (P.X < AABB->Min.X) AABB->Min.X = P.X;
+ if (P.X > AABB->Max.X) AABB->Max.X = P.X;
+ if (P.Y < AABB->Min.Y) AABB->Min.Y = P.Y;
+ if (P.Y > AABB->Max.Y) AABB->Max.Y = P.Y;
+}
+
+internal b32
+IsNonEmpty(rect2 *Rect)
+{
+ b32 Result = ((Rect->Min.X <= Rect->Max.X) &&
+               (Rect->Min.Y <= Rect->Max.Y));
+ return Result;
+}
+
+internal rect2_corners
+AABBCorners(rect2 Rect)
+{
+ rect2_corners Corners = {};
+ Corners.Corners[Corner_00] = V2(Rect.Min.X, Rect.Min.Y);
+ Corners.Corners[Corner_01] = V2(Rect.Min.X, Rect.Max.Y);
+ Corners.Corners[Corner_10] = V2(Rect.Max.X, Rect.Min.Y);
+ Corners.Corners[Corner_11] = V2(Rect.Max.X, Rect.Max.Y);
+ return Corners;
+}

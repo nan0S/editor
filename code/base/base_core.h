@@ -227,6 +227,24 @@ union mat4
  v4 Rows[4];
 };
 
+typedef u64 timestamp64;
+struct date_time
+{
+ u32 Year;  // [0..)
+ u16 Ms;    // [0,999]
+ u8  Sec;   // [0,59]
+ u8  Mins;  // [0,59]
+ u8  Hour;  // [0,23]
+ u8  Day;   // [0,30]
+ u8  Month; // [0,11]
+};
+
+enum operating_system
+{
+ OS_Win32,
+ OS_Linux,
+};
+
 #if defined(BUILD_DEBUG)
 # define Assert(Expr) AssertAlways(Expr)
 #else
@@ -383,6 +401,16 @@ inline internal  u8  SafeCastU8(u64 X) { Assert(X <=  U8_MAX); return Cast( u8)X
 
 inline internal int SafeCastInt(i64 X) { Assert(I32_MIN <= X && X <= I32_MAX); return Cast(int)X; }
 
+inline internal int SafeCastU64ToInt(u64 X) { Assert(X <= Cast(u64)I32_MAX); return Cast(int)X; }
+inline internal int SafeCastU32ToInt(u32 X) { Assert(X <= Cast(u64)I32_MAX); return Cast(int)X; }
+inline internal int SafeCastU16ToInt(u16 X) { Assert(X <= Cast(u64)I32_MAX); return Cast(int)X; }
+inline internal int  SafeCastU8ToInt (u8 X) { Assert(X <= Cast(u64)I32_MAX); return Cast(int)X; }
+
+inline internal u64 SafeCastIntToU64(int X) { Assert(X >= 0 && Cast(u64)X < U64_MAX); return Cast(u64)X; }
+inline internal u32 SafeCastIntToU32(int X) { Assert(X >= 0 && Cast(u32)X < U32_MAX); return Cast(u32)X; }
+inline internal u16 SafeCastIntToU16(int X) { Assert(X >= 0 && Cast(u16)X < U16_MAX); return Cast(u16)X; }
+inline internal  u8  SafeCastIntToU8(int X) { Assert(X >= 0 && Cast (u8)X <  U8_MAX); return Cast (u8)X; }
+
 inline internal u64 SafeSubtractU64(u64 A, u64 B) { Assert(A >= B); return A-B; }
 inline internal u32 SafeSubtractU32(u32 A, u32 B) { Assert(A >= B); return A-B; }
 inline internal u16 SafeSubtractU16(u16 A, u16 B) { Assert(A >= B); return A-B; }
@@ -397,28 +425,14 @@ inline internal v4  V4(f32 X, f32 Y, f32 Z, f32 W) { return {X,Y,Z,W}; }
 inline internal v4  V4(v3 XYZ, f32 W) { return {XYZ.X,XYZ.Y,XYZ.Z,W}; }
 
 inline internal rect2 Rect2(v2 Min, v2 Max) { return {Min,Max}; }
+internal rect2 EmptyAABB(void);
+internal void AddPointAABB(rect2 *AABB, v2 P);
+internal b32 IsNonEmpty(rect2 *Rect);
+internal rect2_corners AABBCorners(rect2 Rect);
 
-//- time
-typedef u64 timestamp64;
-struct date_time
-{
- u32 Year;  // [0..)
- u16 Ms;    // [0,999]
- u8  Sec;   // [0,59]
- u8  Mins;  // [0,59]
- u8  Hour;  // [0,23]
- u8  Day;   // [0,30]
- u8  Month; // [0,11]
-};
-internal date_time   TimestampToDateTime(timestamp64 Ts);
+internal date_time TimestampToDateTime(timestamp64 Ts);
 internal timestamp64 DateTimeToTimestamp(date_time Dt);
 
-//- misc
-enum operating_system
-{
- OS_Win32,
- OS_Linux,
-};
 internal operating_system DetectOS(void);
 
 #endif //BASE_CORE_H

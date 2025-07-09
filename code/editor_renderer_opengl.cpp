@@ -1013,7 +1013,7 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
  GLuint *Textures = OpenGL->Textures;
  mat3 Projection = Frame->Proj;
  
- v4 Clear = Frame->ClearColor;
+ rgba Clear = Frame->ClearColor;
  GL_CALL(glClearColor(Clear.R, Clear.G, Clear.B, Clear.A));
  GL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
  
@@ -1091,7 +1091,7 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
    mat3 Transform = Projection * Line->Model.M;
    
    GL_CALL(OpenGL->glUniform1f(Prog->Uniforms.Z_UniformLoc, Line->ZOffset));
-   GL_CALL(OpenGL->glUniform4fv(Prog->Uniforms.Color_UniformLoc, 1, Cast(f32 *)Line->Color.E));
+   GL_CALL(OpenGL->glUniform4fv(Prog->Uniforms.Color_UniformLoc, 1, Cast(f32 *)Line->Color.C.E));
    GL_CALL(OpenGL->glUniformMatrix3fv(Prog->Uniforms.Transform_UniformLoc, 1, GL_TRUE, Cast(f32 *)Transform.M));
    
    GLint glPrimitive = 0;

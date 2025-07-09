@@ -240,7 +240,7 @@ ControlPointIndexFromCurveSampleIndex(curve *Curve, u32 CurveSampleIndex)
 internal b32
 AreCurvePointsVisible(curve *Curve)
 {
- b32 Result = (Curve->Params.Points.Enabled && UsesControlPoints(Curve));
+ b32 Result = (Curve->Params.DrawParams.Points.Enabled && UsesControlPoints(Curve));
  return Result;
 }
 
@@ -248,7 +248,7 @@ internal b32
 IsPolylineVisible(curve *Curve)
 {
  curve_params *CurveParams = &Curve->Params;
- b32 Result = (CurveParams->Polyline.Enabled && UsesControlPoints(Curve));
+ b32 Result = (CurveParams->DrawParams.Polyline.Enabled && UsesControlPoints(Curve));
  return Result;
 }
 
@@ -256,7 +256,7 @@ internal b32
 IsConvexHullVisible(curve *Curve)
 {
  curve_params *CurveParams = &Curve->Params;
- b32 Result = (CurveParams->ConvexHull.Enabled && UsesControlPoints(Curve));
+ b32 Result = (CurveParams->DrawParams.ConvexHull.Enabled && UsesControlPoints(Curve));
  return Result;
 }
 
@@ -272,7 +272,7 @@ internal b32
 AreBSplineConvexHullsVisible(curve *Curve)
 {
  curve_params *CurveParams = &Curve->Params;
- b32 Result = (IsBSplineCurve(Curve) && CurveParams->BSpline.PartialConvexHull.Enabled);
+ b32 Result = (IsBSplineCurve(Curve) && CurveParams->DrawParams.BSplinePartialConvexHull.Enabled);
  return Result;
 }
 
@@ -325,7 +325,7 @@ IsEntitySelected(entity *Entity)
 internal f32
 GetCurveTrackedPointRadius(curve *Curve)
 {
- f32 Result = 1.5f * Curve->Params.Line.Width;
+ f32 Result = 1.5f * Curve->Params.DrawParams.Line.Width;
  return Result;
 }
 
@@ -465,7 +465,7 @@ IsRegularBezierCurve(curve *Curve)
 internal b32
 AreBSplineKnotsVisible(curve *Curve)
 {
- b32 Result = (Curve->Params.Type == Curve_BSpline && Curve->Params.BSpline.Knots.Enabled);
+ b32 Result = (Curve->Params.Type == Curve_BSpline && Curve->Params.DrawParams.BSplineKnots.Enabled);
  return Result;
 }
 
@@ -550,30 +550,6 @@ AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method M
  return Result;
 }
 
-internal entity_colors
-ExtractEntityColors(entity *Entity)
-{
- entity_colors Colors = {};
- 
- curve_params *Params = &Entity->Curve.Params;
- Colors.CurveLineColor = Params->Line.Color;
- Colors.CurvePointColor = Params->Points.Color;
- Colors.CurvePolylineColor = Params->Polyline.Color;
- Colors.CurveConvexHullColor = Params->ConvexHull.Color;
- 
- return Colors;
-}
-
-internal void
-ApplyColorsToEntity(entity *Entity, entity_colors Colors)
-{
- curve_params *Params = &Entity->Curve.Params;
- Params->Line.Color = Colors.CurveLineColor;
- Params->Points.Color = Colors.CurvePointColor;
- Params->Polyline.Color = Colors.CurvePolylineColor;
- Params->ConvexHull.Color = Colors.CurveConvexHullColor;
-}
-
 internal void
 MarkEntitySelected(entity *Entity)
 {
@@ -587,7 +563,7 @@ MarkEntityDeselected(entity *Entity)
 }
 
 internal point_draw_info
-GetEntityPointInfo(entity *Entity, f32 BaseRadius, v4 BaseColor)
+GetEntityPointDrawInfo(entity *Entity, f32 BaseRadius, rgba BaseColor)
 {
  point_draw_info Result = {};
  
@@ -601,7 +577,7 @@ GetEntityPointInfo(entity *Entity, f32 BaseRadius, v4 BaseColor)
  Result.OutlineThickness = OutlineScale * Result.Radius;
  
  Result.Color = BaseColor;
- Result.OutlineColor = BrightenColor(Result.Color, 0.3f);
+ Result.OutlineColor = RGBA_Brighten(Result.Color, 0.3f);
  
  return Result;
 }
@@ -613,17 +589,20 @@ GetCurveControlPointDrawInfo(entity *Entity, control_point_handle Point)
  curve_params *Params = &Curve->Params;
  u32 Index = IndexFromControlPointHandle(Point);
  
- point_draw_info Result = GetEntityPointInfo(Entity, Params->Points.Radius, Params->Points.Color);
+ point_draw_info Result = GetEntityPointDrawInfo(Entity, Params->DrawParams.Points.Radius, Params->DrawParams.Points.Color);
  
  if (( (Entity->Flags & EntityFlag_CurveAppendFront) && Index == 0) ||
      (!(Entity->Flags & EntityFlag_CurveAppendFront) && Index == Curve->Points.ControlPointCount-1))
  {
-  Result.Radius *= 1.5f;
+  Result.Radius *= 2.0f;
  }
  
  if (ControlPointHandleMatch(Point, Curve->SelectedControlPoint))
  {
-  Result.OutlineColor = BrightenColor(Result.OutlineColor, 0.5f);
+  //Result.OutlineColor = RGBA_Brighten(Result.OutlineColor, 0.5f);
+  
+  Result.Color = RGBA_Opposite(Result.Color);
+  Result.OutlineColor = RGBA_Brighten(Result.Color, 0.5f);
  }
  
  return Result;
@@ -634,8 +613,8 @@ GetBSplinePartitionKnotPointDrawInfo(entity *Entity)
 {
  curve *Curve = SafeGetCurve(Entity);
  curve_params *Params = &Curve->Params;
- b_spline_params *BSpline = &Params->BSpline;
- point_draw_info Result = GetEntityPointInfo(Entity, BSpline->Knots.Radius, BSpline->Knots.Color);
+ draw_params *BSplineKnots = &Params->DrawParams.BSplineKnots;
+ point_draw_info Result = GetEntityPointDrawInfo(Entity, BSplineKnots->Radius, BSplineKnots->Color);
  return Result;
 }
 
@@ -643,7 +622,7 @@ internal f32
 GetCurveCubicBezierPointRadius(curve *Curve)
 {
  // TODO(hbr): Make bezier points smaller
- f32 Result = Curve->Params.Points.Radius;
+ f32 Result = Curve->Params.DrawParams.Points.Radius;
  return Result;
 }
 
@@ -764,6 +743,59 @@ CopyCurvePoints(curve_points_dynamic Dst, curve_points_handle Src)
  ArrayCopy(Dst.ControlPoints, Src.ControlPoints, Copy);
  ArrayCopy(Dst.ControlPointWeights, Src.ControlPointWeights, Copy);
  ArrayCopy(Dst.CubicBezierPoints, Src.CubicBezierPoints, Copy);
+}
+
+internal rect2
+EntityAABB(entity *Entity)
+{
+ rect2 AABB = EmptyAABB();
+ switch (Entity->Type)
+ {
+  case Entity_Curve: {
+   curve *Curve = &Entity->Curve;
+   u32 SampleCount = Curve->CurveSampleCount;
+   v2 *Samples = Curve->CurveSamples;
+   u32 SampleIndex = 0;
+   while (SampleIndex + 8 < SampleCount)
+   {
+    AddPointAABB(&AABB, Samples[SampleIndex + 0]);
+    AddPointAABB(&AABB, Samples[SampleIndex + 1]);
+    AddPointAABB(&AABB, Samples[SampleIndex + 2]);
+    AddPointAABB(&AABB, Samples[SampleIndex + 3]);
+    AddPointAABB(&AABB, Samples[SampleIndex + 4]);
+    AddPointAABB(&AABB, Samples[SampleIndex + 5]);
+    AddPointAABB(&AABB, Samples[SampleIndex + 6]);
+    AddPointAABB(&AABB, Samples[SampleIndex + 7]);
+    SampleIndex += 8;
+   }
+   while (SampleIndex < SampleCount)
+   {
+    AddPointAABB(&AABB, Samples[SampleIndex]);
+    ++SampleIndex;
+   }
+  } break;
+  
+  case Entity_Image: {
+   image *Image = SafeGetImage(Entity);
+   scale2d Dim = Image->Dim;
+   AddPointAABB(&AABB, V2( Dim.V.X,  Dim.V.Y));
+   AddPointAABB(&AABB, V2( Dim.V.X, -Dim.V.Y));
+   AddPointAABB(&AABB, V2(-Dim.V.X,  Dim.V.Y));
+   AddPointAABB(&AABB, V2(-Dim.V.X, -Dim.V.Y));
+  } break;
+  
+  case Entity_Count: InvalidPath; break;
+ }
+ 
+ rect2_corners AABB_Corners = AABBCorners(AABB);
+ rect2 AABB_Transformed = EmptyAABB();
+ ForEachEnumVal(Corner, Corner_Count, corner)
+ {
+  v2 P = LocalToWorldEntityPosition(Entity, AABB_Corners.Corners[Corner]);
+  AddPointAABB(&AABB_Transformed, P);
+ }
+ 
+ return AABB_Transformed;
 }
 
 internal b32
@@ -1122,8 +1154,7 @@ SetCurvePoints(entity_with_modify_witness *EntityWitness, curve_points_handle Po
  MarkEntityModified(EntityWitness);
 }
 
-// TODO(hbr): Inline this
-internal void
+inline internal void
 SetEntityName(entity *Entity, string Name)
 {
  FillCharBuffer(&Entity->NameBuffer, Name);
@@ -1187,10 +1218,10 @@ SetControlPoint(entity_with_modify_witness *EntityWitness, control_point_handle 
  }
 }
 
-internal curve_points_static_modify_handle
+internal curve_points_modify_handle
 BeginModifyCurvePoints(entity_with_modify_witness *EntityWitness, u32 RequestedPointCount, modify_curve_points_static_which_points Which)
 {
- curve_points_static_modify_handle Result = {};
+ curve_points_modify_handle Result = {};
  
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
@@ -1209,7 +1240,7 @@ BeginModifyCurvePoints(entity_with_modify_witness *EntityWitness, u32 RequestedP
 }
 
 internal void
-EndModifyCurvePoints(curve_points_static_modify_handle Handle)
+EndModifyCurvePoints(curve_points_modify_handle Handle)
 {
  curve *Curve = Handle.Curve;
  curve_points_static *Points = &Curve->Points;
@@ -1771,7 +1802,7 @@ RecomputeCurve(curve *Curve)
  u32 ControlCount = Curve->Points.ControlPointCount;
  v2 *Controls = Curve->Points.ControlPoints;
  f32 *Weights = Curve->Points.ControlPointWeights;
- f32 LineWidth = Params->Line.Width;
+ f32 LineWidth = Params->DrawParams.Line.Width;
  
  ClearArena(ComputeArena);
  
@@ -1792,11 +1823,11 @@ RecomputeCurve(curve *Curve)
  CalcCurve(Curve, SampleCount, Samples);
  
  vertex_array CurveVertices = ComputeVerticesOfThickLine(ComputeArena, SampleCount, Samples, LineWidth, IsCurveLooped(Curve));
- vertex_array PolylineVertices = ComputeVerticesOfThickLine(ComputeArena, ControlCount, Controls, Params->Polyline.Width, false);
+ vertex_array PolylineVertices = ComputeVerticesOfThickLine(ComputeArena, ControlCount, Controls, Params->DrawParams.Polyline.Width, false);
  
  v2 *ConvexHullPoints = PushArrayNonZero(ComputeArena, ControlCount, v2);
  u32 ConvexHullCount = CalcConvexHull(ControlCount, Controls, ConvexHullPoints);
- vertex_array ConvexHullVertices = ComputeVerticesOfThickLine(ComputeArena, ConvexHullCount, ConvexHullPoints, Params->ConvexHull.Width, true);
+ vertex_array ConvexHullVertices = ComputeVerticesOfThickLine(ComputeArena, ConvexHullCount, ConvexHullPoints, Params->DrawParams.ConvexHull.Width, true);
  
  point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
  if (IsCurveEligibleForPointTracking(Curve))
@@ -1852,7 +1883,7 @@ RecomputeCurve(curve *Curve)
    u32 PointCount = Degree + 1;
    v2 *Points = PushArray(ComputeArena, PointCount, v2);
    PointCount = CalcConvexHull(PointCount, Controls + ConvexHullIndex, Points);
-   vertex_array Vertices = ComputeVerticesOfThickLine(ComputeArena, PointCount, Points, Params->BSpline.PartialConvexHull.Width, true);
+   vertex_array Vertices = ComputeVerticesOfThickLine(ComputeArena, PointCount, Points, Params->DrawParams.BSplinePartialConvexHull.Width, true);
    b_spline_convex_hull *Hull = Hulls + ConvexHullIndex;
    Hull->Points = Points;
    Hull->Vertices = Vertices;
@@ -1950,4 +1981,45 @@ RemoveAdditionalVar(parametric_curve_resources *Resources, parametric_curve_var 
            Resources->AdditionalVarsTail,
            Var);
  StackPush(Resources->FirstFreeAdditionalVar, Var);
+}
+
+internal curve_params
+DefaultCurveParams(void)
+{
+ curve_params Params = {};
+ 
+ f32 LineWidth = 0.009f;
+ rgba PolylineColor = RGBA_U8(16, 31, 31, 200);
+ 
+ Params.DrawParams.Line.Enabled = true;
+ Params.DrawParams.Line.Color = RGBA_U8(21, 69, 98);
+ Params.DrawParams.Line.Width = LineWidth;
+ Params.DrawParams.Points.Enabled = true;
+ Params.DrawParams.Points.Color = RGBA_U8(0, 138, 138, 148);
+ Params.DrawParams.Points.Radius = 0.014f;
+ Params.DrawParams.Polyline.Color = PolylineColor;
+ Params.DrawParams.Polyline.Width = LineWidth;
+ Params.DrawParams.ConvexHull.Color = PolylineColor;
+ Params.DrawParams.ConvexHull.Width = LineWidth;
+ Params.DrawParams.BSplineKnots.Radius = 0.010f;
+ Params.DrawParams.BSplineKnots.Color = RGBA_U8(138, 0, 0, 148);
+ Params.DrawParams.BSplinePartialConvexHull.Color = PolylineColor;
+ Params.DrawParams.BSplinePartialConvexHull.Width = LineWidth;
+ 
+ Params.SamplesPerControlPoint = 50;
+ Params.TotalSamples = 1000;
+ Params.Parametric.MaxT = 1.0f;
+ Params.Parametric.X_Equation = NilExpr;
+ Params.Parametric.Y_Equation = NilExpr;
+ 
+ return Params;
+}
+
+internal curve_params
+DefaultCubicSplineCurveParams(void)
+{
+ curve_params Params = DefaultCurveParams();
+ Params.Type = Curve_CubicSpline;
+ Params.CubicSpline = CubicSpline_Natural;
+ return Params;
 }

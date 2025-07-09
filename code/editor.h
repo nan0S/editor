@@ -27,6 +27,8 @@
 
 TODO: features
 
+@ stack:
+
 crucial:
 - saving/loading project from/to file
 - extract animated curve - bezier can be 100% matching, other can do with interpolation
@@ -55,6 +57,7 @@ crucial:
 - jak robie undo/redo wiele razy z rzedu to czasami na chwilke pojawiaja sie pewne artefakty rysowania linii - tak jakbym rysowal wielki trojkat zamiast malych ktore skalaja sie na linie, wyglada to jakby jakis vertex linii zostal przesuniety (do (0,0)?
 - this is not working properly for parametric expression: unexpected error but this should evaluate: StrLit("sin(t) * (exp(sin(t)) - 2*cos(4t))"),
 - undo/redo doesn't seem to work well with entity list and what is selected - I tend to have multiple things that are selected
+- removing control points when animating curves cause "division by zero", check the same for merging curves
 
 maybe:
 - usunac artefakty ktore sie pojawiaja gdy linia sie zagina w druga storne bardzo ostro

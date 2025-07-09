@@ -51,6 +51,41 @@ struct xform2d
  rotation2d Rotation;
 };
 
+union rgba
+{
+ v4 C;
+ struct { f32 R; f32 G; f32 B; f32 A; };
+};
+
+union hsva
+{
+ v4 C;
+ struct { f32 H; f32 S; f32 V; f32 A; };
+};
+
+internal rgba RGBA(f32 R, f32 G, f32 B, f32 A);
+internal rgba RGBA_U8(u8 R, u8 G, u8 B, u8 A = 255);
+internal rgba RGBA_V4(v4 C);
+internal rgba RGB_Hex(u32 HexCode);
+internal rgba RGBA_From_HSVA(hsva Color);
+internal rgba RGBA_Gray(u8 Gray, u8 Alpha = 255);
+internal rgba RGBA_Brighten(rgba Color, f32 BrightenByRatio);
+internal rgba RGBA_Darken(rgba Color, f32 DarkenByRatio);
+internal rgba RGBA_Fade(rgba Color, f32 FadeByRatio);
+internal rgba RGBA_Opposite(rgba Color);
+
+internal hsva HSVA(f32 H, f32 S, f32 V, f32 A);
+internal hsva HSVA_Opposite(hsva Color);
+internal hsva HSVA_From_RGBA(rgba Color);
+
+read_only global rgba BlackColor       = RGBA(0.0f, 0.0f, 0.0f, 1.0f);
+read_only global rgba WhiteColor       = RGBA(1.0f, 1.0f, 1.0f, 1.0f);
+read_only global rgba GreenColor       = RGBA(0.0f, 1.0f, 0.0f, 1.0f);
+read_only global rgba RedColor         = RGBA(1.0f, 0.0f, 0.0f, 1.0f);
+read_only global rgba BlueColor        = RGBA(0.0f, 0.0f, 1.0f, 1.0f);
+read_only global rgba YellowColor      = RGBA(1.0f, 1.0f, 0.0f, 1.0f);
+read_only global rgba TransparentColor = RGBA(0.0f, 0.0f, 0.0f, 0.0f);
+
 //- operations
 inline internal v2  operator+ (v2 U, v2 V)   { return V2(U.X + V.X, U.Y + V.Y); }
 inline internal v2  operator- (v2 U, v2 V)   { return V2(U.X - V.X, U.Y - V.Y); }
@@ -74,25 +109,10 @@ inline internal v4 &operator+=(v4 &U, v4 V) { U.X += V.X; U.Y += V.Y; U.Z += V.Z
 inline internal v4 &operator-=(v4 &U, v4 V) { U.X -= V.X; U.Y -= V.Y; U.Z -= V.Z; U.W -= V.W; return U; }
 inline internal v4 &operator*=(v4 &U, f32 Scale) { U.X *= Scale; U.Y *= Scale; U.Z *= Scale; U.W *= Scale; return U; }
 
-internal v4 RGBA_Color(u8 R, u8 G, u8 B, u8 A = 255);
-internal v4 RGB_FromHex(u32 HexCode);
-internal v4 GrayColor(u8 Gray, u8 Alpha);
-internal v4 BrightenColor(v4 Color, f32 BrightenByRatio);
-internal v4 DarkenColor(v4 Color, f32 DarkenByRatio);
-internal v4 FadeColor(v4 Color, f32 FadeByRatio);
-
-read_only global v4 BlackColor       = V4(0.0f, 0.0f, 0.0f, 1.0f);
-read_only global v4 WhiteColor       = V4(1.0f, 1.0f, 1.0f, 1.0f);
-read_only global v4 GreenColor       = V4(0.0f, 1.0f, 0.0f, 1.0f);
-read_only global v4 RedColor         = V4(1.0f, 0.0f, 0.0f, 1.0f);
-read_only global v4 BlueColor        = V4(0.0f, 0.0f, 1.0f, 1.0f);
-read_only global v4 YellowColor      = V4(1.0f, 1.0f, 0.0f, 1.0f);
-read_only global v4 TransparentColor = V4(0.0f, 0.0f, 0.0f, 0.0f);
-
-internal rect2 EmptyAABB(void);
-internal void AddPointAABB(rect2 *AABB, v2 P);
-internal b32 IsNonEmpty(rect2 *Rect);
-internal rect2_corners AABBCorners(rect2 Rect);
+inline internal rgba operator+(rgba U, rgba V) { return RGBA_V4(U.C + V.C); }
+inline internal rgba operator*(f32 Scale, rgba C) { return RGBA_V4(Scale * C.C); }
+inline internal rgba operator*(rgba C, f32 Scale) { return RGBA_V4(C.C * Scale); }
+inline internal rgba &operator*=(rgba &C, f32 Scale) { C.C *= Scale; return C; }
 
 //~ Calculations, linear algebra
 inline internal f32 Cube(f32 X) { return X * X * X; }

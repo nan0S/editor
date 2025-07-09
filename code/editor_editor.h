@@ -126,6 +126,7 @@ enum
 {
  AnimatingCurves_Active = (1<<0),
  AnimatingCurves_Animating = (1<<1),
+ AnimatingCurves_Preview = (1<<2),
 };
 typedef u32 animating_curves_flags;
 struct animating_curves_state
@@ -133,7 +134,11 @@ struct animating_curves_state
  animating_curves_flags Flags;
  choose_2_curves_state Choose2Curves;
  bouncing_parameter Bouncing;
- arena *Arena;
+ b32 AlreadySetup;
+ u32 ExtractedCurveDetail;
+ b32 ExtractedCurveDetailCustom;
+ u32 AnimationCurveSamplePointCount;
+ entity *ExtractEntity;
 };
 
 struct merging_curves_state
@@ -268,8 +273,8 @@ struct editor
  
  //////////////////////////////
  
- v4 DefaultBackgroundColor;
- v4 BackgroundColor;
+ rgba DefaultBackgroundColor;
+ rgba BackgroundColor;
  f32 CollisionToleranceClip;
  f32 RotationRadiusClip;
  curve_params CurveDefaultParams;
@@ -277,7 +282,7 @@ struct editor
 
 struct begin_modify_curve_points_static_tracked_result
 {
- curve_points_static_modify_handle ModifyPoints;
+ curve_points_modify_handle ModifyPoints;
  tracked_action *ModifyAction;
 };
 
@@ -302,7 +307,7 @@ internal void EndEntityTransform(editor *Editor, tracked_action *MoveAction);
 internal tracked_action *BeginControlPointMove(editor *Editor, entity *Entity, control_point_handle Point);
 internal void EndControlPointMove(editor *Editor, tracked_action *MoveAction);
 internal begin_modify_curve_points_static_tracked_result BeginModifyCurvePointsTracked(editor *Editor, entity_with_modify_witness *Entity, u32 RequestedPointCount, modify_curve_points_static_which_points Which);
-internal void EndModifyCurvePointsTracked(editor *Editor, tracked_action *ModifyAction, curve_points_static_modify_handle ModifyPoints);
+internal void EndModifyCurvePointsTracked(editor *Editor, tracked_action *ModifyAction, curve_points_modify_handle ModifyPoints);
 internal void SetCurvePointsTracked(editor *Editor, entity_with_modify_witness *Curve, curve_points_handle Points);
 
 internal void BeginEditorFrame(editor *Editor);

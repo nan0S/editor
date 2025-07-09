@@ -35,7 +35,7 @@ struct render_line
  u32 VertexCount;
  v2 *Vertices;
  render_primitive_type Primitive;
- v4 Color;
+ rgba Color;
  mat3_row_major Model;
  f32 ZOffset;
 };
@@ -45,8 +45,8 @@ struct render_circle
  f32 Z;
  mat3_col_major Model;
  f32 RadiusProper;
- v4 Color;
- v4 OutlineColor;
+ rgba Color;
+ rgba OutlineColor;
 };
 
 struct render_texture_handle
@@ -69,7 +69,7 @@ struct render_vertex
 {
  v2 P;
  f32 Z;
- v4 Color;
+ rgba Color;
 };
 
 struct render_frame
@@ -93,7 +93,7 @@ struct render_frame
  v2u WindowDim;
  
  mat3 Proj;
- v4 ClearColor;
+ rgba ClearColor;
 };
 
 struct render_group
@@ -107,12 +107,12 @@ struct render_group
  f32 CameraZoom;
  f32 AspectRatio;
 };
-internal render_group BeginRenderGroup(render_frame *Frame, v2 CameraP, rotation2d CameraRot, f32 CameraZoom, v4 ClearColor);
-internal void PushVertexArray(render_group *Group, v2 *Vertices, u32 VertexCount, render_primitive_type Primitive, v4 Color, f32 ZOffset);
-internal void PushCircle(render_group *Group, v2 P, f32 Radius, v4 Color, f32 ZOffset, f32 OutlineThickness = 0, v4 OutlineColor = V4(0, 0, 0, 0));
-internal void PushRectangle(render_group *Group, v2 P, v2 Size, rotation2d Rotation, v4 Color, f32 ZOffset);
-internal void PushLine(render_group *Group, v2 BeginPoint, v2 EndPoint, f32 LineWidth, v4 Color, f32 ZOffset);
-internal void PushTriangle(render_group *Group, v2 P0, v2 P1, v2 P2, v4 Color, f32 ZOffset);
+internal render_group BeginRenderGroup(render_frame *Frame, v2 CameraP, rotation2d CameraRot, f32 CameraZoom, rgba ClearColor);
+internal void PushVertexArray(render_group *Group, v2 *Vertices, u32 VertexCount, render_primitive_type Primitive, rgba Color, f32 ZOffset);
+internal void PushCircle(render_group *Group, v2 P, f32 Radius, rgba Color, f32 ZOffset, f32 OutlineThickness = 0, rgba OutlineColor = RGBA(0, 0, 0, 0));
+internal void PushRectangle(render_group *Group, v2 P, v2 Size, rotation2d Rotation, rgba Color, f32 ZOffset);
+internal void PushLine(render_group *Group, v2 BeginPoint, v2 EndPoint, f32 LineWidth, rgba Color, f32 ZOffset);
+internal void PushTriangle(render_group *Group, v2 P0, v2 P1, v2 P2, rgba Color, f32 ZOffset);
 internal void PushImage(render_group *Group, scale2d Dim, render_texture_handle TextureHandle);
 internal f32 ClipSpaceLengthToWorldSpace(render_group *RenderGroup, f32 Clip);
 internal void SetTransform(render_group *RenderGroup, mat3 Model, f32 ZOffset);

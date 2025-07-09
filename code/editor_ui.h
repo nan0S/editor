@@ -66,7 +66,7 @@ internal void                 UI_PopLabel(void);
 internal void                 UI_PopId(void);
 internal void                 UI_BeginDisabled(b32 Disabled);
 internal void                 UI_EndDisabled(void);
-internal ui_push_color_handle UI_PushColor(ui_color_apply Apply, v4 Color);
+internal ui_push_color_handle UI_PushColor(ui_color_apply Apply, rgba Color);
 internal void                 UI_PopColor(ui_push_color_handle Handle);
 internal void                 UI_PushAlpha(f32 Alpha);
 internal void                 UI_PopAlpha(void);
@@ -146,12 +146,14 @@ internal changed_b32       UI_DragFloat2(v2 *Values, f32 MinValue, f32 MaxValue,
 internal changed_b32       UI_DragFloat2F(v2 *Values, f32 MinValue, f32 MaxValue, char const *ValueFormat, char const *Format, ...);
 internal changed_b32       UI_SliderInteger(i32 *Value, i32 MinValue, i32 MaxValue, string Label);
 internal changed_b32       UI_SliderIntegerF(i32 *Value, i32 MinValue, i32 MaxValue, char const *Format, ...);
+internal changed_b32       UI_SliderUnsigned(u32 *Value, u32 MinValue, u32 MaxValue, string Label);
+internal changed_b32       UI_SliderUnsignedF(u32 *Value, u32 MinValue, u32 MaxValue, char const *Format, ...);
 internal changed_b32       UI_SliderFloat(f32 *Value, f32 MinValue, f32 MaxValue, string Label);
 internal changed_b32       UI_SliderFloatF(f32 *Value, f32 MinValue, f32 MaxValue, char const *Format, ...);
 internal changed_b32       UI_AngleSlider(rotation2d *Rotation, string Label);
 internal changed_b32       UI_AngleSliderF(rotation2d *Rotation, char const *Format, ...);
-internal changed_b32       UI_ColorPicker(v4 *Color, string Label);
-internal changed_b32       UI_ColorPickerF(v4 *Color, char const *Format, ...);
+internal changed_b32       UI_ColorPicker(rgba *Color, string Label);
+internal changed_b32       UI_ColorPickerF(rgba *Color, char const *Format, ...);
 internal changed_b32       UI_InputText2(char_buffer *Buffer, u32 InputWidthInChars, string Label);
 internal ui_input_result   UI_InputText(char *Buf, u64 BufSize, u32 InputWidthInChars, string Label);
 internal ui_input_result   UI_InputTextF(char *Buf, u64 BufSize, u32 InputWidthInChars, char const *Format, ...);
@@ -174,6 +176,8 @@ internal void              UI_TooltipF(char const *Format, ...);
 internal clicked_b32       UI_Rect(u32 Id);
 internal void              UI_HorizontalSeparator(void);
 
+//- helpers
+internal void              UI_HelpMarkerWithTooltip(string HelpText);
 internal void              UI_RenderDemoWindow(void);
 
 #endif //EDITOR_UI_H

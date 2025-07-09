@@ -98,7 +98,7 @@ StaticAssert(ArrayCount(BSplinePartitionNames) == BSplinePartition_Count, BSplin
 struct draw_params
 {
  b32 Enabled;
- v4 Color;
+ rgba Color;
  union {
   f32 Width;
   f32 Radius;
@@ -109,8 +109,19 @@ struct draw_params
 struct b_spline_params
 {
  b_spline_partition_type Partition;
- draw_params Knots;
- draw_params PartialConvexHull;
+};
+
+union curve_draw_params
+{
+ struct {
+  draw_params Line;
+  draw_params Points;
+  draw_params Polyline;
+  draw_params ConvexHull;
+  draw_params BSplineKnots;
+  draw_params BSplinePartialConvexHull;
+ };
+ draw_params All[6];
 };
 
 struct curve_params
@@ -121,15 +132,13 @@ struct curve_params
  bezier_type Bezier;
  parametric_curve_params Parametric;
  b_spline_params BSpline;
- 
- draw_params Line;
- draw_params Points;
- draw_params Polyline;
- draw_params ConvexHull;
- 
+ curve_draw_params DrawParams;
  u32 SamplesPerControlPoint;
  u32 TotalSamples;
 };
+StaticAssert(SizeOf(MemberOf(curve_params, DrawParams)) ==
+             SizeOf(MemberOf(curve_params, DrawParams.All)),
+             CurveParams_AllDrawParamsArrayLengthMatchesIndividuallyDefinedDrawParams);
 
 struct control_point_handle
 {
@@ -632,7 +641,7 @@ enum modify_curve_points_static_which_points
  ModifyCurvePointsWhichPoints_ControlPointsWithWeights,
  ModifyCurvePointsWhichPoints_AllPoints,
 };
-struct curve_points_static_modify_handle
+struct curve_points_modify_handle
 {
  curve *Curve;
  u32 PointCount;
@@ -642,26 +651,12 @@ struct curve_points_static_modify_handle
  modify_curve_points_static_which_points Which;
 };
 
-union entity_colors
-{
- struct {
-  v4 CurveLineColor;
-  v4 CurvePointColor;
-  v4 CurvePolylineColor;
-  v4 CurveConvexHullColor;
- };
- v4 AllColors[4];
-};
-StaticAssert(SizeOf(MemberOf(entity_colors, AllColors)) ==
-             SizeOf(entity_colors),
-             EntityColors_ArrayLengthMatchesDefinedColors);
-
 struct point_draw_info
 {
  f32 Radius;
- v4 Color;
+ rgba Color;
  f32 OutlineThickness;
- v4 OutlineColor;
+ rgba OutlineColor;
 };
 
 enum curve_merge_method : u32
@@ -735,8 +730,8 @@ internal entity_with_modify_witness BeginEntityModify(entity *Entity);
 internal void EndEntityModify(entity_with_modify_witness Witness);
 internal void MarkEntityModified(entity_with_modify_witness *Witness);
 
-internal curve_points_static_modify_handle BeginModifyCurvePoints(entity_with_modify_witness *Curve, u32 RequestedPointCount, modify_curve_points_static_which_points Which);
-internal void EndModifyCurvePoints(curve_points_static_modify_handle Handle);
+internal curve_points_modify_handle BeginModifyCurvePoints(entity_with_modify_witness *Curve, u32 RequestedPointCount, modify_curve_points_static_which_points Which);
+internal void EndModifyCurvePoints(curve_points_modify_handle Handle);
 
 internal control_point_handle ControlPointHandleZero(void);
 internal control_point_handle ControlPointHandleFromIndex(u32 Index);
@@ -785,12 +780,12 @@ internal void SetCurvePoints(entity_with_modify_witness *EntityWitness, curve_po
 internal void SelectControlPoint(curve *Curve, control_point_handle ControlPoint);
 internal void SelectControlPointFromCurvePoint(curve *Curve, curve_point_handle CurvePoint);
 internal void DeselectControlPoint(curve *Curve);
-internal void ApplyColorsToEntity(entity *Entity, entity_colors Colors);
 internal void MarkEntitySelected(entity *Entity);
 internal void MarkEntityDeselected(entity *Entity);
 internal void SetEntityVisibility(entity *Entity, b32 Visible);
 internal void SetTrackingPointFraction(entity_with_modify_witness *EntityWitness, f32 Fraction);
 internal void SetBSplineKnotPoint(entity_with_modify_witness *EntityWitness, b_spline_knot_handle Knot, f32 KnotFraction);
+internal void SetEntityName(entity *Entity, string Name);
 
 //- entity query
 internal b32 IsEntityVisible(entity *Entity);
@@ -810,10 +805,10 @@ internal b32 IsCurveTotalSamplesMode(curve *Curve);
 internal b32 IsCurveReversed(entity *Curve);
 internal b32 IsRegularBezierCurve(curve *Curve);
 internal b32 AreBSplineKnotsVisible(curve *Curve);
-internal entity_colors ExtractEntityColors(entity *Entity);
 internal string GetEntityName(entity *Entity);
 internal control_point GetCurveControlPointInWorldSpace(entity *Entity, control_point_handle Point);
 internal void CopyCurvePointsFromCurve(curve *Curve, curve_points_dynamic *Dst);
+internal rect2 EntityAABB(curve *Curve);
 
 //- b-spline specific
 internal point_draw_info GetBSplinePartitionKnotPointDrawInfo(entity *Entity);
@@ -831,5 +826,8 @@ internal image *SafeGetImage(entity *Entity);
 
 internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
 internal v2 LocalToWorldEntityPosition(entity *Entity, v2 P);
+
+internal curve_params DefaultCurveParams(void);
+internal curve_params DefaultCubicSplineCurveParams(void);
 
 #endif //EDITOR_ENTITY_H

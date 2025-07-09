@@ -1,37 +1,177 @@
-internal v4
-RGBA_Color(u8 R, u8 G, u8 B, u8 A)
+internal rgba
+RGBA(f32 R, f32 G, f32 B, f32 A)
 {
- v4 Result = {};
+ rgba Result = {};
+ Result.R = R;
+ Result.G = G;
+ Result.B = B;
+ Result.A = A;
+ return Result;
+}
+
+internal hsva
+HSVA(f32 H, f32 S, f32 V, f32 A)
+{
+ hsva Result = {};
+ Result.H = H;
+ Result.S = S;
+ Result.V = V;
+ Result.A = A;
+ return Result;
+}
+
+internal rgba
+RGBA_U8(u8 R, u8 G, u8 B, u8 A)
+{
+ rgba Result = {};
  Result.R = R / 255.0f;
  Result.G = G / 255.0f;
  Result.B = B / 255.0f;
  Result.A = A / 255.0f;
- 
  return Result;
 }
 
-internal v4
-RGB_FromHex(u32 HexCode)
+internal rgba
+RGBA_V4(v4 C)
+{
+ rgba Result = RGBA(C.R, C.G, C.B, C.A);
+ return Result;
+}
+
+internal rgba
+RGB_Hex(u32 HexCode)
 {
  u8 B = (HexCode >> 0) & 0xff;
  u8 G = (HexCode >> 8) & 0xff;
  u8 R = (HexCode >> 16) & 0xff;
  Assert(((HexCode >> 24) & 0xff) == 0);
- v4 Result = RGBA_Color(R, G, B);
+ rgba Result = RGBA_U8(R, G, B);
  return Result;
 }
 
-internal v4
-GrayColor(u8 Gray, u8 Alpha)
+internal rgba
+RGBA_From_HSVA(hsva Color)
 {
- v4 Result = RGBA_Color(Gray, Gray, Gray, Alpha);
+ f32 H = Color.H;
+ f32 S = Color.S;
+ f32 V = Color.V;
+ f32 A = Color.A;
+ 
+ H = ModF32(H, 360.0f);
+ if (H < 0.0f)
+ {
+  H += 360.0f;
+ }
+ 
+ f32 Chroma = V * S;
+ f32 HueSection = H / 60.0f;
+ f32 Secondary = Chroma * (1.0f - Abs(ModF32(HueSection, 2.0f) - 1.0f));
+ f32 Match = V - Chroma;
+ 
+ f32 R, G, B;
+ if (HueSection < 1.0f)
+ {
+  R = Chroma;
+  G = Secondary;
+  B = 0.0f;
+ }
+ else if (HueSection < 2.0f)
+ {
+  R = Secondary;
+  G = Chroma;
+  B = 0.0f;
+ }
+ else if (HueSection < 3.0f)
+ {
+  R = 0.0f;
+  G = Chroma;
+  B = Secondary;
+ } else if (HueSection < 4.0f)
+ {
+  R = 0.0f;
+  G = Secondary;
+  B = Chroma;
+ }
+ else if (HueSection < 5.0f)
+ {
+  R = Secondary;
+  G = 0.0f;
+  B = Chroma;
+ }
+ else
+ {
+  R = Chroma;
+  G = 0.0f;
+  B = Secondary;
+ }
+ 
+ rgba Result = RGBA(R + Match, G + Match, B + Match, A);
  return Result;
 }
 
-internal v4
-BrightenColor(v4 Color, f32 BrightenByRatio)
+internal rgba
+RGBA_Opposite(rgba RGB)
 {
- v4 Result = {};
+ hsva HSV = HSVA_From_RGBA(RGB);
+ hsva HSV_Opposite = HSVA_Opposite(HSV);
+ rgba Result = RGBA_From_HSVA(HSV_Opposite);
+ return Result;
+}
+
+internal hsva
+HSVA_From_RGBA(rgba Color)
+{
+ f32 R = Color.R;
+ f32 G = Color.G;
+ f32 B = Color.B;
+ f32 A = Color.A;
+ 
+ f32 Maxi = Max(R, Max(G, B));
+ f32 Mini = Min(R, Min(G, B));
+ f32 Delta = Maxi - Mini;
+ 
+ f32 Hue = 0.0f;
+ if (Delta == 0.0f)
+ {
+  Hue = 0.0f; // Undefined hue, conventionally set to 0
+ }
+ else if (Maxi == R)
+ {
+  Hue = 60.0f * ModF32(((G - B) / Delta), 6.0f);
+  if (Hue < 0.0f) Hue += 360.0f;
+ }
+ else if (Maxi == G)
+ {
+  Hue = 60.0f * (((B - R) / Delta) + 2.0f);
+ }
+ else if (Maxi == B)
+ {
+  Hue = 60.0f * (((R - G) / Delta) + 4.0f);
+ }
+ 
+ f32 Saturation = (Maxi == 0.0f) ? 0.0f : (Delta / Maxi);
+ f32 Value = Maxi;
+ 
+ hsva Result = {};
+ Result.H = Hue;
+ Result.S = Saturation;
+ Result.V = Value;
+ Result.A = A;
+ 
+ return Result;
+}
+
+internal rgba
+RGBA_Gray(u8 Gray, u8 Alpha)
+{
+ rgba Result = RGBA_U8(Gray, Gray, Gray, Alpha);
+ return Result;
+}
+
+internal rgba
+RGBA_Brighten(rgba Color, f32 BrightenByRatio)
+{
+ rgba Result = {};
  Result.R = (1.0f + BrightenByRatio) * Color.R;
  Result.G = (1.0f + BrightenByRatio) * Color.G;
  Result.B = (1.0f + BrightenByRatio) * Color.B;
@@ -40,18 +180,26 @@ BrightenColor(v4 Color, f32 BrightenByRatio)
  return Result;
 }
 
-inline internal v4
-DarkenColor(v4 Color, f32 DarkenByRatio)
+inline internal rgba
+RGBA_Darken(rgba Color, f32 DarkenByRatio)
 {
- v4 Result = BrightenColor(Color, -DarkenByRatio);
+ rgba Result = RGBA_Brighten(Color, -DarkenByRatio);
  return Result;
 }
 
-inline internal v4
-FadeColor(v4 Color, f32 FadeByRatio)
+inline internal rgba
+RGBA_Fade(rgba Color, f32 FadeByRatio)
 {
- v4 Result = Color;
+ rgba Result = Color;
  Result.A *= FadeByRatio;
+ return Result;
+}
+
+internal hsva
+HSVA_Opposite(hsva Color)
+{
+ hsva Result = Color;
+ Result.H = ModF32(Result.H + 180.0f, 360.0f);
  return Result;
 }
 
@@ -1729,44 +1877,6 @@ LineIntersection(v2 A, v2 B, v2 C, v2 D)
  }
  
  return Result;
-}
-
-internal rect2
-EmptyAABB(void)
-{
- rect2 Result = {};
- Result.Min = V2(F32_INF, F32_INF);
- Result.Max = V2(-F32_INF, -F32_INF);
- 
- return Result;
-}
-
-internal void
-AddPointAABB(rect2 *AABB, v2 P)
-{
- if (P.X < AABB->Min.X) AABB->Min.X = P.X;
- if (P.X > AABB->Max.X) AABB->Max.X = P.X;
- if (P.Y < AABB->Min.Y) AABB->Min.Y = P.Y;
- if (P.Y > AABB->Max.Y) AABB->Max.Y = P.Y;
-}
-
-internal b32
-IsNonEmpty(rect2 *Rect)
-{
- b32 Result = ((Rect->Min.X <= Rect->Max.X) &&
-               (Rect->Min.Y <= Rect->Max.Y));
- return Result;
-}
-
-internal rect2_corners
-AABBCorners(rect2 Rect)
-{
- rect2_corners Corners = {};
- Corners.Corners[Corner_00] = V2(Rect.Min.X, Rect.Min.Y);
- Corners.Corners[Corner_01] = V2(Rect.Min.X, Rect.Max.Y);
- Corners.Corners[Corner_10] = V2(Rect.Max.X, Rect.Min.Y);
- Corners.Corners[Corner_11] = V2(Rect.Max.X, Rect.Max.Y);
- return Corners;
 }
 
 internal inline v2

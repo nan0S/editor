@@ -31,7 +31,7 @@ TODO: features
 
 crucial:
 - saving/loading project from/to file
-- extract animated curve - bezier can be 100% matching, other can do with interpolation
+- extracing animated bezier curve perfectly
 - Checbyshev polynomial bezier degree lowering method
 
 important:
@@ -50,6 +50,7 @@ maybe:
 - "sample"? tool - from point that lets us sample color from the application and use it to color curve for example
 - multiselect curves to change it's parameters at once - for example change line width/color, also maybe to move them at once
   - resize "handles" for images
+ - don't recompute animation every frame, clean up the code, while it's not messy per-se, there is a lot of unnecessary paths that result in something very fragile
 
  TODO bugs:
 
@@ -112,6 +113,7 @@ new things added:
 - merging weighted bezier curves
 - moving partition knot along curve
 - convex hull around pieces of b-spline segments
+- extract animated curve - bezier can be 100% matching, other can do with interpolation
 
  */
 

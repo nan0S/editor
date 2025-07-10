@@ -242,7 +242,7 @@ CheckCollisionWithEntities(entity_array Entities, v2 AtP, f32 Tolerance)
      
      if (AreBSplineKnotsVisible(Curve))
      {
-      u32 PartitionSize = Curve->BSplineKnotParams.PartitionSize;
+      u32 PartitionSize = GetBSplineParams(Curve).KnotParams.PartitionSize;
       v2 *PartitionKnotPoints = Curve->BSplinePartitionKnots;
       point_draw_info KnotPointInfo = GetBSplinePartitionKnotPointDrawInfo(Entity);
       

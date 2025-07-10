@@ -109,6 +109,7 @@ struct draw_params
 struct b_spline_params
 {
  b_spline_partition_type Partition;
+ b_spline_knot_params KnotParams;
 };
 
 union curve_draw_params
@@ -531,7 +532,7 @@ struct curve
  curve_params Params; // used to compute curve shape from (might be still validated and not used "as-is")
  control_point_handle SelectedControlPoint;
  b_spline_knot_handle SelectedBSplineKnot;
- b_spline_knot_params BSplineKnotParams;
+ b_spline_params ComputedBSplineParams;
  point_tracking_along_curve_state PointTracking;
  curve_degree_lowering_state DegreeLowering;
  parametric_curve_resources ParametricResources;
@@ -809,6 +810,7 @@ internal string GetEntityName(entity *Entity);
 internal control_point GetCurveControlPointInWorldSpace(entity *Entity, control_point_handle Point);
 internal void CopyCurvePointsFromCurve(curve *Curve, curve_points_dynamic *Dst);
 internal rect2 EntityAABB(curve *Curve);
+internal b_spline_params GetBSplineParams(curve *Curve);
 
 //- b-spline specific
 internal point_draw_info GetBSplinePartitionKnotPointDrawInfo(entity *Entity);

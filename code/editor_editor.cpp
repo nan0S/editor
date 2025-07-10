@@ -150,7 +150,6 @@ InitEntityFromEntity(entity_store *EntityStore, entity_with_modify_witness *DstW
  {
   case Entity_Curve: {
    DstCurve->Params = SrcCurve->Params;
-   DstCurve->BSplineKnotParams = SrcCurve->BSplineKnotParams;
    SetCurvePoints(DstWitness, CurvePointsHandleFromCurvePointsStatic(&SrcCurve->Points));
    SelectControlPoint(DstCurve, SrcCurve->SelectedControlPoint);
   }break;

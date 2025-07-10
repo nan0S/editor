@@ -376,7 +376,7 @@ RenderEntity(rendering_entity_handle Handle)
    
    if (AreBSplineKnotsVisible(Curve))
    {
-    u32 PartitionSize = Curve->BSplineKnotParams.PartitionSize;
+    u32 PartitionSize = GetBSplineParams(Curve).KnotParams.PartitionSize;
     v2 *PartitionKnotPoints = Curve->BSplinePartitionKnots;
     b_spline_params BSpline = CurveParams->BSpline;
     point_draw_info KnotPointInfo = GetBSplinePartitionKnotPointDrawInfo(Entity);
@@ -973,6 +973,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
          }
         }break;
         
+        //@ render selected parametric curve ui
         case Curve_Parametric: {
          parametric_curve_params *Parametric = &CurveParams->Parametric;
          parametric_curve_resources *Resources = &Curve->ParametricResources;
@@ -1214,16 +1215,17 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
          EndTemp(Temp);
         }break;
         
-        //-@ render b-spline curve ui
+        //-@ render selected b-spline curve ui
         case Curve_BSpline: {
          b_spline_params *BSpline = &CurveParams->BSpline;
+         b_spline_knot_params *KnotParams = &BSpline->KnotParams;
          b_spline_degree_bounds Bounds = BSplineDegreeBounds(Curve->Points.ControlPointCount);
          
          // TODO(hbr): I shouldn't just directly modify degree value
-         CrucialEntityParamChanged |= UI_SliderInteger(SafeCastToPtr(Curve->BSplineKnotParams.Degree, i32), Bounds.MinDegree, Bounds.MaxDegree, StrLit("Degree"));
+         CrucialEntityParamChanged |= UI_SliderInteger(SafeCastToPtr(KnotParams->Degree, i32), Bounds.MinDegree, Bounds.MaxDegree, StrLit("Degree"));
          if (ResetCtxMenu(StrLit("Degree")))
          {
-          Curve->BSplineKnotParams.Degree = 1;
+          KnotParams->Degree = 1;
           CrucialEntityParamChanged = true;
          }
          
@@ -1249,12 +1251,12 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
          //-@ render b-spline knots ui
          if (UI_BeginTree(StrLit("Knots")))
          {         
-          b_spline_knot_params *KnotParams = &Curve->BSplineKnotParams;
-          u32 KnotCount = KnotParams->KnotCount;
-          u32 Degree = KnotParams->Degree;
-          u32 PartitionSize = KnotParams->PartitionSize;
-          f32 A = KnotParams->A;
-          f32 B = KnotParams->B;
+          b_spline_knot_params KnotParams = GetBSplineParams(Curve).KnotParams;
+          u32 KnotCount = KnotParams.KnotCount;
+          u32 Degree = KnotParams.Degree;
+          u32 PartitionSize = KnotParams.PartitionSize;
+          f32 A = KnotParams.A;
+          f32 B = KnotParams.B;
           f32 *Knots = Curve->BSplineKnots;
           for (u32 KnotIndex = 0;
                KnotIndex < KnotCount;
@@ -2602,7 +2604,7 @@ ProcessInputEvents(editor *Editor,
      
      case EditorLeftClick_MovingBSplineKnot: {
       curve *Curve = SafeGetCurve(Entity);
-      b_spline_knot_params *KnotParams = &Curve->BSplineKnotParams;
+      b_spline_knot_params KnotParams = GetBSplineParams(Curve).KnotParams;
       f32 *Knots = Curve->BSplineKnots;
       b_spline_knot_handle Knot = LeftClick->BSplineKnot;
       u32 KnotIndex = KnotIndexFromBSplineKnotHandle(Knot);

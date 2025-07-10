@@ -798,6 +798,12 @@ EntityAABB(entity *Entity)
  return AABB_Transformed;
 }
 
+internal b_spline_params
+GetBSplineParams(curve *Curve)
+{
+ return Curve->ComputedBSplineParams;
+}
+
 internal b32
 BSplineKnotHandleMatch(b_spline_knot_handle A, b_spline_knot_handle B)
 {
@@ -824,8 +830,10 @@ internal u32
 PartitionKnotIndexFromBSplineKnotHandle(curve *Curve, b_spline_knot_handle Handle)
 {
  u32 KnotIndex = KnotIndexFromBSplineKnotHandle(Handle);
- Assert(KnotIndex >= Curve->BSplineKnotParams.Degree);
- u32 PartitionKnotIndex = KnotIndex - Curve->BSplineKnotParams.Degree;
+ b_spline_params BSplineParams = GetBSplineParams(Curve);
+ b_spline_knot_params KnotParams = BSplineParams.KnotParams;
+ Assert(KnotIndex >= KnotParams.Degree);
+ u32 PartitionKnotIndex = KnotIndex - KnotParams.Degree;
  return PartitionKnotIndex;
 }
 
@@ -840,7 +848,9 @@ BSplineKnotHandleFromKnotIndex(u32 KnotIndex)
 internal b_spline_knot_handle
 BSplineKnotHandleFromPartitionKnotIndex(curve *Curve, u32 PartitionKnotIndex)
 {
- u32 KnotIndex = Curve->BSplineKnotParams.Degree + PartitionKnotIndex;
+ b_spline_params BSplineParams = GetBSplineParams(Curve);
+ b_spline_knot_params KnotParams = BSplineParams.KnotParams;
+ u32 KnotIndex = KnotParams.Degree + PartitionKnotIndex;
  b_spline_knot_handle Handle = BSplineKnotHandleFromKnotIndex(KnotIndex);
  return Handle;
 }
@@ -953,27 +963,33 @@ SelectControlPointFromCurvePoint(curve *Curve, curve_point_handle CurvePoint)
 }
 
 internal void
-RecomputeCurveBSplineKnots(curve *Curve)
+MaybeRecomputeCurveBSplineKnots(curve *Curve)
 {
  u32 ControlPointCount = Curve->Points.ControlPointCount;
  curve_params *CurveParams = &Curve->Params;
- b_spline_params *BSplineParams = &CurveParams->BSpline;
- b_spline_knot_params *BSplineKnotParams = &Curve->BSplineKnotParams;
- b_spline_knot_params AdjustedBSplineKnotParams = BSplineKnotParamsFromDegree(BSplineKnotParams->Degree, ControlPointCount);
+ b_spline_params *RequestedBSplineParams = &CurveParams->BSpline;
  
- if (!StructsEqual(BSplineKnotParams, &AdjustedBSplineKnotParams))
+ b_spline_knot_params FixedBSplineKnotParams = BSplineKnotParamsFromDegree(RequestedBSplineParams->KnotParams.Degree, ControlPointCount);
+ b_spline_params FixedBSplineParams = {};
+ FixedBSplineParams.Partition = RequestedBSplineParams->Partition;
+ FixedBSplineParams.KnotParams = FixedBSplineKnotParams;
+ CurveParams->BSpline = FixedBSplineParams;
+ 
+ b_spline_params ComputedBSplineParams = Curve->ComputedBSplineParams;
+ 
+ if (!StructsEqual(&ComputedBSplineParams, &FixedBSplineParams))
  {
   f32 *Knots = Curve->BSplineKnots;
-  Assert(AdjustedBSplineKnotParams.KnotCount <= MAX_B_SPLINE_KNOT_COUNT);
-  BSplineBaseKnots(AdjustedBSplineKnotParams, Knots);
-  switch (BSplineParams->Partition)
+  Assert(FixedBSplineKnotParams.KnotCount <= MAX_B_SPLINE_KNOT_COUNT);
+  BSplineBaseKnots(FixedBSplineKnotParams, Knots);
+  switch (FixedBSplineParams.Partition)
   {
-   case BSplinePartition_Natural: {BSplineKnotsNaturalExtension(AdjustedBSplineKnotParams, Knots);}break;
-   case BSplinePartition_Periodic: {BSplineKnotsPeriodicExtension(AdjustedBSplineKnotParams, Knots);}break;
+   case BSplinePartition_Natural: {BSplineKnotsNaturalExtension(FixedBSplineParams.KnotParams, Knots);}break;
+   case BSplinePartition_Periodic: {BSplineKnotsPeriodicExtension(FixedBSplineParams.KnotParams, Knots);}break;
    case BSplinePartition_Count: InvalidPath;
   }
   
-  Curve->BSplineKnotParams = AdjustedBSplineKnotParams;
+  Curve->ComputedBSplineParams = FixedBSplineParams;
  }
 }
 
@@ -1318,11 +1334,11 @@ SetBSplineKnotPoint(entity_with_modify_witness *EntityWitness,
 {
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
- b_spline_knot_params *KnotParams =  &Curve->BSplineKnotParams;
+ b_spline_knot_params KnotParams = GetBSplineParams(Curve).KnotParams;
  f32 *Knots = Curve->BSplineKnots;
  u32 KnotIndex = KnotIndexFromBSplineKnotHandle(Knot);
- b32 Moveable = ((KnotIndex >= KnotParams->Degree + 1) &&
-                 (KnotIndex + 1 < KnotParams->Degree + KnotParams->PartitionSize));
+ b32 Moveable = ((KnotIndex >= KnotParams.Degree + 1) &&
+                 (KnotIndex + 1 < KnotParams.Degree + KnotParams.PartitionSize));
  Assert(Moveable);
  if (Moveable)
  {
@@ -1333,7 +1349,7 @@ SetBSplineKnotPoint(entity_with_modify_witness *EntityWitness,
    Knots[Index - 1] = Min(KnotFraction, Knots[Index - 1]);
   }
   for (u32 Index = KnotIndex + 1;
-       Index < KnotParams->KnotCount;
+       Index < KnotParams.KnotCount;
        ++Index)
   {
    Knots[Index] = Max(KnotFraction, Knots[Index]);
@@ -1765,8 +1781,8 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
   } break;
   
   case Curve_BSpline: {
-   RecomputeCurveBSplineKnots(Curve);
-   b_spline_knot_params KnotParams = Curve->BSplineKnotParams;
+   MaybeRecomputeCurveBSplineKnots(Curve);
+   b_spline_knot_params KnotParams = GetBSplineParams(Curve).KnotParams;
    u32 PartitionSize = KnotParams.PartitionSize;
    u32 Degree = KnotParams.Degree;
    v2 *PartitionKnots = Curve->BSplinePartitionKnots;
@@ -1873,8 +1889,8 @@ RecomputeCurve(curve *Curve)
  b_spline_convex_hull *BSplineConvexHulls = 0;
  if (IsBSplineCurve(Curve))
  {
-  b_spline_knot_params *BSpline = &Curve->BSplineKnotParams;
-  u32 Degree = BSpline->Degree;
+  b_spline_knot_params BSpline = GetBSplineParams(Curve).KnotParams;
+  u32 Degree = BSpline.Degree;
   Assert(Degree <= ControlCount);
   u32 ConvexHullCount = ControlCount - Degree;
   b_spline_convex_hull *Hulls = PushArray(ComputeArena, ConvexHullCount, b_spline_convex_hull);

@@ -1236,6 +1236,19 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
           CrucialEntityParamChanged = true;
          }
          
+         if (BSpline->Partition == BSplinePartition_Custom)
+         {
+          UI_Colored(UI_Color_Text, YellowColor)
+          {
+           UI_Text(true, StrLit("WARNING: Custom partition mode is experimental."
+                                " It is meant to preserve already existing knots, "
+                                "when curve shape changes (new control point, etc.)."
+                                " Knots are NOT recomputed in this mode."
+                                " New knots might cause unexpected curve"
+                                " shapes. Adjust them manually to fix it."));
+          }
+         }
+         
          UI_Checkbox(&CurveParams->DrawParams.BSplineKnots.Enabled, StrLit("Partition Knots Visible"));
          
          UI_Checkbox(&CurveParams->DrawParams.BSplinePartialConvexHull.Enabled, StrLit("Partial Partition Convex Hull Visible"));
@@ -2595,10 +2608,8 @@ ProcessInputEvents(editor *Editor,
       curve *Curve = SafeGetCurve(Entity);
       point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
       f32 Fraction = Tracking->Fraction;
-      
       MovePointAlongCurve(Curve, &TranslateLocal, &Fraction, true);
       MovePointAlongCurve(Curve, &TranslateLocal, &Fraction, false);
-      
       SetTrackingPointFraction(&EntityWitness, Fraction);
      }break;
      

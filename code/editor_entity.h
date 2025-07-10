@@ -87,11 +87,13 @@ enum b_spline_partition_type : u32
 {
  BSplinePartition_Natural,
  BSplinePartition_Periodic,
+ BSplinePartition_Custom,
  BSplinePartition_Count,
 };
 global read_only string BSplinePartitionNames[] = {
  StrLitComp("Natural"),
- StrLitComp("Periodic")
+ StrLitComp("Periodic"),
+ StrLitComp("Custom"),
 };
 StaticAssert(ArrayCount(BSplinePartitionNames) == BSplinePartition_Count, BSplinePartitionNamesDefined);
 

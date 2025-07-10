@@ -970,6 +970,7 @@ MaybeRecomputeCurveBSplineKnots(curve *Curve)
  b_spline_params *RequestedBSplineParams = &CurveParams->BSpline;
  
  b_spline_knot_params FixedBSplineKnotParams = BSplineKnotParamsFromDegree(RequestedBSplineParams->KnotParams.Degree, ControlPointCount);
+ Assert(FixedBSplineKnotParams.KnotCount <= MAX_B_SPLINE_KNOT_COUNT);
  b_spline_params FixedBSplineParams = {};
  FixedBSplineParams.Partition = RequestedBSplineParams->Partition;
  FixedBSplineParams.KnotParams = FixedBSplineKnotParams;
@@ -980,15 +981,32 @@ MaybeRecomputeCurveBSplineKnots(curve *Curve)
  if (!StructsEqual(&ComputedBSplineParams, &FixedBSplineParams))
  {
   f32 *Knots = Curve->BSplineKnots;
-  Assert(FixedBSplineKnotParams.KnotCount <= MAX_B_SPLINE_KNOT_COUNT);
-  BSplineBaseKnots(FixedBSplineKnotParams, Knots);
   switch (FixedBSplineParams.Partition)
   {
-   case BSplinePartition_Natural: {BSplineKnotsNaturalExtension(FixedBSplineParams.KnotParams, Knots);}break;
-   case BSplinePartition_Periodic: {BSplineKnotsPeriodicExtension(FixedBSplineParams.KnotParams, Knots);}break;
+   case BSplinePartition_Natural: {
+    BSplineBaseKnots(FixedBSplineKnotParams, Knots);
+    BSplineKnotsNaturalExtension(FixedBSplineParams.KnotParams, Knots);
+   }break;
+   
+   case BSplinePartition_Periodic: {
+    BSplineBaseKnots(FixedBSplineKnotParams, Knots);
+    BSplineKnotsPeriodicExtension(FixedBSplineParams.KnotParams, Knots);
+   }break;
+   
+   case BSplinePartition_Custom: {
+    u32 ComputedKnotCount = ComputedBSplineParams.KnotParams.KnotCount;
+    u32 FixedKnotCount = FixedBSplineParams.KnotParams.KnotCount;
+    f32 LastKnot = (ComputedKnotCount > 0 ? Knots[ComputedKnotCount - 1] : FixedBSplineParams.KnotParams.B);
+    // NOTE(hbr): Just knots with appropriate amount of [B] knots at the end
+    for (u32 KnotIndex = ComputedKnotCount;
+         KnotIndex < FixedKnotCount;
+         ++KnotIndex)
+    {
+     Knots[KnotIndex] = LastKnot;
+    }
+   }break;
    case BSplinePartition_Count: InvalidPath;
   }
-  
   Curve->ComputedBSplineParams = FixedBSplineParams;
  }
 }

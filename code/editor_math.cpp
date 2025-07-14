@@ -1658,6 +1658,133 @@ BezierCurveLowerDegree(v2 *P, f32 *W, u32 N)
 }
 #endif
 
+internal f32
+Factorial(i32 n)
+{
+ f32 Result = 1;
+ for (i32 i = 1; i <= n; ++i)
+ {
+  Result *= Cast(f32)i;
+ }
+ return Result;
+}
+
+internal f32
+Newton(i32 n, i32 k)
+{
+ f32 Result = Factorial(n) / Factorial(k) / Factorial(n-k);
+ return Result;
+}
+
+internal f32
+MinusOnePow(i32 Exponent)
+{
+ i32 Result = 1;
+ if (Exponent & 1) Result = -1;
+ return Cast(f32)Result;
+}
+
+internal f32
+DoubleFactorial(i32 n)
+{
+ f32 Result = 1;
+ for (i32 i = n; i >= 1; i -= 2)
+ {
+  Result *= Cast(f32)i;
+ }
+ return Result;
+}
+
+// TODO(hbr): this is not finished
+internal void
+BezierCurveLowerDegreeUniformNormOptimal(v2 *P, f32 *W, u32 N)
+{
+ // TODO(hbr): remove this arena once got rid of allocations
+ temp_arena Temp = TempArena(0);
+ 
+ // TODO(hbr): Don't allocate this, we can just overwrite P
+ v2 *w = PushArrayNonZero(Temp.Arena, N, v2);
+ 
+ i32 n = Cast(i32)N-1;
+ 
+ v2 SumAlphaN = V2(0, 0);
+ for (i32 k = 0; k <= n; ++k)
+ {
+  SumAlphaN += P[k] * (Newton(n, k) * MinusOnePow(n-k));
+ }
+ v2 AlphaN = 1/PowF32(2.0f, Cast(f32)n) * SumAlphaN;
+ 
+ for (i32 k = 0; k <= n; ++k)
+ {
+  f32 Betak = Cast(f32)(DoubleFactorial(2*n-1) * MinusOnePow(n-k) / (DoubleFactorial(2*k-1) * DoubleFactorial(2*n-2*k-1)));
+  w[k] = P[k] - AlphaN*Betak;
+ }
+ 
+ // TODO(hbr): pass weights as well
+ bezier_lower_degree Lower = BezierCurveLowerDegree(w, W, N);
+ for (i32 i = 0; i <= n; ++i)
+ {
+  W[i] = 1.0f;
+ }
+ 
+ for (i32 i = 0; i <= n; ++i)
+ {
+  P[i] = w[i];
+ }
+ 
+ EndTemp(Temp);
+}
+
+// TODO(hbr): this is not finished
+#if 0
+internal void
+BezierCurveLowerDegreeUniformNormOptimal(v2 *P, f32 *W, u32 N)
+{
+ // TODO(hbr): remove this arena once got rid of allocations
+ temp_arena Temp = TempArena(0);
+ 
+ // TODO(hbr): Don't allocate this, we can just overwrite P
+ v2 *w = PushArrayNonZero(Temp.Arena, N, v2);
+ 
+ i32 n = Cast(i32)N-1;
+ 
+ // NOTE(hbr): Compute 1/2^n
+ f32 Mult = 1.0f;
+ for (i32 i = 0; i < n; ++i)
+ {
+  Mult *= 0.5f;
+ }
+ v2 AlphaN = V2(0, 0);
+ for (i32 k = n; k >= 0; --k)
+ {
+  AlphaN += P[k] * Mult;
+  Mult *= -k;
+  Mult /= (n-k+1);
+ }
+ 
+ // TODO(hbr): Don't allocate this from arena
+ f32 *B = PushArrayNonZero(Temp.Arena, N, f32);
+ 
+ f32 Beta = 1.0f;
+ for (i32 k = n; k >= 0; --k)
+ {
+  B[k] = Beta;
+  Beta *= -(2*k-1);
+  Beta /= 2*n-2*k+1;
+ }
+ 
+ for (i32 k = n; k >= 0; --k)
+ {
+  w[k] = P[k] - AlphaN*B[k];
+ }
+ 
+ // TODO(hbr): pass weights as well
+ BezierCurveLowerDegree(w, W, N);
+ 
+ EndTemp(Temp);
+}
+#endif
+
 internal inline void
 CalculateBezierCubicPointAt(u32 N, v2 *P, cubic_bezier_point *Out, u32 At)
 {

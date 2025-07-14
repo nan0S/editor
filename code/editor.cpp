@@ -1221,7 +1221,6 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
          b_spline_knot_params *KnotParams = &BSpline->KnotParams;
          b_spline_degree_bounds Bounds = BSplineDegreeBounds(Curve->Points.ControlPointCount);
          
-         // TODO(hbr): I shouldn't just directly modify degree value
          CrucialEntityParamChanged |= UI_SliderInteger(SafeCastToPtr(KnotParams->Degree, i32), Bounds.MinDegree, Bounds.MaxDegree, StrLit("Degree"));
          if (ResetCtxMenu(StrLit("Degree")))
          {
@@ -2666,11 +2665,10 @@ ProcessInputEvents(editor *Editor,
    
    entity_array Entities = AllEntityArrayFromStore(&Editor->EntityStore);
    collision Collision = CheckCollisionWithEntities(Entities, MouseP, CollisionTolerance);
-   
    BeginRightClick(RightClick, MouseP, Collision);
    
    entity *Entity = Collision.Entity;
-   if (Collision.Flags & Collision_CurvePoint)
+   if (!(Event->Modifiers & KeyModifierFlag(Ctrl)) && Collision.Flags & Collision_CurvePoint)
    {
     curve *Curve = SafeGetCurve(Entity);
     SelectControlPointFromCurvePoint(Curve, Collision.CurvePoint);
@@ -2695,39 +2693,49 @@ ProcessInputEvents(editor *Editor,
     entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
     curve *Curve = &Entity->Curve;
     
-    if (Collision->Flags & Collision_TrackedPoint)
+    if (Event->Modifiers & KeyModifierFlag(Ctrl)) // work on entity level
     {
-     switch (Curve->PointTracking.Type)
+     if (Entity)
      {
-      case PointTrackingAlongCurve_BezierCurveSplit: {
-       PerformBezierCurveSplit(Editor, Entity);
-      }break;
-      
-      case PointTrackingAlongCurve_DeCasteljauVisualization: {}break;
+      RemoveEntity(Editor, Entity);
      }
     }
-    else if (Collision->Flags & Collision_CurvePoint)
+    else // work on control point level
     {
-     if (Collision->CurvePoint.Type == CurvePoint_ControlPoint)
+     if (Collision->Flags & Collision_TrackedPoint)
      {
-      RemoveControlPoint(Editor, &EntityWitness, Collision->CurvePoint.Control);
+      switch (Curve->PointTracking.Type)
+      {
+       case PointTrackingAlongCurve_BezierCurveSplit: {
+        PerformBezierCurveSplit(Editor, Entity);
+       }break;
+       
+       case PointTrackingAlongCurve_DeCasteljauVisualization: {}break;
+      }
+     }
+     else if (Collision->Flags & Collision_CurvePoint)
+     {
+      if (Collision->CurvePoint.Type == CurvePoint_ControlPoint)
+      {
+       RemoveControlPoint(Editor, &EntityWitness, Collision->CurvePoint.Control);
+      }
+      else
+      {
+       SelectControlPointFromCurvePoint(Curve, Collision->CurvePoint);
+      }
+      SelectEntity(Editor, Entity);
      }
      else
      {
-      SelectControlPointFromCurvePoint(Curve, Collision->CurvePoint);
+      SelectEntity(Editor, Entity);
      }
-     SelectEntity(Editor, Entity);
-    }
-    else if (Entity)
-    {
-     RemoveEntity(Editor, Entity);
-    }
-    else
-    {
-     SelectEntity(Editor, 0);
     }
     
     EndEntityModify(EntityWitness);
+   }
+   else
+   {
+    SelectEntity(Editor, 0);
    }
    
    EndRightClick(RightClick);

@@ -25,17 +25,20 @@
 
 /* TODO(hbr):
 
-TODO: features
-
 @ stack:
+- rename BezierCurveLowerDegree function
+
+TODO features:
 
 crucial:
 - saving/loading project from/to file
-- extracing animated bezier curve perfectly
 - Checbyshev polynomial bezier degree lowering method
+- update help regarding right click and holding ctrl
 
 important:
 - incluce imgui tutorial to get familiar with the ui widgets used throughout the project
+- extracing animated bezier curve perfectly
+ - undo/redo should actually support running out of space
 
 maybe:
 - better error msgs when curves fail to merge
@@ -86,17 +89,10 @@ fixed:
  - investigate why this application on Windows is ~10x slower than on Linux
  - add computing lines on GPU
  - multi-threaded computaiton (GPU?) of internsive stuff
- - fix adding cubic bezier points when zero control points - now its hardcoded (0.5f, 0.5f)
  - add SIMD
- - better profiler, snapshots, shouldn't update so frequently
  - change curve v4s when combining or choosing to transform
- - change the way SetCurveControlPoints works to optimize a little - avoid unnecessary memcpys and allocs
  - maybe don't be so precise when checking curvepoints collisions - jump every 50 points or something like that
  - don't use other type for saving entity, use current type and override pointers - why? simplify by default, don't complicate by default, and more types is more complicated than less types
- - maybe rename EntityDestroy, in general consider using Allocate/Deallocate maybe or Make/Destroy, or something consistent more, just think about it
- - Focus on curve is weird for larger curves - investigate that
- - Delete key should do the same as right click but just for selected, not positioned
- - placeholder when loading images asynchronously
  - improve error msg when failed to load images - include name or something
  - improve error msg when failed to start to load image - write some vague msg (because why user would care about the details here) and make sure to include "try again" or sth like that
  - try to highlight entity that is about to be removed - maybe even in general - highlight stuff upon sliding mouse into its collider

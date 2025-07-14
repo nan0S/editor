@@ -488,7 +488,14 @@ BeginLoweringBezierCurveDegree(editor *Editor, entity *Entity)
   curve_points_static *OriginalPoints = AllocCurvePoints(Editor);
   CopyCurvePointsFromCurve(Curve, CurvePointsDynamicFromStatic(OriginalPoints));
   
+  // TODO(hbr): implement this
+#if 1
   bezier_lower_degree LowerDegree = BezierCurveLowerDegree(ModifyPoints.ControlPoints, ModifyPoints.Weights, PointCount);
+#else
+  bezier_lower_degree LowerDegree = {};
+  BezierCurveLowerDegreeUniformNormOptimal(ModifyPoints.ControlPoints, ModifyPoints.Weights, PointCount);
+#endif
+  
   if (LowerDegree.Failure)
   {
    Lowering->Active = true;

@@ -24,7 +24,7 @@ struct entity_store
  b32 *TextureHandleRefCount;
  u32 BufferCount;
  b32 *IsBufferHandleAllocated;
- string_cache *StrCache;
+ string_store *StrStore;
 };
 
 struct thread_task_memory
@@ -69,7 +69,7 @@ struct image_loading_store
 };
 
 //- entity store
-internal void InitEntityStore(entity_store *Store, u32 MaxTextureCount, u32 MaxBufferCount, string_cache *StrCache);
+internal void InitEntityStore(entity_store *Store, u32 MaxTextureCount, u32 MaxBufferCount, string_store *StrStore);
 internal entity *AllocEntity(entity_store *Store, b32 DontTrack);
 internal void DeallocEntity(entity_store *Store, entity *Entity);
 internal void ActivateEntity(entity_store *Store, entity *Entity); // don't actually dealloc memory and don't put on free list, but otherwise mark entity as "deallocated" to the outside world
@@ -83,12 +83,12 @@ internal void DeallocTextureHandle(entity_store *Store, render_texture_handle Ha
 internal render_texture_handle CopyTextureHandle(entity_store *Store, render_texture_handle Handle);
 
 //- thread task with memory
-internal void InitThreadTaskMemoryStore(thread_task_memory_store *Store);
+internal thread_task_memory_store *AllocThreadTaskMemoryStore(arena *PermamentArena);
 internal thread_task_memory *BeginThreadTaskMemory(thread_task_memory_store *Store);
 internal void EndThreadTaskMemory(thread_task_memory_store *Store, thread_task_memory *Task);
 
 //- async store
-internal void InitAsyncTaskStore(image_loading_store *Store);
+internal image_loading_store *AllocAsyncTaskStore(arena *PermamentArena);
 internal image_loading_task *BeginAsyncImageLoadingTask(image_loading_store *Store);
 internal void FinishAsyncImageLoadingTask(image_loading_store *Store, image_loading_task *Task);
 

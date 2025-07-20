@@ -50,23 +50,24 @@ CopyTextureHandle(entity_store *Store, render_texture_handle Handle)
  return Handle;
 }
 
-internal void
-InitEntityStore(entity_store *Store,
-                u32 MaxTextureCount,
-                u32 MaxBufferCount,
-                string_cache *StrCache)
+internal entity_store *
+AllocEntityStore(arena *PermamentArena,
+                 u32 MaxTextureCount,
+                 u32 MaxBufferCount,
+                 string_store *StrStore)
 {
- arena *Arena = AllocArena(Gigabytes(64));
- Store->Arena = Arena;
+ entity_store *Store = PushStruct(PermamentArena, entity_store);
+ Store->Arena = PermamentArena;
  ForEachElement(Index, Store->ByTypeArenas)
  {
   Store->ByTypeArenas[Index] = AllocArena(Megabytes(1));
  }
  Store->TextureCount = MaxTextureCount;
- Store->TextureHandleRefCount = PushArray(Arena, MaxTextureCount, b32);
+ Store->TextureHandleRefCount = PushArray(PermamentArena, MaxTextureCount, b32);
  Store->BufferCount = MaxBufferCount;
- Store->IsBufferHandleAllocated = PushArray(Arena, MaxBufferCount, b32);
- Store->StrCache = StrCache;
+ Store->IsBufferHandleAllocated = PushArray(PermamentArena, MaxBufferCount, b32);
+ Store->StrStore = StrStore;
+ return Store;
 }
 
 internal entity *
@@ -88,7 +89,7 @@ AllocEntity(entity_store *Store, b32 DontTrack)
  
  Entity->Id = Store->IdCounter++;
  Entity->Generation = Generation;
- Entity->NameBuffer = AllocString(Store->StrCache, 128);
+ Entity->Name = AllocStringOfSize(Store->StrStore, 128);
  
  // NOTE(hbr): It shouldn't really matter anyway that we allocate arenas even for
  // entities other than curves.
@@ -192,10 +193,12 @@ EntityArrayFromType(entity_store *Store, entity_type Type)
  return Store->ByTypeArrays[Type];
 }
 
-internal void
-InitThreadTaskMemoryStore(thread_task_memory_store *Store)
+internal thread_task_memory_store *
+AllocThreadTaskMemoryStore(arena *PermamentArena)
 {
- Store->Arena = AllocArena(Gigabytes(1));
+ thread_task_memory_store *Store = PushStruct(PermamentArena, thread_task_memory_store);
+ Store->Arena = PermamentArena;
+ return Store;
 }
 
 internal thread_task_memory *
@@ -222,10 +225,12 @@ EndThreadTaskMemory(thread_task_memory_store *Store, thread_task_memory *Task)
  StackPush(Store->Free, Task);
 }
 
-internal void
-InitImageLoadingStore(image_loading_store *Store)
+internal image_loading_store *
+AllocImageLoadingStore(arena *PermamentArena)
 {
- Store->Arena = AllocArena(Gigabytes(1));
+ image_loading_store *Store = PushStruct(PermamentArena, image_loading_store);
+ Store->Arena = PermamentArena;
+ return Store;
 }
 
 internal image_loading_task *

@@ -627,10 +627,17 @@ GetCurveCubicBezierPointRadius(curve *Curve)
 }
 
 internal string
-GetEntityName(entity *Entity)
+GetEntityName(entity *Entity, string_store *StrStore)
 {
- string Name = StrFromCharBuffer(Entity->NameBuffer);
+ string Name = StringFromStringId(StrStore, Entity->Name);
  return Name;
+}
+
+internal char_buffer *
+GetEntityNameBuffer(entity *Entity, string_store *StrStore)
+{
+ char_buffer *Buffer = CharBufferFromStringId(StrStore, Entity->Name);
+ return Buffer;
 }
 
 internal control_point
@@ -1189,9 +1196,10 @@ SetCurvePoints(entity_with_modify_witness *EntityWitness, curve_points_handle Po
 }
 
 inline internal void
-SetEntityName(entity *Entity, string Name)
+SetEntityName(entity *Entity, string Name, string_store *StrStore)
 {
- FillCharBuffer(&Entity->NameBuffer, Name);
+ char_buffer *CharBuffer = CharBufferFromStringId(StrStore, Entity->Name);
+ FillCharBuffer(CharBuffer, Name);
 }
 
 internal void
@@ -1200,22 +1208,24 @@ InitEntityPart(entity *Entity,
                xform2d XForm,
                string Name,
                i32 SortingLayer,
-               entity_flags Flags)
+               entity_flags Flags,
+               string_store *StrStore)
 {
  Entity->Type = Type;
  Entity->XForm = XForm;
- SetEntityName(Entity, Name);
+ SetEntityName(Entity, Name, StrStore);
  Entity->SortingLayer = SortingLayer;
  Entity->Flags = Flags;
 }
 
 internal void
-InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams)
+InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams, string_store *StrStore)
 {
  InitEntityPart(Entity,
                 Entity_Curve,
                 XForm2DZero(),
-                Name, 0, 0);
+                Name, 0, 0,
+                StrStore);
  curve *Curve = &Entity->Curve;
  Curve->Params = CurveParams;
 }
@@ -1225,12 +1235,14 @@ InitEntityAsImage(entity *Entity,
                   v2 P,
                   string Name,
                   u32 Width, u32 Height,
-                  render_texture_handle TextureHandle)
+                  render_texture_handle TextureHandle,
+                  string_store *StrStore)
 {
  InitEntityPart(Entity,
                 Entity_Image,
                 XForm2DFromP(P),
-                Name, 0, 0);
+                Name, 0, 0,
+                StrStore);
  image *Image = &Entity->Image;
  Image->Dim = Scale2D(Cast(f32)Width / Height, 1.0f);
  Image->TextureHandle = TextureHandle;

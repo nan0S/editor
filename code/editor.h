@@ -15,6 +15,7 @@
 #include "editor_renderer.h"
 #include "editor_sort.h"
 #include "editor_parametric_equation.h"
+#include "editor_string_store.h"
 #include "editor_entity.h"
 #include "editor_ui.h"
 #include "editor_stb.h"

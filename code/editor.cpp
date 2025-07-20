@@ -20,6 +20,7 @@
 #include "editor_core.cpp"
 #include "editor_editor.cpp"
 #include "editor_platform.cpp"
+#include "editor_string_store.cpp"
 
 platform_api Platform;
 
@@ -427,7 +428,7 @@ RenderEntity(rendering_entity_handle Handle)
 }
 
 internal void
-InterpolateAnimationCurve(animating_curves_state *Animation, v2 *Samples)
+InterpolateAnimationCurve(animating_curves_state *Animation, v2 *Samples, string_store *StrStore)
 {
  temp_arena Temp = TempArena(0);
  
@@ -439,8 +440,8 @@ InterpolateAnimationCurve(animating_curves_state *Animation, v2 *Samples)
  
  if (Entity0 && Entity1)
  {
-  string Name = StrF(Temp.Arena, "%S+%S extracted", GetEntityName(Entity0), GetEntityName(Entity1));
-  InitEntityAsCurve(Entity, Name, DefaultCubicSplineCurveParams());
+  string Name = StrF(Temp.Arena, "%S+%S extracted", GetEntityName(Entity0, StrStore), GetEntityName(Entity1, StrStore));
+  InitEntityAsCurve(Entity, Name, DefaultCubicSplineCurveParams(), StrStore);
   curve *Curve = SafeGetCurve(Entity);
   
   u32 SampleCount = Animation->AnimationCurveSamplePointCount;
@@ -547,8 +548,13 @@ ComputeAnimationSamples(arena *Arena, animating_curves_state *Animation)
 }
 
 internal void
-UpdateAndRenderAnimatingCurves(animating_curves_state *Animation, platform_input_output *Input, render_group *RenderGroup)
+UpdateAndRenderAnimatingCurves(editor *Editor,
+                               platform_input_output *Input,
+                               render_group *RenderGroup)
 {
+ animating_curves_state *Animation = &Editor->AnimatingCurves;
+ string_store *StrStore = Editor->StrStore;
+ 
  entity *Entity0 = EntityFromHandle(Animation->Choose2Curves.Curves[0]);
  entity *Entity1 = EntityFromHandle(Animation->Choose2Curves.Curves[1]);
  
@@ -565,7 +571,7 @@ UpdateAndRenderAnimatingCurves(animating_curves_state *Animation, platform_input
   compute_animation_samples_result AnimationSamples = ComputeAnimationSamples(Temp.Arena, Animation);
   if (Animation->Flags & AnimatingCurves_Preview)
   {
-   InterpolateAnimationCurve(Animation, AnimationSamples.Samples);
+   InterpolateAnimationCurve(Animation, AnimationSamples.Samples, StrStore);
    rendering_entity_handle RenderingHandle = BeginRenderingEntity(Animation->ExtractEntity, RenderGroup);
    RenderEntity(RenderingHandle);
    EndRenderingEntity(RenderingHandle);
@@ -605,7 +611,7 @@ UpdateAndRenderAnimatingCurves(animating_curves_state *Animation, platform_input
 internal void
 UpdateAndRenderEntities(editor *Editor, render_group *RenderGroup)
 {
- entity_array Entities = AllEntityArrayFromStore(&Editor->EntityStore);
+ entity_array Entities = AllEntityArrayFromStore(Editor->EntityStore);
  for (u32 EntityIndex = 0;
       EntityIndex < Entities.Count;
       ++EntityIndex)
@@ -822,6 +828,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
  b32 DeleteEntity = false;
  b32 CrucialEntityParamChanged = false;
  selected_entity_transform_state *SelectedTransform = &Editor->SelectedEntityTransformState;
+ string_store *StrStore = Editor->StrStore;
  
  if (Editor->SelectedEntityWindow && Entity)
  {
@@ -845,7 +852,8 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
    {
     if (UI_BeginTabItem(StrLit("General")))
     {
-     UI_InputText2(&Entity->NameBuffer, 0, StrLit("Name"));
+     char_buffer *NameBuffer = GetEntityNameBuffer(Entity, StrStore);
+     UI_InputText2(NameBuffer, 0, StrLit("Name"));
      
      xform2d NewXForm = Entity->XForm;
      b32 ModifyActivated = false;
@@ -1739,9 +1747,11 @@ RenderMenuBarUI(editor *Editor)
 internal void
 RenderEntityListWindowContents(editor *Editor, render_group *RenderGroup)
 {
+ string_store *StrStore = Editor->StrStore;
+ 
  ForEachEnumVal(EntityType, Entity_Count, entity_type)
  {
-  entity_array Entities = EntityArrayFromType(&Editor->EntityStore, EntityType);
+  entity_array Entities = EntityArrayFromType(Editor->EntityStore, EntityType);
   
   string EntityTypeLabel = {};
   switch (EntityType)
@@ -1763,7 +1773,7 @@ RenderEntityListWindowContents(editor *Editor, render_group *RenderGroup)
     UI_PushId(EntityIndex);
     b32 Selected = IsEntitySelected(Entity);
     
-    if (UI_SelectableItem(Selected, GetEntityName(Entity)))
+    if (UI_SelectableItem(Selected, GetEntityName(Entity, StrStore)))
     {
      SelectEntity(Editor, Entity);
     }
@@ -2069,6 +2079,8 @@ RenderHelpUI(editor *Editor)
 internal void
 UpdateAndRenderNotifications(editor *Editor, platform_input_output *Input, render_group *RenderGroup)
 {
+ string_store *StrStore = Editor->StrStore;
+ 
  UI_Label(StrLit("Notifications"))
  {
   v2u WindowDim = RenderGroup->Frame->WindowDim;
@@ -2167,7 +2179,8 @@ UpdateAndRenderNotifications(editor *Editor, platform_input_output *Input, rende
        }
        
        UI_HorizontalSeparator();
-       UI_Text(true, Notification->Content);
+       string Content = StringFromStringId(StrStore, Notification->Content);
+       UI_Text(true, Content);
        
        f32 WindowHeight = UI_GetWindowHeight();
        TargetPosY -= WindowHeight + Padding;
@@ -2190,6 +2203,7 @@ UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing, editor *Editor)
  entity *Curve0 = EntityFromHandle(Choosing->Curves[0]);
  entity *Curve1 = EntityFromHandle(Choosing->Curves[1]);
  entity *Curves[2] = { Curve0, Curve1 };
+ string_store *StrStore = Editor->StrStore;
  
  b32 ChoosingCurve = Choosing->WaitingForChoice;
  
@@ -2212,7 +2226,7 @@ UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing, editor *Editor)
   {
    if (Curves[Index])
    {
-    Button = GetEntityName(Curves[Index]);
+    Button = GetEntityName(Curves[Index], StrStore);
    }
    else
    {
@@ -2285,6 +2299,8 @@ internal void
 RenderAnimatingCurvesUI(editor *Editor)
 {
  animating_curves_state *Animation = &Editor->AnimatingCurves;
+ string_store *StrStore = Editor->StrStore;
+ 
  if (Animation->Flags & AnimatingCurves_Active)
  {
   b32 WindowOpen = true;
@@ -2345,9 +2361,9 @@ RenderAnimatingCurvesUI(editor *Editor)
     temp_arena Temp = TempArena(0);
     
     compute_animation_samples_result AnimationSamples = ComputeAnimationSamples(Temp.Arena, Animation);
-    InterpolateAnimationCurve(Animation, AnimationSamples.Samples);
+    InterpolateAnimationCurve(Animation, AnimationSamples.Samples, StrStore);
     
-    entity_store *EntityStore = &Editor->EntityStore;
+    entity_store *EntityStore = Editor->EntityStore;
     entity *Entity = AddEntity(Editor);
     entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
     InitEntityFromEntity(EntityStore, &EntityWitness, Animation->ExtractEntity);
@@ -2384,8 +2400,9 @@ RenderAnimatingCurvesUI(editor *Editor)
 internal void
 ProcessImageLoadingTasks(editor *Editor)
 {
- image_loading_store *ImageLoadingStore = &Editor->ImageLoadingStore;
- entity_store *EntityStore = &Editor->EntityStore;
+ image_loading_store *ImageLoadingStore = Editor->ImageLoadingStore;
+ entity_store *EntityStore = Editor->EntityStore;
+ string_store *StrStore = Editor->StrStore;
  
  ListIter(ImageLoading,
           ImageLoadingStore->Head,
@@ -2407,7 +2424,8 @@ ProcessImageLoadingTasks(editor *Editor)
                       FileNameNoExt,
                       ImageLoading->ImageInfo.Width,
                       ImageLoading->ImageInfo.Height,
-                      ImageLoading->LoadingTexture);
+                      ImageLoading->LoadingTexture,
+                      StrStore);
     SelectEntity(Editor, Entity);
    }
    else
@@ -2436,6 +2454,7 @@ ProcessInputEvents(editor *Editor,
  editor_middle_click_state *MiddleClick = &Editor->MiddleClick;
  animating_curves_state *Animation = &Editor->AnimatingCurves;
  merging_curves_state *Merging = &Editor->MergingCurves;
+ string_store *StrStore = Editor->StrStore;
  
  f32 CollisionTolerance = ClipSpaceLengthToWorldSpace(RenderGroup, Editor->CollisionToleranceClip);
  f32 RotationRadius = ClipSpaceLengthToWorldSpace(RenderGroup, Editor->RotationRadiusClip);
@@ -2456,7 +2475,7 @@ ProcessInputEvents(editor *Editor,
   {
    Eat = true;
    
-   entity_array Entities = AllEntityArrayFromStore(&Editor->EntityStore);
+   entity_array Entities = AllEntityArrayFromStore(Editor->EntityStore);
    
    collision Collision = {};
    if (Event->Modifiers & PlatformKeyModifierFlag_Alt)
@@ -2550,10 +2569,10 @@ ProcessInputEvents(editor *Editor,
      {
       temp_arena Temp = TempArena(0);
       
-      entity_store *EntityStore = &Editor->EntityStore;
+      entity_store *EntityStore = Editor->EntityStore;
       entity *Entity = AddEntity(Editor);
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
-      InitEntityAsCurve(Entity, Name, Editor->CurveDefaultParams);
+      InitEntityAsCurve(Entity, Name, Editor->CurveDefaultParams, StrStore);
       TargetEntity = Entity;
       
       EndTemp(Temp);
@@ -2663,7 +2682,7 @@ ProcessInputEvents(editor *Editor,
   {
    Eat = true;
    
-   entity_array Entities = AllEntityArrayFromStore(&Editor->EntityStore);
+   entity_array Entities = AllEntityArrayFromStore(Editor->EntityStore);
    collision Collision = CheckCollisionWithEntities(Entities, MouseP, CollisionTolerance);
    BeginRightClick(RightClick, MouseP, Collision);
    
@@ -2837,7 +2856,8 @@ internal void
 Merge2Curves(entity_with_modify_witness *MergeWitness,
              entity *Entity0, entity *Entity1,
              curve_merge_method Method,
-             entity_store *EntityStore)
+             entity_store *EntityStore,
+             string_store *StrStore)
 {
  temp_arena Temp = TempArena(0);
  
@@ -2845,9 +2865,9 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
  curve *Curve1 = SafeGetCurve(Entity1);
  entity *MergeEntity = MergeWitness->Entity;
  
- string Name = StrF(Temp.Arena, "%S+%S", GetEntityName(Entity0), GetEntityName(Entity1));
+ string Name = StrF(Temp.Arena, "%S+%S", GetEntityName(Entity0, StrStore), GetEntityName(Entity1, StrStore));
  InitEntityFromEntity(EntityStore, MergeWitness, Entity0);
- SetEntityName(MergeEntity, Name);
+ SetEntityName(MergeEntity, Name, StrStore);
  
  // TODO(hbr): remove this?
  MaybeReverseCurvePoints(Entity0);
@@ -3065,7 +3085,8 @@ internal void
 RenderMergingCurvesUI(editor *Editor)
 {
  merging_curves_state *Merging = &Editor->MergingCurves;
- entity_store *EntityStore = &Editor->EntityStore;
+ entity_store *EntityStore = Editor->EntityStore;
+ string_store *StrStore = Editor->StrStore;
  
  if (Merging->Active)
  {
@@ -3104,7 +3125,7 @@ RenderMergingCurvesUI(editor *Editor)
     entity_with_modify_witness MergeWitness = BeginEntityModify(Merging->MergeEntity);
     if (Compatibility.Compatible)
     {
-     Merge2Curves(&MergeWitness, Entity0, Entity1, Merging->Method, EntityStore);
+     Merge2Curves(&MergeWitness, Entity0, Entity1, Merging->Method, EntityStore, StrStore);
     }
     else
     {
@@ -3819,9 +3840,8 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  editor *Editor = Memory->Editor;
  if (!Editor)
  {
-  Editor = Memory->Editor = PushStruct(Memory->PermamentArena, editor);
+  Editor = Memory->Editor = AllocEditor(Memory);
   InitGlobalsOnInitOrCodeReload(Editor);
-  InitEditor(Editor, Memory);
   // NOTE(hbr): Sanity check that I didn't mess up keyboard shortcut definitions
   ForEachEnumVal(EditorCmd, EditorCommand_Count, editor_command)
   {
@@ -3868,7 +3888,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  UpdateFrameStats(&Editor->FrameStats, Input);
  RenderGrid(Editor, RenderGroup);
  UpdateAndRenderEntities(Editor, RenderGroup);
- UpdateAndRenderAnimatingCurves(&Editor->AnimatingCurves, Input, RenderGroup);
+ UpdateAndRenderAnimatingCurves(Editor, Input, RenderGroup);
  UpdateAndRenderNotifications(Editor, Input, RenderGroup);
  RenderMergingCurves(&Editor->MergingCurves, RenderGroup);
  RenderRotationIndicator(Editor, RenderGroup);

@@ -591,7 +591,7 @@ struct entity
  entity *Prev;
  
  xform2d XForm;
- char_buffer NameBuffer;
+ string_id Name;
  i32 SortingLayer;
  entity_flags Flags;
  
@@ -768,9 +768,9 @@ internal u32 KnotIndexFromBSplineKnotHandle(b_spline_knot_handle Handle);
 internal u32 PartitionKnotIndexFromBSplineKnotHandle(curve *Curve, b_spline_knot_handle Handle);
 
 //- entity initialization
-internal void InitEntityPart(entity *Entity, entity_type Type, xform2d XForm, string Name, i32 SortingLayer, entity_flags Flags);
-internal void InitEntityAsImage(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath);
-internal void InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams);
+internal void InitEntityPart(entity *Entity, entity_type Type, xform2d XForm, string Name, i32 SortingLayer, entity_flags Flags, string_store *StrStore);
+internal void InitEntityAsImage(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath, string_store *StrStore);
+internal void InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams, string_store *StrStore);
 
 //- entity modify
 internal void TranslateCurvePointTo(entity_with_modify_witness *Entity, curve_point_handle Handle, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
@@ -788,7 +788,7 @@ internal void MarkEntityDeselected(entity *Entity);
 internal void SetEntityVisibility(entity *Entity, b32 Visible);
 internal void SetTrackingPointFraction(entity_with_modify_witness *EntityWitness, f32 Fraction);
 internal void SetBSplineKnotPoint(entity_with_modify_witness *EntityWitness, b_spline_knot_handle Knot, f32 KnotFraction);
-internal void SetEntityName(entity *Entity, string Name);
+internal void SetEntityName(entity *Entity, string Name, string_store *StrStore);
 
 //- entity query
 internal b32 IsEntityVisible(entity *Entity);
@@ -808,7 +808,8 @@ internal b32 IsCurveTotalSamplesMode(curve *Curve);
 internal b32 IsCurveReversed(entity *Curve);
 internal b32 IsRegularBezierCurve(curve *Curve);
 internal b32 AreBSplineKnotsVisible(curve *Curve);
-internal string GetEntityName(entity *Entity);
+internal string GetEntityName(entity *Entity, string_store *StrStore);
+internal char_buffer *GetEntityNameBuffer(entity *Entity, string_store *StrStore);
 internal control_point GetCurveControlPointInWorldSpace(entity *Entity, control_point_handle Point);
 internal void CopyCurvePointsFromCurve(curve *Curve, curve_points_dynamic *Dst);
 internal rect2 EntityAABB(curve *Curve);

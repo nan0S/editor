@@ -32,9 +32,26 @@ InitAnimatingCurvesState(animating_curves_state *State,
  State->ExtractEntity = AllocEntity(EntityStore, true);
 }
 
-internal void
-InitEditor(editor *Editor, editor_memory *Memory)
+internal editor *
+AllocEditor(editor_memory *Memory)
 {
+ arena *PermamentArena = Memory->PermamentArena;
+ editor *Editor = PushStruct(PermamentArena, editor);
+ 
+ Editor->LowPriorityQueue = Memory->LowPriorityQueue;
+ Editor->HighPriorityQueue = Memory->HighPriorityQueue;
+ Editor->RendererQueue = Memory->RendererQueue;
+ Editor->Arena = PermamentArena;
+ Editor->StrStore = AllocStringStore(PermamentArena);
+ Editor->EntityStore = AllocEntityStore(PermamentArena, Memory->MaxTextureCount, Memory->MaxBufferCount, Editor->StrStore);
+ Editor->ThreadTaskMemoryStore = AllocThreadTaskMemoryStore(PermamentArena);
+ Editor->ImageLoadingStore = AllocImageLoadingStore(PermamentArena);
+ InitLeftClickState(&Editor->LeftClick);
+ InitVisualProfiler(&Editor->Profiler, Memory->Profiler);
+ InitAnimatingCurvesState(&Editor->AnimatingCurves, Editor->EntityStore);
+ InitMergingCurvesState(&Editor->MergingCurves, Editor->EntityStore);
+ InitFrameStats(&Editor->FrameStats);
+ 
  Editor->BackgroundColor = Editor->DefaultBackgroundColor = RGBA_U8(21, 21, 21);
  Editor->CollisionToleranceClip = 0.04f;
  Editor->RotationRadiusClip = 0.1f;
@@ -45,30 +62,18 @@ InitEditor(editor *Editor, editor_memory *Memory)
  Editor->DiagnosticsWindow = true;
  Editor->ProfilerWindow = true;
 #endif
- Editor->LowPriorityQueue = Memory->LowPriorityQueue;
- Editor->HighPriorityQueue = Memory->HighPriorityQueue;
- Editor->RendererQueue = Memory->RendererQueue;
- Editor->Arena = AllocArena(Megabytes(32));
  
- InitStringCache(&Editor->StrCache);
- InitEntityStore(&Editor->EntityStore, Memory->MaxTextureCount, Memory->MaxBufferCount, &Editor->StrCache);
  InitCamera(&Editor->Camera);
- InitFrameStats(&Editor->FrameStats);
- InitLeftClickState(&Editor->LeftClick);
- InitMergingCurvesState(&Editor->MergingCurves, &Editor->EntityStore);
- InitVisualProfiler(&Editor->Profiler, Memory->Profiler);
- InitAnimatingCurvesState(&Editor->AnimatingCurves, &Editor->EntityStore);
- InitThreadTaskMemoryStore(&Editor->ThreadTaskMemoryStore);
- InitImageLoadingStore(&Editor->ImageLoadingStore);
  
  {
-  entity_store *EntityStore = &Editor->EntityStore;
+  entity_store *EntityStore = Editor->EntityStore;
+  string_store *StrStore = Editor->StrStore;
   entity *Entity = AllocEntity(EntityStore, false);
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
   
   curve_params Params = Editor->CurveDefaultParams;
   Params.Type = Curve_Bezier;
-  InitEntityAsCurve(Entity, StrLit("de-casteljau"), Params);
+  InitEntityAsCurve(Entity, StrLit("de-casteljau"), Params, StrStore);
   
   AppendControlPoint(&Witness, V2(-0.5f, -0.5f));
   AppendControlPoint(&Witness, V2(+0.5f, -0.5f));
@@ -82,13 +87,14 @@ InitEditor(editor *Editor, editor_memory *Memory)
  }
  
  {
-  entity_store *EntityStore = &Editor->EntityStore;
+  entity_store *EntityStore = Editor->EntityStore;
+  string_store *StrStore = Editor->StrStore;
   entity *Entity = AllocEntity(EntityStore, false);
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
   
   curve_params Params = Editor->CurveDefaultParams;
   Params.Type = Curve_BSpline;
-  InitEntityAsCurve(Entity, StrLit("b-spline"), Params);
+  InitEntityAsCurve(Entity, StrLit("b-spline"), Params, StrStore);
   
   u32 PointCount = 30;
   curve_points_modify_handle Handle = BeginModifyCurvePoints(&Witness, PointCount, ModifyCurvePointsWhichPoints_ControlPointsOnly);
@@ -103,14 +109,13 @@ InitEditor(editor *Editor, editor_memory *Memory)
   
   EndEntityModify(Witness);
  }
+ 
+ return Editor;
 }
 
 internal void
-AddNotificationF(editor *Editor, notification_type Type, char const *Format, ...)
+AddNotification(editor *Editor, notification_type Type, string Content)
 {
- va_list Args;
- va_start(Args, Format);
- 
  if (Editor->NotificationCount == MAX_NOTIFICATION_COUNT)
  {
   ArrayMove(Editor->Notifications, Editor->Notifications + 1, Editor->NotificationCount - 1);
@@ -122,11 +127,21 @@ AddNotificationF(editor *Editor, notification_type Type, char const *Format, ...
  ++Editor->NotificationCount;
  
  Notification->Type = Type;
- u64 ContentCount = FmtV(Notification->ContentBuffer, ArrayCount(Notification->ContentBuffer), Format, Args);
- Notification->Content = MakeStr(Notification->ContentBuffer, ContentCount);
+ Notification->Content = AllocStringFromString(Editor->StrStore, Content);
  Notification->LifeTime = 0.0f;
  Notification->ScreenPosY = 0.0f;
  
+}
+
+internal void
+AddNotificationF(editor *Editor, notification_type Type, char const *Format, ...)
+{
+ va_list Args;
+ va_start(Args, Format);
+ temp_arena Temp = TempArena(0);
+ string Content = StrFV(Temp.Arena, Format, Args);
+ AddNotification(Editor, Type, Content);
+ EndTemp(Temp);
  va_end(Args);
 }
 
@@ -138,13 +153,15 @@ InitEntityFromEntity(entity_store *EntityStore, entity_with_modify_witness *DstW
  curve *SrcCurve = &Src->Curve;
  image *DstImage = &Dst->Image;
  image *SrcImage = &Src->Image;
+ string_store *StrStore = EntityStore->StrStore;
  
  InitEntityPart(Dst,
                 Src->Type,
                 Src->XForm,
-                GetEntityName(Src),
+                GetEntityName(Src, StrStore),
                 Src->SortingLayer,
-                Src->Flags);
+                Src->Flags,
+                StrStore);
  
  switch (Src->Type)
  {
@@ -169,10 +186,11 @@ DuplicateEntity(editor *Editor, entity *Entity)
 {
  temp_arena Temp = TempArena(0);
  
- entity_store *EntityStore = &Editor->EntityStore;
+ entity_store *EntityStore = Editor->EntityStore;
+ string_store *StrStore = Editor->StrStore;
  entity *Copy = AddEntity(Editor);
  entity_with_modify_witness CopyWitness = BeginEntityModify(Copy);
- string CopyName = StrF(Temp.Arena, "%S(copy)", GetEntityName(Entity));
+ string CopyName = StrF(Temp.Arena, "%S(copy)", GetEntityName(Entity, StrStore));
  InitEntityFromEntity(EntityStore, &CopyWitness, Entity);
  SelectEntity(Editor, Copy);
  
@@ -188,7 +206,8 @@ internal void
 SplitCurveOnControlPoint(editor *Editor, entity *Entity)
 {
  curve *Curve = SafeGetCurve(Entity);
- entity_store *EntityStore = &Editor->EntityStore;
+ entity_store *EntityStore = Editor->EntityStore;
+ string_store *StrStore = Editor->StrStore;
  
  if (IsControlPointSelected(Curve))
  {
@@ -210,10 +229,10 @@ SplitCurveOnControlPoint(editor *Editor, entity *Entity)
   curve *HeadCurve = SafeGetCurve(HeadEntity);
   curve *TailCurve = SafeGetCurve(TailEntity);
   
-  string HeadName = StrF(Temp.Arena, "%S(head)", GetEntityName(Entity));
-  string TailName = StrF(Temp.Arena, "%S(tail)", GetEntityName(Entity));
-  SetEntityName(HeadEntity, HeadName);
-  SetEntityName(TailEntity, TailName);
+  string HeadName = StrF(Temp.Arena, "%S(head)", GetEntityName(Entity, StrStore));
+  string TailName = StrF(Temp.Arena, "%S(tail)", GetEntityName(Entity, StrStore));
+  SetEntityName(HeadEntity, HeadName, StrStore);
+  SetEntityName(TailEntity, TailName, StrStore);
   
   curve_points_modify_handle HeadPoints = BeginModifyCurvePoints(&HeadWitness, HeadPointCount, ModifyCurvePointsWhichPoints_AllPoints);
   curve_points_modify_handle TailPoints = BeginModifyCurvePoints(&TailWitness, TailPointCount, ModifyCurvePointsWhichPoints_AllPoints);
@@ -311,8 +330,9 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  
  curve *Curve = SafeGetCurve(Entity);
  point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
- entity_store *EntityStore = &Editor->EntityStore;
+ entity_store *EntityStore = Editor->EntityStore;
  u32 ControlPointCount = Curve->Points.ControlPointCount;
+ string_store *StrStore = Editor->StrStore;
  
  Assert(Tracking->Active);
  Tracking->Active = false;
@@ -326,10 +346,10 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  InitEntityFromEntity(EntityStore, &LeftWitness, Entity);
  InitEntityFromEntity(EntityStore, &RightWitness, Entity);
  
- string LeftName = StrF(Temp.Arena, "%S(left)", GetEntityName(Entity));
- string RightName = StrF(Temp.Arena, "%S(right)", GetEntityName(Entity));
- SetEntityName(LeftEntity, LeftName);
- SetEntityName(RightEntity, RightName);
+ string LeftName = StrF(Temp.Arena, "%S(left)", GetEntityName(Entity, StrStore));
+ string RightName = StrF(Temp.Arena, "%S(right)", GetEntityName(Entity, StrStore));
+ SetEntityName(LeftEntity, LeftName, StrStore);
+ SetEntityName(RightEntity, RightName, StrStore);
  
  curve_points_modify_handle LeftPoints = BeginModifyCurvePoints(&LeftWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
  curve_points_modify_handle RightPoints = BeginModifyCurvePoints(&RightWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
@@ -365,7 +385,7 @@ EndMergingCurves(editor *Editor, b32 Merged)
  merging_curves_state *Merging = &Editor->MergingCurves;
  if (Merged)
  {
-  entity_store *EntityStore = &Editor->EntityStore;
+  entity_store *EntityStore = Editor->EntityStore;
   
   entity *Entity = AddEntity(Editor);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
@@ -598,7 +618,7 @@ EndActionTrackingGroup(editor *Editor, action_tracking_group *Group)
     {
      entity *Entity = EntityFromHandle(Action->Entity, true);
      Assert(Entity);
-     DeallocEntity(&Editor->EntityStore, Entity);
+     DeallocEntity(Editor->EntityStore, Entity);
     }
    }
    DeallocWholeActionTrackingGroup(Editor, Remove);
@@ -663,9 +683,9 @@ internal void
 TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
 {
  work_queue *WorkQueue = Editor->LowPriorityQueue;
- entity_store *EntityStore = &Editor->EntityStore;
- thread_task_memory_store *ThreadTaskMemoryStore = &Editor->ThreadTaskMemoryStore;
- image_loading_store *ImageLoadingStore = &Editor->ImageLoadingStore;
+ entity_store *EntityStore = Editor->EntityStore;
+ thread_task_memory_store *ThreadTaskMemoryStore = Editor->ThreadTaskMemoryStore;
+ image_loading_store *ImageLoadingStore = Editor->ImageLoadingStore;
  
  ForEachIndex(FileIndex, FileCount)
  {
@@ -1139,7 +1159,7 @@ RemoveEntity(editor *Editor, entity *Entity)
  tracked_action *Action = NextTrackedActionFromGroup(Editor, Group, false);
  Action->Type = TrackedAction_RemoveEntity;
  Action->Entity = MakeEntityHandle(Entity);
- DeactiveEntity(&Editor->EntityStore, Entity);
+ DeactiveEntity(Editor->EntityStore, Entity);
 }
 
 internal entity *
@@ -1148,7 +1168,7 @@ AddEntity(editor *Editor)
  action_tracking_group *Group = GetPendingActionTrackingGroup(Editor);
  tracked_action *Action = NextTrackedActionFromGroup(Editor, Group, false);
  Action->Type = TrackedAction_AddEntity;
- entity *Entity = AllocEntity(&Editor->EntityStore, false);
+ entity *Entity = AllocEntity(Editor->EntityStore, false);
  Action->Entity = MakeEntityHandle(Entity);
  return Entity;
 }
@@ -1206,11 +1226,11 @@ Undo(editor *Editor)
      }break;
      
      case TrackedAction_RemoveEntity: {
-      ActivateEntity(&Editor->EntityStore, Entity);
+      ActivateEntity(Editor->EntityStore, Entity);
      }break;
      
      case TrackedAction_AddEntity: {
-      DeactiveEntity(&Editor->EntityStore, Entity);
+      DeactiveEntity(Editor->EntityStore, Entity);
      }break;
      
      case TrackedAction_SelectEntity: {
@@ -1265,11 +1285,11 @@ Redo(editor *Editor)
      }break;
      
      case TrackedAction_RemoveEntity: {
-      DeactiveEntity(&Editor->EntityStore, Entity);
+      DeactiveEntity(Editor->EntityStore, Entity);
      }break;
      
      case TrackedAction_AddEntity: {
-      ActivateEntity(&Editor->EntityStore, Entity);
+      ActivateEntity(Editor->EntityStore, Entity);
      }break;
      
      case TrackedAction_SelectEntity: {

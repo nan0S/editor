@@ -27,8 +27,7 @@ enum notification_type
 struct notification
 {
  notification_type Type;
- char ContentBuffer[256];
- string Content;
+ string_id Content;
  f32 LifeTime;
  f32 ScreenPosY;
 };
@@ -219,10 +218,10 @@ struct editor
  arena *Arena;
  
  renderer_transfer_queue *RendererQueue;
- string_cache StrCache;
- entity_store EntityStore;
- thread_task_memory_store ThreadTaskMemoryStore;
- image_loading_store ImageLoadingStore;
+ entity_store *EntityStore;
+ thread_task_memory_store *ThreadTaskMemoryStore;
+ image_loading_store *ImageLoadingStore;
+ string_store *StrStore;
  
  struct work_queue *LowPriorityQueue;
  struct work_queue *HighPriorityQueue;
@@ -287,7 +286,7 @@ struct begin_modify_curve_points_static_tracked_result
 };
 
 //- editor
-internal void InitEditor(editor *Editor, editor_memory *Memory);
+internal editor *AllocEditor(editor_memory *Memory);
 internal void DuplicateEntity(editor *Editor, entity *Entity);
 internal void SplitCurveOnControlPoint(editor *Editor, entity *Entity);
 internal void PerformBezierCurveSplit(editor *Editor, entity *Entity);

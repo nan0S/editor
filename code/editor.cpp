@@ -10,17 +10,13 @@
 #include "editor_math.cpp"
 #include "editor_renderer.cpp"
 #include "editor_parametric_equation.cpp"
-#include "editor_entity.cpp"
 #include "editor_ui.cpp"
 #include "editor_stb.cpp"
 #include "editor_debug.cpp"
 #include "editor_camera.cpp"
 #include "editor_sort.cpp"
-#include "editor_collision.cpp"
-#include "editor_core.cpp"
 #include "editor_editor.cpp"
 #include "editor_platform.cpp"
-#include "editor_string_store.cpp"
 
 platform_api Platform;
 
@@ -2555,8 +2551,6 @@ ProcessInputEvents(editor *Editor,
   {
    Eat = true;
    
-   entity_array Entities = AllEntityArrayFromStore(Editor->EntityStore);
-   
    collision Collision = {};
    if (Event->Modifiers & PlatformKeyModifierFlag_Alt)
    {
@@ -2564,7 +2558,7 @@ ProcessInputEvents(editor *Editor,
    }
    else
    {
-    Collision = CheckCollisionWithEntities(Entities, MouseP, CollisionTolerance);
+    Collision = CheckCollisionWithEntities(Editor, MouseP, CollisionTolerance);
    }
    
    if ((DoesAnimationWantInput || DoesMergingWantInput) &&
@@ -2762,8 +2756,7 @@ ProcessInputEvents(editor *Editor,
   {
    Eat = true;
    
-   entity_array Entities = AllEntityArrayFromStore(Editor->EntityStore);
-   collision Collision = CheckCollisionWithEntities(Entities, MouseP, CollisionTolerance);
+   collision Collision = CheckCollisionWithEntities(Editor, MouseP, CollisionTolerance);
    BeginRightClick(RightClick, MouseP, Collision);
    
    entity *Entity = Collision.Entity;
@@ -3944,7 +3937,7 @@ TryChangeProject(editor *Editor,
    case ChangeProjectMethod_Quit: {RequestQuit = true;}break;
    
    case ChangeProjectMethod_LoadProjectFromFile: {
-    b32 Success = DeserializeProjectFromFile(Editor, ChangeHow.FilePath);
+    b32 Success = LoadProjectFromFile(Editor, ChangeHow.FilePath);
     if (!Success)
     {
      AddNotificationF(Editor, Notification_Error,
@@ -3962,7 +3955,7 @@ internal b32
 SaveProjectWithNotifications(editor *Editor, string FilePath)
 {
  b32 Saved = false;
- if (SerializeProjectIntoFile(Editor, FilePath))
+ if (SaveProjectIntoFile(Editor, FilePath))
  {
   Saved = true;
  }

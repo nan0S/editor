@@ -84,7 +84,7 @@ internal void              UI_EndWindow(void);
 
 internal void              UI_OpenPopup(string Label);
 internal open_b32          UI_BeginPopup(string Label, ui_window_flags Flags);
-internal open_b32          UI_BeginPopupModal(string Label);
+internal open_b32          UI_BeginPopupModal(b32 *IsOpen, string Label);
 internal void              UI_EndPopup(void);
 internal void              UI_CloseCurrentPopup(void);
 

@@ -725,57 +725,84 @@ FileDialogFiltersToWin32Filter(arena *Arena, os_file_dialog_filters Filters)
  return Win32Filter;
 }
 
-internal os_file_dialog_result
-OS_OpenFileDialog(arena *Arena, os_file_dialog_filters Filters)
+struct win32_open_or_save_file_dialog_result
 {
- os_file_dialog_result Result = {};
+ u32 FileCount;
+ string *FilePaths;
+};
+internal win32_open_or_save_file_dialog_result
+Win32OpenOrSaveFileDialog(arena *Arena, os_file_dialog_filters Filters, b32 OpenOrSave_IsOpen)
+{
+ win32_open_or_save_file_dialog_result Result = {};
  
  temp_arena Temp = TempArena(Arena);
- 
  string Win32Filter = FileDialogFiltersToWin32Filter(Temp.Arena, Filters);
  
  char Buffer[2048];
- OPENFILENAME Open = {};
+ OPENFILENAMEA Open = {};
  Open.lStructSize = SizeOf(Open);
  Open.lpstrFile = Buffer;
  Open.lpstrFile[0] = '\0';
  Open.nMaxFile = ArrayCount(Buffer);
  Open.lpstrFilter = Win32Filter.Data;
  Open.nFilterIndex = 1;
- Open.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_ALLOWMULTISELECT | OFN_EXPLORER;
+ Open.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_EXPLORER;
+ //Open.Flags |= OFN_ALLOWMULTISELECT;
  
- if (GetOpenFileName(&Open) == TRUE)
+ BOOL Ret;
+ if (OpenOrSave_IsOpen)
  {
-  char *At = Buffer;
+  Ret = GetOpenFileNameA(&Open);
+ }
+ else
+ {
+  Ret = GetSaveFileNameA(&Open);
+ }
+ 
+ if (Ret == TRUE)
+ {
   u32 FileCount = 0;
-  while (At[0])
-  {
-   At += CStrLen(At) + 1;
-   ++FileCount;
-  }
+  string *FilePaths = 0;
   
-  At = Buffer;
-  string BasePath = StrCopy(Arena, StrFromCStr(At));
-  At += BasePath.Count + 1;
-  
-  string *FilePaths = PushArrayNonZero(Arena, FileCount, string);
-  if (FileCount == 1)
+  if (Open.Flags & OFN_ALLOWMULTISELECT)
   {
-   FilePaths[0] = BasePath;
+   char *At = Buffer;
+   while (At[0])
+   {
+    At += CStrLen(At) + 1;
+    ++FileCount;
+   }
+   
+   At = Buffer;
+   string BasePath = StrCopy(Arena, StrFromCStr(At));
+   At += BasePath.Count + 1;
+   
+   FilePaths = PushArrayNonZero(Arena, FileCount, string);
+   if (FileCount == 1)
+   {
+    FilePaths[0] = BasePath;
+   }
+   else
+   {
+    Assert(FileCount > 0);
+    --FileCount;
+    for (u32 FileIndex = 0;
+         FileIndex < FileCount;
+         ++FileIndex)
+    {
+     // NOTE(hbr): No need to StrCopy here because we PathConcat anyway
+     string FileName = StrFromCStr(At);
+     At += FileName.Count + 1;
+     FilePaths[FileIndex] = PathConcat(Arena, BasePath, FileName);
+    }
+   }
   }
   else
-  {
-   Assert(FileCount > 0);
-   --FileCount;
-   for (u32 FileIndex = 0;
-        FileIndex < FileCount;
-        ++FileIndex)
-   {
-    // NOTE(hbr): No need to StrCopy here because we PathConcat anyway
-    string FileName = StrFromCStr(At);
-    At += FileName.Count + 1;
-    FilePaths[FileIndex] = PathConcat(Arena, BasePath, FileName);
-   }
+  {  
+   string FilePath = StrFromCStr(Buffer);
+   FileCount = 1;
+   FilePaths = PushArrayNonZero(Arena, 1, string);
+   FilePaths[0] = StrCopy(Arena, FilePath);
   }
   
   Result.FileCount = FileCount;
@@ -784,6 +811,35 @@ OS_OpenFileDialog(arena *Arena, os_file_dialog_filters Filters)
  
  EndTemp(Temp);
  
+ return Result;
+}
+
+internal os_file_dialog_result
+Win32OpenOrSaveFileDialogResultToOSFileDialogResult(win32_open_or_save_file_dialog_result Dialog)
+{
+ os_file_dialog_result Result = {};
+ Assert(Dialog.FileCount <= 1);
+ if (Dialog.FileCount == 1)
+ {
+  Result.FileSelected = true;
+  Result.FilePath = Dialog.FilePaths[0];
+ }
+ return Result;
+}
+
+internal os_file_dialog_result
+OS_OpenFileDialog(arena *Arena, os_file_dialog_filters Filters)
+{
+ win32_open_or_save_file_dialog_result Dialog = Win32OpenOrSaveFileDialog(Arena, Filters, true);
+ os_file_dialog_result Result = Win32OpenOrSaveFileDialogResultToOSFileDialogResult(Dialog);
+ return Result;
+}
+
+internal os_file_dialog_result
+OS_SaveFileDialog(arena *Arena, os_file_dialog_filters Filters)
+{
+ win32_open_or_save_file_dialog_result Dialog = Win32OpenOrSaveFileDialog(Arena, Filters, false);
+ os_file_dialog_result Result = Win32OpenOrSaveFileDialogResultToOSFileDialogResult(Dialog);
  return Result;
 }
 

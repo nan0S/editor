@@ -32,26 +32,43 @@ InitAnimatingCurvesState(animating_curves_state *State,
  State->ExtractEntity = AllocEntity(EntityStore, true);
 }
 
-internal editor *
-AllocEditor(editor_memory *Memory)
+internal string
+GetBaseProjectTitle(editor *Editor)
 {
- arena *PermamentArena = Memory->PermamentArena;
- editor *Editor = PushStruct(PermamentArena, editor);
- 
- Editor->LowPriorityQueue = Memory->LowPriorityQueue;
- Editor->HighPriorityQueue = Memory->HighPriorityQueue;
- Editor->RendererQueue = Memory->RendererQueue;
- Editor->Arena = PermamentArena;
- Editor->StrStore = AllocStringStore(PermamentArena);
- Editor->EntityStore = AllocEntityStore(PermamentArena, Memory->MaxTextureCount, Memory->MaxBufferCount, Editor->StrStore);
- Editor->ThreadTaskMemoryStore = AllocThreadTaskMemoryStore(PermamentArena);
- Editor->ImageLoadingStore = AllocImageLoadingStore(PermamentArena);
- InitLeftClickState(&Editor->LeftClick);
- InitVisualProfiler(&Editor->Profiler, Memory->Profiler);
- InitAnimatingCurvesState(&Editor->AnimatingCurves, Editor->EntityStore);
- InitMergingCurvesState(&Editor->MergingCurves, Editor->EntityStore);
- InitFrameStats(&Editor->FrameStats);
- 
+ string BaseTitle = {};
+ if (Editor->IsProjectFileBacked)
+ {  
+  BaseTitle = StrAfterLastSlash(Editor->ProjectFilePath);
+ }
+ else
+ {
+  BaseTitle = StrLit("Untitled");
+ }
+ return BaseTitle;
+}
+
+internal void
+UpdateWindowTitle(editor *Editor)
+{
+ temp_arena Temp = TempArena(0);
+ string BaseTitle = GetBaseProjectTitle(Editor);
+ string ModifiedIndicator = {};
+ if (Editor->ProjectModified)
+ {
+  ModifiedIndicator = StrLit("*");
+ }
+ string WindowTitle = StrF(Temp.Arena,
+                           "%S%S - %S",
+                           BaseTitle,
+                           ModifiedIndicator,
+                           EditorAppName);
+ Platform.SetWindowTitle(WindowTitle);
+ EndTemp(Temp);
+}
+
+internal void
+LoadEmptyProject(editor *Editor)
+{
  Editor->BackgroundColor = Editor->DefaultBackgroundColor = RGBA_U8(21, 21, 21);
  Editor->CollisionToleranceClip = 0.04f;
  Editor->RotationRadiusClip = 0.1f;
@@ -64,6 +81,15 @@ AllocEditor(editor_memory *Memory)
 #endif
  
  InitCamera(&Editor->Camera);
+ 
+ //- dellocate all current entities
+ entity_store *EntityStore = Editor->EntityStore;
+ entity_array Entities = AllEntityArrayFromStore(EntityStore);
+ ForEachIndex(EntityIndex, Entities.Count)
+ {
+  entity *Entity = Entities.Entities[EntityIndex];
+  DeallocEntity(EntityStore, Entity);
+ }
  
  {
   entity_store *EntityStore = Editor->EntityStore;
@@ -109,6 +135,64 @@ AllocEditor(editor_memory *Memory)
   
   EndEntityModify(Witness);
  }
+ 
+ Editor->ProjectModified = false;
+ // TODO(hbr): remove
+ Editor->ProjectModified = true;
+ Editor->IsProjectFileBacked = false;
+ UpdateWindowTitle(Editor);
+}
+
+internal b32
+LoadProjectFromFile(editor *Editor, string FilePath)
+{
+ b32 Success = false;
+ if (Success)
+ {
+  SetProjectFilePath(Editor, FilePath);
+ }
+ NotImplemented;
+ return Success;
+}
+
+internal b32
+SaveProject(editor *Editor, string FilePath)
+{
+ b32 Success = false;
+ NotImplemented;
+ return Success;
+}
+
+internal void
+SetProjectFilePath(editor *Editor, string FilePath)
+{
+ Editor->IsProjectFileBacked = true;
+ ClearArena(Editor->ProjectFilePathArena);
+ Editor->ProjectFilePath = StrCopy(Editor->ProjectFilePathArena, FilePath);
+ UpdateWindowTitle(Editor);
+}
+
+internal editor *
+AllocEditor(editor_memory *Memory)
+{
+ arena *PermamentArena = Memory->PermamentArena;
+ editor *Editor = PushStruct(PermamentArena, editor);
+ 
+ Editor->LowPriorityQueue = Memory->LowPriorityQueue;
+ Editor->HighPriorityQueue = Memory->HighPriorityQueue;
+ Editor->RendererQueue = Memory->RendererQueue;
+ Editor->Arena = PermamentArena;
+ Editor->StrStore = AllocStringStore(PermamentArena);
+ Editor->EntityStore = AllocEntityStore(PermamentArena, Memory->MaxTextureCount, Memory->MaxBufferCount, Editor->StrStore);
+ Editor->ThreadTaskMemoryStore = AllocThreadTaskMemoryStore(PermamentArena);
+ Editor->ImageLoadingStore = AllocImageLoadingStore(PermamentArena);
+ InitLeftClickState(&Editor->LeftClick);
+ InitVisualProfiler(&Editor->Profiler, Memory->Profiler);
+ InitAnimatingCurvesState(&Editor->AnimatingCurves, Editor->EntityStore);
+ InitMergingCurvesState(&Editor->MergingCurves, Editor->EntityStore);
+ InitFrameStats(&Editor->FrameStats);
+ 
+ LoadEmptyProject(Editor);
  
  return Editor;
 }
@@ -633,136 +717,29 @@ EndActionTrackingGroup(editor *Editor, action_tracking_group *Group)
  }
 }
 
-struct load_image_work
-{
- thread_task_memory_store *Store;
- thread_task_memory *TaskMemory;
- renderer_transfer_op *TextureOp;
- string ImagePath;
- image_loading_task *ImageLoading;
-};
-
 internal void
-LoadImageWork(void *UserData)
+RequestProjectChange(editor *Editor, project_change_request Request)
 {
- load_image_work *Work = Cast(load_image_work *)UserData;
- 
- thread_task_memory_store *Store = Work->Store;
- thread_task_memory *Task = Work->TaskMemory;
- renderer_transfer_op *TextureOp = Work->TextureOp;
- string ImagePath = Work->ImagePath;
- image_loading_task *ImageLoading = Work->ImageLoading;
- arena *Arena = Task->Arena;
- 
- string ImageData = Platform.ReadEntireFile(Arena, Work->ImagePath);
- loaded_image LoadedImage = LoadImageFromMemory(Arena, ImageData.Data, ImageData.Count);
- 
- image_loading_state AsyncTaskState;
- renderer_transfer_op_state OpState;
- if (LoadedImage.Success)
- {
-  // TODO(hbr): Don't do memory copy, just read into that memory directly
-  MemoryCopy(TextureOp->Pixels, LoadedImage.Pixels, LoadedImage.Info.SizeInBytesUponLoad);
-  OpState = RendererOp_ReadyToTransfer;
-  AsyncTaskState = Image_Loaded;
- }
- else
- {
-  OpState = RendererOp_Empty;
-  AsyncTaskState = Image_Failed;
- }
- 
- CompilerWriteBarrier;
- TextureOp->State = OpState;
- ImageLoading->State = AsyncTaskState;
- 
- EndThreadTaskMemory(Store, Task);
+ project_change_request_state *State = &Editor->ProjectChange;
+ StructZero(State);
+ State->Request = Request;
 }
 
 internal void
-TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
-{
- work_queue *WorkQueue = Editor->LowPriorityQueue;
- entity_store *EntityStore = Editor->EntityStore;
- thread_task_memory_store *ThreadTaskMemoryStore = Editor->ThreadTaskMemoryStore;
- image_loading_store *ImageLoadingStore = Editor->ImageLoadingStore;
- 
- ForEachIndex(FileIndex, FileCount)
- {
-  string FilePath = FilePaths[FileIndex];
-  
-  image_info ImageInfo = LoadImageInfo(FilePath);
-  render_texture_handle TextureHandle = AllocTextureHandle(EntityStore);
-  renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, ImageInfo.SizeInBytesUponLoad, TextureHandle);
-  thread_task_memory *TaskMemory = BeginThreadTaskMemory(ThreadTaskMemoryStore);
-  
-  image_loading_task *ImageLoading = BeginAsyncImageLoadingTask(ImageLoadingStore);
-  ImageLoading->ImageP = AtP;
-  ImageLoading->ImageInfo = ImageInfo;
-  ImageLoading->ImageFilePath = StrCopy(ImageLoading->Arena, FilePath);
-  ImageLoading->LoadingTexture = TextureHandle;
-  
-  load_image_work *Work = PushStruct(TaskMemory->Arena, load_image_work);
-  Work->Store = ThreadTaskMemoryStore;
-  Work->TaskMemory = TaskMemory;
-  Work->TextureOp = TextureOp;
-  Work->ImagePath = StrCopy(TaskMemory->Arena, FilePath);
-  Work->ImageLoading = ImageLoading;
-  
-  Platform.WorkQueueAddEntry(WorkQueue, LoadImageWork, Work);
- }
-}
-
-internal void
-ExecuteEditorCommand(editor *Editor, platform_input_output *Input, editor_command Cmd)
+ExecuteEditorCommand(editor *Editor, editor_command Cmd)
 {
  switch (Cmd)
  {
-  case EditorCommand_New: {NotImplemented;}break;
-  case EditorCommand_Save: {NotImplemented;}break;
-  case EditorCommand_SaveAs: {NotImplemented;}break;
-  case EditorCommand_Quit: {Input->QuitRequested = true;}break;
+  case EditorCommand_New: {RequestProjectChange(Editor, ProjectChangeRequest_NewProject);}break;
+  case EditorCommand_Open: {RequestProjectChange(Editor, ProjectChangeRequest_OpenFile);}break;
+  case EditorCommand_Save: {RequestProjectChange(Editor, ProjectChangeRequest_SaveProject);}break;
+  case EditorCommand_SaveAs: {RequestProjectChange(Editor, ProjectChangeRequest_SaveProjectAs);}break;
+  case EditorCommand_Quit: {RequestProjectChange(Editor, ProjectChangeRequest_Quit);}break;
   case EditorCommand_ToggleDevConsole: {Editor->DevConsole = !Editor->DevConsole;}break;
   case EditorCommand_ToggleProfiler: {Editor->Profiler.Stopped = !Editor->Profiler.Stopped;}break;
   case EditorCommand_Undo: {Undo(Editor);}break;
   case EditorCommand_Redo: {Redo(Editor);}break;
   case EditorCommand_ToggleUI: {Editor->HideUI = !Editor->HideUI;}break;
-  
-  case EditorCommand_Open: {
-   temp_arena Temp = TempArena(0);
-   
-   platform_file_dialog_filter PNG = {};
-   PNG.DisplayName = StrLit("PNG");
-   string PNG_Extensions[] = { StrLit("png") };
-   PNG.ExtensionCount = ArrayCount(PNG_Extensions);
-   PNG.Extensions = PNG_Extensions;
-   
-   platform_file_dialog_filter JPEG = {};
-   JPEG.DisplayName = StrLit("JPEG");
-   string JPEG_Extensions[] = { StrLit("jpg"), StrLit("jpeg"), StrLit("jpe") };
-   JPEG.ExtensionCount = ArrayCount(JPEG_Extensions);
-   JPEG.Extensions = JPEG_Extensions;
-   
-   platform_file_dialog_filter BMP = {};
-   BMP.DisplayName = StrLit("Windows BMP File");
-   string BMP_Extensions[] = { StrLit("bmp") };
-   BMP.ExtensionCount = ArrayCount(BMP_Extensions);
-   BMP.Extensions = BMP_Extensions;
-   
-   platform_file_dialog_filter AllFilters[] = { PNG, JPEG, BMP };
-   
-   platform_file_dialog_filters Filters = {};
-   Filters.AnyFileFilter = true;
-   Filters.FilterCount = ArrayCount(AllFilters);
-   Filters.Filters = AllFilters;
-   
-   platform_file_dialog_result OpenDialog = Platform.OpenFileDialog(Temp.Arena, Filters);
-   
-   camera *Camera = &Editor->Camera;
-   TryLoadImages(Editor, OpenDialog.FileCount, OpenDialog.FilePaths, Camera->P);
-   
-   EndTemp(Temp);
-  }break;
   
   case EditorCommand_Delete: {
    entity *Entity = GetSelectedEntity(Editor);
@@ -823,7 +800,7 @@ PushEditorCmd(editor *Editor, editor_command Command)
 }
 
 internal void
-EndEditorFrame(editor *Editor, platform_input_output *Input)
+EndEditorFrame(editor *Editor)
 {
  //- end pending action tracking group is all tracked actions are completed
  Assert(Editor->IsPendingActionTrackingGroup);
@@ -845,7 +822,7 @@ EndEditorFrame(editor *Editor, platform_input_output *Input)
  //- execute all editor commands gathered throughout the frame (mostly from input)
  ListIter(CmdNode, Editor->EditorCommandsHead, editor_command_node)
  {
-  ExecuteEditorCommand(Editor, Input, CmdNode->Command);
+  ExecuteEditorCommand(Editor, CmdNode->Command);
   StackPush(Editor->FreeEditorCommandNode, CmdNode);
  }
  Editor->EditorCommandsHead = 0;

@@ -144,8 +144,8 @@ internal void OS_Sleep(u64 Milliseconds);
 //- gfx
 struct os_file_dialog_result
 {
- u32 FileCount;
- string *FilePaths;
+ b32 FileSelected;
+ string FilePath;
 };
 struct os_file_dialog_filter
 {
@@ -161,6 +161,7 @@ struct os_file_dialog_filters
 };
 
 internal os_file_dialog_result OS_OpenFileDialog(arena *Arena, os_file_dialog_filters Filters);
+internal os_file_dialog_result OS_SaveFileDialog(arena *Arena);
 internal void OS_MessageBox(string Msg);
 
 #endif //BASE_OS_H

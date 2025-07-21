@@ -223,8 +223,14 @@ typedef PLATFORM_GET_SCRATCH_ARENA(platform_get_scratch_arena);
 #define PLATFORM_OPEN_FILE_DIALOG(Name) platform_file_dialog_result Name(arena *Arena, platform_file_dialog_filters Filters)
 typedef PLATFORM_OPEN_FILE_DIALOG(platform_open_file_dialog);
 
+#define PLATFORM_SAVE_FILE_DIALOG(Name) platform_file_dialog_result Name(arena *Arena, platform_file_dialog_filters Filters)
+typedef PLATFORM_SAVE_FILE_DIALOG(platform_save_file_dialog);
+
 #define PLATFORM_READ_ENTIRE_FILE(Name) string Name(arena *Arena, string FilePath)
 typedef PLATFORM_READ_ENTIRE_FILE(platform_read_entire_file);
+
+#define PLATFORM_SET_WINDOW_TITLE(Name) void Name(string Title)
+typedef PLATFORM_SET_WINDOW_TITLE(platform_set_window_title);
 
 typedef void work_queue_func(void *UserData);
 #define PLATFORM_WORK_QUEUE_ADD_ENTRY(Name) void Name(work_queue *Queue, work_queue_func *Func, void *UserData)
@@ -241,7 +247,9 @@ struct platform_api
  platform_get_scratch_arena *GetScratchArena;
  
  platform_open_file_dialog *OpenFileDialog;
+ platform_save_file_dialog *SaveFileDialog;
  platform_read_entire_file *ReadEntireFile;
+ platform_set_window_title *SetWindowTitle;
  
  platform_work_queue_add_entry *WorkQueueAddEntry;
  platform_work_queue_complete_all_work *WorkQueueCompleteAllWork;

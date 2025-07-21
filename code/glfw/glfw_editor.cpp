@@ -204,6 +204,18 @@ GLFWDropCallback(GLFWwindow *Window, int PathCount, char const *Paths[])
  Event->FileCount = FileCount;
 }
 
+PLATFORM_SET_WINDOW_TITLE(GLFWSetWindowTitle)
+{
+ glfw_state *GLFWState = &GlobalGLFWState;
+ if (GLFWState->Window)
+ {
+  temp_arena Temp = TempArena(0);
+  string CTitle = CStrFromStr(Temp.Arena, Title);
+  glfwSetWindowTitle(GLFWState->Window, CTitle.Data);
+  EndTemp(Temp);
+ }
+}
+
 internal void
 EntryPoint(int ArgCount, char **Args)
 {
@@ -319,6 +331,8 @@ Table[GLFWButton] = PlatformButton
   glfwWindowHint(GLFW_POSITION_Y, WindowY);
   
   GLFWwindow *Window = glfwCreateWindow(WindowWidth, WindowHeight, WindowParams.Title, 0, 0);
+  GLFWState->Window = Window;
+  Platform.SetWindowTitle = GLFWSetWindowTitle;
   
   if (Window)
   {

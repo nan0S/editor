@@ -14,6 +14,7 @@ struct glfw_state
  glfw_platform_input GLFWInput;
  platform_key GLFWToPlatformKeyTable[GLFW_KEY_LAST + 1];
  arena *InputArena;
+ GLFWwindow *Window;
 };
 
 struct glfw_imgui_maybe_capture_input_result

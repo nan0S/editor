@@ -652,3 +652,13 @@ OS_OpenFileDialog(arena *Arena, os_file_dialog_filters Filters)
  os_file_dialog_result Result = {};
  return Result;
 }
+
+internal os_file_dialog_result
+OS_SaveFileDialog(arena *Arena, os_file_dialog_filters Filters)
+{
+ MarkUnused(Arena);
+ MarkUnused(Filters);
+ NotImplemented;
+ os_file_dialog_result Result = {};
+ return Result;
+}

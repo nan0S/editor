@@ -2442,6 +2442,86 @@ ProcessImageLoadingTasks(editor *Editor)
  }
 }
 
+struct load_image_work
+{
+ thread_task_memory_store *Store;
+ thread_task_memory *TaskMemory;
+ renderer_transfer_op *TextureOp;
+ string ImagePath;
+ image_loading_task *ImageLoading;
+};
+
+internal void
+LoadImageWork(void *UserData)
+{
+ load_image_work *Work = Cast(load_image_work *)UserData;
+ 
+ thread_task_memory_store *Store = Work->Store;
+ thread_task_memory *Task = Work->TaskMemory;
+ renderer_transfer_op *TextureOp = Work->TextureOp;
+ string ImagePath = Work->ImagePath;
+ image_loading_task *ImageLoading = Work->ImageLoading;
+ arena *Arena = Task->Arena;
+ 
+ string ImageData = Platform.ReadEntireFile(Arena, Work->ImagePath);
+ loaded_image LoadedImage = LoadImageFromMemory(Arena, ImageData.Data, ImageData.Count);
+ 
+ image_loading_state AsyncTaskState;
+ renderer_transfer_op_state OpState;
+ if (LoadedImage.Success)
+ {
+  // TODO(hbr): Don't do memory copy, just read into that memory directly
+  MemoryCopy(TextureOp->Pixels, LoadedImage.Pixels, LoadedImage.Info.SizeInBytesUponLoad);
+  OpState = RendererOp_ReadyToTransfer;
+  AsyncTaskState = Image_Loaded;
+ }
+ else
+ {
+  OpState = RendererOp_Empty;
+  AsyncTaskState = Image_Failed;
+ }
+ 
+ CompilerWriteBarrier;
+ TextureOp->State = OpState;
+ ImageLoading->State = AsyncTaskState;
+ 
+ EndThreadTaskMemory(Store, Task);
+}
+
+internal void
+TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
+{
+ work_queue *WorkQueue = Editor->LowPriorityQueue;
+ entity_store *EntityStore = Editor->EntityStore;
+ thread_task_memory_store *ThreadTaskMemoryStore = Editor->ThreadTaskMemoryStore;
+ image_loading_store *ImageLoadingStore = Editor->ImageLoadingStore;
+ 
+ ForEachIndex(FileIndex, FileCount)
+ {
+  string FilePath = FilePaths[FileIndex];
+  
+  image_info ImageInfo = LoadImageInfo(FilePath);
+  render_texture_handle TextureHandle = AllocTextureHandle(EntityStore);
+  renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, ImageInfo.SizeInBytesUponLoad, TextureHandle);
+  thread_task_memory *TaskMemory = BeginThreadTaskMemory(ThreadTaskMemoryStore);
+  
+  image_loading_task *ImageLoading = BeginAsyncImageLoadingTask(ImageLoadingStore);
+  ImageLoading->ImageP = AtP;
+  ImageLoading->ImageInfo = ImageInfo;
+  ImageLoading->ImageFilePath = StrCopy(ImageLoading->Arena, FilePath);
+  ImageLoading->LoadingTexture = TextureHandle;
+  
+  load_image_work *Work = PushStruct(TaskMemory->Arena, load_image_work);
+  Work->Store = ThreadTaskMemoryStore;
+  Work->TaskMemory = TaskMemory;
+  Work->TextureOp = TextureOp;
+  Work->ImagePath = StrCopy(TaskMemory->Arena, FilePath);
+  Work->ImageLoading = ImageLoading;
+  
+  Platform.WorkQueueAddEntry(WorkQueue, LoadImageWork, Work);
+ }
+}
+
 internal void
 ProcessInputEvents(editor *Editor,
                    platform_input_output *Input,
@@ -3834,6 +3914,227 @@ RenderCurveShadowWhenMoving(editor *Editor, render_group *RenderGroup)
  }
 }
 
+internal string
+ProjectFileDisplayName(arena *Arena)
+{
+ string Result = StrF(Arena, "%S session files", EditorAppName);
+ return Result;
+}
+
+global string CurrentProjectSaveModalLabel = StrLit("Confirm##CurrentProjectSaveModalLabel");
+
+internal b32
+TryChangeProject(editor *Editor,
+                 change_project_method ChangeHow,
+                 b32 ForceLoad)
+{
+ b32 RequestQuit = false;
+ project_change_request_state *ProjectChange = &Editor->ProjectChange;
+ if (!ForceLoad && Editor->ProjectModified)
+ {
+  ProjectChange->ChangeHow = ChangeHow;
+  ProjectChange->CurrentProjectSaveModalIsOpen = true;
+  UI_OpenPopup(CurrentProjectSaveModalLabel);
+ }
+ else
+ {
+  switch (ChangeHow.Type)
+  {
+   case ChangeProjectMethod_LoadEmptyProject: {LoadEmptyProject(Editor);}break;
+   case ChangeProjectMethod_Quit: {RequestQuit = true;}break;
+   
+   case ChangeProjectMethod_LoadProjectFromFile: {
+    b32 Success = LoadProjectFromFile(Editor, ChangeHow.FilePath);
+    if (!Success)
+    {
+     AddNotificationF(Editor, Notification_Error,
+                      "failed to load project from \"%S\"",
+                      ChangeHow.FilePath);
+    }
+   }break;
+   
+  }
+ }
+ return RequestQuit;
+}
+
+internal b32
+SaveProjectWithNotifications(editor *Editor, string FilePath)
+{
+ b32 Saved = false;
+ if (SaveProject(Editor, FilePath))
+ {
+  Saved = true;
+ }
+ else
+ {
+  AddNotificationF(Editor, Notification_Error,
+                   "failed to save project into \"%S\"",
+                   FilePath);
+ }
+ return Saved;
+}
+
+internal b32
+TrySaveProject(editor *Editor, b32 SaveAs)
+{
+ b32 Saved = false;
+ temp_arena Temp = TempArena(0);
+ 
+ if (!SaveAs && Editor->IsProjectFileBacked)
+ {
+  if (SaveProjectWithNotifications(Editor, Editor->ProjectFilePath))
+  {
+   Saved = true;
+  }
+ }
+ else
+ {
+  platform_file_dialog_filter Project = {};
+  Project.DisplayName = ProjectFileDisplayName(Temp.Arena);
+  string Project_Extensions[] = { EditorSessionFileExtension };
+  Project.ExtensionCount = ArrayCount(Project_Extensions);
+  Project.Extensions = Project_Extensions;
+  
+  platform_file_dialog_filter AllFilters[] = { Project };
+  
+  platform_file_dialog_filters Filters = {};
+  Filters.FilterCount = ArrayCount(AllFilters);
+  Filters.Filters = AllFilters;
+  
+  platform_file_dialog_result SaveDialog = Platform.SaveFileDialog(Temp.Arena, Filters);
+  if (SaveDialog.FileSelected)
+  {
+   if (SaveProjectWithNotifications(Editor, SaveDialog.FilePath))
+   {
+    Saved = true;
+    SetProjectFilePath(Editor, SaveDialog.FilePath);
+   }
+  }
+ }
+ 
+ EndTemp(Temp);
+ 
+ return Saved;
+}
+
+internal void
+UpdateAndRenderChangingProject(editor *Editor, platform_input_output *Input)
+{
+ temp_arena Temp = TempArena(0);
+ project_change_request_state *ProjectChange = &Editor->ProjectChange;
+ b32 QuitRequested = false;
+ 
+ switch (ProjectChange->Request)
+ {
+  case ProjectChangeRequest_OpenFile: {
+   platform_file_dialog_filter PNG = {};
+   PNG.DisplayName = StrLit("PNG");
+   string PNG_Extensions[] = { StrLit("png") };
+   PNG.ExtensionCount = ArrayCount(PNG_Extensions);
+   PNG.Extensions = PNG_Extensions;
+   
+   platform_file_dialog_filter JPEG = {};
+   JPEG.DisplayName = StrLit("JPEG");
+   string JPEG_Extensions[] = { StrLit("jpg"), StrLit("jpeg"), StrLit("jpe") };
+   JPEG.ExtensionCount = ArrayCount(JPEG_Extensions);
+   JPEG.Extensions = JPEG_Extensions;
+   
+   platform_file_dialog_filter BMP = {};
+   BMP.DisplayName = StrLit("Windows BMP File");
+   string BMP_Extensions[] = { StrLit("bmp") };
+   BMP.ExtensionCount = ArrayCount(BMP_Extensions);
+   BMP.Extensions = BMP_Extensions;
+   
+   platform_file_dialog_filter Project = {};
+   Project.DisplayName = ProjectFileDisplayName(Temp.Arena);
+   string Project_Extensions[] = { EditorSessionFileExtension };
+   Project.ExtensionCount = ArrayCount(Project_Extensions);
+   Project.Extensions = Project_Extensions;
+   
+   platform_file_dialog_filter AllFilters[] = { PNG, JPEG, BMP, Project };
+   
+   platform_file_dialog_filters Filters = {};
+   Filters.AnyFileFilter = true;
+   Filters.FilterCount = ArrayCount(AllFilters);
+   Filters.Filters = AllFilters;
+   
+   platform_file_dialog_result OpenDialog = Platform.OpenFileDialog(Temp.Arena, Filters);
+   if (OpenDialog.FileSelected)
+   {
+    string FilePath = OpenDialog.FilePath;
+    string Extension = StrAfterLastDot(FilePath);
+    if (StrEqual(Extension, EditorSessionFileExtension))
+    {
+     change_project_method Change = {};
+     Change.Type = ChangeProjectMethod_LoadProjectFromFile;
+     Change.FilePath = FilePath;
+     QuitRequested = TryChangeProject(Editor, Change, false);
+    }
+    else
+    {
+     camera *Camera = &Editor->Camera;
+     TryLoadImages(Editor, 1, &FilePath, Camera->P);
+    }
+   }
+  }break;
+  
+  case ProjectChangeRequest_NewProject: {
+   change_project_method Change = {};
+   Change.Type = ChangeProjectMethod_LoadEmptyProject;
+   QuitRequested = TryChangeProject(Editor, Change, false);
+  }break;
+  
+  case ProjectChangeRequest_SaveProject: {
+   TrySaveProject(Editor, false);
+  }break;
+  
+  case ProjectChangeRequest_SaveProjectAs: {
+   TrySaveProject(Editor, true);
+  }break;
+  
+  case ProjectChangeRequest_Quit: {
+   change_project_method Change = {};
+   Change.Type = ChangeProjectMethod_Quit;
+   QuitRequested = TryChangeProject(Editor, Change, false);
+  }break;
+  
+  case ProjectChangeRequest_None: {}break;
+ }
+ 
+ if (UI_BeginPopupModal(&ProjectChange->CurrentProjectSaveModalIsOpen,
+                        CurrentProjectSaveModalLabel))
+ {
+  UI_Text(false, StrLit("Do you want to save your work?"));
+  UI_TextF(false, "There are unsaved changes in \"%S\".", GetBaseProjectTitle(Editor));
+  
+  if (UI_Button(StrLit("Yes")))
+  {
+   if (TrySaveProject(Editor, false))
+   {
+    QuitRequested = TryChangeProject(Editor, ProjectChange->ChangeHow, true);
+   }
+   UI_CloseCurrentPopup();
+  }
+  UI_SameRow();
+  if (UI_Button(StrLit("No")))
+  {
+   QuitRequested = TryChangeProject(Editor, ProjectChange->ChangeHow, true);
+   UI_CloseCurrentPopup();
+  }
+  
+  UI_EndPopup();
+ }
+ 
+ ProjectChange->Request = ProjectChangeRequest_None; 
+ if (QuitRequested)
+ {
+  Input->QuitRequested = true;
+ }
+ 
+ EndTemp(Temp);
+}
+
 internal void
 EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, struct render_frame *Frame)
 {
@@ -3883,6 +4184,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
   
   ProfileEnd();
  }
+ UpdateAndRenderChangingProject(Editor, Input);
  
  UpdateCamera(&Editor->Camera, Input);
  UpdateFrameStats(&Editor->FrameStats, Input);
@@ -3900,7 +4202,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  Input->RefreshRequested = true;
 #endif
  
- EndEditorFrame(Editor, Input);
+ EndEditorFrame(Editor);
 }
 
 internal void

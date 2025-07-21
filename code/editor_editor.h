@@ -213,6 +213,33 @@ struct selected_entity_transform_state
  tracked_action *TransformAction;
 };
 
+enum change_project_method_type
+{
+ ChangeProjectMethod_LoadEmptyProject,
+ ChangeProjectMethod_LoadProjectFromFile,
+ ChangeProjectMethod_Quit,
+};
+struct change_project_method
+{
+ change_project_method_type Type;
+ string FilePath;
+};
+enum project_change_request
+{
+ ProjectChangeRequest_None,
+ ProjectChangeRequest_NewProject,
+ ProjectChangeRequest_OpenFile,
+ ProjectChangeRequest_SaveProject,
+ ProjectChangeRequest_SaveProjectAs,
+ ProjectChangeRequest_Quit,
+};
+struct project_change_request_state
+{
+ project_change_request Request;
+ change_project_method ChangeHow;
+ b32 CurrentProjectSaveModalIsOpen;
+};
+
 struct editor
 {
  arena *Arena;
@@ -222,7 +249,6 @@ struct editor
  thread_task_memory_store *ThreadTaskMemoryStore;
  image_loading_store *ImageLoadingStore;
  string_store *StrStore;
- 
  struct work_queue *LowPriorityQueue;
  struct work_queue *HighPriorityQueue;
  
@@ -270,6 +296,12 @@ struct editor
  
  debug_vars DEBUG_Vars;
  
+ b32 ProjectModified;
+ b32 IsProjectFileBacked;
+ arena *ProjectFilePathArena;
+ string ProjectFilePath;
+ project_change_request_state ProjectChange;
+ 
  //////////////////////////////
  
  rgba DefaultBackgroundColor;
@@ -292,6 +324,13 @@ internal void SplitCurveOnControlPoint(editor *Editor, entity *Entity);
 internal void PerformBezierCurveSplit(editor *Editor, entity *Entity);
 internal void ElevateBezierCurveDegree(editor *Editor, entity *Entity);
 internal entity *GetSelectedEntity(editor *Editor);
+internal success_b32 SaveProject(editor *Editor, string FilePath);
+internal void SetProjectFilePath(editor *Editor, string FilePath);
+internal void LoadEmptyProject(editor *Editor);
+internal success_b32 LoadProjectFromFile(editor *Editor, string FilePath);
+internal string GetBaseProjectTitle(editor *Editor);
+
+//- undo/redo system
 internal void Undo(editor *Editor);
 internal void Redo(editor *Editor);
 
@@ -309,8 +348,9 @@ internal begin_modify_curve_points_static_tracked_result BeginModifyCurvePointsT
 internal void EndModifyCurvePointsTracked(editor *Editor, tracked_action *ModifyAction, curve_points_modify_handle ModifyPoints);
 internal void SetCurvePointsTracked(editor *Editor, entity_with_modify_witness *Curve, curve_points_handle Points);
 
+//- editor commands
 internal void BeginEditorFrame(editor *Editor);
-internal void EndEditorFrame(editor *Editor, platform_input_output *Input);
+internal void EndEditorFrame(editor *Editor);
 internal void PushEditorCmd(editor *Editor, editor_command Command);
 
 //- merging curves

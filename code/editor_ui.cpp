@@ -929,13 +929,14 @@ UI_BeginComboF(string Preview, char const *Format, ...)
 internal void UI_EndCombo(void) { Platform.ImGui.EndCombo(); }
 
 internal b32
-UI_BeginPopupModal(string Label)
+UI_BeginPopupModal(b32 *IsOpen, string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
- b32 Result = Cast(b32)Platform.ImGui.BeginPopupModal(CLabel.Data, 0,
-                                                      ImGuiWindowFlags_NoTitleBar |
-                                                      ImGuiWindowFlags_AlwaysAutoResize);
+ bool IsOpen_ = false;
+ if (IsOpen) IsOpen_ = Cast(bool)*IsOpen;
+ b32 Result = Cast(b32)Platform.ImGui.BeginPopupModal(CLabel.Data, (IsOpen ? &IsOpen_ : 0), ImGuiWindowFlags_AlwaysAutoResize);
+ if (IsOpen) *IsOpen = Cast(b32)IsOpen_;
  EndTemp(Temp);
  
  return Result;

@@ -23,11 +23,13 @@
 #include "editor_collision.h"
 #include "editor_core.h"
 #include "editor_editor.h"
+#include "editor_const.h"
 
 /* TODO(hbr):
 
 @ stack:
 - rename BezierCurveLowerDegree function
+- rename newproject -> emptyproject
 
 TODO features:
 

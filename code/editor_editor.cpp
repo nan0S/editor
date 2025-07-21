@@ -144,7 +144,7 @@ LoadEmptyProject(editor *Editor)
 }
 
 internal b32
-LoadProjectFromFile(editor *Editor, string FilePath)
+DeserializeProjectFromFile(editor *Editor, string FilePath)
 {
  b32 Success = false;
  if (Success)
@@ -156,7 +156,7 @@ LoadProjectFromFile(editor *Editor, string FilePath)
 }
 
 internal b32
-SaveProject(editor *Editor, string FilePath)
+SerializeProjectIntoFile(editor *Editor, string FilePath)
 {
  b32 Success = false;
  NotImplemented;

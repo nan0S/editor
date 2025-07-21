@@ -324,10 +324,10 @@ internal void SplitCurveOnControlPoint(editor *Editor, entity *Entity);
 internal void PerformBezierCurveSplit(editor *Editor, entity *Entity);
 internal void ElevateBezierCurveDegree(editor *Editor, entity *Entity);
 internal entity *GetSelectedEntity(editor *Editor);
-internal success_b32 SaveProject(editor *Editor, string FilePath);
+internal success_b32 SerializeProjectIntoFile(editor *Editor, string FilePath);
 internal void SetProjectFilePath(editor *Editor, string FilePath);
 internal void LoadEmptyProject(editor *Editor);
-internal success_b32 LoadProjectFromFile(editor *Editor, string FilePath);
+internal success_b32 DeserializeProjectFromFile(editor *Editor, string FilePath);
 internal string GetBaseProjectTitle(editor *Editor);
 
 //- undo/redo system

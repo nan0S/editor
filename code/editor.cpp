@@ -3944,7 +3944,7 @@ TryChangeProject(editor *Editor,
    case ChangeProjectMethod_Quit: {RequestQuit = true;}break;
    
    case ChangeProjectMethod_LoadProjectFromFile: {
-    b32 Success = LoadProjectFromFile(Editor, ChangeHow.FilePath);
+    b32 Success = DeserializeProjectFromFile(Editor, ChangeHow.FilePath);
     if (!Success)
     {
      AddNotificationF(Editor, Notification_Error,
@@ -3962,7 +3962,7 @@ internal b32
 SaveProjectWithNotifications(editor *Editor, string FilePath)
 {
  b32 Saved = false;
- if (SaveProject(Editor, FilePath))
+ if (SerializeProjectIntoFile(Editor, FilePath))
  {
   Saved = true;
  }

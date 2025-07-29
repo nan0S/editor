@@ -120,7 +120,7 @@ DeallocArena(arena *Arena)
  {
   arena *Next = Node->Next;
   StructZero(Node);
-  DeallocVirtualMemory(Arena->Memory, Arena->Capacity);
+  DeallocVirtualMemory(Node->Memory, Node->Capacity);
   Node = Next;
  }
 }

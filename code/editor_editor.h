@@ -568,6 +568,7 @@ struct curve
 struct image
 {
  scale2d Dim;
+ string_id FilePath;
  render_texture_handle TextureHandle;
 };
 
@@ -741,15 +742,30 @@ struct entity_list_node
 
 //~ stores
 
+//- arena store
+struct arena_node
+{
+ arena_node *Next;
+ b32 Deallocated;
+ arena *Arena;
+};
+
+struct arena_store
+{
+ arena *Arena;
+ arena_node *Head;
+ arena_node *Tail;
+};
+
 //- string store
 struct string_store
 {
- // TODO(hbr): Keep a pointer instead
- string_cache StrCache;
  arena *Arena;
+ string_cache *StrCache;
  u32 StrCount;
  u32 StrCapacity;
  char_buffer *Strs;
+ arena_store *ArenaStore;
 };
 
 //- entity store
@@ -770,6 +786,7 @@ struct entity_store
  u32 BufferCount;
  b32 *IsBufferHandleAllocated;
  string_store *StrStore;
+ arena_store *ArenaStore;
 };
 
 //- thread task with memory
@@ -782,6 +799,7 @@ struct thread_task_memory_store
 {
  arena *Arena;
  thread_task_memory *Free;
+ arena_store *ArenaStore;
 };
 
 //- image loading store
@@ -791,18 +809,24 @@ enum image_loading_state
  Image_Loaded,
  Image_Failed,
 };
-// NOTE(hbr): Maybe async tasks (that general name) is not the best here.
-// It is currently just used for loading images asynchronously (using threads).
-// I'm happy to generalize this (for example store function pointers in here),
-// but for now I only have images use case and don't expect new stuff. I didn't
-// bother renaming this.
+enum image_instantiation_spec_type
+{
+ ImageInstantiationSpec_EntityProvided,
+ ImageInstantiationSpec_AtP,
+};
+struct image_instantiation_spec
+{
+ image_instantiation_spec_type Type;
+ entity_handle ImageEntity;
+ v2 InstantiateImageAtP;
+};
 struct image_loading_task
 {
  image_loading_task *Next;
  image_loading_task *Prev;
  arena *Arena;
  image_loading_state State;
- v2 ImageP;
+ image_instantiation_spec ImageInstantiationSpec;
  image_info ImageInfo;
  string ImageFilePath;
  render_texture_handle LoadingTexture;
@@ -813,6 +837,7 @@ struct image_loading_store
  image_loading_task *Head;
  image_loading_task *Tail;
  image_loading_task *Free;
+ arena_store *ArenaStore;
 };
 
 //~ editor
@@ -842,7 +867,7 @@ enum notification_type
 struct notification
 {
  notification_type Type;
- string_id Content;
+ string Content;
  f32 LifeTime;
  f32 ScreenPosY;
 };
@@ -1082,12 +1107,41 @@ struct project_change_request_state
  project_change_request Request;
  change_project_method ChangeHow;
  b32 CurrentProjectSaveModalIsOpen;
+ string CurrentProjectSaveModalLabel;
+};
+
+#define MAX_NOTIFICATION_COUNT 16
+#define EditorSerializableStateStructMembers \
+camera Camera; \
+\
+b32 HideUI; \
+b32 EntityListWindow; \
+b32 DiagnosticsWindow; \
+b32 SelectedEntityWindow; \
+b32 HelpWindow; \
+b32 ProfilerWindow; \
+b32 DevConsole; \
+b32 Grid; \
+\
+rgba BackgroundColor; \
+rgba DefaultBackgroundColor; \
+curve_params CurveDefaultParams; \
+f32 CollisionToleranceClip; \
+f32 RotationRadiusClip; \
+\
+debug_vars DEBUG_Vars; \
+
+struct editor_serializable_state
+{
+ EditorSerializableStateStructMembers;
 };
 
 struct editor
 {
  arena *Arena;
  
+ editor_memory *EditorMemory;
+ arena_store *ArenaStore;
  renderer_transfer_queue *RendererQueue;
  entity_store *EntityStore;
  thread_task_memory_store *ThreadTaskMemoryStore;
@@ -1095,9 +1149,6 @@ struct editor
  string_store *StrStore;
  struct work_queue *LowPriorityQueue;
  struct work_queue *HighPriorityQueue;
- 
- camera Camera;
- frame_stats FrameStats;
  
  selected_entity_transform_state SelectedEntityTransformState;
  entity_handle SelectedEntity;
@@ -1115,18 +1166,18 @@ struct editor
  editor_command_node *EditorCommandsTail;
  editor_command_node *FreeEditorCommandNode;
  
-#define MAX_NOTIFICATION_COUNT 16
+ frame_stats FrameStats;
+ 
+ union {
+  struct {
+   EditorSerializableStateStructMembers;
+  };
+  editor_serializable_state SerializableState;
+ };
+ 
  u32 NotificationCount;
  notification Notifications[MAX_NOTIFICATION_COUNT];
- 
- b32 HideUI;
- b32 EntityListWindow;
- b32 DiagnosticsWindow;
- b32 SelectedEntityWindow;
- b32 HelpWindow;
- b32 ProfilerWindow;
- b32 DevConsole;
- b32 Grid;
+ arena *NotificationsArena;
  
  editor_left_click_state LeftClick;
  editor_right_click_state RightClick;
@@ -1138,27 +1189,26 @@ struct editor
  merging_curves_state MergingCurves;
  visual_profiler_state Profiler;
  
- debug_vars DEBUG_Vars;
- 
  b32 ProjectModified;
  b32 IsProjectFileBacked;
  arena *ProjectFilePathArena;
  string ProjectFilePath;
  project_change_request_state ProjectChange;
- 
- //////////////////////////////
- 
- rgba DefaultBackgroundColor;
- rgba BackgroundColor;
- f32 CollisionToleranceClip;
- f32 RotationRadiusClip;
- curve_params CurveDefaultParams;
+};
+
+struct editor_save_header
+{
+ u32 MagicValue;
+ u32 Version;
+ u32 StringCount;
+ u32 EntityCount;
 };
 
 //~ entity type functions
 
 //- entity handles/indices
 internal entity_handle MakeEntityHandle(entity *Entity);
+internal entity_handle EntityHandleZero(void);
 internal entity *EntityFromHandle(entity_handle Handle, b32 AllowDeactived = false);
 
 internal entity_with_modify_witness BeginEntityModify(entity *Entity);
@@ -1201,8 +1251,12 @@ internal u32 PartitionKnotIndexFromBSplineKnotHandle(curve *Curve, b_spline_knot
 
 //- entity initialization
 internal void InitEntityPart(entity *Entity, entity_type Type, xform2d XForm, string Name, i32 SortingLayer, entity_flags Flags, string_store *StrStore);
-internal void InitEntityAsImage(entity *Entity, v2 P, u32 Width, u32 Height, string FilePath, string_store *StrStore);
+internal void InitEntityAsImage(entity *Entity, v2 P, u32 Width, u32 Height, string ImageFilePath, render_texture_handle TextureHandle, string_store *StrStore);
 internal void InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams, string_store *StrStore);
+internal void InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src, entity_store *EntityStore);
+internal void InitEntityPartFromEntity(entity *Dst, entity *Src, entity_store *EntityStore);
+internal void InitEntityImagePart(image *Image, scale2d Dim, string ImageFilePath, render_texture_handle TextureHandle, string_store *StrStore);
+internal void InitEntityImagePart(image *Image, u32 Width, u32 Height, string ImageFilePath, render_texture_handle TextureHandle, string_store *StrStore);
 
 //- entity modify
 internal void TranslateCurvePointTo(entity_with_modify_witness *Entity, curve_point_handle Handle, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
@@ -1273,12 +1327,19 @@ internal f32 GetCurvePartVisibilityZOffset(curve_part_visibility Part);
 //~ editor and editor systems
 
 //- basic operations
-internal editor *AllocEditor(editor_memory *Memory);
+internal void LoadEmptyProject(editor *Editor);
+internal success_b32 LoadProjectFromFile(editor *Editor, string FilePath);
+internal success_b32 SaveProjectIntoFile(editor *Editor, string FilePath);
+
 internal void DuplicateEntity(editor *Editor, entity *Entity);
 internal void SplitCurveOnControlPoint(editor *Editor, entity *Entity);
 internal void PerformBezierCurveSplit(editor *Editor, entity *Entity);
 internal void ElevateBezierCurveDegree(editor *Editor, entity *Entity);
 internal entity *GetSelectedEntity(editor *Editor);
+internal string GetBaseProjectTitle(editor *Editor);
+
+internal void TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP);
+internal void TryLoadImage(editor *Editor, string FilePath, image_instantiation_spec Spec);
 
 //- undo/redo system
 internal void Undo(editor *Editor);
@@ -1322,18 +1383,16 @@ internal b32 SupplyCurve(choose_2_curves_state *Choosing, entity *Curve);
 internal void BeginLoweringBezierCurveDegree(editor *Editor, entity *Entity);
 internal void EndLoweringBezierCurveDegree(editor *Editor, curve_degree_lowering_state *Lowering);
 
-//- left click state
+//- click states
 internal void BeginMovingEntity(editor_left_click_state *Left, editor *Editor, entity *Entity);
 internal void BeginMovingCurvePoint(editor_left_click_state *Left, editor *Editor, action_tracking_group *TrackingGroup, entity *Target, curve_point_handle CurvePoint);
 internal void BeginMovingTrackingPoint(editor_left_click_state *Left, entity_handle Target);
 internal void BeginMovingBSplineKnot(editor_left_click_state *Left, entity_handle Target, u32 BSplineKnotIndex);
 internal void EndLeftClick(editor *Editor, editor_left_click_state *Left);
 
-//- middle click state
 internal void BeginMiddleClick(editor_middle_click_state *Middle, b32 Rotate, v2 ClipSpaceLastMouseP);
 internal void EndMiddleClick(editor_middle_click_state *Middle);
 
-//- right click state
 internal void BeginRightClick(editor_right_click_state *Right, v2 ClickP, collision CollisionAtP);
 internal void EndRightClick(editor_right_click_state *Right);
 
@@ -1345,28 +1404,33 @@ internal void ProfilerInspectSingleFrame(visual_profiler_state *Visual, u32 Fram
 internal void AddNotification(editor *Editor, notification_type Type, string Content);
 internal void AddNotificationF(editor *Editor, notification_type Type, char const *Format, ...);
 
-//- project loading/saving
-internal success_b32 SaveProjectIntoFile(editor *Editor, string FilePath);
-internal success_b32 LoadProjectFromFile(editor *Editor, string FilePath);
-internal void LoadEmptyProject(editor *Editor);
-
-internal void SetProjectFilePath(editor *Editor, string FilePath);
-internal string GetBaseProjectTitle(editor *Editor);
-
 //- collisions
 internal collision CheckCollisionWithEntities(editor *Editor, v2 AtP, f32 Tolerance);
 
 //~ store type functions
 
+//- arena store
+internal arena_store *AllocArenaStore(void);
+internal void DeallocArenaStoreAndAllArenas(arena_store *ArenaStore);
+internal arena *AllocArenaFromStore(arena_store *ArenaStore, u64 ReserveButNotCommit);
+
 //- string store
-internal string_store *AllocStringStore(arena *PermamentArena);
+internal string_store *AllocStringStore(arena_store *ArenaStore);
+internal void DeallocStringStore(string_store *Store);
+
 internal string_id AllocStringOfSize(string_store *Store, u64 Size);
 internal string_id AllocStringFromString(string_store *Store, string Str);
+internal void DeallocString(string_store *Store, string_id Id);
+internal void SetOrAllocStringOfId(string_store *Store, string Str, string_id Id);
 internal char_buffer *CharBufferFromStringId(string_store *Store, string_id Id);
 internal string StringFromStringId(string_store *Store, string_id Id);
 
+internal string_id StringIdFromIndex(u32 Index);
+internal u32 IndexFromStringId(string_id Id);
+internal b32 StringIdMatch(string_id A, string_id B);
+
 //- entity store
-internal entity_store *AllocEntityStore(arena *PermamentArena, u32 MaxTextureCount, u32 MaxBufferCount, string_store *StrStore);
+internal entity_store *AllocEntityStore(arena_store *ArenaStore, u32 MaxTextureCount, u32 MaxBufferCount, string_store *StrStore);
 internal entity *AllocEntity(entity_store *Store, b32 DontTrack);
 internal void DeallocEntity(entity_store *Store, entity *Entity);
 internal void ActivateEntity(entity_store *Store, entity *Entity); // don't actually dealloc memory and don't put on free list, but otherwise mark entity as "deallocated" to the outside world
@@ -1380,13 +1444,16 @@ internal void DeallocTextureHandle(entity_store *Store, render_texture_handle Ha
 internal render_texture_handle CopyTextureHandle(entity_store *Store, render_texture_handle Handle);
 
 //- thread task with memory
-internal thread_task_memory_store *AllocThreadTaskMemoryStore(arena *PermamentArena);
+internal thread_task_memory_store *AllocThreadTaskMemoryStore(arena_store *ArenaStore);
 internal thread_task_memory *BeginThreadTaskMemory(thread_task_memory_store *Store);
 internal void EndThreadTaskMemory(thread_task_memory_store *Store, thread_task_memory *Task);
 
 //- image loading store
-internal image_loading_store *AllocImageLoadingStore(arena *PermamentArena);
+internal image_loading_store *AllocImageLoadingStore(arena_store *ArenaStore);
 internal image_loading_task *BeginAsyncImageLoadingTask(image_loading_store *Store);
 internal void FinishAsyncImageLoadingTask(image_loading_store *Store, image_loading_task *Task);
+
+internal image_instantiation_spec MakeImageInstantiationSpec_EntityProvided(entity *Entity);
+internal image_instantiation_spec MakeImageInstantiationSpec_AtP(v2 AtP);
 
 #endif //EDITOR_EDITOR_H

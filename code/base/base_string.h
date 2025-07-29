@@ -42,6 +42,12 @@ struct char_buffer
  u64 Capacity;
 };
 
+struct deserialize_stream
+{
+ string Data;
+ u64 At;
+};
+
 //- formatting
 internal u64 Fmt(char *Buf, u64 BufSize, char const *Format, ...);
 internal u64 FmtV(char *Buf, u64 BufSize, char const *Format, va_list Args);
@@ -99,5 +105,15 @@ internal void        StrListPushFV(arena *Arena, string_list *List, char const *
 internal string      StrListJoin(arena *Arena, string_list *List, string_list_join_options Opts);
 internal string_list StrListCopy(arena *Arena, string_list *List);
 internal void        StrListConcatInPlace(string_list *List, string_list *ToPush);
+
+//- serialize/deserialize
+internal deserialize_stream MakeDeserializeStream(string Data);
+internal void DeserializeData(deserialize_stream *Stream, void *Dst, u64 Size);
+internal string DeserializeString(arena *Arena, deserialize_stream *Stream);
+#define DeserializeStruct(Stream, Ptr) DeserializeData(Stream, Ptr, SizeOf(*(Ptr)))
+
+internal void SerializeData(arena *Arena, string_list *List, void *Data, u64 Size);
+internal void SerializeString(arena *Arena, string_list *List, string Str);
+#define SerializeStruct(Arena, List, Ptr) SerializeData(Arena, List, Ptr, SizeOf(*(Ptr)))
 
 #endif //BASE_STRING_H

@@ -148,7 +148,7 @@ Platform_GetMainWindowInitialParams(u32 ScreenWidth, u32 ScreenHeight)
 
 PLATFORM_SET_WINDOW_TITLE(PlatformSetWindowTitleStub) {}
 
-#define X_Macro(Name, ImGuiName, ReturnType, Args, ArgNames) internal ReturnType ImGui##Name(Args){return ImGui::ImGuiName(ArgNames);}
+#define X_Macro(Name, ImGuiName, ReturnType, Args, ArgNames) internal ReturnType ImGui##Name(Args){return ImGuiName(ArgNames);}
 ImGuiFunctions
 #undef X_Macro
 

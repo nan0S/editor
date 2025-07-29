@@ -1055,3 +1055,49 @@ StrListJoin(arena *Arena, string_list *List, string_list_join_options Opts)
  
  return Result;
 }
+
+internal deserialize_stream
+MakeDeserializeStream(string Data)
+{
+ deserialize_stream Stream = {};
+ Stream.Data = Data;
+ return Stream;
+}
+
+internal string
+DeserializeString(arena *Arena, deserialize_stream *Stream)
+{
+ u64 Size = 0;
+ DeserializeStruct(Stream, &Size);
+ char *Contents = PushArrayNonZero(Arena, Size, char);
+ DeserializeData(Stream, Contents, Size);
+ string String = MakeStr(Cast(char *)Contents, Size);
+ return String;
+}
+
+internal void
+DeserializeData(deserialize_stream *Stream, void *Dst, u64 Size)
+{
+ u64 Left = Stream->Data.Count - Min(Stream->Data.Count, Stream->At);
+ if (Left >= Size)
+ {
+  char *At = Stream->Data.Data + Stream->At;
+  MemoryCopy(Dst, At, Size);
+  Stream->At += Size;
+ }
+}
+
+internal void
+SerializeData(arena *Arena, string_list *List, void *Data, u64 Size)
+{
+ string Chunk = PushStringNonZero(Arena, Size);
+ MemoryCopy(Chunk.Data, Data, Size);
+ StrListPush(Arena, List, Chunk);
+}
+
+internal void
+SerializeString(arena *Arena, string_list *List, string Str)
+{
+ SerializeStruct(Arena, List, &Str.Count);
+ SerializeData(Arena, List, Str.Data, Str.Count);
+}

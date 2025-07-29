@@ -26,11 +26,12 @@
 @ stack:
 - rename BezierCurveLowerDegree function
 - rename newproject -> emptyproject
+- remove some TODOs introduces when writing project loading from file
+ - we still leak resources - texture_handles
 
 TODO features:
 
 crucial:
-- saving/loading project from/to file
 - Checbyshev polynomial bezier degree lowering method
 - update help regarding right click and holding ctrl
 
@@ -109,6 +110,7 @@ new things added:
 - moving partition knot along curve
 - convex hull around pieces of b-spline segments
 - extract animated curve - bezier can be 100% matching, other can do with interpolation
+- saving/loading project from/to file
 
  */
 

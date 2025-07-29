@@ -6,6 +6,8 @@ struct arena
  arena *Next;
  arena *Cur;
  
+ b32 Freed;
+ 
  void *Memory;
  u64 Used;
  u64 Capacity;

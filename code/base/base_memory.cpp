@@ -1,7 +1,9 @@
-internal void
-InitStringCache(string_cache *Cache)
+internal string_cache *
+AllocStringCache(arena *Arena)
 {
- Cache->Arena = AllocArena(Gigabytes(64));
+ string_cache *Cache = PushStruct(Arena, string_cache);
+ Cache->Arena = Arena;
+ return Cache;
 }
 
 internal u64

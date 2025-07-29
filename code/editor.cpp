@@ -2076,6 +2076,7 @@ internal void
 UpdateAndRenderNotifications(editor *Editor, platform_input_output *Input, render_group *RenderGroup)
 {
  string_store *StrStore = Editor->StrStore;
+ b32 ActiveNotificationExists = false;
  
  UI_Label(StrLit("Notifications"))
  {
@@ -2092,6 +2093,8 @@ UpdateAndRenderNotifications(editor *Editor, platform_input_output *Input, rende
    if (Notification->Type != Notification_None)
    {
     b32 Remove = false;
+    
+    ActiveNotificationExists = true;
     
     f32 dt = UseAndExtractDeltaTime(Input);
     Notification->LifeTime += dt;
@@ -2175,8 +2178,7 @@ UpdateAndRenderNotifications(editor *Editor, platform_input_output *Input, rende
        }
        
        UI_HorizontalSeparator();
-       string Content = StringFromStringId(StrStore, Notification->Content);
-       UI_Text(true, Content);
+       UI_Text(true, Notification->Content);
        
        f32 WindowHeight = UI_GetWindowHeight();
        TargetPosY -= WindowHeight + Padding;
@@ -2190,6 +2192,11 @@ UpdateAndRenderNotifications(editor *Editor, platform_input_output *Input, rende
     }
    }
   }
+ }
+ 
+ if (!ActiveNotificationExists)
+ {
+  ClearArena(Editor->NotificationsArena);
  }
 }
 
@@ -2362,7 +2369,7 @@ RenderAnimatingCurvesUI(editor *Editor)
     entity_store *EntityStore = Editor->EntityStore;
     entity *Entity = AddEntity(Editor);
     entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
-    InitEntityFromEntity(EntityStore, &EntityWitness, Animation->ExtractEntity);
+    InitEntityFromEntity(&EntityWitness, Animation->ExtractEntity, EntityStore);
     EndEntityModify(EntityWitness);
     SelectEntity(Editor, Entity);
     
@@ -2390,131 +2397,6 @@ RenderAnimatingCurvesUI(editor *Editor)
   }
   
   UI_EndWindow();
- }
-}
-
-internal void
-ProcessImageLoadingTasks(editor *Editor)
-{
- image_loading_store *ImageLoadingStore = Editor->ImageLoadingStore;
- entity_store *EntityStore = Editor->EntityStore;
- string_store *StrStore = Editor->StrStore;
- 
- ListIter(ImageLoading,
-          ImageLoadingStore->Head,
-          image_loading_task)
- {
-  if (ImageLoading->State == Image_Loading)
-  {
-   // NOTE(hbr): nothing to do
-  }
-  else
-  {
-   if (ImageLoading->State == Image_Loaded)
-   {
-    string FileName = PathLastPart(ImageLoading->ImageFilePath);
-    string FileNameNoExt = StrChopLastDot(FileName);
-    entity *Entity = AddEntity(Editor);
-    InitEntityAsImage(Entity,
-                      ImageLoading->ImageP,
-                      FileNameNoExt,
-                      ImageLoading->ImageInfo.Width,
-                      ImageLoading->ImageInfo.Height,
-                      ImageLoading->LoadingTexture,
-                      StrStore);
-    SelectEntity(Editor, Entity);
-   }
-   else
-   {
-    Assert(ImageLoading->State == Image_Failed);
-    DeallocTextureHandle(EntityStore, ImageLoading->LoadingTexture);
-    AddNotificationF(Editor, Notification_Error,
-                     "failed to load image from %S",
-                     ImageLoading->ImageFilePath);
-   }
-   
-   FinishAsyncImageLoadingTask(ImageLoadingStore, ImageLoading);
-  }
- }
-}
-
-struct load_image_work
-{
- thread_task_memory_store *Store;
- thread_task_memory *TaskMemory;
- renderer_transfer_op *TextureOp;
- string ImagePath;
- image_loading_task *ImageLoading;
-};
-
-internal void
-LoadImageWork(void *UserData)
-{
- load_image_work *Work = Cast(load_image_work *)UserData;
- 
- thread_task_memory_store *Store = Work->Store;
- thread_task_memory *Task = Work->TaskMemory;
- renderer_transfer_op *TextureOp = Work->TextureOp;
- string ImagePath = Work->ImagePath;
- image_loading_task *ImageLoading = Work->ImageLoading;
- arena *Arena = Task->Arena;
- 
- string ImageData = Platform.ReadEntireFile(Arena, Work->ImagePath);
- loaded_image LoadedImage = LoadImageFromMemory(Arena, ImageData.Data, ImageData.Count);
- 
- image_loading_state AsyncTaskState;
- renderer_transfer_op_state OpState;
- if (LoadedImage.Success)
- {
-  // TODO(hbr): Don't do memory copy, just read into that memory directly
-  MemoryCopy(TextureOp->Pixels, LoadedImage.Pixels, LoadedImage.Info.SizeInBytesUponLoad);
-  OpState = RendererOp_ReadyToTransfer;
-  AsyncTaskState = Image_Loaded;
- }
- else
- {
-  OpState = RendererOp_Empty;
-  AsyncTaskState = Image_Failed;
- }
- 
- CompilerWriteBarrier;
- TextureOp->State = OpState;
- ImageLoading->State = AsyncTaskState;
- 
- EndThreadTaskMemory(Store, Task);
-}
-
-internal void
-TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
-{
- work_queue *WorkQueue = Editor->LowPriorityQueue;
- entity_store *EntityStore = Editor->EntityStore;
- thread_task_memory_store *ThreadTaskMemoryStore = Editor->ThreadTaskMemoryStore;
- image_loading_store *ImageLoadingStore = Editor->ImageLoadingStore;
- 
- ForEachIndex(FileIndex, FileCount)
- {
-  string FilePath = FilePaths[FileIndex];
-  
-  image_info ImageInfo = LoadImageInfo(FilePath);
-  render_texture_handle TextureHandle = AllocTextureHandle(EntityStore);
-  renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, ImageInfo.SizeInBytesUponLoad, TextureHandle);
-  thread_task_memory *TaskMemory = BeginThreadTaskMemory(ThreadTaskMemoryStore);
-  
-  image_loading_task *ImageLoading = BeginAsyncImageLoadingTask(ImageLoadingStore);
-  ImageLoading->ImageP = AtP;
-  ImageLoading->ImageInfo = ImageInfo;
-  ImageLoading->ImageFilePath = StrCopy(ImageLoading->Arena, FilePath);
-  ImageLoading->LoadingTexture = TextureHandle;
-  
-  load_image_work *Work = PushStruct(TaskMemory->Arena, load_image_work);
-  Work->Store = ThreadTaskMemoryStore;
-  Work->TaskMemory = TaskMemory;
-  Work->TextureOp = TextureOp;
-  Work->ImagePath = StrCopy(TaskMemory->Arena, FilePath);
-  Work->ImageLoading = ImageLoading;
-  
-  Platform.WorkQueueAddEntry(WorkQueue, LoadImageWork, Work);
  }
 }
 
@@ -2939,7 +2821,7 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
  entity *MergeEntity = MergeWitness->Entity;
  
  string Name = StrF(Temp.Arena, "%S+%S", GetEntityName(Entity0, StrStore), GetEntityName(Entity1, StrStore));
- InitEntityFromEntity(EntityStore, MergeWitness, Entity0);
+ InitEntityFromEntity(MergeWitness, Entity0, EntityStore);
  SetEntityName(MergeEntity, Name, StrStore);
  
  // TODO(hbr): remove this?
@@ -3914,8 +3796,6 @@ ProjectFileDisplayName(arena *Arena)
  return Result;
 }
 
-global string CurrentProjectSaveModalLabel = StrLit("Confirm##CurrentProjectSaveModalLabel");
-
 internal b32
 TryChangeProject(editor *Editor,
                  change_project_method ChangeHow,
@@ -3927,7 +3807,13 @@ TryChangeProject(editor *Editor,
  {
   ProjectChange->ChangeHow = ChangeHow;
   ProjectChange->CurrentProjectSaveModalIsOpen = true;
-  UI_OpenPopup(CurrentProjectSaveModalLabel);
+  switch (ChangeHow.Type)
+  {
+   case ChangeProjectMethod_LoadEmptyProject: {ProjectChange->CurrentProjectSaveModalLabel = StrLit("New Project");}break;
+   case ChangeProjectMethod_LoadProjectFromFile: {ProjectChange->CurrentProjectSaveModalLabel = StrLit("Open Project");}break;
+   case ChangeProjectMethod_Quit: {ProjectChange->CurrentProjectSaveModalLabel = StrLit("Quit Project");}break;
+  }
+  UI_OpenPopup(ProjectChange->CurrentProjectSaveModalLabel);
  }
  else
  {
@@ -4001,7 +3887,6 @@ TrySaveProject(editor *Editor, b32 SaveAs)
    if (SaveProjectWithNotifications(Editor, SaveDialog.FilePath))
    {
     Saved = true;
-    SetProjectFilePath(Editor, SaveDialog.FilePath);
    }
   }
  }
@@ -4096,7 +3981,7 @@ UpdateAndRenderChangingProject(editor *Editor, platform_input_output *Input)
  }
  
  if (UI_BeginPopupModal(&ProjectChange->CurrentProjectSaveModalIsOpen,
-                        CurrentProjectSaveModalLabel))
+                        ProjectChange->CurrentProjectSaveModalLabel))
  {
   UI_Text(false, StrLit("Do you want to save your work?"));
   UI_TextF(false, "There are unsaved changes in \"%S\".", GetBaseProjectTitle(Editor));
@@ -4134,7 +4019,9 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  editor *Editor = Memory->Editor;
  if (!Editor)
  {
-  Editor = Memory->Editor = AllocEditor(Memory);
+  Editor = Memory->Editor = PushStruct(Memory->PermamentArena, editor);
+  Editor->EditorMemory = Memory;
+  LoadEmptyProject(Editor);
   InitGlobalsOnInitOrCodeReload(Editor);
   // NOTE(hbr): Sanity check that I didn't mess up keyboard shortcut definitions
   ForEachEnumVal(EditorCmd, EditorCommand_Count, editor_command)

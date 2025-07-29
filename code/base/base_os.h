@@ -52,8 +52,7 @@ internal success_b32 OS_WriteDataToFile(string Path, string Data);
 internal success_b32 OS_WriteDataListToFile(string Path, string_list DataList);
 
 //- directories
-// repeatadly call with initially zero-initialized Iter, if you want to store dir_entry's FileName, you have to copy it
-internal success_b32 OS_IterDir(string Path, dir_iter *Iter, dir_entry *OutEntry);
+internal success_b32 OS_IterDir(string Path, dir_iter *Iter, dir_entry *OutEntry); // repeatadly call with initially zero-initialized Iter, if you want to store dir_entry's FileName, you have to copy it
 
 //- stdout, stderr, debug
 internal os_file_handle OS_StdOut(void);

@@ -1,4 +1,0 @@
-#ifndef EDITOR_STRING_H
-#define EDITOR_STRING_H
-
-#endif //EDITOR_STRING_H

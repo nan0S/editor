@@ -1,7 +1,7 @@
 internal void
-InitLeftClickState(editor_left_click_state *LeftClick)
+InitLeftClickState(editor_left_click_state *LeftClick, arena_store *ArenaStore)
 {
- LeftClick->OriginalVerticesArena = AllocArena(Megabytes(128));
+ LeftClick->OriginalVerticesArena = AllocArenaFromStore(ArenaStore, Megabytes(128));
 }
 
 internal void
@@ -67,30 +67,287 @@ UpdateWindowTitle(editor *Editor)
 }
 
 internal void
-LoadEmptyProject(editor *Editor)
+ProcessImageLoadingTasks(editor *Editor)
 {
- Editor->BackgroundColor = Editor->DefaultBackgroundColor = RGBA_U8(21, 21, 21);
- Editor->CollisionToleranceClip = 0.04f;
- Editor->RotationRadiusClip = 0.1f;
- Editor->CurveDefaultParams = DefaultCurveParams();
- Editor->EntityListWindow = true;
- Editor->SelectedEntityWindow = true;
-#if BUILD_DEBUG
- Editor->DiagnosticsWindow = true;
- Editor->ProfilerWindow = true;
-#endif
- 
- InitCamera(&Editor->Camera);
- 
- //- dellocate all current entities
+ image_loading_store *ImageLoadingStore = Editor->ImageLoadingStore;
  entity_store *EntityStore = Editor->EntityStore;
- entity_array Entities = AllEntityArrayFromStore(EntityStore);
- ForEachIndex(EntityIndex, Entities.Count)
+ string_store *StrStore = Editor->StrStore;
+ 
+ ListIter(ImageLoading,
+          ImageLoadingStore->Head,
+          image_loading_task)
  {
-  entity *Entity = Entities.Entities[EntityIndex];
-  DeallocEntity(EntityStore, Entity);
+  if (ImageLoading->State == Image_Loading)
+  {
+   // NOTE(hbr): nothing to do
+  }
+  else
+  {
+   image_instantiation_spec InstantiationSpec = ImageLoading->ImageInstantiationSpec;
+   if (ImageLoading->State == Image_Loaded)
+   {
+    entity *Entity = 0;
+    switch (InstantiationSpec.Type)
+    {
+     case ImageInstantiationSpec_EntityProvided: {
+      Entity = EntityFromHandle(InstantiationSpec.ImageEntity);
+      if (Entity)
+      {
+       image *Image = &Entity->Image;
+       InitEntityImagePart(Image,
+                           ImageLoading->ImageInfo.Width,
+                           ImageLoading->ImageInfo.Height,
+                           ImageLoading->ImageFilePath,
+                           ImageLoading->LoadingTexture,
+                           StrStore);
+      }
+     }break;
+     
+     case ImageInstantiationSpec_AtP: {
+      Entity = AddEntity(Editor);
+      InitEntityAsImage(Entity,
+                        InstantiationSpec.InstantiateImageAtP,
+                        ImageLoading->ImageInfo.Width,
+                        ImageLoading->ImageInfo.Height,
+                        ImageLoading->ImageFilePath,
+                        ImageLoading->LoadingTexture,
+                        StrStore);
+     }break;
+    }
+    if (Entity)
+    {
+     SelectEntity(Editor, Entity);
+    }
+   }
+   else
+   {
+    Assert(ImageLoading->State == Image_Failed);
+    DeallocTextureHandle(EntityStore, ImageLoading->LoadingTexture);
+    
+    if (InstantiationSpec.Type == ImageInstantiationSpec_EntityProvided)
+    {
+     entity *Entity = EntityFromHandle(InstantiationSpec.ImageEntity);
+     if (Entity)
+     {
+      DeallocEntity(EntityStore, Entity);
+     }
+    }
+    AddNotificationF(Editor, Notification_Error,
+                     "failed to load image from %S",
+                     ImageLoading->ImageFilePath);
+   }
+   
+   FinishAsyncImageLoadingTask(ImageLoadingStore, ImageLoading);
+  }
+ }
+}
+
+struct load_image_work
+{
+ thread_task_memory_store *Store;
+ thread_task_memory *TaskMemory;
+ renderer_transfer_op *TextureOp;
+ string ImagePath;
+ image_loading_task *ImageLoading;
+};
+
+internal void
+LoadImageWork(void *UserData)
+{
+ load_image_work *Work = Cast(load_image_work *)UserData;
+ 
+ thread_task_memory_store *Store = Work->Store;
+ thread_task_memory *Task = Work->TaskMemory;
+ renderer_transfer_op *TextureOp = Work->TextureOp;
+ string ImagePath = Work->ImagePath;
+ image_loading_task *ImageLoading = Work->ImageLoading;
+ arena *Arena = Task->Arena;
+ 
+ string ImageData = Platform.ReadEntireFile(Arena, Work->ImagePath);
+ loaded_image LoadedImage = LoadImageFromMemory(Arena, ImageData.Data, ImageData.Count);
+ 
+ image_loading_state AsyncTaskState;
+ renderer_transfer_op_state OpState;
+ if (LoadedImage.Success)
+ {
+  // TODO(hbr): Don't do memory copy, just read into that memory directly
+  MemoryCopy(TextureOp->Pixels, LoadedImage.Pixels, LoadedImage.Info.SizeInBytesUponLoad);
+  OpState = RendererOp_ReadyToTransfer;
+  AsyncTaskState = Image_Loaded;
+ }
+ else
+ {
+  OpState = RendererOp_Empty;
+  AsyncTaskState = Image_Failed;
  }
  
+ CompilerWriteBarrier;
+ TextureOp->State = OpState;
+ ImageLoading->State = AsyncTaskState;
+ 
+ EndThreadTaskMemory(Store, Task);
+}
+
+internal void
+TryLoadImage(editor *Editor, string FilePath, image_instantiation_spec Spec)
+{
+ work_queue *WorkQueue = Editor->LowPriorityQueue;
+ entity_store *EntityStore = Editor->EntityStore;
+ thread_task_memory_store *ThreadTaskMemoryStore = Editor->ThreadTaskMemoryStore;
+ image_loading_store *ImageLoadingStore = Editor->ImageLoadingStore;
+ 
+ image_info ImageInfo = LoadImageInfo(FilePath);
+ render_texture_handle TextureHandle = AllocTextureHandle(EntityStore);
+ renderer_transfer_op *TextureOp = PushTextureTransfer(Editor->RendererQueue, ImageInfo.Width, ImageInfo.Height, ImageInfo.SizeInBytesUponLoad, TextureHandle);
+ thread_task_memory *TaskMemory = BeginThreadTaskMemory(ThreadTaskMemoryStore);
+ 
+ image_loading_task *ImageLoading = BeginAsyncImageLoadingTask(ImageLoadingStore);
+ ImageLoading->ImageInstantiationSpec = Spec;
+ ImageLoading->ImageInfo = ImageInfo;
+ ImageLoading->ImageFilePath = StrCopy(ImageLoading->Arena, FilePath);
+ ImageLoading->LoadingTexture = TextureHandle;
+ 
+ load_image_work *Work = PushStruct(TaskMemory->Arena, load_image_work);
+ Work->Store = ThreadTaskMemoryStore;
+ Work->TaskMemory = TaskMemory;
+ Work->TextureOp = TextureOp;
+ Work->ImagePath = StrCopy(TaskMemory->Arena, FilePath);
+ Work->ImageLoading = ImageLoading;
+ 
+ Platform.WorkQueueAddEntry(WorkQueue, LoadImageWork, Work);
+}
+
+internal void
+TryLoadImages(editor *Editor, u32 FileCount, string *FilePaths, v2 AtP)
+{
+ ForEachIndex(FileIndex, FileCount)
+ {
+  string FilePath = FilePaths[FileIndex];
+  image_instantiation_spec Spec = MakeImageInstantiationSpec_AtP(AtP);
+  TryLoadImage(Editor, FilePath, Spec);
+ }
+}
+
+internal arena_store *
+AllocArenaStore(void)
+{
+ arena *Arena = AllocArena(Megabytes(1));
+ arena_store *ArenaStore = PushStruct(Arena, arena_store);
+ ArenaStore->Arena = Arena;
+ return ArenaStore;
+}
+
+internal void
+DeallocArenaStoreAndAllArenas(arena_store *ArenaStore)
+{
+ ListIter(Node, ArenaStore->Head, arena_node)
+ {
+  if (!Node->Deallocated)
+  {
+   DeallocArena(Node->Arena);
+   Node->Deallocated = true;
+  }
+ }
+ DeallocArena(ArenaStore->Arena);
+}
+
+internal arena *
+AllocArenaFromStore(arena_store *ArenaStore, u64 ReserveButNotCommit)
+{
+ arena_node *Node = PushStruct(ArenaStore->Arena, arena_node);
+ arena *Arena = AllocArena(ReserveButNotCommit);
+ Node->Arena = Arena;
+ QueuePush(ArenaStore->Head, ArenaStore->Tail, Node);
+ return Arena;
+}
+
+internal void
+DeallocArenaFromStore(arena_store *ArenaStore, arena *Arena)
+{
+ b32 Deallocated = false;
+ ListIter(Node, ArenaStore->Head, arena_node)
+ {
+  if (Node->Arena == Arena)
+  {
+   DeallocArena(Arena);
+   Node->Deallocated = true;
+   Deallocated = true;
+   break;
+  }
+ }
+ Assert(Deallocated);
+}
+
+internal void
+AllocEditorResources(editor *Editor)
+{
+ editor_memory *Memory = Editor->EditorMemory;
+ 
+ if (Editor->ArenaStore)
+ {
+  DeallocArenaStoreAndAllArenas(Editor->ArenaStore);
+  StructZero(Editor);
+ }
+ 
+ arena_store *ArenaStore = AllocArenaStore();
+ Editor->EditorMemory = Memory;
+ Editor->ArenaStore = ArenaStore;
+ Editor->Arena = AllocArenaFromStore(ArenaStore, Gigabytes(64));
+ Editor->LowPriorityQueue = Memory->LowPriorityQueue;
+ Editor->HighPriorityQueue = Memory->HighPriorityQueue;
+ Editor->RendererQueue = Memory->RendererQueue;
+ Editor->StrStore = AllocStringStore(ArenaStore);
+ Editor->EntityStore = AllocEntityStore(ArenaStore, Memory->MaxTextureCount, Memory->MaxBufferCount, Editor->StrStore);
+ Editor->ThreadTaskMemoryStore = AllocThreadTaskMemoryStore(ArenaStore);
+ Editor->ImageLoadingStore = AllocImageLoadingStore(ArenaStore);
+ Editor->ProjectFilePathArena = AllocArenaFromStore(ArenaStore, Megabytes(1));
+ Editor->NotificationsArena = AllocArenaFromStore(ArenaStore, Megabytes(1));
+ InitLeftClickState(&Editor->LeftClick, ArenaStore);
+ InitVisualProfiler(&Editor->Profiler, Memory->Profiler);
+ InitAnimatingCurvesState(&Editor->AnimatingCurves, Editor->EntityStore);
+ InitMergingCurvesState(&Editor->MergingCurves, Editor->EntityStore);
+ InitFrameStats(&Editor->FrameStats);
+}
+
+internal void
+SetProjectFilePath(editor *Editor, b32 IsFileBacked, string FilePath)
+{
+ Editor->IsProjectFileBacked = IsFileBacked;
+ ClearArena(Editor->ProjectFilePathArena);
+ Editor->ProjectFilePath = StrCopy(Editor->ProjectFilePathArena, FilePath);
+ UpdateWindowTitle(Editor);
+}
+
+internal void
+InitEditor(editor *Editor,
+           editor_serializable_state SerializableState,
+           b32 IsFileBacked,
+           string FilePath)
+{
+ Editor->SerializableState = SerializableState;
+ SetProjectFilePath(Editor, IsFileBacked, FilePath);
+}
+
+internal void
+LoadEmptyProject(editor *Editor)
+{
+ AllocEditorResources(Editor);
+ 
+ editor_serializable_state SerializableState = {};
+ SerializableState.BackgroundColor = SerializableState.DefaultBackgroundColor = RGBA_U8(21, 21, 21);
+ SerializableState.CollisionToleranceClip = 0.04f;
+ SerializableState.RotationRadiusClip = 0.1f;
+ SerializableState.CurveDefaultParams = DefaultCurveParams();
+ SerializableState.EntityListWindow = true;
+ SerializableState.SelectedEntityWindow = true;
+#if BUILD_DEBUG
+ SerializableState.DiagnosticsWindow = true;
+ SerializableState.ProfilerWindow = true;
+#endif
+ InitCamera(&SerializableState.Camera);
+ InitEditor(Editor, SerializableState, false, NilStr);
+ 
+ // TODO(hbr): remove
  {
   entity_store *EntityStore = Editor->EntityStore;
   string_store *StrStore = Editor->StrStore;
@@ -135,23 +392,72 @@ LoadEmptyProject(editor *Editor)
   
   EndEntityModify(Witness);
  }
- 
- Editor->ProjectModified = false;
- // TODO(hbr): remove
- Editor->ProjectModified = true;
- Editor->IsProjectFileBacked = false;
- UpdateWindowTitle(Editor);
 }
 
 internal b32
 LoadProjectFromFile(editor *Editor, string FilePath)
 {
  b32 Success = false;
- if (Success)
+ temp_arena Temp = TempArena(0);
+ 
+ string Data = OS_ReadEntireFile(Temp.Arena, FilePath);
+ deserialize_stream Deserial = MakeDeserializeStream(Data);
+ 
+ editor_save_header Header = {};
+ editor_serializable_state SerializableState = {};
+ 
+ DeserializeStruct(&Deserial, &Header);
+ if (Header.MagicValue == EditorSaveFileMagicValue &&
+     Header.Version == EditorVersion)
  {
-  SetProjectFilePath(Editor, FilePath);
+  DeserializeStruct(&Deserial, &SerializableState);
+  
+  AllocEditorResources(Editor);
+  InitEditor(Editor, SerializableState, true, FilePath);
+  
+  entity_store *EntityStore = Editor->EntityStore;
+  string_store *StrStore = Editor->StrStore;
+  
+  for (u32 StrIndex = 0;
+       StrIndex < Header.StringCount;
+       ++StrIndex)
+  {
+   string String = DeserializeString(Temp.Arena, &Deserial);
+   string_id Id = StringIdFromIndex(StrIndex);
+   SetOrAllocStringOfId(StrStore, String, Id);
+  }
+  
+  ForEachIndex(EntityIndex, Header.EntityCount)
+  {
+   entity Serialized = {};
+   DeserializeStruct(&Deserial, &Serialized);
+   
+   entity *Entity = AllocEntity(EntityStore, false);
+   switch (Serialized.Type)
+   {
+    case Entity_Curve: {
+     entity_with_modify_witness Witness = BeginEntityModify(Entity);
+     InitEntityFromEntity(&Witness, &Serialized, EntityStore);
+     EndEntityModify(Witness);
+    }break;
+    
+    case Entity_Image: {
+     InitEntityPartFromEntity(Entity, &Serialized, EntityStore);
+     string_id ImageFilePathId = Serialized.Image.FilePath;
+     string ImageFilePath = StringFromStringId(StrStore, ImageFilePathId);
+     image_instantiation_spec Spec = MakeImageInstantiationSpec_EntityProvided(Entity);
+     TryLoadImage(Editor, ImageFilePath, Spec);
+    }break;
+    
+    case Entity_Count: InvalidPath;
+   }
+  }
+  
+  Success = true;
  }
- NotImplemented;
+ 
+ EndTemp(Temp);
+ 
  return Success;
 }
 
@@ -159,42 +465,53 @@ internal b32
 SaveProjectIntoFile(editor *Editor, string FilePath)
 {
  b32 Success = false;
- NotImplemented;
+ temp_arena Temp = TempArena(0);
+ string_list Data = {};
+ string_store *StrStore = Editor->StrStore;
+ entity_array Entities = AllEntityArrayFromStore(Editor->EntityStore);
+ 
+ if (!StrEndsWith(FilePath, EditorSessionFileExtension))
+ {
+  FilePath = StrF(Temp.Arena, "%S.%S", FilePath, EditorSessionFileExtension);
+ }
+ 
+ editor_save_header Header = {};
+ Header.MagicValue = EditorSaveFileMagicValue;
+ Header.Version = EditorVersion;
+ Header.StringCount = StrStore->StrCount;
+ Header.EntityCount = Entities.Count;
+ 
+ SerializeStruct(Temp.Arena, &Data, &Header);
+ SerializeStruct(Temp.Arena, &Data, &Editor->SerializableState);
+ 
+ for (u32 StrIndex = 0;
+      StrIndex < Header.StringCount;
+      ++StrIndex)
+ {
+  string_id Id = StringIdFromIndex(StrIndex);
+  string String = StringFromStringId(StrStore, Id);
+  SerializeString(Temp.Arena, &Data, String);
+ }
+ 
+ ForEachIndex(EntityIndex, Entities.Count)
+ {
+  entity *Entity = Entities.Entities[EntityIndex];
+  SerializeStruct(Temp.Arena, &Data, Entity);
+ }
+ 
+ // TODO(hbr): don't require to join this
+ string_list_join_options Opts = {};
+ string Joined = StrListJoin(Temp.Arena, &Data, Opts);
+ Success = OS_WriteDataToFile(FilePath, Joined);
+ 
+ if (Success)
+ {
+  SetProjectFilePath(Editor, true, FilePath);
+ }
+ 
+ EndTemp(Temp);
+ 
  return Success;
-}
-
-internal void
-SetProjectFilePath(editor *Editor, string FilePath)
-{
- Editor->IsProjectFileBacked = true;
- ClearArena(Editor->ProjectFilePathArena);
- Editor->ProjectFilePath = StrCopy(Editor->ProjectFilePathArena, FilePath);
- UpdateWindowTitle(Editor);
-}
-
-internal editor *
-AllocEditor(editor_memory *Memory)
-{
- arena *PermamentArena = Memory->PermamentArena;
- editor *Editor = PushStruct(PermamentArena, editor);
- 
- Editor->LowPriorityQueue = Memory->LowPriorityQueue;
- Editor->HighPriorityQueue = Memory->HighPriorityQueue;
- Editor->RendererQueue = Memory->RendererQueue;
- Editor->Arena = PermamentArena;
- Editor->StrStore = AllocStringStore(PermamentArena);
- Editor->EntityStore = AllocEntityStore(PermamentArena, Memory->MaxTextureCount, Memory->MaxBufferCount, Editor->StrStore);
- Editor->ThreadTaskMemoryStore = AllocThreadTaskMemoryStore(PermamentArena);
- Editor->ImageLoadingStore = AllocImageLoadingStore(PermamentArena);
- InitLeftClickState(&Editor->LeftClick);
- InitVisualProfiler(&Editor->Profiler, Memory->Profiler);
- InitAnimatingCurvesState(&Editor->AnimatingCurves, Editor->EntityStore);
- InitMergingCurvesState(&Editor->MergingCurves, Editor->EntityStore);
- InitFrameStats(&Editor->FrameStats);
- 
- LoadEmptyProject(Editor);
- 
- return Editor;
 }
 
 internal void
@@ -211,10 +528,9 @@ AddNotification(editor *Editor, notification_type Type, string Content)
  ++Editor->NotificationCount;
  
  Notification->Type = Type;
- Notification->Content = AllocStringFromString(Editor->StrStore, Content);
+ Notification->Content = StrCopy(Editor->NotificationsArena, Content);
  Notification->LifeTime = 0.0f;
  Notification->ScreenPosY = 0.0f;
- 
 }
 
 internal void
@@ -230,42 +546,6 @@ AddNotificationF(editor *Editor, notification_type Type, char const *Format, ...
 }
 
 internal void
-InitEntityFromEntity(entity_store *EntityStore, entity_with_modify_witness *DstWitness, entity *Src)
-{
- entity *Dst = DstWitness->Entity;
- curve *DstCurve = &Dst->Curve;
- curve *SrcCurve = &Src->Curve;
- image *DstImage = &Dst->Image;
- image *SrcImage = &Src->Image;
- string_store *StrStore = EntityStore->StrStore;
- 
- InitEntityPart(Dst,
-                Src->Type,
-                Src->XForm,
-                GetEntityName(Src, StrStore),
-                Src->SortingLayer,
-                Src->Flags,
-                StrStore);
- 
- switch (Src->Type)
- {
-  case Entity_Curve: {
-   DstCurve->Params = SrcCurve->Params;
-   SetCurvePoints(DstWitness, CurvePointsHandleFromCurvePointsStatic(&SrcCurve->Points));
-   SelectControlPoint(DstCurve, SrcCurve->SelectedControlPoint);
-  }break;
-  
-  case Entity_Image: {
-   DstImage->Dim = SrcImage->Dim;
-   DeallocTextureHandle(EntityStore, DstImage->TextureHandle);
-   DstImage->TextureHandle = CopyTextureHandle(EntityStore, SrcImage->TextureHandle);
-  }break;
-  
-  case Entity_Count: InvalidPath;
- }
-}
-
-internal void
 DuplicateEntity(editor *Editor, entity *Entity)
 {
  temp_arena Temp = TempArena(0);
@@ -275,7 +555,7 @@ DuplicateEntity(editor *Editor, entity *Entity)
  entity *Copy = AddEntity(Editor);
  entity_with_modify_witness CopyWitness = BeginEntityModify(Copy);
  string CopyName = StrF(Temp.Arena, "%S(copy)", GetEntityName(Entity, StrStore));
- InitEntityFromEntity(EntityStore, &CopyWitness, Entity);
+ InitEntityFromEntity(&CopyWitness, Entity, EntityStore);
  SelectEntity(Editor, Copy);
  
  f32 SlightTranslationX = 5 * Copy->Curve.Params.DrawParams.Line.Width;
@@ -307,8 +587,8 @@ SplitCurveOnControlPoint(editor *Editor, entity *Entity)
   entity_with_modify_witness HeadWitness = BeginEntityModify(HeadEntity);
   entity_with_modify_witness TailWitness = BeginEntityModify(TailEntity);
   
-  InitEntityFromEntity(EntityStore, &HeadWitness, Entity);
-  InitEntityFromEntity(EntityStore, &TailWitness, Entity);
+  InitEntityFromEntity(&HeadWitness, Entity, EntityStore);
+  InitEntityFromEntity(&TailWitness, Entity, EntityStore);
   
   curve *HeadCurve = SafeGetCurve(HeadEntity);
   curve *TailCurve = SafeGetCurve(TailEntity);
@@ -427,8 +707,8 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  entity_with_modify_witness LeftWitness = BeginEntityModify(LeftEntity);
  entity_with_modify_witness RightWitness = BeginEntityModify(RightEntity);
  
- InitEntityFromEntity(EntityStore, &LeftWitness, Entity);
- InitEntityFromEntity(EntityStore, &RightWitness, Entity);
+ InitEntityFromEntity(&LeftWitness, Entity, EntityStore);
+ InitEntityFromEntity(&RightWitness, Entity, EntityStore);
  
  string LeftName = StrF(Temp.Arena, "%S(left)", GetEntityName(Entity, StrStore));
  string RightName = StrF(Temp.Arena, "%S(right)", GetEntityName(Entity, StrStore));
@@ -473,7 +753,7 @@ EndMergingCurves(editor *Editor, b32 Merged)
   
   entity *Entity = AddEntity(Editor);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
-  InitEntityFromEntity(EntityStore, &EntityWitness, Merging->MergeEntity);
+  InitEntityFromEntity(&EntityWitness, Merging->MergeEntity, EntityStore);
   EndEntityModify(EntityWitness);
   
   entity *Entity0 = EntityFromHandle(Merging->Choose2Curves.Curves[0]);
@@ -802,8 +1082,17 @@ PushEditorCmd(editor *Editor, editor_command Command)
 internal void
 EndEditorFrame(editor *Editor)
 {
+ //- execute all editor commands gathered throughout the frame (mostly from input)
+ ListIter(CmdNode, Editor->EditorCommandsHead, editor_command_node)
+ {
+  ExecuteEditorCommand(Editor, CmdNode->Command);
+  StackPush(Editor->FreeEditorCommandNode, CmdNode);
+ }
+ Editor->EditorCommandsHead = 0;
+ Editor->EditorCommandsTail = 0;
  //- end pending action tracking group is all tracked actions are completed
- Assert(Editor->IsPendingActionTrackingGroup);
+ // TODO(hbr): restore
+ //Assert(Editor->IsPendingActionTrackingGroup);
  action_tracking_group *Group = &Editor->PendingActionTrackingGroup;
  b32 HasPending = false;
  ListIter(Action, Group->ActionsHead, tracked_action)
@@ -819,14 +1108,6 @@ EndEditorFrame(editor *Editor)
   EndActionTrackingGroup(Editor, Group);
   Editor->IsPendingActionTrackingGroup = false;
  }
- //- execute all editor commands gathered throughout the frame (mostly from input)
- ListIter(CmdNode, Editor->EditorCommandsHead, editor_command_node)
- {
-  ExecuteEditorCommand(Editor, CmdNode->Command);
-  StackPush(Editor->FreeEditorCommandNode, CmdNode);
- }
- Editor->EditorCommandsHead = 0;
- Editor->EditorCommandsTail = 0;
 }
 
 internal action_tracking_group *
@@ -1337,22 +1618,24 @@ CopyTextureHandle(entity_store *Store, render_texture_handle Handle)
 }
 
 internal entity_store *
-AllocEntityStore(arena *PermamentArena,
+AllocEntityStore(arena_store *ArenaStore,
                  u32 MaxTextureCount,
                  u32 MaxBufferCount,
                  string_store *StrStore)
 {
- entity_store *Store = PushStruct(PermamentArena, entity_store);
- Store->Arena = PermamentArena;
+ arena *Arena = AllocArenaFromStore(ArenaStore, Gigabytes(1));
+ entity_store *Store = PushStruct(Arena, entity_store);
+ Store->Arena = Arena;
  ForEachElement(Index, Store->ByTypeArenas)
  {
-  Store->ByTypeArenas[Index] = AllocArena(Megabytes(1));
+  Store->ByTypeArenas[Index] = AllocArenaFromStore(ArenaStore, Megabytes(1));
  }
  Store->TextureCount = MaxTextureCount;
- Store->TextureHandleRefCount = PushArray(PermamentArena, MaxTextureCount, b32);
+ Store->TextureHandleRefCount = PushArray(Arena, MaxTextureCount, b32);
  Store->BufferCount = MaxBufferCount;
- Store->IsBufferHandleAllocated = PushArray(PermamentArena, MaxBufferCount, b32);
+ Store->IsBufferHandleAllocated = PushArray(Arena, MaxBufferCount, b32);
  Store->StrStore = StrStore;
+ Store->ArenaStore = ArenaStore;
  return Store;
 }
 
@@ -1380,9 +1663,12 @@ AllocEntity(entity_store *Store, b32 DontTrack)
  // NOTE(hbr): It shouldn't really matter anyway that we allocate arenas even for
  // entities other than curves.
  curve *Curve = &Entity->Curve;
- Curve->ComputeArena = AllocArena(Megabytes(32));
- Curve->DegreeLowering.Arena = AllocArena(Megabytes(32));
- Curve->ParametricResources.Arena = AllocArena(Megabytes(32));
+ Curve->ComputeArena = AllocArenaFromStore(Store->ArenaStore, Megabytes(32));
+ Curve->DegreeLowering.Arena = AllocArenaFromStore(Store->ArenaStore, Megabytes(32));
+ Curve->ParametricResources.Arena = AllocArenaFromStore(Store->ArenaStore, Megabytes(32));
+ 
+ image *Image = &Entity->Image;
+ Image->FilePath = AllocStringOfSize(Store->StrStore, 128);
  
  if (!DontTrack)
  {
@@ -1396,9 +1682,9 @@ internal void
 DeallocEntity(entity_store *Store, entity *Entity)
 {
  curve *Curve = &Entity->Curve;
- DeallocArena(Curve->ComputeArena);
- DeallocArena(Curve->DegreeLowering.Arena);
- DeallocArena(Curve->ParametricResources.Arena);
+ DeallocArenaFromStore(Store->ArenaStore, Curve->ComputeArena);
+ DeallocArenaFromStore(Store->ArenaStore, Curve->DegreeLowering.Arena);
+ DeallocArenaFromStore(Store->ArenaStore, Curve->ParametricResources.Arena);
  
  image *Image = &Entity->Image;
  DeallocTextureHandle(Store, Image->TextureHandle);
@@ -1480,10 +1766,12 @@ EntityArrayFromType(entity_store *Store, entity_type Type)
 }
 
 internal thread_task_memory_store *
-AllocThreadTaskMemoryStore(arena *PermamentArena)
+AllocThreadTaskMemoryStore(arena_store *ArenaStore)
 {
- thread_task_memory_store *Store = PushStruct(PermamentArena, thread_task_memory_store);
- Store->Arena = PermamentArena;
+ arena *Arena = AllocArenaFromStore(ArenaStore, Gigabytes(1));
+ thread_task_memory_store *Store = PushStruct(Arena, thread_task_memory_store);
+ Store->Arena = Arena;
+ Store->ArenaStore = ArenaStore;
  return Store;
 }
 
@@ -1500,23 +1788,32 @@ BeginThreadTaskMemory(thread_task_memory_store *Store)
   Task = PushStructNonZero(Store->Arena, thread_task_memory);
  }
  StructZero(Task);
- Task->Arena = AllocArena(Gigabytes(1));
+ Task->Arena = AllocArenaFromStore(Store->ArenaStore, Gigabytes(1));
  return Task;
 }
 
 internal void
 EndThreadTaskMemory(thread_task_memory_store *Store, thread_task_memory *Task)
 {
- DeallocArena(Task->Arena);
+ DeallocArenaFromStore(Store->ArenaStore, Task->Arena);
  StackPush(Store->Free, Task);
 }
 
 internal image_loading_store *
-AllocImageLoadingStore(arena *PermamentArena)
+AllocImageLoadingStore(arena_store *ArenaStore)
 {
- image_loading_store *Store = PushStruct(PermamentArena, image_loading_store);
- Store->Arena = PermamentArena;
+ arena *Arena = AllocArenaFromStore(ArenaStore, Gigabytes(1));
+ image_loading_store *Store = PushStruct(Arena, image_loading_store);
+ Store->Arena = Arena;
+ Store->ArenaStore = ArenaStore;
  return Store;
+}
+
+internal void
+DeallocImageLoadingStore(image_loading_store *Store)
+{
+ DeallocArenaFromStore(Store->ArenaStore, Store->Arena);
+ StructZero(Store);
 }
 
 internal image_loading_task *
@@ -1533,7 +1830,7 @@ BeginAsyncImageLoadingTask(image_loading_store *Store)
  }
  StructZero(Task);
  
- Task->Arena = AllocArena(Gigabytes(1));
+ Task->Arena = AllocArenaFromStore(Store->ArenaStore, Gigabytes(1));
  DLLPushBack(Store->Head, Store->Tail, Task);
  
  return Task;
@@ -1542,10 +1839,29 @@ BeginAsyncImageLoadingTask(image_loading_store *Store)
 internal void
 FinishAsyncImageLoadingTask(image_loading_store *Store, image_loading_task *Task)
 {
- DeallocArena(Task->Arena);
+ DeallocArenaFromStore(Store->ArenaStore, Task->Arena);
  DLLRemove(Store->Head, Store->Tail, Task);
  StackPush(Store->Free, Task);
 }
+
+internal image_instantiation_spec
+MakeImageInstantiationSpec_EntityProvided(entity *Entity)
+{
+ image_instantiation_spec Spec = {};
+ Spec.Type = ImageInstantiationSpec_EntityProvided;
+ Spec.ImageEntity = MakeEntityHandle(Entity);
+ return Spec;
+}
+
+internal image_instantiation_spec
+MakeImageInstantiationSpec_AtP(v2 AtP)
+{
+ image_instantiation_spec Spec = {};
+ Spec.Type = ImageInstantiationSpec_AtP;
+ Spec.InstantiateImageAtP = AtP;
+ return Spec;
+}
+
 internal multiline_collision
 CheckCollisionWithMultiLine(v2 LocalAtP, v2 *CurveSamples, u32 PointCount, f32 Width, f32 Tolerance)
 {
@@ -1877,6 +2193,13 @@ MakeEntityHandle(entity *Entity)
   Handle.Entity = Entity;
   Handle.Generation = Entity->Generation;
  }
+ return Handle;
+}
+
+internal entity_handle
+EntityHandleZero(void)
+{
+ entity_handle Handle = {};
  return Handle;
 }
 
@@ -3061,33 +3384,104 @@ InitEntityPart(entity *Entity,
 }
 
 internal void
+InitEntityCurvePart(curve *Curve, curve_params CurveParams)
+{
+ Curve->Params = CurveParams;
+}
+
+internal void
 InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams, string_store *StrStore)
 {
- InitEntityPart(Entity,
-                Entity_Curve,
-                XForm2DZero(),
-                Name, 0, 0,
-                StrStore);
- curve *Curve = &Entity->Curve;
- Curve->Params = CurveParams;
+ InitEntityPart(Entity, Entity_Curve, XForm2DZero(), Name, 0, 0, StrStore);
+ InitEntityCurvePart(&Entity->Curve, CurveParams);
+}
+
+internal void
+InitEntityImagePart(image *Image,
+                    scale2d Dim,
+                    string ImageFilePath,
+                    render_texture_handle TextureHandle,
+                    string_store *StrStore)
+{
+ Image->Dim = Dim;
+ char_buffer *FilePathBuffer = CharBufferFromStringId(StrStore, Image->FilePath);
+ FillCharBuffer(FilePathBuffer, ImageFilePath);
+ Image->TextureHandle = TextureHandle;
+}
+
+internal void
+InitEntityImagePart(image *Image,
+                    u32 Width, u32 Height,
+                    string ImageFilePath,
+                    render_texture_handle TextureHandle,
+                    string_store *StrStore)
+{
+ scale2d Dim = Scale2D(Cast(f32)Width / Height, 1.0f);
+ InitEntityImagePart(Image, Dim, ImageFilePath, TextureHandle, StrStore);
 }
 
 internal void
 InitEntityAsImage(entity *Entity,
                   v2 P,
-                  string Name,
                   u32 Width, u32 Height,
+                  string ImageFilePath,
                   render_texture_handle TextureHandle,
                   string_store *StrStore)
 {
- InitEntityPart(Entity,
-                Entity_Image,
-                XForm2DFromP(P),
-                Name, 0, 0,
+ string FileName = PathLastPart(ImageFilePath);
+ string FileNameNoExt = StrChopLastDot(FileName);
+ InitEntityPart(Entity, Entity_Image, XForm2DFromP(P), FileNameNoExt, 0, 0, StrStore);
+ InitEntityImagePart(&Entity->Image, Width, Height, ImageFilePath, TextureHandle, StrStore);
+}
+
+internal void
+InitEntityPartFromEntity(entity *Dst, entity *Src, entity_store *EntityStore)
+{
+ string_store *StrStore = EntityStore->StrStore;
+ InitEntityPart(Dst,
+                Src->Type,
+                Src->XForm,
+                GetEntityName(Src, StrStore),
+                Src->SortingLayer,
+                Src->Flags,
                 StrStore);
- image *Image = &Entity->Image;
- Image->Dim = Scale2D(Cast(f32)Width / Height, 1.0f);
- Image->TextureHandle = TextureHandle;
+}
+
+internal void
+InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src, entity_store *EntityStore)
+{
+ entity *Dst = DstWitness->Entity;
+ curve *DstCurve = &Dst->Curve;
+ curve *SrcCurve = &Src->Curve;
+ image *DstImage = &Dst->Image;
+ image *SrcImage = &Src->Image;
+ string_store *StrStore = EntityStore->StrStore;
+ //- init entity part
+ InitEntityPart(Dst,
+                Src->Type,
+                Src->XForm,
+                GetEntityName(Src, StrStore),
+                Src->SortingLayer,
+                Src->Flags,
+                StrStore);
+ //- init specific entity type part
+ switch (Src->Type)
+ {
+  case Entity_Curve: {
+   InitEntityCurvePart(DstCurve, SrcCurve->Params);
+   SetCurvePoints(DstWitness, CurvePointsHandleFromCurvePointsStatic(&SrcCurve->Points));
+   SelectControlPoint(DstCurve, SrcCurve->SelectedControlPoint);
+  }break;
+  
+  case Entity_Image: {
+   DeallocTextureHandle(EntityStore, DstImage->TextureHandle);
+   render_texture_handle TextureHandle = CopyTextureHandle(EntityStore, SrcImage->TextureHandle);
+   string SrcFilePath = StringFromStringId(StrStore, SrcImage->FilePath);
+   InitEntityImagePart(DstImage, SrcImage->Dim, SrcFilePath, TextureHandle, StrStore);
+  }break;
+  
+  case Entity_Count: InvalidPath;
+ }
 }
 
 internal void
@@ -3911,28 +4305,57 @@ DefaultCubicSplineCurveParams(void)
  Params.CubicSpline = CubicSpline_Natural;
  return Params;
 }
+
 internal string_store *
-AllocStringStore(arena *PermamentArena)
+AllocStringStore(arena_store *ArenaStore)
 {
- string_store *Store = PushStruct(PermamentArena, string_store);
- InitStringCache(&Store->StrCache);
- Store->Arena = PermamentArena;
+ arena *Arena = AllocArenaFromStore(ArenaStore, Gigabytes(1));
+ string_store *Store = PushStruct(Arena, string_store);
+ Store->StrCache = AllocStringCache(Arena);
+ Store->Arena = Arena;
+ Store->ArenaStore = ArenaStore;
  return Store;
+}
+
+internal void
+DeallocStringStore(string_store *Store)
+{
+ DeallocArenaFromStore(Store->ArenaStore, Store->Arena);
 }
 
 internal string_id
 AllocStringFromString(string_store *Store, string Str)
 {
- string_id Id = AllocStringOfSize(Store, Str.Count);
+ string_id Id = StringIdFromIndex(Store->StrCount);
+ SetOrAllocStringOfId(Store, Str, Id);
+ return Id;
+}
+
+internal void
+DeallocString(string_store *Store, string_id Id)
+{
+ char_buffer *Buffer = CharBufferFromStringId(Store, Id);
+ DeallocString(Store->StrCache, *Buffer);
+ StructZero(Buffer);
+}
+
+internal void
+SetOrAllocStringOfId(string_store *Store, string Str, string_id Id)
+{
+ u32 Index = IndexFromStringId(Id);
+ if (Index >= Store->StrCount)
+ {
+  string_id AllocatedId = AllocStringOfSize(Store, Str.Count);
+  Assert(StringIdMatch(Id, AllocatedId));
+ }
  char_buffer *Buffer = CharBufferFromStringId(Store, Id);
  FillCharBuffer(Buffer, Str);
- return Id;
 }
 
 internal string_id
 AllocStringOfSize(string_store *Store, u64 Size)
 {
- char_buffer Buffer = AllocString(&Store->StrCache, Size);
+ char_buffer Buffer = AllocString(Store->StrCache, Size);
  if (Store->StrCount >= Store->StrCapacity)
  {
   u32 NewCapacity = Max(2 * Store->StrCapacity, Store->StrCount + 1);
@@ -3962,4 +4385,26 @@ StringFromStringId(string_store *Store, string_id Id)
  char_buffer *Buffer = CharBufferFromStringId(Store, Id);
  string Str = StrFromCharBuffer(*Buffer);
  return Str;
+}
+
+internal string_id
+StringIdFromIndex(u32 Index)
+{
+ string_id Id = {};
+ Id.Index = Index;
+ return Id;
+}
+
+internal u32
+IndexFromStringId(string_id Id)
+{
+ u32 Index = Id.Index;
+ return Index;
+}
+
+internal b32
+StringIdMatch(string_id A, string_id B)
+{
+ b32 Result = (A.Index == B.Index);
+ return Result;
 }

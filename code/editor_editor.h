@@ -1114,6 +1114,8 @@ struct project_change_request_state
 #define EditorSerializableStateStructMembers \
 camera Camera; \
 \
+u64 EverIncreasingEntityCounter; \
+\
 b32 HideUI; \
 b32 EntityListWindow; \
 b32 DiagnosticsWindow; \
@@ -1152,7 +1154,6 @@ struct editor
  
  selected_entity_transform_state SelectedEntityTransformState;
  entity_handle SelectedEntity;
- u64 EverIncreasingEntityCounter;
  
  u32 ActionTrackingGroupCount;
  u32 ActionTrackingGroupIndex;

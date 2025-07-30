@@ -1104,6 +1104,7 @@ enum project_change_request
 };
 struct project_change_request_state
 {
+ arena *Arena;
  project_change_request Request;
  change_project_method ChangeHow;
  b32 CurrentProjectSaveModalIsOpen;
@@ -1456,5 +1457,8 @@ internal void FinishAsyncImageLoadingTask(image_loading_store *Store, image_load
 
 internal image_instantiation_spec MakeImageInstantiationSpec_EntityProvided(entity *Entity);
 internal image_instantiation_spec MakeImageInstantiationSpec_AtP(v2 AtP);
+
+//~ misc
+internal change_project_method CopyProjectChangeMethod(arena *Arena, change_project_method Method);
 
 #endif //EDITOR_EDITOR_H

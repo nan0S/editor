@@ -67,6 +67,26 @@ UpdateWindowTitle(editor *Editor)
 }
 
 internal void
+MarkProjectAsModified(editor *Editor)
+{
+ if (!Editor->ProjectModified)
+ {
+  Editor->ProjectModified = true;
+  UpdateWindowTitle(Editor);
+ }
+}
+
+internal void
+MarkProjectAsUpToDate(editor *Editor)
+{
+ if (Editor->ProjectModified)
+ {
+  Editor->ProjectModified = false;
+  UpdateWindowTitle(Editor);
+ }
+}
+
+internal void
 ProcessImageLoadingTasks(editor *Editor)
 {
  image_loading_store *ImageLoadingStore = Editor->ImageLoadingStore;
@@ -279,6 +299,12 @@ DeallocArenaFromStore(arena_store *ArenaStore, arena *Arena)
 }
 
 internal void
+InitProjectChangeRequestState(project_change_request_state *State, arena_store *ArenaStore)
+{
+ State->Arena = AllocArenaFromStore(ArenaStore, Megabytes(1));
+}
+
+internal void
 AllocEditorResources(editor *Editor)
 {
  editor_memory *Memory = Editor->EditorMemory;
@@ -307,6 +333,7 @@ AllocEditorResources(editor *Editor)
  InitAnimatingCurvesState(&Editor->AnimatingCurves, Editor->EntityStore);
  InitMergingCurvesState(&Editor->MergingCurves, Editor->EntityStore);
  InitFrameStats(&Editor->FrameStats);
+ InitProjectChangeRequestState(&Editor->ProjectChange, ArenaStore);
 }
 
 internal void
@@ -325,6 +352,7 @@ InitEditor(editor *Editor,
            string FilePath)
 {
  Editor->SerializableState = SerializableState;
+ Editor->ProjectModified = false;
  SetProjectFilePath(Editor, IsFileBacked, FilePath);
 }
 
@@ -506,6 +534,7 @@ SaveProjectIntoFile(editor *Editor, string FilePath)
  
  if (Success)
  {
+  MarkProjectAsUpToDate(Editor);
   SetProjectFilePath(Editor, true, FilePath);
  }
  
@@ -990,6 +1019,8 @@ EndActionTrackingGroup(editor *Editor, action_tracking_group *Group)
   Editor->ActionTrackingGroups[Editor->ActionTrackingGroupIndex] = *Group;
   ++Editor->ActionTrackingGroupIndex;
   Editor->ActionTrackingGroupCount = Editor->ActionTrackingGroupIndex;
+  // TODO(hbr): I'm not sure if this is the best place to do this
+  MarkProjectAsModified(Editor);
  }
  else
  {
@@ -1001,7 +1032,9 @@ internal void
 RequestProjectChange(editor *Editor, project_change_request Request)
 {
  project_change_request_state *State = &Editor->ProjectChange;
+ arena *Arena = State->Arena;
  StructZero(State);
+ State->Arena = Arena;
  State->Request = Request;
 }
 
@@ -1091,22 +1124,23 @@ EndEditorFrame(editor *Editor)
  Editor->EditorCommandsHead = 0;
  Editor->EditorCommandsTail = 0;
  //- end pending action tracking group is all tracked actions are completed
- // TODO(hbr): restore
- //Assert(Editor->IsPendingActionTrackingGroup);
- action_tracking_group *Group = &Editor->PendingActionTrackingGroup;
- b32 HasPending = false;
- ListIter(Action, Group->ActionsHead, tracked_action)
+ if (Editor->IsPendingActionTrackingGroup)
  {
-  if (Action->IsPending)
+  action_tracking_group *Group = &Editor->PendingActionTrackingGroup;
+  b32 HasPending = false;
+  ListIter(Action, Group->ActionsHead, tracked_action)
   {
-   HasPending = true;
-   break;
+   if (Action->IsPending)
+   {
+    HasPending = true;
+    break;
+   }
   }
- }
- if (!HasPending)
- {
-  EndActionTrackingGroup(Editor, Group);
-  Editor->IsPendingActionTrackingGroup = false;
+  if (!HasPending)
+  {
+   EndActionTrackingGroup(Editor, Group);
+   Editor->IsPendingActionTrackingGroup = false;
+  }
  }
 }
 
@@ -4406,5 +4440,14 @@ internal b32
 StringIdMatch(string_id A, string_id B)
 {
  b32 Result = (A.Index == B.Index);
+ return Result;
+}
+
+internal change_project_method
+CopyProjectChangeMethod(arena *Arena, change_project_method Method)
+{
+ change_project_method Result = {};
+ Result.Type = Method.Type;
+ Result.FilePath = StrCopy(Arena, Method.FilePath);
  return Result;
 }

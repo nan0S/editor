@@ -3802,10 +3802,11 @@ TryChangeProject(editor *Editor,
                  b32 ForceLoad)
 {
  b32 RequestQuit = false;
- project_change_request_state *ProjectChange = &Editor->ProjectChange;
  if (!ForceLoad && Editor->ProjectModified)
  {
-  ProjectChange->ChangeHow = ChangeHow;
+  project_change_request_state *ProjectChange = &Editor->ProjectChange;
+  ClearArena(ProjectChange->Arena);
+  ProjectChange->ChangeHow = CopyProjectChangeMethod(ProjectChange->Arena, ChangeHow);
   ProjectChange->CurrentProjectSaveModalIsOpen = true;
   switch (ChangeHow.Type)
   {

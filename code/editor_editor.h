@@ -205,6 +205,8 @@ struct curve_points_static
  v2 ControlPoints[CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT];
  f32 ControlPointWeights[CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT];
  cubic_bezier_point CubicBezierPoints[CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT];
+#define MAX_B_SPLINE_KNOT_COUNT (2 * CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT)
+ f32 BSplineKnots[MAX_B_SPLINE_KNOT_COUNT];
 };
 
 struct curve_points_dynamic
@@ -543,15 +545,13 @@ struct curve
  control_point_handle SelectedControlPoint;
  b_spline_knot_handle SelectedBSplineKnot;
  b_spline_params ComputedBSplineParams;
+ 
  point_tracking_along_curve_state PointTracking;
  curve_degree_lowering_state DegreeLowering;
  parametric_curve_resources ParametricResources;
  
  // all points here are in local space
  curve_points_static Points;
-#define MAX_B_SPLINE_KNOT_COUNT (2 * CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT)
- f32 BSplineKnots[MAX_B_SPLINE_KNOT_COUNT];
- v2 BSplinePartitionKnots[MAX_B_SPLINE_KNOT_COUNT];
  
  arena *ComputeArena;
  u32 CurveSampleCount;
@@ -561,6 +561,7 @@ struct curve
  vertex_array CurveVertices;
  vertex_array PolylineVertices;
  vertex_array ConvexHullVertices;
+ v2 *BSplinePartitionKnots;
  u32 BSplineConvexHullCount;
  b_spline_convex_hull *BSplineConvexHulls;
 };
@@ -650,8 +651,8 @@ struct entity_array
 enum modify_curve_points_static_which_points
 {
  ModifyCurvePointsWhichPoints_ControlPointsOnly,
- ModifyCurvePointsWhichPoints_ControlPointsWithWeights,
- ModifyCurvePointsWhichPoints_AllPoints,
+ ModifyCurvePointsWhichPoints_ControlPointsAndWeights,
+ ModifyCurvePointsWhichPoints_ControlPointsAndWeightsAndCubicBeziers,
 };
 struct curve_points_modify_handle
 {

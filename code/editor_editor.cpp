@@ -627,8 +627,8 @@ SplitCurveOnControlPoint(editor *Editor, entity *Entity)
   SetEntityName(HeadEntity, HeadName, StrStore);
   SetEntityName(TailEntity, TailName, StrStore);
   
-  curve_points_modify_handle HeadPoints = BeginModifyCurvePoints(&HeadWitness, HeadPointCount, ModifyCurvePointsWhichPoints_AllPoints);
-  curve_points_modify_handle TailPoints = BeginModifyCurvePoints(&TailWitness, TailPointCount, ModifyCurvePointsWhichPoints_AllPoints);
+  curve_points_modify_handle HeadPoints = BeginModifyCurvePoints(&HeadWitness, HeadPointCount, ModifyCurvePointsWhichPoints_ControlPointsAndWeightsAndCubicBeziers);
+  curve_points_modify_handle TailPoints = BeginModifyCurvePoints(&TailWitness, TailPointCount, ModifyCurvePointsWhichPoints_ControlPointsAndWeightsAndCubicBeziers);
   Assert(HeadPoints.PointCount == HeadPointCount);
   Assert(TailPoints.PointCount == TailPointCount);
   
@@ -660,8 +660,7 @@ ElevateBezierCurveDegree(editor *Editor, entity *Entity)
  Assert(IsRegularBezierCurve(Curve));
  entity_with_modify_witness Witness = BeginEntityModify(Entity);
  u32 PointCount = Curve->Points.ControlPointCount;
- begin_modify_curve_points_static_tracked_result BeginModify = BeginModifyCurvePointsTracked(Editor, &Witness, PointCount + 1,
-                                                                                             ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
+ begin_modify_curve_points_static_tracked_result BeginModify = BeginModifyCurvePointsTracked(Editor, &Witness, PointCount + 1, ModifyCurvePointsWhichPoints_ControlPointsAndWeights);
  curve_points_modify_handle ModifyPoints = BeginModify.ModifyPoints;
  tracked_action *ModifyAction = BeginModify.ModifyAction;
  if (ModifyPoints.PointCount == PointCount + 1)
@@ -744,8 +743,8 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  SetEntityName(LeftEntity, LeftName, StrStore);
  SetEntityName(RightEntity, RightName, StrStore);
  
- curve_points_modify_handle LeftPoints = BeginModifyCurvePoints(&LeftWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
- curve_points_modify_handle RightPoints = BeginModifyCurvePoints(&RightWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
+ curve_points_modify_handle LeftPoints = BeginModifyCurvePoints(&LeftWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsAndWeights);
+ curve_points_modify_handle RightPoints = BeginModifyCurvePoints(&RightWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsAndWeights);
  Assert(LeftPoints.PointCount == ControlPointCount);
  Assert(RightPoints.PointCount == ControlPointCount);
  
@@ -894,7 +893,7 @@ BeginLoweringBezierCurveDegree(editor *Editor, entity *Entity)
  if (PointCount > 0)
  {
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
-  begin_modify_curve_points_static_tracked_result Modify = BeginModifyCurvePointsTracked(Editor, &Witness, PointCount - 1, ModifyCurvePointsWhichPoints_ControlPointsWithWeights);
+  begin_modify_curve_points_static_tracked_result Modify = BeginModifyCurvePointsTracked(Editor, &Witness, PointCount - 1, ModifyCurvePointsWhichPoints_ControlPointsAndWeights);
   curve_points_modify_handle ModifyPoints = Modify.ModifyPoints;
   tracked_action *ModifyAction = Modify.ModifyAction;
   
@@ -1401,7 +1400,7 @@ internal void
 SetCurvePointsTracked(editor *Editor, entity_with_modify_witness *Entity, curve_points_handle Points)
 {
  begin_modify_curve_points_static_tracked_result Modify = BeginModifyCurvePointsTracked(Editor, Entity, Points.ControlPointCount,
-                                                                                        ModifyCurvePointsWhichPoints_AllPoints);
+                                                                                        ModifyCurvePointsWhichPoints_ControlPointsAndWeightsAndCubicBeziers);
  curve_points_modify_handle ModifyPoints = Modify.ModifyPoints;
  tracked_action *ModifyAction = Modify.ModifyAction;
  SetCurvePoints(Entity, Points);
@@ -1981,9 +1980,11 @@ CheckCollisionWithEntities(editor *Editor, v2 AtP, f32 Tolerance)
    {
     case Entity_Curve: {
      curve *Curve = &Entity->Curve;
-     u32 ControlPointCount = Curve->Points.ControlPointCount;
-     v2 *ControlPoints = Curve->Points.ControlPoints;
      curve_params *Params = &Curve->Params;
+     curve_points_static *Points = &Curve->Points;
+     v2 *ControlPoints = Points->ControlPoints;
+     u32 ControlPointCount = Points->ControlPointCount;
+     v2 *BSplinePartitionKnots = Curve->BSplinePartitionKnots;
      point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
      
      if (AreCurvePointsVisible(Curve))
@@ -2143,7 +2144,7 @@ CheckCollisionWithEntities(editor *Editor, v2 AtP, f32 Tolerance)
      if (AreBSplineKnotsVisible(Curve))
      {
       u32 PartitionSize = GetBSplineParams(Curve).KnotParams.PartitionSize;
-      v2 *PartitionKnotPoints = Curve->BSplinePartitionKnots;
+      v2 *PartitionKnotPoints = BSplinePartitionKnots;
       point_draw_info KnotPointInfo = GetBSplinePartitionKnotPointDrawInfo(Entity);
       
       // NOTE(hbr): Skip first and last points because they are not moveable
@@ -3169,7 +3170,7 @@ SelectControlPointFromCurvePoint(curve *Curve, curve_point_handle CurvePoint)
 }
 
 internal void
-MaybeRecomputeCurveBSplineKnots(curve *Curve)
+MaybeRecomputeCurveBSplineKnots(curve *Curve, b32 ForceRecompute)
 {
  u32 ControlPointCount = Curve->Points.ControlPointCount;
  curve_params *CurveParams = &Curve->Params;
@@ -3184,14 +3185,36 @@ MaybeRecomputeCurveBSplineKnots(curve *Curve)
  
  b_spline_params ComputedBSplineParams = Curve->ComputedBSplineParams;
  
- if (!StructsEqual(&ComputedBSplineParams, &FixedBSplineParams))
+ if (!StructsEqual(&ComputedBSplineParams, &FixedBSplineParams) || ForceRecompute)
  {
-  f32 *Knots = Curve->BSplineKnots;
+  f32 *Knots = Curve->Points.BSplineKnots;
   switch (FixedBSplineParams.Partition)
   {
-   case BSplinePartition_Natural: {
-    BSplineBaseKnots(FixedBSplineKnotParams, Knots);
-    BSplineKnotsNaturalExtension(FixedBSplineParams.KnotParams, Knots);
+   case BSplinePartition_Natural:
+   case BSplinePartition_Custom: {
+    
+    if (FixedBSplineParams.Partition == BSplinePartition_Natural)
+    {
+     BSplineBaseKnots(FixedBSplineKnotParams, Knots);
+     BSplineKnotsNaturalExtension(FixedBSplineParams.KnotParams, Knots);
+    }
+    else if (FixedBSplineParams.Partition == BSplinePartition_Custom)
+    {
+     u32 ComputedKnotCount = ComputedBSplineParams.KnotParams.KnotCount;
+     u32 FixedKnotCount = FixedBSplineParams.KnotParams.KnotCount;
+     f32 LastKnot = (ComputedKnotCount > 0 ? Knots[ComputedKnotCount - 1] : FixedBSplineParams.KnotParams.B);
+     // NOTE(hbr): Just knots with appropriate amount of [B] knots at the end
+     for (u32 KnotIndex = ComputedKnotCount;
+          KnotIndex < FixedKnotCount;
+          ++KnotIndex)
+     {
+      Knots[KnotIndex] = LastKnot;
+     }
+    }
+    else
+    {
+     InvalidPath;
+    }
    }break;
    
    case BSplinePartition_Periodic: {
@@ -3199,18 +3222,6 @@ MaybeRecomputeCurveBSplineKnots(curve *Curve)
     BSplineKnotsPeriodicExtension(FixedBSplineParams.KnotParams, Knots);
    }break;
    
-   case BSplinePartition_Custom: {
-    u32 ComputedKnotCount = ComputedBSplineParams.KnotParams.KnotCount;
-    u32 FixedKnotCount = FixedBSplineParams.KnotParams.KnotCount;
-    f32 LastKnot = (ComputedKnotCount > 0 ? Knots[ComputedKnotCount - 1] : FixedBSplineParams.KnotParams.B);
-    // NOTE(hbr): Just knots with appropriate amount of [B] knots at the end
-    for (u32 KnotIndex = ComputedKnotCount;
-         KnotIndex < FixedKnotCount;
-         ++KnotIndex)
-    {
-     Knots[KnotIndex] = LastKnot;
-    }
-   }break;
    case BSplinePartition_Count: InvalidPath;
   }
   Curve->ComputedBSplineParams = FixedBSplineParams;
@@ -3559,6 +3570,7 @@ internal void
 EndModifyCurvePoints(curve_points_modify_handle Handle)
 {
  curve *Curve = Handle.Curve;
+ curve_params *CurveParams = &Curve->Params;
  curve_points_static *Points = &Curve->Points;
  Points->ControlPointCount = Handle.PointCount;
  if (Handle.Which <= ModifyCurvePointsWhichPoints_ControlPointsOnly)
@@ -3570,15 +3582,15 @@ EndModifyCurvePoints(curve_points_modify_handle Handle)
    Points->ControlPointWeights[PointIndex] = 1.0f;
   }
  }
- if (Handle.Which <= ModifyCurvePointsWhichPoints_ControlPointsWithWeights)
+ if (Handle.Which <= ModifyCurvePointsWhichPoints_ControlPointsAndWeights)
  {
   BezierCubicCalculateAllControlPoints(Points->ControlPointCount,
                                        Points->ControlPoints,
                                        Points->CubicBezierPoints);
  }
- if (Handle.Which <= ModifyCurvePointsWhichPoints_AllPoints)
+ if (Handle.Which <= ModifyCurvePointsWhichPoints_ControlPointsAndWeightsAndCubicBeziers)
  {
-  // NOTE(hbr): Nothing to do
+  MaybeRecomputeCurveBSplineKnots(Curve, true);
  }
 }
 
@@ -3635,7 +3647,7 @@ SetBSplineKnotPoint(entity_with_modify_witness *EntityWitness,
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
  b_spline_knot_params KnotParams = GetBSplineParams(Curve).KnotParams;
- f32 *Knots = Curve->BSplineKnots;
+ f32 *Knots = Curve->Points.BSplineKnots;
  u32 KnotIndex = KnotIndexFromBSplineKnotHandle(Knot);
  b32 Moveable = ((KnotIndex >= KnotParams.Degree + 1) &&
                  (KnotIndex + 1 < KnotParams.Degree + KnotParams.PartitionSize));
@@ -4063,7 +4075,7 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
  f32 *Weights = Curve->Points.ControlPointWeights;
  cubic_bezier_point *Beziers = Curve->Points.CubicBezierPoints;
  curve_params *Params = &Curve->Params;
- f32 *BSplineKnots = Curve->BSplineKnots;
+ f32 *BSplineKnots = Curve->Points.BSplineKnots;
  u32 SamplesPerControlPoint = Params->SamplesPerControlPoint;
  
  switch (Params->Type)
@@ -4081,11 +4093,12 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
   } break;
   
   case Curve_BSpline: {
-   MaybeRecomputeCurveBSplineKnots(Curve);
+   MaybeRecomputeCurveBSplineKnots(Curve, false);
    b_spline_knot_params KnotParams = GetBSplineParams(Curve).KnotParams;
    u32 PartitionSize = KnotParams.PartitionSize;
    u32 Degree = KnotParams.Degree;
-   v2 *PartitionKnots = Curve->BSplinePartitionKnots;
+   v2 *PartitionKnots = PushArrayNonZero(Curve->ComputeArena, PartitionSize, v2);
+   Curve->BSplinePartitionKnots = PartitionKnots;
    for (u32 PartitionKnotIndex = 0;
         PartitionKnotIndex < PartitionSize;
         ++PartitionKnotIndex)

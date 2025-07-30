@@ -1273,7 +1273,7 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
           u32 PartitionSize = KnotParams.PartitionSize;
           f32 A = KnotParams.A;
           f32 B = KnotParams.B;
-          f32 *Knots = Curve->BSplineKnots;
+          f32 *Knots = Curve->Points.BSplineKnots;
           for (u32 KnotIndex = 0;
                KnotIndex < KnotCount;
                ++KnotIndex)
@@ -2590,7 +2590,7 @@ ProcessInputEvents(editor *Editor,
      case EditorLeftClick_MovingBSplineKnot: {
       curve *Curve = SafeGetCurve(Entity);
       b_spline_knot_params KnotParams = GetBSplineParams(Curve).KnotParams;
-      f32 *Knots = Curve->BSplineKnots;
+      f32 *Knots = Curve->Points.BSplineKnots;
       b_spline_knot_handle Knot = LeftClick->BSplineKnot;
       u32 KnotIndex = KnotIndexFromBSplineKnotHandle(Knot);
       f32 KnotFraction = Knots[KnotIndex];

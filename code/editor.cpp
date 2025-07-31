@@ -3666,10 +3666,10 @@ RenderDevConsoleUI(editor *Editor)
 internal void
 InitGlobalsOnInitOrCodeReload(editor *Editor)
 {
- NilExpr = &Editor->NilParametricExpr;
- DEBUG_Vars = &Editor->DEBUG_Vars;
  if (Editor)
  {
+  NilExpr = &Editor->NilParametricExpr;
+  DEBUG_Vars = &Editor->DEBUG_Vars;
   InitEditorCtx(Editor->ArenaStore,
                 Editor->RendererQueue,
                 Editor->EntityStore,
@@ -4042,6 +4042,9 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  {
   Editor = Memory->Editor = PushStruct(Memory->PermamentArena, editor);
   Editor->EditorMemory = Memory;
+  // TODO(hbr): Quick fix
+  NilExpr = &Editor->NilParametricExpr;
+  DEBUG_Vars = &Editor->DEBUG_Vars;
   LoadEmptyProject(Editor);
   InitGlobalsOnInitOrCodeReload(Editor);
   // NOTE(hbr): Sanity check that I didn't mess up keyboard shortcut definitions

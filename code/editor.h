@@ -63,6 +63,7 @@ crucial:
 - this is not working properly for parametric expression: unexpected error but this should evaluate: StrLit("sin(t) * (exp(sin(t)) - 2*cos(4t))"),
 - undo/redo doesn't seem to work well with entity list and what is selected - I tend to have multiple things that are selected
 - removing control points when animating curves cause "division by zero", check the same for merging curves
+- undo/redo doesn't track if we changed the curve shape - thus we can remove control point, change the curve shape to shape that doesn't have control points, and then undo - it will try to add control point to a curve that doesn't use control points - error
 
 maybe:
 - usunac artefakty ktore sie pojawiaja gdy linia sie zagina w druga storne bardzo ostro

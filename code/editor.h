@@ -20,6 +20,7 @@
 #include "editor_camera.h"
 #include "editor_editor.h"
 #include "editor_const.h"
+#include "editor_ctx.h"
 
 /* TODO(hbr):
 

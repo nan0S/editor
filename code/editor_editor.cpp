@@ -118,8 +118,7 @@ ProcessImageLoadingTasks(editor *Editor)
                            ImageLoading->ImageInfo.Width,
                            ImageLoading->ImageInfo.Height,
                            ImageLoading->ImageFilePath,
-                           ImageLoading->LoadingTexture,
-                           StrStore);
+                           ImageLoading->LoadingTexture);
       }
      }break;
      
@@ -130,8 +129,7 @@ ProcessImageLoadingTasks(editor *Editor)
                         ImageLoading->ImageInfo.Width,
                         ImageLoading->ImageInfo.Height,
                         ImageLoading->ImageFilePath,
-                        ImageLoading->LoadingTexture,
-                        StrStore);
+                        ImageLoading->LoadingTexture);
      }break;
     }
     if (Entity)
@@ -153,7 +151,7 @@ ProcessImageLoadingTasks(editor *Editor)
      }
     }
     AddNotificationF(Editor, Notification_Error,
-                     "failed to load image from %S",
+                     "failed to load image from \"%S\"",
                      ImageLoading->ImageFilePath);
    }
    
@@ -299,7 +297,8 @@ DeallocArenaFromStore(arena_store *ArenaStore, arena *Arena)
 }
 
 internal void
-InitProjectChangeRequestState(project_change_request_state *State, arena_store *ArenaStore)
+InitProjectChangeRequestState(arena_store *ArenaStore,
+                              project_change_request_state *State)
 {
  State->Arena = AllocArenaFromStore(ArenaStore, Megabytes(1));
 }
@@ -323,17 +322,29 @@ AllocEditorResources(editor *Editor)
  Editor->HighPriorityQueue = Memory->HighPriorityQueue;
  Editor->RendererQueue = Memory->RendererQueue;
  Editor->StrStore = AllocStringStore(ArenaStore);
- Editor->EntityStore = AllocEntityStore(ArenaStore, Memory->MaxTextureCount, Memory->MaxBufferCount, Editor->StrStore);
+ Editor->CurvePointsStore = AllocCurvePointsStore(ArenaStore);
+ Editor->EntityStore = AllocEntityStore(ArenaStore, Memory->MaxTextureCount, Memory->MaxBufferCount);
  Editor->ThreadTaskMemoryStore = AllocThreadTaskMemoryStore(ArenaStore);
  Editor->ImageLoadingStore = AllocImageLoadingStore(ArenaStore);
  Editor->ProjectFilePathArena = AllocArenaFromStore(ArenaStore, Megabytes(1));
  Editor->NotificationsArena = AllocArenaFromStore(ArenaStore, Megabytes(1));
+ 
+ InitEditorCtx(Editor->ArenaStore,
+               Editor->RendererQueue,
+               Editor->EntityStore,
+               Editor->ThreadTaskMemoryStore,
+               Editor->ImageLoadingStore,
+               Editor->StrStore,
+               Editor->CurvePointsStore,
+               Editor->LowPriorityQueue,
+               Editor->HighPriorityQueue);
+ 
  InitLeftClickState(&Editor->LeftClick, ArenaStore);
  InitVisualProfiler(&Editor->Profiler, Memory->Profiler);
  InitAnimatingCurvesState(&Editor->AnimatingCurves, Editor->EntityStore);
  InitMergingCurvesState(&Editor->MergingCurves, Editor->EntityStore);
  InitFrameStats(&Editor->FrameStats);
- InitProjectChangeRequestState(&Editor->ProjectChange, ArenaStore);
+ InitProjectChangeRequestState(ArenaStore, &Editor->ProjectChange);
 }
 
 internal void
@@ -377,14 +388,12 @@ LoadEmptyProject(editor *Editor)
  
  // TODO(hbr): remove
  {
-  entity_store *EntityStore = Editor->EntityStore;
-  string_store *StrStore = Editor->StrStore;
-  entity *Entity = AllocEntity(EntityStore, false);
+  entity *Entity = AllocEntity(GetCtx()->EntityStore, false);
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
   
   curve_params Params = Editor->CurveDefaultParams;
   Params.Type = Curve_Bezier;
-  InitEntityAsCurve(Entity, StrLit("de-casteljau"), Params, StrStore);
+  InitEntityAsCurve(Entity, StrLit("de-casteljau"), Params);
   
   AppendControlPoint(&Witness, V2(-0.5f, -0.5f));
   AppendControlPoint(&Witness, V2(+0.5f, -0.5f));
@@ -398,14 +407,12 @@ LoadEmptyProject(editor *Editor)
  }
  
  {
-  entity_store *EntityStore = Editor->EntityStore;
-  string_store *StrStore = Editor->StrStore;
-  entity *Entity = AllocEntity(EntityStore, false);
+  entity *Entity = AllocEntity(GetCtx()->EntityStore, false);
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
   
   curve_params Params = Editor->CurveDefaultParams;
   Params.Type = Curve_BSpline;
-  InitEntityAsCurve(Entity, StrLit("b-spline"), Params, StrStore);
+  InitEntityAsCurve(Entity, StrLit("b-spline"), Params);
   
   u32 PointCount = 30;
   curve_points_modify_handle Handle = BeginModifyCurvePoints(&Witness, PointCount, ModifyCurvePointsWhichPoints_ControlPointsOnly);
@@ -443,8 +450,9 @@ LoadProjectFromFile(editor *Editor, string FilePath)
   AllocEditorResources(Editor);
   InitEditor(Editor, SerializableState, true, FilePath);
   
-  entity_store *EntityStore = Editor->EntityStore;
-  string_store *StrStore = Editor->StrStore;
+  entity_store *EntityStore = GetCtx()->EntityStore;
+  string_store *StrStore = GetCtx()->StrStore;
+  curve_points_store *CurvePointsStore = GetCtx()->CurvePointsStore;
   
   for (u32 StrIndex = 0;
        StrIndex < Header.StringCount;
@@ -453,6 +461,41 @@ LoadProjectFromFile(editor *Editor, string FilePath)
    string String = DeserializeString(Temp.Arena, &Deserial);
    string_id Id = StringIdFromIndex(StrIndex);
    SetOrAllocStringOfId(StrStore, String, Id);
+  }
+  
+  for (u32 CurvePointsIndex = 0;
+       CurvePointsIndex < Header.CurvePointsCount;
+       ++CurvePointsIndex)
+  {
+   u32 ControlPointCount = 0;
+   v2 *ControlPoints = 0;
+   f32 *ControlPointWeights;
+   cubic_bezier_point *CubicBezierPoints = 0;
+   u32 BSplineKnotCount = 0;
+   f32 *BSplineKnots = 0;
+   
+   DeserializeStruct(&Deserial, &ControlPointCount);
+   
+   ControlPoints = PushArrayNonZero(Temp.Arena, ControlPointCount, v2);
+   ControlPointWeights = PushArrayNonZero(Temp.Arena, ControlPointCount, f32);
+   CubicBezierPoints = PushArrayNonZero(Temp.Arena, ControlPointCount, cubic_bezier_point);
+   
+   DeserializeArray(&Deserial, ControlPoints, ControlPointCount);
+   DeserializeArray(&Deserial, ControlPointWeights, ControlPointCount);
+   DeserializeArray(&Deserial, CubicBezierPoints, ControlPointCount);
+   
+   DeserializeStruct(&Deserial, &BSplineKnotCount);
+   BSplineKnots = PushArrayNonZero(Temp.Arena, BSplineKnotCount, f32);
+   DeserializeArray(&Deserial, BSplineKnots, BSplineKnotCount);
+   
+   curve_points_handle Points = MakeCurvePointsHandle(ControlPointCount,
+                                                      ControlPoints,
+                                                      ControlPointWeights,
+                                                      CubicBezierPoints,
+                                                      BSplineKnotCount,
+                                                      BSplineKnots);
+   curve_points_id Id = CurvePointsIdFromIndex(CurvePointsIndex);
+   SetOrAllocCurvePointsOfId(CurvePointsStore, Id, Points);
   }
   
   ForEachIndex(EntityIndex, Header.EntityCount)
@@ -465,12 +508,12 @@ LoadProjectFromFile(editor *Editor, string FilePath)
    {
     case Entity_Curve: {
      entity_with_modify_witness Witness = BeginEntityModify(Entity);
-     InitEntityFromEntity(&Witness, &Serialized, EntityStore);
+     InitEntityFromEntity(&Witness, &Serialized);
      EndEntityModify(Witness);
     }break;
     
     case Entity_Image: {
-     InitEntityPartFromEntity(Entity, &Serialized, EntityStore);
+     InitEntityPartFromEntity(Entity, &Serialized);
      string_id ImageFilePathId = Serialized.Image.FilePath;
      string ImageFilePath = StringFromStringId(StrStore, ImageFilePathId);
      image_instantiation_spec Spec = MakeImageInstantiationSpec_EntityProvided(Entity);
@@ -495,8 +538,10 @@ SaveProjectIntoFile(editor *Editor, string FilePath)
  b32 Success = false;
  temp_arena Temp = TempArena(0);
  string_list Data = {};
- string_store *StrStore = Editor->StrStore;
- entity_array Entities = AllEntityArrayFromStore(Editor->EntityStore);
+ entity_store *EntityStore = GetCtx()->EntityStore;
+ string_store *StrStore = GetCtx()->StrStore;
+ curve_points_store *CurvePointsStore = GetCtx()->CurvePointsStore;
+ entity_array Entities = AllEntityArrayFromStore(EntityStore);
  
  if (!StrEndsWith(FilePath, EditorSessionFileExtension))
  {
@@ -508,6 +553,7 @@ SaveProjectIntoFile(editor *Editor, string FilePath)
  Header.Version = EditorVersion;
  Header.StringCount = StrStore->StrCount;
  Header.EntityCount = Entities.Count;
+ Header.CurvePointsCount = CurvePointsStore->Count;
  
  SerializeStruct(Temp.Arena, &Data, &Header);
  SerializeStruct(Temp.Arena, &Data, &Editor->SerializableState);
@@ -521,7 +567,21 @@ SaveProjectIntoFile(editor *Editor, string FilePath)
   SerializeString(Temp.Arena, &Data, String);
  }
  
- ForEachIndex(EntityIndex, Entities.Count)
+ for (u32 CurvePointsIndex = 0;
+      CurvePointsIndex < Header.CurvePointsCount;
+      ++CurvePointsIndex)
+ {
+  curve_points_id Id = CurvePointsIdFromIndex(CurvePointsIndex);
+  curve_points_static *Points = CurvePointsFromId(CurvePointsStore, Id);
+  SerializeStruct(Temp.Arena, &Data, &Points->ControlPointCount);
+  SerializeArray(Temp.Arena, &Data, Points->ControlPoints, Points->ControlPointCount);
+  SerializeArray(Temp.Arena, &Data, Points->ControlPointWeights, Points->ControlPointCount);
+  SerializeArray(Temp.Arena, &Data, Points->CubicBezierPoints, Points->ControlPointCount);
+  SerializeStruct(Temp.Arena, &Data, &Points->BSplineKnotCount);
+  SerializeArray(Temp.Arena, &Data, Points->BSplineKnots, Points->BSplineKnotCount);
+ }
+ 
+ ForEachIndex(EntityIndex, Header.EntityCount)
  {
   entity *Entity = Entities.Entities[EntityIndex];
   SerializeStruct(Temp.Arena, &Data, Entity);
@@ -579,12 +639,10 @@ DuplicateEntity(editor *Editor, entity *Entity)
 {
  temp_arena Temp = TempArena(0);
  
- entity_store *EntityStore = Editor->EntityStore;
- string_store *StrStore = Editor->StrStore;
  entity *Copy = AddEntity(Editor);
  entity_with_modify_witness CopyWitness = BeginEntityModify(Copy);
- string CopyName = StrF(Temp.Arena, "%S(copy)", GetEntityName(Entity, StrStore));
- InitEntityFromEntity(&CopyWitness, Entity, EntityStore);
+ string CopyName = StrF(Temp.Arena, "%S(copy)", GetEntityName(Entity));
+ InitEntityFromEntity(&CopyWitness, Entity);
  SelectEntity(Editor, Copy);
  
  f32 SlightTranslationX = 5 * Copy->Curve.Params.DrawParams.Line.Width;
@@ -599,16 +657,15 @@ internal void
 SplitCurveOnControlPoint(editor *Editor, entity *Entity)
 {
  curve *Curve = SafeGetCurve(Entity);
- entity_store *EntityStore = Editor->EntityStore;
- string_store *StrStore = Editor->StrStore;
- 
  if (IsControlPointSelected(Curve))
  {
   temp_arena Temp = TempArena(0);
   
+  curve_points_static *Points = CurvePointsFromId(GetCtx()->CurvePointsStore, Curve->Points);
+  
   u32 SelectedIndex = IndexFromControlPointHandle(Curve->SelectedControlPoint);
   u32 HeadPointCount = SelectedIndex + 1;
-  u32 TailPointCount = Curve->Points.ControlPointCount - SelectedIndex;
+  u32 TailPointCount = Points->ControlPointCount - SelectedIndex;
   
   entity *HeadEntity = AddEntity(Editor);
   entity *TailEntity = AddEntity(Editor);
@@ -616,30 +673,30 @@ SplitCurveOnControlPoint(editor *Editor, entity *Entity)
   entity_with_modify_witness HeadWitness = BeginEntityModify(HeadEntity);
   entity_with_modify_witness TailWitness = BeginEntityModify(TailEntity);
   
-  InitEntityFromEntity(&HeadWitness, Entity, EntityStore);
-  InitEntityFromEntity(&TailWitness, Entity, EntityStore);
+  InitEntityFromEntity(&HeadWitness, Entity);
+  InitEntityFromEntity(&TailWitness, Entity);
   
   curve *HeadCurve = SafeGetCurve(HeadEntity);
   curve *TailCurve = SafeGetCurve(TailEntity);
   
-  string HeadName = StrF(Temp.Arena, "%S(head)", GetEntityName(Entity, StrStore));
-  string TailName = StrF(Temp.Arena, "%S(tail)", GetEntityName(Entity, StrStore));
-  SetEntityName(HeadEntity, HeadName, StrStore);
-  SetEntityName(TailEntity, TailName, StrStore);
+  string HeadName = StrF(Temp.Arena, "%S(head)", GetEntityName(Entity));
+  string TailName = StrF(Temp.Arena, "%S(tail)", GetEntityName(Entity));
+  SetEntityName(HeadEntity, HeadName);
+  SetEntityName(TailEntity, TailName);
   
   curve_points_modify_handle HeadPoints = BeginModifyCurvePoints(&HeadWitness, HeadPointCount, ModifyCurvePointsWhichPoints_ControlPointsAndWeightsAndCubicBeziers);
   curve_points_modify_handle TailPoints = BeginModifyCurvePoints(&TailWitness, TailPointCount, ModifyCurvePointsWhichPoints_ControlPointsAndWeightsAndCubicBeziers);
   Assert(HeadPoints.PointCount == HeadPointCount);
   Assert(TailPoints.PointCount == TailPointCount);
   
-  ArrayCopy(HeadPoints.ControlPoints, Curve->Points.ControlPoints, HeadPoints.PointCount);
-  ArrayCopy(HeadPoints.Weights, Curve->Points.ControlPointWeights, HeadPoints.PointCount);
-  ArrayCopy(HeadPoints.CubicBeziers, Curve->Points.CubicBezierPoints, HeadPoints.PointCount);
+  ArrayCopy(HeadPoints.ControlPoints, Points->ControlPoints, HeadPoints.PointCount);
+  ArrayCopy(HeadPoints.Weights, Points->ControlPointWeights, HeadPoints.PointCount);
+  ArrayCopy(HeadPoints.CubicBeziers, Points->CubicBezierPoints, HeadPoints.PointCount);
   
   u32 SplitAt = SelectedIndex;
-  ArrayCopy(TailPoints.ControlPoints, Curve->Points.ControlPoints + SplitAt, TailPoints.PointCount);
-  ArrayCopy(TailPoints.Weights, Curve->Points.ControlPointWeights + SplitAt, TailPoints.PointCount);
-  ArrayCopy(TailPoints.CubicBeziers, Curve->Points.CubicBezierPoints + SplitAt, TailPoints.PointCount);
+  ArrayCopy(TailPoints.ControlPoints, Points->ControlPoints + SplitAt, TailPoints.PointCount);
+  ArrayCopy(TailPoints.Weights, Points->ControlPointWeights + SplitAt, TailPoints.PointCount);
+  ArrayCopy(TailPoints.CubicBeziers, Points->CubicBezierPoints + SplitAt, TailPoints.PointCount);
   
   EndModifyCurvePoints(HeadPoints);
   EndModifyCurvePoints(TailPoints);
@@ -659,7 +716,9 @@ ElevateBezierCurveDegree(editor *Editor, entity *Entity)
  curve *Curve = SafeGetCurve(Entity);
  Assert(IsRegularBezierCurve(Curve));
  entity_with_modify_witness Witness = BeginEntityModify(Entity);
- u32 PointCount = Curve->Points.ControlPointCount;
+ curve_points_store *CurvePointsStore = Editor->CurvePointsStore;
+ curve_points_static *Points = CurvePointsFromId(CurvePointsStore, Curve->Points);
+ u32 PointCount = Points->ControlPointCount;
  begin_modify_curve_points_static_tracked_result BeginModify = BeginModifyCurvePointsTracked(Editor, &Witness, PointCount + 1, ModifyCurvePointsWhichPoints_ControlPointsAndWeights);
  curve_points_modify_handle ModifyPoints = BeginModify.ModifyPoints;
  tracked_action *ModifyAction = BeginModify.ModifyAction;
@@ -722,9 +781,9 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  
  curve *Curve = SafeGetCurve(Entity);
  point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
- entity_store *EntityStore = Editor->EntityStore;
- u32 ControlPointCount = Curve->Points.ControlPointCount;
- string_store *StrStore = Editor->StrStore;
+ 
+ curve_points_static *Points = CurvePointsFromId(GetCtx()->CurvePointsStore, Curve->Points);
+ u32 ControlPointCount = Points->ControlPointCount;
  
  Assert(Tracking->Active);
  Tracking->Active = false;
@@ -735,13 +794,13 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  entity_with_modify_witness LeftWitness = BeginEntityModify(LeftEntity);
  entity_with_modify_witness RightWitness = BeginEntityModify(RightEntity);
  
- InitEntityFromEntity(&LeftWitness, Entity, EntityStore);
- InitEntityFromEntity(&RightWitness, Entity, EntityStore);
+ InitEntityFromEntity(&LeftWitness, Entity);
+ InitEntityFromEntity(&RightWitness, Entity);
  
- string LeftName = StrF(Temp.Arena, "%S(left)", GetEntityName(Entity, StrStore));
- string RightName = StrF(Temp.Arena, "%S(right)", GetEntityName(Entity, StrStore));
- SetEntityName(LeftEntity, LeftName, StrStore);
- SetEntityName(RightEntity, RightName, StrStore);
+ string LeftName = StrF(Temp.Arena, "%S(left)", GetEntityName(Entity));
+ string RightName = StrF(Temp.Arena, "%S(right)", GetEntityName(Entity));
+ SetEntityName(LeftEntity, LeftName);
+ SetEntityName(RightEntity, RightName);
  
  curve_points_modify_handle LeftPoints = BeginModifyCurvePoints(&LeftWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsAndWeights);
  curve_points_modify_handle RightPoints = BeginModifyCurvePoints(&RightWitness, ControlPointCount, ModifyCurvePointsWhichPoints_ControlPointsAndWeights);
@@ -749,7 +808,7 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  Assert(RightPoints.PointCount == ControlPointCount);
  
  BezierCurveSplit(Tracking->Fraction,
-                  ControlPointCount, Curve->Points.ControlPoints, Curve->Points.ControlPointWeights,
+                  ControlPointCount, Points->ControlPoints, Points->ControlPointWeights,
                   LeftPoints.ControlPoints, LeftPoints.Weights,
                   RightPoints.ControlPoints, RightPoints.Weights);
  
@@ -777,11 +836,9 @@ EndMergingCurves(editor *Editor, b32 Merged)
  merging_curves_state *Merging = &Editor->MergingCurves;
  if (Merged)
  {
-  entity_store *EntityStore = Editor->EntityStore;
-  
   entity *Entity = AddEntity(Editor);
   entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
-  InitEntityFromEntity(&EntityWitness, Merging->MergeEntity, EntityStore);
+  InitEntityFromEntity(&EntityWitness, Merging->MergeEntity);
   EndEntityModify(EntityWitness);
   
   entity *Entity0 = EntityFromHandle(Merging->Choose2Curves.Curves[0]);
@@ -811,9 +868,10 @@ MaybeReverseCurvePoints(entity *Entity)
  if (IsCurveReversed(Entity))
  {
   curve *Curve = SafeGetCurve(Entity);
-  ArrayReverse(Curve->Points.ControlPoints,       Curve->Points.ControlPointCount, v2);
-  ArrayReverse(Curve->Points.ControlPointWeights, Curve->Points.ControlPointCount, f32);
-  ArrayReverse(Curve->Points.CubicBezierPoints,   Curve->Points.ControlPointCount, cubic_bezier_point);
+  curve_points_static *Points = GetCurvePoints(Curve);
+  ArrayReverse(Points->ControlPoints,       Points->ControlPointCount, v2);
+  ArrayReverse(Points->ControlPointWeights, Points->ControlPointCount, f32);
+  ArrayReverse(Points->CubicBezierPoints,   Points->ControlPointCount, cubic_bezier_point);
  }
 }
 
@@ -887,9 +945,12 @@ BeginLoweringBezierCurveDegree(editor *Editor, entity *Entity)
 {
  curve *Curve = SafeGetCurve(Entity);
  Assert(IsRegularBezierCurve(Curve));
- curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
  
- u32 PointCount = Curve->Points.ControlPointCount;
+ curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
+ curve_points_store *CurvePointsStore = Editor->CurvePointsStore;
+ curve_points_static *Points = CurvePointsFromId(CurvePointsStore, Curve->Points);
+ 
+ u32 PointCount = Points->ControlPointCount;
  if (PointCount > 0)
  {
   entity_with_modify_witness Witness = BeginEntityModify(Entity);
@@ -1653,8 +1714,7 @@ CopyTextureHandle(entity_store *Store, render_texture_handle Handle)
 internal entity_store *
 AllocEntityStore(arena_store *ArenaStore,
                  u32 MaxTextureCount,
-                 u32 MaxBufferCount,
-                 string_store *StrStore)
+                 u32 MaxBufferCount)
 {
  arena *Arena = AllocArenaFromStore(ArenaStore, Gigabytes(1));
  entity_store *Store = PushStruct(Arena, entity_store);
@@ -1667,9 +1727,80 @@ AllocEntityStore(arena_store *ArenaStore,
  Store->TextureHandleRefCount = PushArray(Arena, MaxTextureCount, b32);
  Store->BufferCount = MaxBufferCount;
  Store->IsBufferHandleAllocated = PushArray(Arena, MaxBufferCount, b32);
- Store->StrStore = StrStore;
+ return Store;
+}
+
+internal curve_points_store *
+AllocCurvePointsStore(arena_store *ArenaStore)
+{
+ arena *Arena = AllocArenaFromStore(ArenaStore, Gigabytes(1));
+ curve_points_store *Store = PushStruct(Arena, curve_points_store);
+ Store->Arena = Arena;
  Store->ArenaStore = ArenaStore;
  return Store;
+}
+
+internal curve_points_id
+CurvePointsIdFromIndex(u32 Index)
+{
+ curve_points_id Id = {};
+ Id.Index = Index;
+ return Id;
+}
+
+internal u32
+IndexFromCurvePointsId(curve_points_id Id)
+{
+ u32 Index = Id.Index;
+ return Index;
+}
+
+internal b32
+CurvePointsIdMatch(curve_points_id A, curve_points_id B)
+{
+ b32 Result = (A.Index == B.Index);
+ return Result;
+}
+
+internal curve_points_id
+AllocCurvePointsFromStore(curve_points_store *Store)
+{
+ if (Store->Count >= Store->Capacity)
+ {
+  u32 NewCapacity = Max(Store->Count + 1, 2 * Store->Capacity);
+  curve_points_static *NewCurvePoints = PushArrayNonZero(Store->Arena, NewCapacity, curve_points_static);
+  ArrayCopy(NewCurvePoints, Store->CurvePoints, Store->Count);
+  Store->CurvePoints = NewCurvePoints;
+  Store->Capacity = NewCapacity;
+ }
+ Assert(Store->Count < Store->Capacity);
+ u32 Index = Store->Count++;
+ curve_points_id Id = CurvePointsIdFromIndex(Index);
+ return Id;
+}
+
+internal void
+SetOrAllocCurvePointsOfId(curve_points_store *Store,
+                          curve_points_id Id,
+                          curve_points_handle Points)
+{
+ u32 Index = IndexFromCurvePointsId(Id);
+ if (Index >= Store->Count)
+ {
+  curve_points_id AllocatedId = AllocCurvePointsFromStore(Store);
+  Assert(CurvePointsIdMatch(Id, AllocatedId));
+ }
+ curve_points_static *Dst = CurvePointsFromId(Store, Id);
+ CopyCurvePoints(CurvePointsDynamicFromStatic(Dst), Points);
+}
+
+internal curve_points_static *
+CurvePointsFromId(curve_points_store *Store, curve_points_id Id)
+{
+ u32 Index = IndexFromCurvePointsId(Id);
+ Assert(Index < Store->Count);
+ curve_points_static *Points = Store->CurvePoints + Index;
+ return Points;
 }
 
 internal entity *
@@ -1691,17 +1822,18 @@ AllocEntity(entity_store *Store, b32 DontTrack)
  
  Entity->Id = Store->IdCounter++;
  Entity->Generation = Generation;
- Entity->Name = AllocStringOfSize(Store->StrStore, 128);
+ Entity->Name = AllocStringOfSize(GetCtx()->StrStore, 128);
  
  // NOTE(hbr): It shouldn't really matter anyway that we allocate arenas even for
  // entities other than curves.
  curve *Curve = &Entity->Curve;
- Curve->ComputeArena = AllocArenaFromStore(Store->ArenaStore, Megabytes(32));
- Curve->DegreeLowering.Arena = AllocArenaFromStore(Store->ArenaStore, Megabytes(32));
- Curve->ParametricResources.Arena = AllocArenaFromStore(Store->ArenaStore, Megabytes(32));
+ Curve->Points = AllocCurvePointsFromStore(GetCtx()->CurvePointsStore);
+ Curve->ComputeArena = AllocArenaFromStore(GetCtx()->ArenaStore, Megabytes(32));
+ Curve->DegreeLowering.Arena = AllocArenaFromStore(GetCtx()->ArenaStore, Megabytes(32));
+ Curve->ParametricResources.Arena = AllocArenaFromStore(GetCtx()->ArenaStore, Megabytes(32));
  
  image *Image = &Entity->Image;
- Image->FilePath = AllocStringOfSize(Store->StrStore, 128);
+ Image->FilePath = AllocStringOfSize(GetCtx()->StrStore, 128);
  
  if (!DontTrack)
  {
@@ -1715,9 +1847,9 @@ internal void
 DeallocEntity(entity_store *Store, entity *Entity)
 {
  curve *Curve = &Entity->Curve;
- DeallocArenaFromStore(Store->ArenaStore, Curve->ComputeArena);
- DeallocArenaFromStore(Store->ArenaStore, Curve->DegreeLowering.Arena);
- DeallocArenaFromStore(Store->ArenaStore, Curve->ParametricResources.Arena);
+ DeallocArenaFromStore(GetCtx()->ArenaStore, Curve->ComputeArena);
+ DeallocArenaFromStore(GetCtx()->ArenaStore, Curve->DegreeLowering.Arena);
+ DeallocArenaFromStore(GetCtx()->ArenaStore, Curve->ParametricResources.Arena);
  
  image *Image = &Entity->Image;
  DeallocTextureHandle(Store, Image->TextureHandle);
@@ -1981,7 +2113,8 @@ CheckCollisionWithEntities(editor *Editor, v2 AtP, f32 Tolerance)
     case Entity_Curve: {
      curve *Curve = &Entity->Curve;
      curve_params *Params = &Curve->Params;
-     curve_points_static *Points = &Curve->Points;
+     curve_points_store *CurvePointsStore = Editor->CurvePointsStore;
+     curve_points_static *Points = CurvePointsFromId(CurvePointsStore, Curve->Points);
      v2 *ControlPoints = Points->ControlPoints;
      u32 ControlPointCount = Points->ControlPointCount;
      v2 *BSplinePartitionKnots = Curve->BSplinePartitionKnots;
@@ -2398,9 +2531,10 @@ GetCubicBezierPoint(curve *Curve, cubic_bezier_point_handle Point)
 {
  v2 Result = {};
  u32 Index = IndexFromCubicBezierPointHandle(Point);
- if (Index < 3 * Curve->Points.ControlPointCount)
+ curve_points_static *Points = GetCurvePoints(Curve);
+ if (Index < 3 * Points->ControlPointCount)
  {
-  v2 *Beziers = Cast(v2 *)Curve->Points.CubicBezierPoints;
+  v2 *Beziers = Cast(v2 *)Points->CubicBezierPoints;
   Result = Beziers[Index];
  }
  return Result;
@@ -2411,9 +2545,10 @@ GetControlPointP(curve *Curve, control_point_handle Point)
 {
  v2 Result = {};
  u32 Index = IndexFromControlPointHandle(Point);
- if (Index < Curve->Points.ControlPointCount)
+ curve_points_static *Points = GetCurvePoints(Curve);
+ if (Index < Points->ControlPointCount)
  {
-  Result = Curve->Points.ControlPoints[Index];
+  Result = Points->ControlPoints[Index];
  }
  return Result;
 }
@@ -2431,8 +2566,9 @@ ControlPointIndexFromCurveSampleIndex(curve *Curve, u32 CurveSampleIndex)
 {
  Assert(!IsCurveTotalSamplesMode(Curve));
  u32 Index = SafeDiv0(CurveSampleIndex, Curve->Params.SamplesPerControlPoint);
- Assert(Index < Curve->Points.ControlPointCount);
- Index = ClampTop(Index, Curve->Points.ControlPointCount - 1);
+ curve_points_static *Points = GetCurvePoints(Curve);
+ Assert(Index < Points->ControlPointCount);
+ Index = ClampTop(Index, Points->ControlPointCount - 1);
  control_point_handle Control = ControlPointHandleFromIndex(Index);
  return Control;
 }
@@ -2555,7 +2691,8 @@ NextCubicBezierPoint(curve *Curve, cubic_bezier_point_handle *Point)
 {
  b32 Result = false;
  u32 Index = IndexFromCubicBezierPointHandle(*Point);
- if (Index + 1 < 3 * Curve->Points.ControlPointCount)
+ curve_points_static *Points = GetCurvePoints(Curve);
+ if (Index + 1 < 3 * Points->ControlPointCount)
  {
   *Point = CubicBezierPointHandleFromIndex(Index + 1);
   Result = true;
@@ -2790,9 +2927,10 @@ GetCurveControlPointDrawInfo(entity *Entity, control_point_handle Point)
  u32 Index = IndexFromControlPointHandle(Point);
  
  point_draw_info Result = GetEntityPointDrawInfo(Entity, Params->DrawParams.Points.Radius, Params->DrawParams.Points.Color);
+ curve_points_static *Points = GetCurvePoints(Curve);
  
  if (( (Entity->Flags & EntityFlag_CurveAppendFront) && Index == 0) ||
-     (!(Entity->Flags & EntityFlag_CurveAppendFront) && Index == Curve->Points.ControlPointCount-1))
+     (!(Entity->Flags & EntityFlag_CurveAppendFront) && Index == Points->ControlPointCount-1))
  {
   Result.Radius *= 2.0f;
  }
@@ -2827,9 +2965,9 @@ GetCurveCubicBezierPointRadius(curve *Curve)
 }
 
 internal string
-GetEntityName(entity *Entity, string_store *StrStore)
+GetEntityName(entity *Entity)
 {
- string Name = StringFromStringId(StrStore, Entity->Name);
+ string Name = StringFromStringId(GetCtx()->StrStore, Entity->Name);
  return Name;
 }
 
@@ -2863,13 +3001,17 @@ internal curve_points_handle
 MakeCurvePointsHandle(u32 ControlPointCount,
                       v2 *ControlPoints,
                       f32 *ControlPointWeights,
-                      cubic_bezier_point *CubicBezierPoints)
+                      cubic_bezier_point *CubicBezierPoints,
+                      u32 BSplineKnotCount,
+                      f32 *BSplineKnots)
 {
  curve_points_handle Points = {};
  Points.ControlPointCount = ControlPointCount;
  Points.ControlPoints = ControlPoints;
  Points.ControlPointWeights = ControlPointWeights;
  Points.CubicBezierPoints = CubicBezierPoints;
+ Points.BSplineKnotCount = BSplineKnotCount;
+ Points.BSplineKnots = BSplineKnots;
  return Points;
 }
 
@@ -2886,7 +3028,9 @@ CurvePointsHandleFromCurvePointsStatic(curve_points_static *Static)
  curve_points_handle Handle = MakeCurvePointsHandle(Static->ControlPointCount,
                                                     Static->ControlPoints,
                                                     Static->ControlPointWeights,
-                                                    Static->CubicBezierPoints);
+                                                    Static->CubicBezierPoints,
+                                                    Static->BSplineKnotCount,
+                                                    Static->BSplineKnots);
  return Handle;
 }
 
@@ -2895,14 +3039,20 @@ MakeCurvePointsDynamic(u32 *ControlPointCount,
                        v2 *ControlPoints,
                        f32 *ControlPointWeights,
                        cubic_bezier_point *CubicBezierPoints,
-                       u32 Capacity)
+                       u32 CapacityPoints,
+                       u32 *BSplineKnotCount,
+                       f32 *BSplineKnots,
+                       u32 CapacityKnots)
 {
  curve_points_dynamic Result = {};
  Result.ControlPointCount = ControlPointCount;
  Result.ControlPoints = ControlPoints;
  Result.ControlPointWeights = ControlPointWeights;
  Result.CubicBezierPoints = CubicBezierPoints;
- Result.Capacity = Capacity;
+ Result.CapacityPoints = CapacityPoints;
+ Result.BSplineKnotCount = BSplineKnotCount;
+ Result.BSplineKnots = BSplineKnots;
+ Result.CapacityKnots = CapacityKnots;
  return Result;
 }
 
@@ -2913,7 +3063,10 @@ CurvePointsDynamicFromStatic(curve_points_static *Static)
                                                        Static->ControlPoints,
                                                        Static->ControlPointWeights,
                                                        Static->CubicBezierPoints,
-                                                       CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT);
+                                                       CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT,
+                                                       &Static->BSplineKnotCount,
+                                                       Static->BSplineKnots,
+                                                       MAX_B_SPLINE_KNOT_COUNT);
  return Dynamic;
 }
 
@@ -2922,10 +3075,11 @@ GetCurveControlPointInWorldSpace(entity *Entity, control_point_handle Point)
 {
  curve *Curve = SafeGetCurve(Entity);
  u32 Index = IndexFromControlPointHandle(Point);
+ curve_points_static *Points = GetCurvePoints(Curve);
  
- v2 P = LocalToWorldEntityPosition(Entity, Curve->Points.ControlPoints[Index]);
- f32 Weight = Curve->Points.ControlPointWeights[Index];
- cubic_bezier_point B = Curve->Points.CubicBezierPoints[Index];
+ v2 P = LocalToWorldEntityPosition(Entity, Points->ControlPoints[Index]);
+ f32 Weight = Points->ControlPointWeights[Index];
+ cubic_bezier_point B = Points->CubicBezierPoints[Index];
  cubic_bezier_point Bezier = {
   LocalToWorldEntityPosition(Entity, B.Ps[0]),
   LocalToWorldEntityPosition(Entity, B.Ps[1]),
@@ -2939,17 +3093,22 @@ GetCurveControlPointInWorldSpace(entity *Entity, control_point_handle Point)
 internal void
 CopyCurvePointsFromCurve(curve *Curve, curve_points_dynamic Dst)
 {
- CopyCurvePoints(Dst, CurvePointsHandleFromCurvePointsStatic(&Curve->Points));
+ curve_points_static *Points = GetCurvePoints(Curve);
+ CopyCurvePoints(Dst, CurvePointsHandleFromCurvePointsStatic(Points));
 }
 
 internal void
 CopyCurvePoints(curve_points_dynamic Dst, curve_points_handle Src)
 {
- u32 Copy = Min(Src.ControlPointCount, Dst.Capacity);
- *Dst.ControlPointCount = Copy;
- ArrayCopy(Dst.ControlPoints, Src.ControlPoints, Copy);
- ArrayCopy(Dst.ControlPointWeights, Src.ControlPointWeights, Copy);
- ArrayCopy(Dst.CubicBezierPoints, Src.CubicBezierPoints, Copy);
+ u32 CopyPoints = Min(Src.ControlPointCount, Dst.CapacityPoints);
+ *Dst.ControlPointCount = CopyPoints;
+ ArrayCopy(Dst.ControlPoints, Src.ControlPoints, CopyPoints);
+ ArrayCopy(Dst.ControlPointWeights, Src.ControlPointWeights, CopyPoints);
+ ArrayCopy(Dst.CubicBezierPoints, Src.CubicBezierPoints, CopyPoints);
+ 
+ u32 CopyKnots = Min(Src.BSplineKnotCount, Dst.CapacityKnots);
+ *Dst.BSplineKnotCount = CopyKnots;
+ ArrayCopy(Dst.BSplineKnots, Src.BSplineKnots, CopyKnots);
 }
 
 internal rect2
@@ -3096,10 +3255,11 @@ TranslateCurvePointTo(entity_with_modify_witness *EntityWitness,
  ControlPointAndBezierOffsetFromCurvePoint(CurvePoint, &ControlPoint, &BezierOffset);
  
  u32 ControlPointIndex = IndexFromControlPointHandle(ControlPoint);
+ curve_points_static *Points = GetCurvePoints(Curve);
  
- if (ControlPointIndex < Curve->Points.ControlPointCount)
+ if (ControlPointIndex < Points->ControlPointCount)
  {
-  cubic_bezier_point *B = Curve->Points.CubicBezierPoints + ControlPointIndex;
+  cubic_bezier_point *B = Points->CubicBezierPoints + ControlPointIndex;
   v2 *TranslatePoint = B->Ps + BezierOffset;
   v2 LocalP = WorldToLocalEntityPosition(Entity, P);
   
@@ -3110,7 +3270,7 @@ TranslateCurvePointTo(entity_with_modify_witness *EntityWitness,
    B->P0 += LocalTranslation;
    B->P2 += LocalTranslation;
    
-   Curve->Points.ControlPoints[ControlPointIndex] += LocalTranslation;
+   Points->ControlPoints[ControlPointIndex] += LocalTranslation;
   }
   else
   {
@@ -3172,7 +3332,8 @@ SelectControlPointFromCurvePoint(curve *Curve, curve_point_handle CurvePoint)
 internal void
 MaybeRecomputeCurveBSplineKnots(curve *Curve, b32 ForceRecompute)
 {
- u32 ControlPointCount = Curve->Points.ControlPointCount;
+ curve_points_static *Points = GetCurvePoints(Curve);
+ u32 ControlPointCount = Points->ControlPointCount;
  curve_params *CurveParams = &Curve->Params;
  b_spline_params *RequestedBSplineParams = &CurveParams->BSpline;
  
@@ -3187,12 +3348,11 @@ MaybeRecomputeCurveBSplineKnots(curve *Curve, b32 ForceRecompute)
  
  if (!StructsEqual(&ComputedBSplineParams, &FixedBSplineParams) || ForceRecompute)
  {
-  f32 *Knots = Curve->Points.BSplineKnots;
+  f32 *Knots = Points->BSplineKnots;
   switch (FixedBSplineParams.Partition)
   {
    case BSplinePartition_Natural:
    case BSplinePartition_Custom: {
-    
     if (FixedBSplineParams.Partition == BSplinePartition_Natural)
     {
      BSplineBaseKnots(FixedBSplineKnotParams, Knots);
@@ -3234,19 +3394,20 @@ RemoveControlPoint(entity_with_modify_witness *EntityWitness, control_point_hand
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
  u32 Index = IndexFromControlPointHandle(Point);
+ curve_points_static *Points = GetCurvePoints(Curve);
  
- if (Index < Curve->Points.ControlPointCount)
+ if (Index < Points->ControlPointCount)
  {
 #define ArrayRemoveOrdered(Array, At, Count) \
 MemoryMove((Array) + (At), \
 (Array) + (At) + 1, \
 ((Count) - (At) - 1) * SizeOf((Array)[0]))
-  ArrayRemoveOrdered(Curve->Points.ControlPoints,       Index, Curve->Points.ControlPointCount);
-  ArrayRemoveOrdered(Curve->Points.ControlPointWeights, Index, Curve->Points.ControlPointCount);
-  ArrayRemoveOrdered(Curve->Points.CubicBezierPoints,   Index, Curve->Points.ControlPointCount);
+  ArrayRemoveOrdered(Points->ControlPoints,       Index, Points->ControlPointCount);
+  ArrayRemoveOrdered(Points->ControlPointWeights, Index, Points->ControlPointCount);
+  ArrayRemoveOrdered(Points->CubicBezierPoints,   Index, Points->ControlPointCount);
 #undef ArrayRemoveOrdered
   
-  --Curve->Points.ControlPointCount;
+  --Points->ControlPointCount;
   
   // NOTE(hbr): Maybe fix selected control point
   if (IsControlPointSelected(Curve))
@@ -3284,7 +3445,8 @@ IsControlPointSelected(curve *Curve)
      !ControlPointHandleMatch(Curve->SelectedControlPoint, ControlPointHandleZero()))
  {
   u32 Index = IndexFromControlPointHandle(Curve->SelectedControlPoint);
-  Result = (Index < Curve->Points.ControlPointCount);
+  curve_points_static *Points = GetCurvePoints(Curve);
+  Result = (Index < Points->ControlPointCount);
  }
  return Result;
 }
@@ -3300,7 +3462,9 @@ AppendControlPoint(entity_with_modify_witness *EntityWitness, v2 P)
  }
  else
  {
-  InsertAt = Entity->Curve.Points.ControlPointCount;
+  curve *Curve = SafeGetCurve(Entity);
+  curve_points_static *Points = GetCurvePoints(Curve);
+  InsertAt = Points->ControlPointCount;
  }
  control_point_handle Result = InsertControlPoint(EntityWitness, MakeControlPoint(P), InsertAt);
  return Result;
@@ -3313,10 +3477,12 @@ SetControlPoint(entity_with_modify_witness *Witness, control_point_handle Handle
  curve *Curve = SafeGetCurve(Entity);
  
  u32 I = IndexFromControlPointHandle(Handle);
- u32 N = Curve->Points.ControlPointCount;
- v2 *P = Curve->Points.ControlPoints;
- f32 *W = Curve->Points.ControlPointWeights;
- cubic_bezier_point *B = Curve->Points.CubicBezierPoints;
+ curve_points_static *Points = GetCurvePoints(Curve);
+ 
+ u32 N = Points->ControlPointCount;
+ v2 *P = Points->ControlPoints;
+ f32 *W = Points->ControlPointWeights;
+ cubic_bezier_point *B = Points->CubicBezierPoints;
  
  P[I] = WorldToLocalEntityPosition(Entity, Point.P);
  W[I] = (Point.IsWeight ? Point.Weight : 1.0f);
@@ -3335,7 +3501,7 @@ SetControlPoint(entity_with_modify_witness *Witness, control_point_handle Handle
   // for N<=2. At least I tried to "define" it but failed to do something
   // that was super useful. In that case, when the third point is added,
   // just recalculate all bezier points.
-  if (Curve->Points.ControlPointCount == 2)
+  if (Points->ControlPointCount == 2)
   {
    BezierCubicCalculateAllControlPoints(N+1, P, B);
   }
@@ -3354,18 +3520,19 @@ InsertControlPoint(entity_with_modify_witness *EntityWitness, control_point Poin
  control_point_handle Result = {};
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
+ curve_points_static *Points = GetCurvePoints(Curve);
  
  if (Curve &&
-     Curve->Points.ControlPointCount < CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT &&
-     At <= Curve->Points.ControlPointCount)
+     Points->ControlPointCount < CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT &&
+     At <= Points->ControlPointCount)
  {
   Assert(UsesControlPoints(Curve));
   
   control_point_handle Handle = ControlPointHandleFromIndex(At);
-  u32 N = Curve->Points.ControlPointCount;
-  v2 *P = Curve->Points.ControlPoints;
-  f32 *W = Curve->Points.ControlPointWeights;
-  cubic_bezier_point *B = Curve->Points.CubicBezierPoints;
+  u32 N = Points->ControlPointCount;
+  v2 *P = Points->ControlPoints;
+  f32 *W = Points->ControlPointWeights;
+  cubic_bezier_point *B = Points->CubicBezierPoints;
   
 #define ShiftRightArray(Array, ArrayLength, At, ShiftCount) \
 MemoryMove((Array) + ((At)+(ShiftCount)), \
@@ -3388,7 +3555,7 @@ MemoryMove((Array) + ((At)+(ShiftCount)), \
    }
   }
   
-  ++Curve->Points.ControlPointCount;
+  ++Points->ControlPointCount;
   Result = Handle;
  }
  
@@ -3396,19 +3563,20 @@ MemoryMove((Array) + ((At)+(ShiftCount)), \
 }
 
 internal void
-SetCurvePoints(entity_with_modify_witness *EntityWitness, curve_points_handle Points)
+SetCurvePoints(entity_with_modify_witness *EntityWitness, curve_points_handle NewPoints)
 {
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
- CopyCurvePoints(CurvePointsDynamicFromStatic(&Curve->Points), Points);
+ curve_points_static *Points = GetCurvePoints(Curve);
+ CopyCurvePoints(CurvePointsDynamicFromStatic(Points), NewPoints);
  DeselectControlPoint(Curve);
  MarkEntityModified(EntityWitness);
 }
 
 inline internal void
-SetEntityName(entity *Entity, string Name, string_store *StrStore)
+SetEntityName(entity *Entity, string Name)
 {
- char_buffer *CharBuffer = CharBufferFromStringId(StrStore, Entity->Name);
+ char_buffer *CharBuffer = CharBufferFromStringId(GetCtx()->StrStore, Entity->Name);
  FillCharBuffer(CharBuffer, Name);
 }
 
@@ -3418,12 +3586,11 @@ InitEntityPart(entity *Entity,
                xform2d XForm,
                string Name,
                i32 SortingLayer,
-               entity_flags Flags,
-               string_store *StrStore)
+               entity_flags Flags)
 {
  Entity->Type = Type;
  Entity->XForm = XForm;
- SetEntityName(Entity, Name, StrStore);
+ SetEntityName(Entity, Name);
  Entity->SortingLayer = SortingLayer;
  Entity->Flags = Flags;
 }
@@ -3435,9 +3602,9 @@ InitEntityCurvePart(curve *Curve, curve_params CurveParams)
 }
 
 internal void
-InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams, string_store *StrStore)
+InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams)
 {
- InitEntityPart(Entity, Entity_Curve, XForm2DZero(), Name, 0, 0, StrStore);
+ InitEntityPart(Entity, Entity_Curve, XForm2DZero(), Name, 0, 0);
  InitEntityCurvePart(&Entity->Curve, CurveParams);
 }
 
@@ -3445,11 +3612,10 @@ internal void
 InitEntityImagePart(image *Image,
                     scale2d Dim,
                     string ImageFilePath,
-                    render_texture_handle TextureHandle,
-                    string_store *StrStore)
+                    render_texture_handle TextureHandle)
 {
  Image->Dim = Dim;
- char_buffer *FilePathBuffer = CharBufferFromStringId(StrStore, Image->FilePath);
+ char_buffer *FilePathBuffer = CharBufferFromStringId(GetCtx()->StrStore, Image->FilePath);
  FillCharBuffer(FilePathBuffer, ImageFilePath);
  Image->TextureHandle = TextureHandle;
 }
@@ -3458,11 +3624,10 @@ internal void
 InitEntityImagePart(image *Image,
                     u32 Width, u32 Height,
                     string ImageFilePath,
-                    render_texture_handle TextureHandle,
-                    string_store *StrStore)
+                    render_texture_handle TextureHandle)
 {
  scale2d Dim = Scale2D(Cast(f32)Width / Height, 1.0f);
- InitEntityImagePart(Image, Dim, ImageFilePath, TextureHandle, StrStore);
+ InitEntityImagePart(Image, Dim, ImageFilePath, TextureHandle);
 }
 
 internal void
@@ -3470,59 +3635,55 @@ InitEntityAsImage(entity *Entity,
                   v2 P,
                   u32 Width, u32 Height,
                   string ImageFilePath,
-                  render_texture_handle TextureHandle,
-                  string_store *StrStore)
+                  render_texture_handle TextureHandle)
 {
  string FileName = PathLastPart(ImageFilePath);
  string FileNameNoExt = StrChopLastDot(FileName);
- InitEntityPart(Entity, Entity_Image, XForm2DFromP(P), FileNameNoExt, 0, 0, StrStore);
- InitEntityImagePart(&Entity->Image, Width, Height, ImageFilePath, TextureHandle, StrStore);
+ InitEntityPart(Entity, Entity_Image, XForm2DFromP(P), FileNameNoExt, 0, 0);
+ InitEntityImagePart(&Entity->Image, Width, Height, ImageFilePath, TextureHandle);
 }
 
 internal void
-InitEntityPartFromEntity(entity *Dst, entity *Src, entity_store *EntityStore)
+InitEntityPartFromEntity(entity *Dst, entity *Src)
 {
- string_store *StrStore = EntityStore->StrStore;
  InitEntityPart(Dst,
                 Src->Type,
                 Src->XForm,
-                GetEntityName(Src, StrStore),
+                GetEntityName(Src),
                 Src->SortingLayer,
-                Src->Flags,
-                StrStore);
+                Src->Flags);
 }
 
 internal void
-InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src, entity_store *EntityStore)
+InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src)
 {
  entity *Dst = DstWitness->Entity;
  curve *DstCurve = &Dst->Curve;
  curve *SrcCurve = &Src->Curve;
  image *DstImage = &Dst->Image;
  image *SrcImage = &Src->Image;
- string_store *StrStore = EntityStore->StrStore;
  //- init entity part
  InitEntityPart(Dst,
                 Src->Type,
                 Src->XForm,
-                GetEntityName(Src, StrStore),
+                GetEntityName(Src),
                 Src->SortingLayer,
-                Src->Flags,
-                StrStore);
+                Src->Flags);
  //- init specific entity type part
  switch (Src->Type)
  {
   case Entity_Curve: {
    InitEntityCurvePart(DstCurve, SrcCurve->Params);
-   SetCurvePoints(DstWitness, CurvePointsHandleFromCurvePointsStatic(&SrcCurve->Points));
+   curve_points_static *SrcPoints = GetCurvePoints(SrcCurve);
+   SetCurvePoints(DstWitness, CurvePointsHandleFromCurvePointsStatic(SrcPoints));
    SelectControlPoint(DstCurve, SrcCurve->SelectedControlPoint);
   }break;
   
   case Entity_Image: {
-   DeallocTextureHandle(EntityStore, DstImage->TextureHandle);
-   render_texture_handle TextureHandle = CopyTextureHandle(EntityStore, SrcImage->TextureHandle);
-   string SrcFilePath = StringFromStringId(StrStore, SrcImage->FilePath);
-   InitEntityImagePart(DstImage, SrcImage->Dim, SrcFilePath, TextureHandle, StrStore);
+   DeallocTextureHandle(GetCtx()->EntityStore, DstImage->TextureHandle);
+   render_texture_handle TextureHandle = CopyTextureHandle(GetCtx()->EntityStore, SrcImage->TextureHandle);
+   string SrcFilePath = StringFromStringId(GetCtx()->StrStore, SrcImage->FilePath);
+   InitEntityImagePart(DstImage, SrcImage->Dim, SrcFilePath, TextureHandle);
   }break;
   
   case Entity_Count: InvalidPath;
@@ -3540,7 +3701,8 @@ SetControlPoint(entity_with_modify_witness *EntityWitness, control_point_handle 
  {
   curve *Curve = SafeGetCurve(Entity);
   u32 Index = IndexFromControlPointHandle(Handle);
-  Curve->Points.ControlPointWeights[Index] = Weight;
+  curve_points_static *Points = GetCurvePoints(Curve);
+  Points->ControlPointWeights[Index] = Weight;
   MarkEntityModified(EntityWitness);
  }
 }
@@ -3552,13 +3714,14 @@ BeginModifyCurvePoints(entity_with_modify_witness *EntityWitness, u32 RequestedP
  
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
- curve_points_static *CurvePoints = &Curve->Points;
+ curve_points_static *Points = GetCurvePoints(Curve);
  Result.Curve = Curve;
  u32 ActualPointCount = Min(RequestedPointCount, CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT);
  Result.PointCount = ActualPointCount;
- Result.ControlPoints = CurvePoints->ControlPoints;
- Result.Weights = CurvePoints->ControlPointWeights;
- Result.CubicBeziers = CurvePoints->CubicBezierPoints;
+ Result.ControlPoints = Points->ControlPoints;
+ Result.Weights = Points->ControlPointWeights;
+ Result.CubicBeziers = Points->CubicBezierPoints;
+ Result.BSplineKnots = Points->BSplineKnots;
  Result.Which = Which;
  // NOTE(hbr): Assume (which is very reasonable) that the curve is always changing here
  MarkEntityModified(EntityWitness);
@@ -3571,7 +3734,7 @@ EndModifyCurvePoints(curve_points_modify_handle Handle)
 {
  curve *Curve = Handle.Curve;
  curve_params *CurveParams = &Curve->Params;
- curve_points_static *Points = &Curve->Points;
+ curve_points_static *Points = GetCurvePoints(Curve);
  Points->ControlPointCount = Handle.PointCount;
  if (Handle.Which <= ModifyCurvePointsWhichPoints_ControlPointsOnly)
  {
@@ -3646,8 +3809,9 @@ SetBSplineKnotPoint(entity_with_modify_witness *EntityWitness,
 {
  entity *Entity = EntityWitness->Entity;
  curve *Curve = SafeGetCurve(Entity);
+ curve_points_static *Points = GetCurvePoints(Curve);
  b_spline_knot_params KnotParams = GetBSplineParams(Curve).KnotParams;
- f32 *Knots = Curve->Points.BSplineKnots;
+ f32 *Knots = Points->BSplineKnots;
  u32 KnotIndex = KnotIndexFromBSplineKnotHandle(Knot);
  b32 Moveable = ((KnotIndex >= KnotParams.Degree + 1) &&
                  (KnotIndex + 1 < KnotParams.Degree + KnotParams.PartitionSize));
@@ -4070,12 +4234,13 @@ CalcParametric(parametric_curve_params Parametric,
 internal void
 CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
 {
- u32 PointCount = Curve->Points.ControlPointCount;
- v2 *Controls = Curve->Points.ControlPoints;
- f32 *Weights = Curve->Points.ControlPointWeights;
- cubic_bezier_point *Beziers = Curve->Points.CubicBezierPoints;
+ curve_points_static *Points = GetCurvePoints(Curve);
+ u32 PointCount = Points->ControlPointCount;
+ v2 *Controls = Points->ControlPoints;
+ f32 *Weights = Points->ControlPointWeights;
+ cubic_bezier_point *Beziers = Points->CubicBezierPoints;
  curve_params *Params = &Curve->Params;
- f32 *BSplineKnots = Curve->Points.BSplineKnots;
+ f32 *BSplineKnots = Points->BSplineKnots;
  u32 SamplesPerControlPoint = Params->SamplesPerControlPoint;
  
  switch (Params->Type)
@@ -4094,9 +4259,12 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
   
   case Curve_BSpline: {
    MaybeRecomputeCurveBSplineKnots(Curve, false);
+   
    b_spline_knot_params KnotParams = GetBSplineParams(Curve).KnotParams;
    u32 PartitionSize = KnotParams.PartitionSize;
    u32 Degree = KnotParams.Degree;
+   Points->BSplineKnotCount = KnotParams.KnotCount;
+   
    v2 *PartitionKnots = PushArrayNonZero(Curve->ComputeArena, PartitionSize, v2);
    Curve->BSplinePartitionKnots = PartitionKnots;
    for (u32 PartitionKnotIndex = 0;
@@ -4107,6 +4275,7 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
     v2 KnotPoint = BSplineEvaluate(T, Controls, KnotParams, BSplineKnots);
     PartitionKnots[PartitionKnotIndex] = KnotPoint;
    }
+   
    CalcBSpline(Controls, KnotParams, BSplineKnots, SampleCount, OutSamples);
   }break;
   case Curve_Parametric: {CalcParametric(Params->Parametric, SampleCount, OutSamples);}break;
@@ -4128,9 +4297,10 @@ RecomputeCurve(curve *Curve)
  
  curve_params *Params = &Curve->Params;
  arena *ComputeArena = Curve->ComputeArena;
- u32 ControlCount = Curve->Points.ControlPointCount;
- v2 *Controls = Curve->Points.ControlPoints;
- f32 *Weights = Curve->Points.ControlPointWeights;
+ curve_points_static *Points = GetCurvePoints(Curve);
+ u32 ControlCount = Points->ControlPointCount;
+ v2 *Controls = Points->ControlPoints;
+ f32 *Weights = Points->ControlPointWeights;
  f32 LineWidth = Params->DrawParams.Line.Width;
  
  ClearArena(ComputeArena);
@@ -4362,12 +4532,6 @@ AllocStringStore(arena_store *ArenaStore)
  Store->Arena = Arena;
  Store->ArenaStore = ArenaStore;
  return Store;
-}
-
-internal void
-DeallocStringStore(string_store *Store)
-{
- DeallocArenaFromStore(Store->ArenaStore, Store->Arena);
 }
 
 internal string_id

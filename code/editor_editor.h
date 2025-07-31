@@ -1,9 +1,14 @@
 #ifndef EDITOR_EDITOR_H
 #define EDITOR_EDITOR_H
 
-//~ string id
+//~ ids
 
 struct string_id
+{
+ u32 Index;
+};
+
+struct curve_points_id
 {
  u32 Index;
 };
@@ -201,11 +206,14 @@ struct point_tracking_along_curve_state
 struct curve_points_static
 {
  u32 ControlPointCount;
+ 
 #define CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT 1024
  v2 ControlPoints[CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT];
  f32 ControlPointWeights[CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT];
  cubic_bezier_point CubicBezierPoints[CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT];
+ 
 #define MAX_B_SPLINE_KNOT_COUNT (2 * CURVE_POINTS_STATIC_MAX_CONTROL_POINT_COUNT)
+ u32 BSplineKnotCount;
  f32 BSplineKnots[MAX_B_SPLINE_KNOT_COUNT];
 };
 
@@ -215,7 +223,10 @@ struct curve_points_dynamic
  v2 *ControlPoints;
  f32 *ControlPointWeights;
  cubic_bezier_point *CubicBezierPoints;
- u32 Capacity;
+ u32 CapacityPoints;
+ u32 *BSplineKnotCount;
+ f32 *BSplineKnots;
+ u32 CapacityKnots;
 };
 
 struct curve_points_handle
@@ -224,6 +235,8 @@ struct curve_points_handle
  v2 *ControlPoints;
  f32 *ControlPointWeights;
  cubic_bezier_point *CubicBezierPoints;
+ u32 BSplineKnotCount;
+ f32 *BSplineKnots;
 };
 
 struct curve_degree_lowering_state
@@ -550,8 +563,8 @@ struct curve
  curve_degree_lowering_state DegreeLowering;
  parametric_curve_resources ParametricResources;
  
- // all points here are in local space
- curve_points_static Points;
+ // all points are in local space
+ curve_points_id Points;
  
  arena *ComputeArena;
  u32 CurveSampleCount;
@@ -661,6 +674,7 @@ struct curve_points_modify_handle
  v2 *ControlPoints;
  f32 *Weights;
  cubic_bezier_point *CubicBeziers;
+ f32 *BSplineKnots;
  modify_curve_points_static_which_points Which;
 };
 
@@ -769,6 +783,16 @@ struct string_store
  arena_store *ArenaStore;
 };
 
+//- curve points store
+struct curve_points_store
+{
+ arena *Arena;
+ curve_points_static *CurvePoints;
+ u32 Count;
+ u32 Capacity;
+ arena_store *ArenaStore;
+};
+
 //- entity store
 struct entity_store
 {
@@ -786,8 +810,6 @@ struct entity_store
  b32 *TextureHandleRefCount;
  u32 BufferCount;
  b32 *IsBufferHandleAllocated;
- string_store *StrStore;
- arena_store *ArenaStore;
 };
 
 //- thread task with memory
@@ -1145,12 +1167,14 @@ struct editor
  arena *Arena;
  
  editor_memory *EditorMemory;
+ 
  arena_store *ArenaStore;
  renderer_transfer_queue *RendererQueue;
  entity_store *EntityStore;
  thread_task_memory_store *ThreadTaskMemoryStore;
  image_loading_store *ImageLoadingStore;
  string_store *StrStore;
+ curve_points_store *CurvePointsStore;
  struct work_queue *LowPriorityQueue;
  struct work_queue *HighPriorityQueue;
  
@@ -1205,6 +1229,7 @@ struct editor_save_header
  u32 Version;
  u32 StringCount;
  u32 EntityCount;
+ u32 CurvePointsCount;
 };
 
 //~ entity type functions
@@ -1238,7 +1263,7 @@ internal control_point_handle ControlPointFromCurvePoint(curve_point_handle Hand
 internal control_point MakeControlPoint(v2 Point);
 internal control_point MakeControlPoint(v2 Point, f32 Weight, cubic_bezier_point Bezier);
 
-internal curve_points_handle MakeCurvePointsHandle(u32 ControlPointCount, v2 *ControlPoints, f32 *ControlPointWeights, cubic_bezier_point *CubicBezierPoints);
+internal curve_points_handle MakeCurvePointsHandle(u32 ControlPointCount, v2 *ControlPoints, f32 *ControlPointWeights, cubic_bezier_point *CubicBezierPoints, u32 BSplineKnotCount, f32 *BSplineKnots);
 internal curve_points_handle CurvePointsHandleZero(void);
 internal curve_points_handle CurvePointsHandleFromCurvePointsStatic(curve_points_static *Static);
 internal curve_points_dynamic MakeCurvePointsDynamic(u32 *ControlPointCount, v2 *ControlPoints, f32 *ControlPointWeights, cubic_bezier_point *CubicBezierPoints, u32 Capacity);
@@ -1253,13 +1278,13 @@ internal u32 KnotIndexFromBSplineKnotHandle(b_spline_knot_handle Handle);
 internal u32 PartitionKnotIndexFromBSplineKnotHandle(curve *Curve, b_spline_knot_handle Handle);
 
 //- entity initialization
-internal void InitEntityPart(entity *Entity, entity_type Type, xform2d XForm, string Name, i32 SortingLayer, entity_flags Flags, string_store *StrStore);
-internal void InitEntityAsImage(entity *Entity, v2 P, u32 Width, u32 Height, string ImageFilePath, render_texture_handle TextureHandle, string_store *StrStore);
-internal void InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams, string_store *StrStore);
-internal void InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src, entity_store *EntityStore);
-internal void InitEntityPartFromEntity(entity *Dst, entity *Src, entity_store *EntityStore);
-internal void InitEntityImagePart(image *Image, scale2d Dim, string ImageFilePath, render_texture_handle TextureHandle, string_store *StrStore);
-internal void InitEntityImagePart(image *Image, u32 Width, u32 Height, string ImageFilePath, render_texture_handle TextureHandle, string_store *StrStore);
+internal void InitEntityPart(entity *Entity, entity_type Type, xform2d XForm, string Name, i32 SortingLayer, entity_flags Flags);
+internal void InitEntityAsImage(entity *Entity, v2 P, u32 Width, u32 Height, string ImageFilePath, render_texture_handle TextureHandle);
+internal void InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams);
+internal void InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src);
+internal void InitEntityPartFromEntity(entity *Dst, entity *Src);
+internal void InitEntityImagePart(image *Image, scale2d Dim, string ImageFilePath, render_texture_handle TextureHandle);
+internal void InitEntityImagePart(image *Image, u32 Width, u32 Height, string ImageFilePath, render_texture_handle TextureHandle);
 
 //- entity modify
 internal void TranslateCurvePointTo(entity_with_modify_witness *Entity, curve_point_handle Handle, v2 P, translate_curve_point_flags Flags); // this can be any point - either control or bezier
@@ -1277,7 +1302,8 @@ internal void MarkEntityDeselected(entity *Entity);
 internal void SetEntityVisibility(entity *Entity, b32 Visible);
 internal void SetTrackingPointFraction(entity_with_modify_witness *EntityWitness, f32 Fraction);
 internal void SetBSplineKnotPoint(entity_with_modify_witness *EntityWitness, b_spline_knot_handle Knot, f32 KnotFraction);
-internal void SetEntityName(entity *Entity, string Name, string_store *StrStore);
+internal void SetEntityName(entity *Entity, string Name);
+internal void MaybeReverseCurvePoints(entity *Entity);
 
 //- entity query
 internal b32 IsEntityVisible(entity *Entity);
@@ -1297,7 +1323,7 @@ internal b32 IsCurveTotalSamplesMode(curve *Curve);
 internal b32 IsCurveReversed(entity *Curve);
 internal b32 IsRegularBezierCurve(curve *Curve);
 internal b32 AreBSplineKnotsVisible(curve *Curve);
-internal string GetEntityName(entity *Entity, string_store *StrStore);
+internal string GetEntityName(entity *Entity);
 internal char_buffer *GetEntityNameBuffer(entity *Entity, string_store *StrStore);
 internal control_point GetCurveControlPointInWorldSpace(entity *Entity, control_point_handle Point);
 internal void CopyCurvePointsFromCurve(curve *Curve, curve_points_dynamic Dst);
@@ -1419,21 +1445,28 @@ internal arena *AllocArenaFromStore(arena_store *ArenaStore, u64 ReserveButNotCo
 
 //- string store
 internal string_store *AllocStringStore(arena_store *ArenaStore);
-internal void DeallocStringStore(string_store *Store);
-
 internal string_id AllocStringOfSize(string_store *Store, u64 Size);
 internal string_id AllocStringFromString(string_store *Store, string Str);
 internal void DeallocString(string_store *Store, string_id Id);
 internal void SetOrAllocStringOfId(string_store *Store, string Str, string_id Id);
 internal char_buffer *CharBufferFromStringId(string_store *Store, string_id Id);
 internal string StringFromStringId(string_store *Store, string_id Id);
-
 internal string_id StringIdFromIndex(u32 Index);
 internal u32 IndexFromStringId(string_id Id);
 internal b32 StringIdMatch(string_id A, string_id B);
 
+//- curve points store
+internal curve_points_store *AllocCurvePointsStore(arena_store *ArenaStore);
+internal curve_points_id AllocCurvePointsFromStore(curve_points_store *Store);
+internal void SetOrAllocCurvePointsOfId(curve_points_store *Store, curve_points_id Id, curve_points_handle Points);
+
+internal curve_points_static *CurvePointsFromId(curve_points_store *Store, curve_points_id Id);
+internal curve_points_id CurvePointsIdFromIndex(u32 Index);
+internal u32 IndexFromCurvePointsId(curve_points_id Id);
+internal b32 CurvePointsIdMatch(curve_points_id A, curve_points_id B);
+
 //- entity store
-internal entity_store *AllocEntityStore(arena_store *ArenaStore, u32 MaxTextureCount, u32 MaxBufferCount, string_store *StrStore);
+internal entity_store *AllocEntityStore(arena_store *ArenaStore, u32 MaxTextureCount, u32 MaxBufferCount);
 internal entity *AllocEntity(entity_store *Store, b32 DontTrack);
 internal void DeallocEntity(entity_store *Store, entity *Entity);
 internal void ActivateEntity(entity_store *Store, entity *Entity); // don't actually dealloc memory and don't put on free list, but otherwise mark entity as "deallocated" to the outside world

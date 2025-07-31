@@ -17,6 +17,7 @@
 #include "editor_sort.cpp"
 #include "editor_editor.cpp"
 #include "editor_platform.cpp"
+#include "editor_ctx.cpp"
 
 platform_api Platform;
 
@@ -201,7 +202,8 @@ UpdateAndRenderDegreeLowering(editor *Editor, rendering_entity_handle Handle)
    UI_EndWindow();
    
    //-
-   Assert(Lowering->LowerDegree.MiddlePointIndex < Curve->Points.ControlPointCount);
+   curve_points_static *Points = GetCurvePoints(Curve);
+   Assert(Lowering->LowerDegree.MiddlePointIndex < Points->ControlPointCount);
    
    if (MixChanged)
    {
@@ -354,8 +356,9 @@ RenderEntity(rendering_entity_handle Handle)
                 GetCurvePartVisibilityZOffset(CurvePartVisibility_CubicBezierHelperPoints));
     }
     
-    u32 ControlPointCount = Curve->Points.ControlPointCount;
-    v2 *ControlPoints = Curve->Points.ControlPoints;
+    curve_points_static *Points = GetCurvePoints(Curve);
+    u32 ControlPointCount = Points->ControlPointCount;
+    v2 *ControlPoints = Points->ControlPoints;
     for (u32 PointIndex = 0;
          PointIndex < ControlPointCount;
          ++PointIndex)
@@ -424,7 +427,7 @@ RenderEntity(rendering_entity_handle Handle)
 }
 
 internal void
-InterpolateAnimationCurve(animating_curves_state *Animation, v2 *Samples, string_store *StrStore)
+InterpolateAnimationCurve(animating_curves_state *Animation, v2 *Samples)
 {
  temp_arena Temp = TempArena(0);
  
@@ -436,8 +439,8 @@ InterpolateAnimationCurve(animating_curves_state *Animation, v2 *Samples, string
  
  if (Entity0 && Entity1)
  {
-  string Name = StrF(Temp.Arena, "%S+%S extracted", GetEntityName(Entity0, StrStore), GetEntityName(Entity1, StrStore));
-  InitEntityAsCurve(Entity, Name, DefaultCubicSplineCurveParams(), StrStore);
+  string Name = StrF(Temp.Arena, "%S+%S extracted", GetEntityName(Entity0), GetEntityName(Entity1));
+  InitEntityAsCurve(Entity, Name, DefaultCubicSplineCurveParams());
   curve *Curve = SafeGetCurve(Entity);
   
   u32 SampleCount = Animation->AnimationCurveSamplePointCount;
@@ -532,7 +535,9 @@ ComputeAnimationSamples(arena *Arena, animating_curves_state *Animation)
   
   if (!Animation->ExtractedCurveDetailCustom)
   {
-   Animation->ExtractedCurveDetail = Max(Curve0->Points.ControlPointCount, Curve1->Points.ControlPointCount);
+   curve_points_static *Points0 = GetCurvePoints(Curve0);
+   curve_points_static *Points1 = GetCurvePoints(Curve1);
+   Animation->ExtractedCurveDetail = Max(Points0->ControlPointCount, Points1->ControlPointCount);
   }
   
   Result.Samples = CurveSamples;
@@ -549,7 +554,6 @@ UpdateAndRenderAnimatingCurves(editor *Editor,
                                render_group *RenderGroup)
 {
  animating_curves_state *Animation = &Editor->AnimatingCurves;
- string_store *StrStore = Editor->StrStore;
  
  entity *Entity0 = EntityFromHandle(Animation->Choose2Curves.Curves[0]);
  entity *Entity1 = EntityFromHandle(Animation->Choose2Curves.Curves[1]);
@@ -567,7 +571,7 @@ UpdateAndRenderAnimatingCurves(editor *Editor,
   compute_animation_samples_result AnimationSamples = ComputeAnimationSamples(Temp.Arena, Animation);
   if (Animation->Flags & AnimatingCurves_Preview)
   {
-   InterpolateAnimationCurve(Animation, AnimationSamples.Samples, StrStore);
+   InterpolateAnimationCurve(Animation, AnimationSamples.Samples);
    rendering_entity_handle RenderingHandle = BeginRenderingEntity(Animation->ExtractEntity, RenderGroup);
    RenderEntity(RenderingHandle);
    EndRenderingEntity(RenderingHandle);
@@ -1223,7 +1227,8 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
         case Curve_BSpline: {
          b_spline_params *BSpline = &CurveParams->BSpline;
          b_spline_knot_params *KnotParams = &BSpline->KnotParams;
-         b_spline_degree_bounds Bounds = BSplineDegreeBounds(Curve->Points.ControlPointCount);
+         curve_points_static *Points = GetCurvePoints(Curve);
+         b_spline_degree_bounds Bounds = BSplineDegreeBounds(Points->ControlPointCount);
          
          CrucialEntityParamChanged |= UI_SliderInteger(SafeCastToPtr(KnotParams->Degree, i32), Bounds.MinDegree, Bounds.MaxDegree, StrLit("Degree"));
          if (ResetCtxMenu(StrLit("Degree")))
@@ -1268,12 +1273,13 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
          if (UI_BeginTree(StrLit("Knots")))
          {         
           b_spline_knot_params KnotParams = GetBSplineParams(Curve).KnotParams;
+          curve_points_static *Points = GetCurvePoints(Curve);
           u32 KnotCount = KnotParams.KnotCount;
           u32 Degree = KnotParams.Degree;
           u32 PartitionSize = KnotParams.PartitionSize;
           f32 A = KnotParams.A;
           f32 B = KnotParams.B;
-          f32 *Knots = Curve->Points.BSplineKnots;
+          f32 *Knots = Points->BSplineKnots;
           for (u32 KnotIndex = 0;
                KnotIndex < KnotCount;
                ++KnotIndex)
@@ -1308,8 +1314,9 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
        if (CurveHasWeights(Curve))
        {
         b32 WeightChanged = false;
-        u32 PointCount = Curve->Points.ControlPointCount;
-        f32 *Weights = Curve->Points.ControlPointWeights;
+        curve_points_static *Points = GetCurvePoints(Curve);
+        u32 PointCount = Points->ControlPointCount;
+        f32 *Weights = Points->ControlPointWeights;
         
         u32 Selected = 0;
         if (IsControlPointSelected(Curve))
@@ -1604,7 +1611,8 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
      {
       UI_Label(StrLit("Info"))
       {
-       UI_TextF(false, "Number of control points  %u", Curve->Points.ControlPointCount);
+       curve_points_static *Points = GetCurvePoints(Curve);
+       UI_TextF(false, "Number of control points  %u", Points->ControlPointCount);
        UI_TextF(false, "Number of samples         %u", Curve->CurveSampleCount);
       }
      }
@@ -1769,7 +1777,7 @@ RenderEntityListWindowContents(editor *Editor, render_group *RenderGroup)
     UI_PushId(EntityIndex);
     b32 Selected = IsEntitySelected(Entity);
     
-    if (UI_SelectableItem(Selected, GetEntityName(Entity, StrStore)))
+    if (UI_SelectableItem(Selected, GetEntityName(Entity)))
     {
      SelectEntity(Editor, Entity);
     }
@@ -2229,7 +2237,7 @@ UpdateAndRenderChoose2CurvesUI(choose_2_curves_state *Choosing, editor *Editor)
   {
    if (Curves[Index])
    {
-    Button = GetEntityName(Curves[Index], StrStore);
+    Button = GetEntityName(Curves[Index]);
    }
    else
    {
@@ -2364,12 +2372,11 @@ RenderAnimatingCurvesUI(editor *Editor)
     temp_arena Temp = TempArena(0);
     
     compute_animation_samples_result AnimationSamples = ComputeAnimationSamples(Temp.Arena, Animation);
-    InterpolateAnimationCurve(Animation, AnimationSamples.Samples, StrStore);
+    InterpolateAnimationCurve(Animation, AnimationSamples.Samples);
     
-    entity_store *EntityStore = Editor->EntityStore;
     entity *Entity = AddEntity(Editor);
     entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
-    InitEntityFromEntity(&EntityWitness, Animation->ExtractEntity, EntityStore);
+    InitEntityFromEntity(&EntityWitness, Animation->ExtractEntity);
     EndEntityModify(EntityWitness);
     SelectEntity(Editor, Entity);
     
@@ -2525,10 +2532,9 @@ ProcessInputEvents(editor *Editor,
      {
       temp_arena Temp = TempArena(0);
       
-      entity_store *EntityStore = Editor->EntityStore;
       entity *Entity = AddEntity(Editor);
       string Name = StrF(Temp.Arena, "curve(%lu)", Editor->EverIncreasingEntityCounter++);
-      InitEntityAsCurve(Entity, Name, Editor->CurveDefaultParams, StrStore);
+      InitEntityAsCurve(Entity, Name, Editor->CurveDefaultParams);
       TargetEntity = Entity;
       
       EndTemp(Temp);
@@ -2589,8 +2595,9 @@ ProcessInputEvents(editor *Editor,
      
      case EditorLeftClick_MovingBSplineKnot: {
       curve *Curve = SafeGetCurve(Entity);
+      curve_points_static *Points = GetCurvePoints(Curve);
       b_spline_knot_params KnotParams = GetBSplineParams(Curve).KnotParams;
-      f32 *Knots = Curve->Points.BSplineKnots;
+      f32 *Knots = Points->BSplineKnots;
       b_spline_knot_handle Knot = LeftClick->BSplineKnot;
       u32 KnotIndex = KnotIndexFromBSplineKnotHandle(Knot);
       f32 KnotFraction = Knots[KnotIndex];
@@ -2810,9 +2817,7 @@ ProcessInputEvents(editor *Editor,
 internal void
 Merge2Curves(entity_with_modify_witness *MergeWitness,
              entity *Entity0, entity *Entity1,
-             curve_merge_method Method,
-             entity_store *EntityStore,
-             string_store *StrStore)
+             curve_merge_method Method)
 {
  temp_arena Temp = TempArena(0);
  
@@ -2820,25 +2825,28 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
  curve *Curve1 = SafeGetCurve(Entity1);
  entity *MergeEntity = MergeWitness->Entity;
  
- string Name = StrF(Temp.Arena, "%S+%S", GetEntityName(Entity0, StrStore), GetEntityName(Entity1, StrStore));
- InitEntityFromEntity(MergeWitness, Entity0, EntityStore);
- SetEntityName(MergeEntity, Name, StrStore);
+ string Name = StrF(Temp.Arena, "%S+%S", GetEntityName(Entity0), GetEntityName(Entity1));
+ InitEntityFromEntity(MergeWitness, Entity0);
+ SetEntityName(MergeEntity, Name);
  
  // TODO(hbr): remove this?
  MaybeReverseCurvePoints(Entity0);
  MaybeReverseCurvePoints(Entity1);
  
- u32 PointCount0 = Curve0->Points.ControlPointCount;
- u32 PointCount1 = Curve1->Points.ControlPointCount;
+ curve_points_static *Points0 = GetCurvePoints(Curve0);
+ curve_points_static *Points1 = GetCurvePoints(Curve1);
  
- v2 *Points0 = Curve0->Points.ControlPoints;
- v2 *Points1 = Curve1->Points.ControlPoints;
+ u32 PointCount0 = Points0->ControlPointCount;
+ u32 PointCount1 = Points1->ControlPointCount;
  
- f32 *Weights0 = Curve0->Points.ControlPointWeights;
- f32 *Weights1 = Curve1->Points.ControlPointWeights;
+ v2 *Controls0 = Points0->ControlPoints;
+ v2 *Controls1 = Points1->ControlPoints;
  
- cubic_bezier_point *Beziers0 = Curve0->Points.CubicBezierPoints;
- cubic_bezier_point *Beziers1 = Curve1->Points.CubicBezierPoints;
+ f32 *Weights0 = Points0->ControlPointWeights;
+ f32 *Weights1 = Points1->ControlPointWeights;
+ 
+ cubic_bezier_point *Beziers0 = Points0->CubicBezierPoints;
+ cubic_bezier_point *Beziers1 = Points1->CubicBezierPoints;
  
  u32 DropCount1 = 0;
  v2 Fix1 = {};
@@ -2854,9 +2862,9 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
    
    if (PointCount0 > 0 && PointCount1 > 0)
    {
-    v2 P0 = Points0[PointCount0 - 1];
+    v2 P0 = Controls0[PointCount0 - 1];
     
-    v2 P1 = Points1[0];
+    v2 P1 = Controls1[0];
     P1 = LocalToWorldEntityPosition(Entity1, P1);
     P1 = WorldToLocalEntityPosition(Entity0, P1);
     
@@ -2878,7 +2886,7 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
  
  ArrayCopy(Weights,               Weights0,              PointCount0);
  ArrayCopy(Weights + PointCount0, Weights1 + DropCount1, PointCount1 - DropCount1);
- ArrayCopy(Points,                Points0,               PointCount0);
+ ArrayCopy(Points,                Controls0,               PointCount0);
  ArrayCopy(Beziers,               Beziers0,              PointCount0);
  
  u32 PointIndex = PointCount0;
@@ -2886,7 +2894,7 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
       PointIndex1 < PointCount1;
       ++PointIndex1)
  {
-  v2 Point1 = Points1[PointIndex1];
+  v2 Point1 = Controls1[PointIndex1];
   Point1 = LocalToWorldEntityPosition(Entity1, Point1);
   Point1 = WorldToLocalEntityPosition(Entity0, Point1);
   Point1 = Point1 + Fix1;
@@ -3026,7 +3034,7 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
   Beziers[PointCount0 + 1].P2 += Fix_T;
  }
  
- curve_points_handle CurvePoints = MakeCurvePointsHandle(PointCount, Points, Weights, Beziers);
+ curve_points_handle CurvePoints = MakeCurvePointsHandle(PointCount, Points, Weights, Beziers, 0, 0);
  SetCurvePoints(MergeWitness, CurvePoints);
  
  MaybeReverseCurvePoints(MergeEntity);
@@ -3080,7 +3088,7 @@ RenderMergingCurvesUI(editor *Editor)
     entity_with_modify_witness MergeWitness = BeginEntityModify(Merging->MergeEntity);
     if (Compatibility.Compatible)
     {
-     Merge2Curves(&MergeWitness, Entity0, Entity1, Merging->Method, EntityStore, StrStore);
+     Merge2Curves(&MergeWitness, Entity0, Entity1, Merging->Method);
     }
     else
     {
@@ -3660,6 +3668,18 @@ InitGlobalsOnInitOrCodeReload(editor *Editor)
 {
  NilExpr = &Editor->NilParametricExpr;
  DEBUG_Vars = &Editor->DEBUG_Vars;
+ if (Editor)
+ {
+  InitEditorCtx(Editor->ArenaStore,
+                Editor->RendererQueue,
+                Editor->EntityStore,
+                Editor->ThreadTaskMemoryStore,
+                Editor->ImageLoadingStore,
+                Editor->StrStore,
+                Editor->CurvePointsStore,
+                Editor->LowPriorityQueue,
+                Editor->HighPriorityQueue);
+ }
 }
 
 internal u32

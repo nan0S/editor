@@ -111,9 +111,11 @@ internal deserialize_stream MakeDeserializeStream(string Data);
 internal void DeserializeData(deserialize_stream *Stream, void *Dst, u64 Size);
 internal string DeserializeString(arena *Arena, deserialize_stream *Stream);
 #define DeserializeStruct(Stream, Ptr) DeserializeData(Stream, Ptr, SizeOf(*(Ptr)))
+#define DeserializeArray(Stream, Array, Count) DeserializeData(Stream, Array, (Count) * SizeOf(*(Array)))
 
 internal void SerializeData(arena *Arena, string_list *List, void *Data, u64 Size);
 internal void SerializeString(arena *Arena, string_list *List, string Str);
 #define SerializeStruct(Arena, List, Ptr) SerializeData(Arena, List, Ptr, SizeOf(*(Ptr)))
+#define SerializeArray(Arena, List, Array, Count) SerializeData(Arena, List, Array, (Count) * (SizeOf(*(Array))))
 
 #endif //BASE_STRING_H

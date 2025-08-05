@@ -1304,6 +1304,8 @@ internal f32
 EvalExpr(parametric_equation_expr *Expr,
          parametric_equation_env *Env)
 {
+ if (Expr == 0) Expr = NilExpr;
+ 
  f32 Result = 0;
  switch (Expr->Type)
  {

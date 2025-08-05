@@ -29,6 +29,12 @@ internal editor_ctx *GetCtx(void);
 //~ helpers
 internal curve_points_static *GetCurvePoints(curve *Curve);
 internal u32 GetControlPointCount(curve *Curve);
+
 internal void FillCharBuffer(string_id Dst, string_id Src);
+internal void FillCharBuffer(string_id Dst, string Src);
+internal void FillCharBuffer(char_buffer *Dst, string_id Src);
+
+internal char_buffer *CharBufferFromStringId(string_id Id);
+internal string StringFromStringId(string_id Id);
 
 #endif //EDITOR_CTX_H

@@ -247,43 +247,38 @@ enum
  TranslateCurvePoint_MatchBezierTwinLength    = (1<<1),
 };
 
-struct parametric_curve_var
+struct parametric_curve_field
 {
- u32 Id;
+ // union
+ struct {
+  u32 Id;
+  b32 EquationOrDragFloatMode_Equation;
+  f32 DragValue;
+  string_id VarName;
+ };
+ //struct {};
+ string_id Equation;
  
- b32 EquationOrDragFloatMode_Equation;
- f32 DragValue;
- f32 EquationValue;
- 
- string_id VarName;
- string_id VarEquation;
- 
- b32 EquationFail;
- string EquationErrorMessage;
+ struct {
+  // union
+  struct { parametric_equation_expr *EvalExpr; };
+  struct { f32 EvalValue; };
+  b32 EvalFail;
+  string EvalErrorMessage;
+ } Cached;
 };
+
 struct parametric_curve_resources
 {
- arena *Arena;
- b32 ForceArenaClear;
+ parametric_curve_field MinT_Var;
+ parametric_curve_field MaxT_Var;
  
- parametric_curve_var MinT_Var;
- parametric_curve_var MaxT_Var;
- 
- string_id X_Equation;
- string_id Y_Equation;
- 
- parametric_equation_expr *X_Expr;
- parametric_equation_expr *Y_Expr;
- 
- b32 X_Fail;
- b32 Y_Fail;
- 
- string X_ErrorMessage;
- string Y_ErrorMessage;
+ parametric_curve_field X_Equation;
+ parametric_curve_field Y_Equation;
  
  u32 AdditionalVarCount;
  u32 AdditionalVarIndexCounter;
- parametric_curve_var AdditionalVars[16];
+ parametric_curve_field AdditionalVars[16];
 };
 
 enum parametric_curve_predefined_example_type : u32
@@ -1341,10 +1336,10 @@ internal b32 EntityModified(entity_snapshot_for_merging Versioned, entity *Entit
 internal curve_merge_compatibility AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method Method);
 
 //- parametric curve specific
-internal parametric_curve_var *AllocParametricCurveVar(parametric_curve_resources *Resources);
-internal void DeallocParametricCurveVar(parametric_curve_resources *Resources, parametric_curve_var *Var);
+internal parametric_curve_field *AllocParametricCurveVar(parametric_curve_resources *Resources);
+internal void DeallocParametricCurveVar(parametric_curve_resources *Resources, parametric_curve_field *Var);
 internal b32 ParametricCurveResourcesHasFreeAddditionalVar(parametric_curve_resources *Resources);
-internal b32 IsParametricCurveVarActive(parametric_curve_var *Var);
+internal b32 IsParametricCurveVarActive(parametric_curve_field *Var);
 
 //- misc
 internal curve_params DefaultCurveParams(void);

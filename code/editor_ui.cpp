@@ -315,6 +315,7 @@ UI_InputText2(char_buffer *Buffer, u32 InputWidthInChars, string Label)
  string CBuffer = CStrFromStr(Temp.Arena, StrFromCharBuffer(*Buffer));
  PushTightInputText(InputWidthInChars);
  b32 Changed = Cast(b32)Platform.ImGui.InputText(CLabel.Data, CBuffer.Data, Buffer->Capacity);
+ // TODO(hbr): I would really want to avoid copy here
  u64 Count = CStrLen(CBuffer.Data);
  MemoryCopy(Buffer->Data, CBuffer.Data, Count);
  Buffer->Count = Count;

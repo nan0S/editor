@@ -1830,9 +1830,10 @@ AllocEntity(entity_store *Store, b32 DontTrack)
  Curve->Points = AllocCurvePointsFromStore(GetCtx()->CurvePointsStore);
  Curve->ComputeArena = AllocArenaFromStore(GetCtx()->ArenaStore, Megabytes(32));
  Curve->DegreeLowering.Arena = AllocArenaFromStore(GetCtx()->ArenaStore, Megabytes(32));
- Curve->ParametricResources.Arena = AllocArenaFromStore(GetCtx()->ArenaStore, Megabytes(32));
- Curve->ParametricResources.X_Equation = AllocStringOfSize(GetCtx()->StrStore, 128);
- Curve->ParametricResources.Y_Equation = AllocStringOfSize(GetCtx()->StrStore, 128);
+ Curve->ParametricResources.MinT_Var.Equation = AllocStringOfSize(GetCtx()->StrStore, 32);
+ Curve->ParametricResources.MaxT_Var.Equation = AllocStringOfSize(GetCtx()->StrStore, 32);
+ Curve->ParametricResources.X_Equation.Equation = AllocStringOfSize(GetCtx()->StrStore, 128);
+ Curve->ParametricResources.Y_Equation.Equation = AllocStringOfSize(GetCtx()->StrStore, 128);
  
  image *Image = &Entity->Image;
  Image->FilePath = AllocStringOfSize(GetCtx()->StrStore, 128);
@@ -1853,9 +1854,8 @@ DeallocEntity(entity_store *Store, entity *Entity)
  
  DeallocArenaFromStore(GetCtx()->ArenaStore, Curve->ComputeArena);
  DeallocArenaFromStore(GetCtx()->ArenaStore, Curve->DegreeLowering.Arena);
- DeallocArenaFromStore(GetCtx()->ArenaStore, Curve->ParametricResources.Arena);
- DeallocStringFromStore(GetCtx()->StrStore, Curve->ParametricResources.X_Equation);
- DeallocStringFromStore(GetCtx()->StrStore, Curve->ParametricResources.Y_Equation );
+ DeallocStringFromStore(GetCtx()->StrStore, Curve->ParametricResources.X_Equation.Equation);
+ DeallocStringFromStore(GetCtx()->StrStore, Curve->ParametricResources.Y_Equation.Equation);
  DeallocTextureHandle(Store, Image->TextureHandle);
  
  DeactiveEntity(Store, Entity);
@@ -3603,8 +3603,6 @@ internal void
 InitEntityCurvePart(curve *Curve, curve_params CurveParams)
 {
  Curve->Params = CurveParams;
- Curve->ParametricResources.X_Expr = NilExpr;
- Curve->ParametricResources.Y_Expr = NilExpr;
 }
 
 internal void
@@ -3661,30 +3659,30 @@ InitEntityPartFromEntity(entity *Dst, entity *Src)
 }
 
 internal void
-InitParametricCurveVar(parametric_curve_var *Dst, parametric_curve_var *Src)
+InitParametricCurveField(parametric_curve_field *Dst, parametric_curve_field *Src)
 {
- Dst->Id = Src->Id;
  Dst->EquationOrDragFloatMode_Equation = Src->EquationOrDragFloatMode_Equation;
  Dst->DragValue = Src->DragValue;
- Dst->EquationValue = Src->EquationValue;
- 
  FillCharBuffer(Dst->VarName, Src->VarName);
- FillCharBuffer(Dst->VarEquation, Src->VarEquation);
+ FillCharBuffer(Dst->Equation, Src->Equation);
 }
 
 internal void
 InitParametricCurveResources(parametric_curve_resources *Dst, parametric_curve_resources *Src)
 {
- InitParametricCurveVar(&Dst->MinT_Var, &Src->MinT_Var);
- InitParametricCurveVar(&Dst->MaxT_Var, &Src->MaxT_Var);
- 
- FillCharBuffer(Dst->X_Equation, Src->X_Equation);
- FillCharBuffer(Dst->Y_Equation, Src->Y_Equation);
+ InitParametricCurveField(&Dst->MinT_Var, &Src->MinT_Var);
+ InitParametricCurveField(&Dst->MaxT_Var, &Src->MaxT_Var);
+ InitParametricCurveField(&Dst->X_Equation, &Src->X_Equation);
+ InitParametricCurveField(&Dst->Y_Equation, &Src->Y_Equation);
  
  ForEachElement(AdditionalVarIndex, Dst->AdditionalVars)
  {
-  InitParametricCurveVar(Dst->AdditionalVars + AdditionalVarIndex,
-                         Src->AdditionalVars + AdditionalVarIndex);
+  parametric_curve_field *SrcVar = Src->AdditionalVars + AdditionalVarIndex;
+  if (IsParametricCurveVarActive(SrcVar))
+  {
+   parametric_curve_field *DstVar = AllocParametricCurveVar(Dst);
+   InitParametricCurveField(DstVar, SrcVar);
+  }
  }
 }
 
@@ -3696,6 +3694,7 @@ InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src)
  curve *SrcCurve = &Src->Curve;
  image *DstImage = &Dst->Image;
  image *SrcImage = &Src->Image;
+ 
  //- init entity part
  InitEntityPart(Dst,
                 Src->Type,
@@ -3703,6 +3702,7 @@ InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src)
                 GetEntityName(Src),
                 Src->SortingLayer,
                 Src->Flags);
+ 
  //- init specific entity type part
  switch (Src->Type)
  {
@@ -4238,24 +4238,94 @@ CalcBSpline(v2 *Controls,
 #endif
 }
 
-internal f32
-ParametricCurveVarValue(parametric_curve_var *Var)
+internal void
+CalcParametricCurveField(arena *Arena,
+                         parametric_curve_field *Field,
+                         b32 IsVar,
+                         u32 VarCount,
+                         string *VarNames,
+                         f32 *VarValues)
 {
- f32 Result = (Var->EquationOrDragFloatMode_Equation ? Var->EquationValue : Var->DragValue);
- return Result;
+ StructZero(&Field->Cached);
+ 
+ string Equation = StringFromStringId(GetCtx()->StrStore, Field->Equation);
+ 
+ if (IsVar)
+ {
+  if (Field->EquationOrDragFloatMode_Equation)
+  {
+   parametric_equation_eval_result Eval = ParametricEquationEval(Arena, Equation, VarCount, VarNames, VarValues);
+   Field->Cached.EvalValue = Eval.Value;
+   Field->Cached.EvalFail = Eval.Fail;
+   Field->Cached.EvalErrorMessage = Eval.ErrorMessage;
+  }
+ }
+ else
+ {
+  parametric_equation_parse_result Parse = ParametricEquationParse(Arena, Equation, VarCount, VarNames, VarValues);
+  Field->Cached.EvalExpr = Parse.ParsedExpr;
+  Field->Cached.EvalFail = Parse.Fail;
+  Field->Cached.EvalErrorMessage = Parse.ErrorMessage;
+ }
+}
+
+internal f32
+ParametricCurveVarValue(parametric_curve_field *Var)
+{
+ f32 Value = 0;
+ if (Var->EquationOrDragFloatMode_Equation)
+ {
+  Value = Var->Cached.EvalValue;
+ }
+ else
+ {
+  Value = Var->DragValue;
+ }
+ return Value;
 }
 
 internal void
-CalcParametric(parametric_curve_resources *Parametric,
+CalcParametric(arena *Arena,
+               parametric_curve_resources *Parametric,
                u32 SampleCount, v2 *OutSamples)
 {
+ 
+ temp_arena Temp = TempArena(Arena);
+ 
+ u32 MaxVarCount = ArrayCount(Parametric->AdditionalVars);
+ u32 VarCount = 0;
+ string *VarNames = PushArray(Temp.Arena, MaxVarCount, string);
+ f32 *VarValues = PushArray(Temp.Arena, MaxVarCount, f32);
+ 
+ ForEachElement(AdditionalVarIndex, Parametric->AdditionalVars)
+ {
+  parametric_curve_field *Var = Parametric->AdditionalVars + AdditionalVarIndex;
+  if (IsParametricCurveVarActive(Var))
+  {
+   string VarName = StringFromStringId(Var->VarName);
+   CalcParametricCurveField(Arena, Var, true, VarCount, VarNames, VarValues);
+   f32 VarValue = ParametricCurveVarValue(Var);
+   
+   Assert(VarCount < MaxVarCount);
+   VarNames[VarCount] = VarName;
+   VarValues[VarCount] = VarValue;
+   ++VarCount;
+  }
+ }
+ 
+ CalcParametricCurveField(Arena, &Parametric->X_Equation, false, VarCount, VarNames, VarValues);
+ CalcParametricCurveField(Arena, &Parametric->Y_Equation, false, VarCount, VarNames, VarValues);
+ 
+ parametric_equation_expr *X_Expr = Parametric->X_Equation.Cached.EvalExpr;
+ parametric_equation_expr *Y_Expr = Parametric->Y_Equation.Cached.EvalExpr;
+ 
+ CalcParametricCurveField(Arena, &Parametric->MinT_Var, true, VarCount, VarNames, VarValues);
+ CalcParametricCurveField(Arena, &Parametric->MaxT_Var, true, VarCount, VarNames, VarValues);
+ 
  f32 MinT = ParametricCurveVarValue(&Parametric->MinT_Var);
  f32 MaxT = ParametricCurveVarValue(&Parametric->MaxT_Var);
  // NOTE(hbr): Adjust for safety
  MaxT = Max(MinT, MaxT);
- 
- parametric_equation_expr *X_Expr = Parametric->X_Expr;
- parametric_equation_expr *Y_Expr = Parametric->Y_Expr;
  
  f32 T = MinT;
  f32 DeltaT = (MaxT - MinT) / (SampleCount - 1);
@@ -4272,6 +4342,8 @@ CalcParametric(parametric_curve_resources *Parametric,
   
   T += DeltaT;
  }
+ 
+ EndTemp(Temp);
 }
 
 internal void
@@ -4286,6 +4358,7 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
  f32 *BSplineKnots = Points->BSplineKnots;
  u32 SamplesPerControlPoint = Params->SamplesPerControlPoint;
  parametric_curve_resources *Parametric = &Curve->ParametricResources;
+ arena *ComputeArena = Curve->ComputeArena;
  
  switch (Params->Type)
  {
@@ -4322,7 +4395,8 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
    
    CalcBSpline(Controls, KnotParams, BSplineKnots, SampleCount, OutSamples);
   }break;
-  case Curve_Parametric: {CalcParametric(Parametric, SampleCount, OutSamples);}break;
+  
+  case Curve_Parametric: {CalcParametric(ComputeArena, Parametric, SampleCount, OutSamples);}break;
   
   case Curve_Count: InvalidPath;
  }
@@ -4623,30 +4697,31 @@ CopyProjectChangeMethod(arena *Arena, change_project_method Method)
  return Result;
 }
 
-internal parametric_curve_var *
+internal parametric_curve_field *
 AllocParametricCurveVar(parametric_curve_resources *Resources)
 {
- parametric_curve_var *Result = 0;
- parametric_curve_var *Free = Resources->AdditionalVars;
+ parametric_curve_field *Result = 0;
+ parametric_curve_field *Free = Resources->AdditionalVars;
  for (u32 Index = 0;
       Index < ArrayCount(Resources->AdditionalVars);
       ++Index)
  {
-  parametric_curve_var *Var = Resources->AdditionalVars + Index;
+  parametric_curve_field *Var = Resources->AdditionalVars + Index;
   if (IsParametricCurveVarActive(Var))
   {
-   Swap(*Free, *Var, parametric_curve_var);
+   Swap(*Free, *Var, parametric_curve_field);
+   ++Free;
   }
  }
  ForEachElement(Index, Resources->AdditionalVars)
  {
-  parametric_curve_var *Var = Resources->AdditionalVars + Index;
+  parametric_curve_field *Var = Resources->AdditionalVars + Index;
   if (!IsParametricCurveVarActive(Var))
   {
    string_store *StrStore = GetCtx()->StrStore;
    Var->Id = ++Resources->AdditionalVarIndexCounter;
    Var->VarName = AllocStringOfSize(StrStore, 10);
-   Var->VarEquation = AllocStringOfSize(StrStore, 64);
+   Var->Equation = AllocStringOfSize(StrStore, 64);
    ++Resources->AdditionalVarCount;
    Result = Var;
    break;
@@ -4656,11 +4731,11 @@ AllocParametricCurveVar(parametric_curve_resources *Resources)
 }
 
 internal void
-DeallocParametricCurveVar(parametric_curve_resources *Resources, parametric_curve_var *Var)
+DeallocParametricCurveVar(parametric_curve_resources *Resources, parametric_curve_field *Var)
 {
  string_store *StrStore = GetCtx()->StrStore;
  DeallocStringFromStore(StrStore, Var->VarName);
- DeallocStringFromStore(StrStore, Var->VarEquation);
+ DeallocStringFromStore(StrStore, Var->Equation);
  StructZero(Var);
  Assert(Resources->AdditionalVarCount > 0);
  --Resources->AdditionalVarCount;
@@ -4674,7 +4749,7 @@ ParametricCurveResourcesHasFreeAddditionalVar(parametric_curve_resources *Resour
 }
 
 internal b32
-IsParametricCurveVarActive(parametric_curve_var *Var)
+IsParametricCurveVarActive(parametric_curve_field *Var)
 {
  b32 Result = (Var->Id != 0);
  return Result;

@@ -47,7 +47,31 @@ GetControlPointCount(curve *Curve)
 internal void
 FillCharBuffer(string_id Dst, string_id Src)
 {
- string_store *StrStore = GetCtx()->StrStore;
- char_buffer *DstBuffer = CharBufferFromStringId(StrStore, Dst);
- FillCharBuffer(DstBuffer, StringFromStringId(StrStore, Src));
+ FillCharBuffer(CharBufferFromStringId(Dst), StringFromStringId(Src));
+}
+
+internal void
+FillCharBuffer(string_id Dst, string Src)
+{
+ FillCharBuffer(CharBufferFromStringId(Dst), Src);
+}
+
+internal void
+FillCharBuffer(char_buffer *Dst, string_id Src)
+{
+ FillCharBuffer(Dst, StringFromStringId(Src));
+}
+
+internal char_buffer *
+CharBufferFromStringId(string_id Id)
+{
+ char_buffer *Buffer = CharBufferFromStringId(GetCtx()->StrStore, Id);
+ return Buffer;
+}
+
+internal string
+StringFromStringId(string_id Id)
+{
+ string String = StringFromStringId(GetCtx()->StrStore, Id);
+ return String;
 }

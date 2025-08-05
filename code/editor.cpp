@@ -630,53 +630,31 @@ UpdateAndRenderEntities(editor *Editor, render_group *RenderGroup)
  }
 }
 
-struct update_parametric_curve_var
+#if 0
+struct update_and_render_parametric_curve_var_result
 {
  b32 Changed;
  b32 Remove;
- f32 Value;
 };
 enum update_parametric_curve_var_mode
 {
  UpdateParametricCurveVar_Static,
  UpdateParametricCurveVar_Dynamic,
 };
-internal update_parametric_curve_var
-UpdateAndRenderParametricCurveVar(arena *Arena,
-                                  parametric_curve_var *Var,
-                                  b32 ForceRecomputeEquation,
-                                  string *VarNames,
-                                  f32 *VarValues,
-                                  u32 VarCount,
+internal update_and_render_parametric_curve_var_result
+UpdateAndRenderParametricCurveVar(parametric_curve_field *Var,
                                   update_parametric_curve_var_mode Mode)
 {
  b32 VarChanged = false;
- b32 VarEquationChanged = false;
- char_buffer *VarEquation = CharBufferFromStringId(GetCtx()->StrStore, Var->VarEquation);
  
  if (Var->EquationOrDragFloatMode_Equation)
  {
-  VarEquationChanged = UI_InputText2(VarEquation, 0, StrLit("##Equation"));
+  char_buffer *VarEquation = CharBufferFromStringId(GetCtx()->StrStore, Var->VarEquation);
+  VarChanged = UI_InputText2(VarEquation, 0, StrLit("##Equation"));
  }
  else
  {
   VarChanged |= UI_DragFloat(&Var->DragValue, 0, 0, 0, StrLit("##Drag"));
- }
- 
- if (ForceRecomputeEquation || VarEquationChanged)
- {
-  VarChanged = true;
-  
-  string VarEquationInput = StrFromCharBuffer(*VarEquation);
-  parametric_equation_eval_result VarEval = ParametricEquationEval(Arena, VarEquationInput, VarCount, VarNames, VarValues);
-  Var->EquationFail = VarEval.Fail;
-  Var->EquationErrorMessage = VarEval.ErrorMessage;
-  Var->EquationValue = VarEval.Value;
- }
- 
- if (Var->EquationOrDragFloatMode_Equation)
- {
-  Var->DragValue = Var->EquationValue;
  }
  
  b32 Remove = false;
@@ -709,12 +687,12 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
   }
  }
  
- if ((Var->EquationOrDragFloatMode_Equation) && Var->EquationFail)
+ if ((Var->EquationOrDragFloatMode_Equation) && Var->Cached.EquationFail)
  {
   UI_Colored(UI_Color_Text, RedColor)
   {
    UI_SameRow();
-   UI_Text(false, Var->EquationErrorMessage);
+   UI_Text(false, Var->Cached.EquationErrorMessage);
   }
  }
  
@@ -729,12 +707,114 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
   VarChanged = true;
  }
  
- update_parametric_curve_var Result = {};
+ update_and_render_parametric_curve_var_result Result = {};
  Result.Changed = VarChanged;
  Result.Remove = Remove;
- Result.Value = (Var->EquationOrDragFloatMode_Equation ? Var->EquationValue : Var->DragValue);
  
  return Result;
+}
+#endif
+
+internal changed_b32
+RenderParametricCurveFieldUI(parametric_curve_resources *Resources,
+                             parametric_curve_field *Field,
+                             b32 IsVar,
+                             b32 IsStatic,
+                             char *StaticVarName,
+                             string Label)
+{
+ UI_PushLabel(Label);
+ 
+ string_store *StrStore = GetCtx()->StrStore;
+ u32 InputBoxWidthInChars = 4;
+ 
+ b32 Disabled = IsStatic;
+ b32 IsDynamic = !IsStatic;
+ b32 Remove = false;
+ b32 Changed = false;
+ 
+ UI_Disabled(Disabled)
+ {
+  if (IsStatic)
+  {
+   UI_InputText(StaticVarName, 0, InputBoxWidthInChars, Label);
+  }
+  else
+  {
+   char_buffer *VarName = CharBufferFromStringId(Field->VarName);
+   UI_InputText2(VarName, InputBoxWidthInChars, Label);
+  }
+ }
+ 
+ UI_SameRow();
+ UI_Text(false, StrLit(":= "));
+ UI_SameRow();
+ 
+ if (IsVar && !Field->EquationOrDragFloatMode_Equation)
+ {
+  Changed |= UI_DragFloat(&Field->DragValue, 0, 0, 0, StrLit("##Drag"));
+ }
+ else
+ {
+  char_buffer *VarEquation = CharBufferFromStringId(Field->Equation);
+  Changed = UI_InputText2(VarEquation, 0, StrLit("##Equation"));
+ }
+ 
+ if (IsDynamic)
+ {
+  UI_SameRow();
+  if (UI_Button(StrLit("-")))
+  {
+   Remove = true;
+   Changed = true;
+  }
+ }
+ 
+ if (IsVar)
+ {
+  string ButtonLabel = {};
+  string TooltipContents = {};
+  if (Field->EquationOrDragFloatMode_Equation)
+  {
+   ButtonLabel = StrLit("E");
+   TooltipContents = StrLit("Switch to drag");
+  }
+  else
+  {
+   ButtonLabel = StrLit("D");
+   TooltipContents = StrLit("Switch to equation");
+  }
+  
+  UI_SameRow();
+  if (UI_Button(ButtonLabel))
+  {
+   Changed = true;
+   Field->EquationOrDragFloatMode_Equation = !Field->EquationOrDragFloatMode_Equation;
+  }
+  if (UI_IsItemHovered())
+  {
+   UI_Tooltip(TooltipContents);
+  }
+ }
+ 
+ if (!IsVar || Field->EquationOrDragFloatMode_Equation)
+ {
+  UI_Colored(UI_Color_Text, RedColor)
+  {
+   UI_SameRow();
+   UI_Text(false, Field->Cached.EvalErrorMessage);
+  }
+ }
+ 
+ if (Remove)
+ {
+  Assert(IsVar && IsDynamic);
+  DeallocParametricCurveVar(Resources, Field);
+ }
+ 
+ UI_PopLabel();
+ 
+ return Changed;
 }
 
 internal void
@@ -984,18 +1064,9 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
         //@ render selected parametric curve ui
         case Curve_Parametric: {
          parametric_curve_resources *Resources = &Curve->ParametricResources;
-         arena *EquationArena = Resources->Arena;
          temp_arena Temp = TempArena(0);
-         b32 EquationChanged = false;
-         b32 ArenaClearedThisFrame = false;
          
-         if (Resources->ForceArenaClear)
-         {
-          ClearArena(EquationArena);
-          ArenaClearedThisFrame = true;
-          Resources->ForceArenaClear = false;
-         }
-         
+#if 1
          //- predefined examples
          // TODO(hbr): This is very adhoc, refactor this
          local parametric_curve_predefined_example_type PredefinedExample = {};
@@ -1010,14 +1081,14 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
           {
            parametric_curve_predefined_example Example = ParametricCurvePredefinedExamples[PredefinedExample];
            
-           FillCharBuffer(CharBufferFromStringId(GetCtx()->StrStore, Resources->X_Equation), Example.X_Equation);
-           FillCharBuffer(CharBufferFromStringId(GetCtx()->StrStore, Resources->Y_Equation), Example.Y_Equation);
+           FillCharBuffer(Resources->X_Equation.Equation, Example.X_Equation);
+           FillCharBuffer(Resources->Y_Equation.Equation, Example.Y_Equation);
            
-           FillCharBuffer(CharBufferFromStringId(GetCtx()->StrStore, Resources->MinT_Var.VarName), Example.Min_T.Name);
-           FillCharBuffer(CharBufferFromStringId(GetCtx()->StrStore, Resources->MaxT_Var.VarName), Example.Max_T.Name);
+           FillCharBuffer(Resources->MinT_Var.VarName, Example.Min_T.Name);
+           FillCharBuffer(Resources->MaxT_Var.VarName, Example.Max_T.Name);
            
-           FillCharBuffer(CharBufferFromStringId(GetCtx()->StrStore, Resources->MinT_Var.VarEquation), Example.Min_T.Equation);
-           FillCharBuffer(CharBufferFromStringId(GetCtx()->StrStore, Resources->MaxT_Var.VarEquation), Example.Max_T.Equation);
+           FillCharBuffer(Resources->MinT_Var.Equation, Example.Min_T.Equation);
+           FillCharBuffer(Resources->MaxT_Var.Equation, Example.Max_T.Equation);
            
            Resources->MinT_Var.EquationOrDragFloatMode_Equation = Example.Min_T.EquationMode;
            Resources->MinT_Var.DragValue = Example.Min_T.Value;
@@ -1028,7 +1099,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
            // TODO(hbr): First deallocate everything
            ForEachElement(AdditionalVarIndex, Resources->AdditionalVars)
            {
-            parametric_curve_var *Var = Resources->AdditionalVars + AdditionalVarIndex;
+            parametric_curve_field *Var = Resources->AdditionalVars + AdditionalVarIndex;
             if (IsParametricCurveVarActive(Var))
             {
              DeallocParametricCurveVar(Resources, Var);
@@ -1040,22 +1111,22 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
             parametric_curve_predefined_example_var *SrcVar = Example.AdditionalVars + AdditionalVar;
             if (SrcVar->Name.Count > 0)
             {
-             parametric_curve_var *DstVar = AllocParametricCurveVar(Resources);
+             parametric_curve_field *DstVar = AllocParametricCurveVar(Resources);
              Assert(DstVar);
              
-             FillCharBuffer(CharBufferFromStringId(GetCtx()->StrStore, DstVar->VarName), SrcVar->Name);
-             FillCharBuffer(CharBufferFromStringId(GetCtx()->StrStore, DstVar->VarEquation), SrcVar->Equation);
+             FillCharBuffer(DstVar->VarName, SrcVar->Name);
+             FillCharBuffer(DstVar->Equation, SrcVar->Equation);
              
              DstVar->EquationOrDragFloatMode_Equation = SrcVar->EquationMode;
              DstVar->DragValue = SrcVar->Value;
             }
            }
            
-           EquationChanged = true;
+           CrucialEntityParamChanged = true;
           }
          }
+#endif
          
-         //- additional vars
          UI_Text(false, StrLit("Additional Vars"));
          UI_SameRow();
          
@@ -1067,176 +1138,20 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
           }
          }
          
-         u32 TotalVarCount = Resources->AdditionalVarCount;
-         u32 RunningVarCount = 0;
-         string *VarNames = PushArrayNonZero(Temp.Arena, TotalVarCount, string);
-         f32 *VarValues = PushArrayNonZero(Temp.Arena, TotalVarCount, f32);
-         b32 VarChanged = false;
-         u32 VarInputBoxWidthInChars = 4;
-         
          ForEachElement(AdditionalVarIndex, Resources->AdditionalVars)
          {
-          parametric_curve_var *Var = Resources->AdditionalVars + AdditionalVarIndex;
-          if (IsParametricCurveVarActive(Var))
+          parametric_curve_field *Field = Resources->AdditionalVars + AdditionalVarIndex;
+          if (IsParametricCurveVarActive(Field))
           {
-           UI_PushId(Var->Id);
-           
-           char_buffer *VarName= CharBufferFromStringId(GetCtx()->StrStore, Var->VarName);
-           b32 Changed = UI_InputText2(VarName, VarInputBoxWidthInChars, StrLit("##Var"));
-           if (Changed)
-           {
-            VarChanged = true;
-           }
-           UI_SameRow();
-           UI_Text(false, StrLit(" := "));
-           UI_SameRow();
-           update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
-                                                                                  Var,
-                                                                                  VarChanged || ArenaClearedThisFrame,
-                                                                                  VarNames, VarValues, RunningVarCount,
-                                                                                  UpdateParametricCurveVar_Dynamic);
-           VarChanged |= Update.Changed;
-           
-           if (Update.Remove)
-           {
-            DeallocParametricCurveVar(Resources, Var);
-           }
-           else
-           {
-            Assert(RunningVarCount < Resources->AdditionalVarCount);
-            VarValues[RunningVarCount] = Update.Value;
-            VarNames[RunningVarCount] = StrFromCharBuffer(*VarName);
-            ++RunningVarCount;
-           }
-           
-           UI_PopId();
+           string Label = StrF(Temp.Arena, "##Var%u", Field->Id);
+           CrucialEntityParamChanged |= RenderParametricCurveFieldUI(Resources, Field, true, false, 0, Label);
           }
          }
          
-         //- min/max bounds
-         UI_Label(StrLit("t_min"))
-         {
-          UI_Disabled(true)
-          {
-           UI_InputText("t_min", 0, VarInputBoxWidthInChars, StrLit("##t_min_label"));
-          }
-          UI_SameRow();
-          UI_Text(false, StrLit(" := "));
-          UI_SameRow();
-          update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
-                                                                                 &Resources->MinT_Var,
-                                                                                 VarChanged || ArenaClearedThisFrame,
-                                                                                 VarNames, VarValues, RunningVarCount,
-                                                                                 UpdateParametricCurveVar_Static);
-          EquationChanged |= Update.Changed;
-         }
-         
-         UI_Label(StrLit("t_max"))
-         {
-          UI_Disabled(true)
-          {
-           UI_InputText("t_max", 0, VarInputBoxWidthInChars, StrLit("##t_max_label"));
-          }
-          UI_SameRow();
-          UI_Text(false, StrLit(" := "));
-          UI_SameRow();
-          update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
-                                                                                 &Resources->MaxT_Var,
-                                                                                 VarChanged || ArenaClearedThisFrame,
-                                                                                 VarNames, VarValues, RunningVarCount,
-                                                                                 UpdateParametricCurveVar_Static);
-          EquationChanged |= Update.Changed;
-         }
-         
-         //- (x,y) equations
-         UI_Label(StrLit("x(t)"))
-         {
-          UI_Disabled(true)
-          {
-           UI_InputText("x(t)", 0, VarInputBoxWidthInChars, StrLit("##x(t)_label"));
-          }
-          UI_SameRow();
-          UI_Text(false, StrLit(" := "));
-          UI_SameRow();
-          
-          char_buffer *X_Equation = CharBufferFromStringId(GetCtx()->StrStore, Resources->X_Equation);
-          changed_b32 Changed = UI_InputText2(X_Equation, 0, StrLit("##x(t)"));
-          if (VarChanged || Changed || ArenaClearedThisFrame)
-          {
-           EquationChanged = true;
-           
-           string X_EquationStr = StrFromCharBuffer(*X_Equation);
-           parametric_equation_parse_result X_Parse = ParametricEquationParse(EquationArena, X_EquationStr, RunningVarCount, VarNames, VarValues);
-           Resources->X_Expr = X_Parse.ParsedExpr;
-           Resources->X_Fail = X_Parse.Fail;
-           Resources->X_ErrorMessage = X_Parse.ErrorMessage;
-          }
-          if (Resources->X_Fail)
-          {
-           UI_SameRow();
-           UI_Colored(UI_Color_Text, RedColor)
-           {
-            UI_Text(false, Resources->X_ErrorMessage);
-           }
-          }
-          if (DEBUG_Vars->ParametricEquationDebugMode)
-          {
-           UI_ParametricEquationExpr(Resources->X_Expr, StrLit("x(t) expr"));
-          }
-         }
-         
-         UI_Label(StrLit("y(t)"))
-         {
-          UI_Disabled(true)
-          {
-           UI_InputText("y(t)", 0, VarInputBoxWidthInChars, StrLit("##y(t)_label"));
-          }
-          UI_SameRow();
-          UI_Text(false, StrLit(" := "));
-          UI_SameRow();
-          
-          char_buffer *Y_Equation = CharBufferFromStringId(GetCtx()->StrStore, Resources->Y_Equation);
-          changed_b32 Changed = UI_InputText2(Y_Equation, 0, StrLit("##y(t)"));
-          if (VarChanged || Changed || ArenaClearedThisFrame)
-          {
-           EquationChanged = true;
-           
-           string Y_EquationStr = StrFromCharBuffer(*Y_Equation);
-           parametric_equation_parse_result Y_Parse = ParametricEquationParse(EquationArena, Y_EquationStr, RunningVarCount, VarNames, VarValues);
-           Resources->Y_Expr = Y_Parse.ParsedExpr;
-           Resources->Y_Fail = Y_Parse.Fail;
-           Resources->Y_ErrorMessage = Y_Parse.ErrorMessage;
-          }
-          if (Resources->Y_Fail)
-          {
-           UI_SameRow();
-           UI_Colored(UI_Color_Text, RedColor)
-           {
-            UI_Text(false, Resources->Y_ErrorMessage);
-           }
-          }
-          if (DEBUG_Vars->ParametricEquationDebugMode)
-          {
-           UI_ParametricEquationExpr(Resources->Y_Expr, StrLit("y(t) expr"));
-          }
-         }
-         
-         if (EquationChanged)
-         {
-          CrucialEntityParamChanged = true;
-         }
-         
-         // NOTE(hbr): We could just allocate into [EquationArena] indefinitely. However this poses
-         // a potential issue where we could realistically allocate a lot of things. The issue with
-         // clearing the arena is that we have to do it at the beginning of this block of code - block for
-         // parametric curves. But we only get to actually learn that we want to clear in the middle of this
-         // block. My solution is to mark in the [parametric_curve_resources] that we will want to recompute
-         // everything next frame. Make sure that this isn't going indefinitely because [ArenaClearedThisFrame]
-         // will cause [EquationChanged] to be [true].
-         if (EquationChanged && !ArenaClearedThisFrame)
-         {
-          Resources->ForceArenaClear = true;
-         }
+         CrucialEntityParamChanged |= RenderParametricCurveFieldUI(Resources, &Resources->MinT_Var, true, true, "t_min", StrLit("##t_min"));
+         CrucialEntityParamChanged |= RenderParametricCurveFieldUI(Resources, &Resources->MaxT_Var, true, true, "t_max", StrLit("##t_max"));
+         CrucialEntityParamChanged |= RenderParametricCurveFieldUI(Resources, &Resources->X_Equation, false, true, "x(t)", StrLit("##x(t)"));
+         CrucialEntityParamChanged |= RenderParametricCurveFieldUI(Resources, &Resources->Y_Equation, false, true, "y(t)", StrLit("##y(t)"));
          
          EndTemp(Temp);
         }break;

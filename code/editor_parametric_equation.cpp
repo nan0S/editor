@@ -243,7 +243,9 @@ internal parametric_equation_token_array
 TokenizeParametricEquation(arena *Arena, string Equation,
                            parametric_equation_parsing_error *ErrorCapture)
 {
- parametric_equation_lexer Lexer = BeginLexing(Arena, Equation);
+ temp_arena Temp = TempArena(Arena);
+ string NullTerminatedEquation = CStrFromStr(Temp.Arena, Equation);
+ parametric_equation_lexer Lexer = BeginLexing(Arena, NullTerminatedEquation);
  
  b32 Lexing = true;
  do {
@@ -438,8 +440,10 @@ TokenizeParametricEquation(arena *Arena, string Equation,
  } while (Lexing);
  
  AddToken(&Lexer, ParametricEquationToken_None, Lexer.CharAt);
- 
  parametric_equation_token_array Tokens = MakeTokenArray(Lexer.TokenCount, Lexer.Tokens);
+ 
+ EndTemp(Temp);
+ 
  return Tokens;
 }
 
@@ -1293,7 +1297,6 @@ ParametricEquationParse(arena *Arena, string Equation,
 {
  parametric_equation_env Env = MakeEnv(VarCount, VarNames, VarValues, ParametricEquationT_JustBound, 0);
  parametric_equation_parse_result Result = ParseEquation(Arena, Equation, Env, DontOptimize);
- 
  return Result;
 }
 
@@ -1343,7 +1346,6 @@ ParametricEquationEvalWithT(parametric_equation_expr *Expr, f32 T)
 {
  parametric_equation_env Env = MakeEnv(0, 0, 0, ParametricEquationT_BoundAndValueProvided, T);
  f32 Result = EvalExpr(Expr, &Env);
- 
  return Result;
 }
 

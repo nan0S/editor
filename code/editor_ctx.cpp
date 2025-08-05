@@ -43,3 +43,11 @@ GetControlPointCount(curve *Curve)
  u32 Count = Points->ControlPointCount;
  return Count;
 }
+
+internal void
+FillCharBuffer(string_id Dst, string_id Src)
+{
+ string_store *StrStore = GetCtx()->StrStore;
+ char_buffer *DstBuffer = CharBufferFromStringId(StrStore, Dst);
+ FillCharBuffer(DstBuffer, StringFromStringId(StrStore, Src));
+}

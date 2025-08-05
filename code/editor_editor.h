@@ -87,15 +87,6 @@ global read_only string BezierNames[] = {
 };
 StaticAssert(ArrayCount(BezierNames) == Bezier_Count, BezierNamesDefined);
 
-struct parametric_curve_params
-{
- f32 MinT;
- f32 MaxT;
- 
- parametric_equation_expr *X_Equation;
- parametric_equation_expr *Y_Equation;
-};
-
 enum b_spline_partition_type : u32
 {
  BSplinePartition_Natural,
@@ -146,7 +137,6 @@ struct curve_params
  polynomial_interpolation_params Polynomial;
  cubic_spline_type CubicSpline;
  bezier_type Bezier;
- parametric_curve_params Parametric;
  b_spline_params BSpline;
  curve_draw_params DrawParams;
  u32 SamplesPerControlPoint;
@@ -257,39 +247,43 @@ enum
  TranslateCurvePoint_MatchBezierTwinLength    = (1<<1),
 };
 
-#define MAX_EQUATION_BUFFER_LENGTH 64
 struct parametric_curve_var
 {
- parametric_curve_var *Next;
- parametric_curve_var *Prev;
  u32 Id;
- b32 EquationMode;
+ 
+ b32 EquationOrDragFloatMode_Equation;
  f32 DragValue;
  f32 EquationValue;
-#define MAX_VAR_NAME_BUFFER_LENGTH 16
- char VarNameBuffer[MAX_VAR_NAME_BUFFER_LENGTH];
- char VarEquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
+ 
+ string_id VarName;
+ string_id VarEquation;
+ 
  b32 EquationFail;
  string EquationErrorMessage;
 };
 struct parametric_curve_resources
 {
  arena *Arena;
- b32 ShouldClearArena;
+ b32 ForceArenaClear;
+ 
  parametric_curve_var MinT_Var;
  parametric_curve_var MaxT_Var;
- char X_EquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
- char Y_EquationBuffer[MAX_EQUATION_BUFFER_LENGTH];
+ 
+ string_id X_Equation;
+ string_id Y_Equation;
+ 
+ parametric_equation_expr *X_Expr;
+ parametric_equation_expr *Y_Expr;
+ 
  b32 X_Fail;
- string X_ErrorMessage;
  b32 Y_Fail;
+ 
+ string X_ErrorMessage;
  string Y_ErrorMessage;
-#define MAX_ADDITIONAL_VAR_COUNT 16
- u32 AllocatedAdditionalVarCount;
- parametric_curve_var AdditionalVars[MAX_ADDITIONAL_VAR_COUNT];
- parametric_curve_var *FirstFreeAdditionalVar;
- parametric_curve_var *AdditionalVarsHead;
- parametric_curve_var *AdditionalVarsTail;
+ 
+ u32 AdditionalVarCount;
+ u32 AdditionalVarIndexCounter;
+ parametric_curve_var AdditionalVars[16];
 };
 
 enum parametric_curve_predefined_example_type : u32
@@ -365,7 +359,7 @@ struct parametric_curve_predefined_example
  string Y_Equation;
  parametric_curve_predefined_example_var Min_T;
  parametric_curve_predefined_example_var Max_T;
- parametric_curve_predefined_example_var AdditionalVars[MAX_ADDITIONAL_VAR_COUNT];
+ parametric_curve_predefined_example_var AdditionalVars[16];
 };
 #define ParametricCurvePredefinedExampleVarEquation(Name, Equation) { Name, true, 0, Equation }
 #define ParametricCurvePredefinedExampleVarValue(Name, Value, Equation) { Name, false, Value, Equation }
@@ -556,7 +550,6 @@ struct curve
 {
  curve_params Params; // used to compute curve shape from (might be still validated and not used "as-is")
  control_point_handle SelectedControlPoint;
- b_spline_knot_handle SelectedBSplineKnot;
  b_spline_params ComputedBSplineParams;
  
  point_tracking_along_curve_state PointTracking;
@@ -1306,6 +1299,9 @@ internal void SetEntityName(entity *Entity, string Name);
 internal void MaybeReverseCurvePoints(entity *Entity);
 
 //- entity query
+internal curve *SafeGetCurve(entity *Entity);
+internal image *SafeGetImage(entity *Entity);
+
 internal b32 IsEntityVisible(entity *Entity);
 internal b32 IsEntitySelected(entity *Entity);
 internal b32 IsControlPointSelected(curve *Curve);
@@ -1330,6 +1326,9 @@ internal void CopyCurvePointsFromCurve(curve *Curve, curve_points_dynamic Dst);
 internal rect2 EntityAABB(curve *Curve);
 internal b_spline_params GetBSplineParams(curve *Curve);
 internal v2 GetCubicBezierPoint(curve *Curve, cubic_bezier_point_handle Point);
+internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
+internal v2 LocalToWorldEntityPosition(entity *Entity, v2 P);
+internal f32 GetCurvePartVisibilityZOffset(curve_part_visibility Part);
 
 //- b-spline specific
 internal point_draw_info GetBSplinePartitionKnotPointDrawInfo(entity *Entity);
@@ -1341,17 +1340,15 @@ internal entity_snapshot_for_merging MakeEntitySnapshotForMerging(entity *Entity
 internal b32 EntityModified(entity_snapshot_for_merging Versioned, entity *Entity);
 internal curve_merge_compatibility AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method Method);
 
-//- entity misc/helpers
-internal curve *SafeGetCurve(entity *Entity);
-internal image *SafeGetImage(entity *Entity);
+//- parametric curve specific
+internal parametric_curve_var *AllocParametricCurveVar(parametric_curve_resources *Resources);
+internal void DeallocParametricCurveVar(parametric_curve_resources *Resources, parametric_curve_var *Var);
+internal b32 ParametricCurveResourcesHasFreeAddditionalVar(parametric_curve_resources *Resources);
+internal b32 IsParametricCurveVarActive(parametric_curve_var *Var);
 
-internal v2 WorldToLocalEntityPosition(entity *Entity, v2 P);
-internal v2 LocalToWorldEntityPosition(entity *Entity, v2 P);
-
+//- misc
 internal curve_params DefaultCurveParams(void);
 internal curve_params DefaultCubicSplineCurveParams(void);
-
-internal f32 GetCurvePartVisibilityZOffset(curve_part_visibility Part);
 
 //~ editor and editor systems
 
@@ -1447,7 +1444,7 @@ internal arena *AllocArenaFromStore(arena_store *ArenaStore, u64 ReserveButNotCo
 internal string_store *AllocStringStore(arena_store *ArenaStore);
 internal string_id AllocStringOfSize(string_store *Store, u64 Size);
 internal string_id AllocStringFromString(string_store *Store, string Str);
-internal void DeallocString(string_store *Store, string_id Id);
+internal void DeallocStringFromStore(string_store *Store, string_id Id);
 internal void SetOrAllocStringOfId(string_store *Store, string Str, string_id Id);
 internal char_buffer *CharBufferFromStringId(string_store *Store, string_id Id);
 internal string StringFromStringId(string_store *Store, string_id Id);

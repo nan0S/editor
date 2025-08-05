@@ -25,8 +25,6 @@
 /* TODO(hbr):
 
 @ stack:
-- rename BezierCurveLowerDegree function
-- rename newproject -> emptyproject
 - remove some TODOs introduces when writing project loading from file
  - we still leak resources - texture_handles
 

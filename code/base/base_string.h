@@ -41,6 +41,7 @@ struct char_buffer
  u64 Count;
  u64 Capacity;
 };
+read_only global char_buffer NilCharBuffer;
 
 struct deserialize_stream
 {

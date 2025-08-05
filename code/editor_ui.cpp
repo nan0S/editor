@@ -312,12 +312,28 @@ UI_InputText2(char_buffer *Buffer, u32 InputWidthInChars, string Label)
  ui_input_result Result = {};
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);
+ string CBuffer = CStrFromStr(Temp.Arena, StrFromCharBuffer(*Buffer));
  PushTightInputText(InputWidthInChars);
- b32 Changed = Cast(b32)Platform.ImGui.InputText(CLabel.Data, Buffer->Data, Buffer->Capacity);
- Buffer->Count = CStrLen(Buffer->Data);
+ b32 Changed = Cast(b32)Platform.ImGui.InputText(CLabel.Data, CBuffer.Data, Buffer->Capacity);
+ u64 Count = CStrLen(CBuffer.Data);
+ MemoryCopy(Buffer->Data, CBuffer.Data, Count);
+ Buffer->Count = Count;
  PopTightInputText(InputWidthInChars);
  EndTemp(Temp);
  return Changed;
+}
+
+internal changed_b32
+UI_InputText2F(char_buffer *Buffer, u32 InputWidthInChars, char const *Format, ...)
+{
+ temp_arena Temp = TempArena(0);
+ va_list Args;
+ va_start(Args, Format);
+ string Label = StrF(Temp.Arena, Format, Args);
+ b32 Result = UI_InputText2(Buffer, InputWidthInChars, Label);
+ va_end(Args);
+ EndTemp(Temp);
+ return Result;
 }
 
 internal ui_input_result

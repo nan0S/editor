@@ -651,11 +651,12 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
                                   update_parametric_curve_var_mode Mode)
 {
  b32 VarChanged = false;
- 
  b32 VarEquationChanged = false;
- if (Var->EquationMode)
+ char_buffer *VarEquation = CharBufferFromStringId(GetCtx()->StrStore, Var->VarEquation);
+ 
+ if (Var->EquationOrDragFloatMode_Equation)
  {
-  VarEquationChanged = UI_InputText(Var->VarEquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, StrLit("##Equation")).Changed;
+  VarEquationChanged = UI_InputText2(VarEquation, 0, StrLit("##Equation"));
  }
  else
  {
@@ -666,15 +667,14 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
  {
   VarChanged = true;
   
-  string VarEquationInput = StrFromCStr(Var->VarEquationBuffer);
-  
+  string VarEquationInput = StrFromCharBuffer(*VarEquation);
   parametric_equation_eval_result VarEval = ParametricEquationEval(Arena, VarEquationInput, VarCount, VarNames, VarValues);
   Var->EquationFail = VarEval.Fail;
   Var->EquationErrorMessage = VarEval.ErrorMessage;
   Var->EquationValue = VarEval.Value;
  }
  
- if (Var->EquationMode)
+ if (Var->EquationOrDragFloatMode_Equation)
  {
   Var->DragValue = Var->EquationValue;
  }
@@ -690,14 +690,14 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
  { 
   string ButtonLabel = {};
   string TooltipContents = {};
-  if (Var->EquationMode)
+  if (Var->EquationOrDragFloatMode_Equation)
   {
-   ButtonLabel = StrLit("S");
-   TooltipContents = StrLit("Switch to slider");
+   ButtonLabel = StrLit("E");
+   TooltipContents = StrLit("Switch to drag");
   }
   else
   {
-   ButtonLabel = StrLit("E");
+   ButtonLabel = StrLit("D");
    TooltipContents = StrLit("Switch to equation");
   }
   
@@ -709,7 +709,7 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
   }
  }
  
- if (Var->EquationMode && Var->EquationFail)
+ if ((Var->EquationOrDragFloatMode_Equation) && Var->EquationFail)
  {
   UI_Colored(UI_Color_Text, RedColor)
   {
@@ -721,7 +721,7 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
  if (SwapMode)
  {
   VarChanged = true;
-  Var->EquationMode = !Var->EquationMode;
+  Var->EquationOrDragFloatMode_Equation = !Var->EquationOrDragFloatMode_Equation;
  }
  
  if (Remove)
@@ -732,7 +732,7 @@ UpdateAndRenderParametricCurveVar(arena *Arena,
  update_parametric_curve_var Result = {};
  Result.Changed = VarChanged;
  Result.Remove = Remove;
- Result.Value = (Var->EquationMode ? Var->EquationValue : Var->DragValue);
+ Result.Value = (Var->EquationOrDragFloatMode_Equation ? Var->EquationValue : Var->DragValue);
  
  return Result;
 }
@@ -983,18 +983,17 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
         
         //@ render selected parametric curve ui
         case Curve_Parametric: {
-         parametric_curve_params *Parametric = &CurveParams->Parametric;
          parametric_curve_resources *Resources = &Curve->ParametricResources;
          arena *EquationArena = Resources->Arena;
-         temp_arena Temp = TempArena(EquationArena);
+         temp_arena Temp = TempArena(0);
          b32 EquationChanged = false;
+         b32 ArenaClearedThisFrame = false;
          
-         b32 ArenaCleared = false;
-         if (Resources->ShouldClearArena)
+         if (Resources->ForceArenaClear)
          {
-          ArenaCleared = true;
-          Resources->ShouldClearArena = false;
           ClearArena(EquationArena);
+          ArenaClearedThisFrame = true;
+          Resources->ForceArenaClear = false;
          }
          
          //- predefined examples
@@ -1011,29 +1010,29 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
           {
            parametric_curve_predefined_example Example = ParametricCurvePredefinedExamples[PredefinedExample];
            
-#define StrCopyToStaticArrayWithZeroPadding(DstStaticArray, Str) \
-do { \
-ArrayCopy(DstStaticArray, Str.Data, Min(Str.Count, ArrayCount(DstStaticArray)-1)); \
-DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
-} while(0)
+           FillCharBuffer(CharBufferFromStringId(GetCtx()->StrStore, Resources->X_Equation), Example.X_Equation);
+           FillCharBuffer(CharBufferFromStringId(GetCtx()->StrStore, Resources->Y_Equation), Example.Y_Equation);
            
-           StrCopyToStaticArrayWithZeroPadding(Resources->X_EquationBuffer, Example.X_Equation);
-           StrCopyToStaticArrayWithZeroPadding(Resources->Y_EquationBuffer, Example.Y_Equation);
+           FillCharBuffer(CharBufferFromStringId(GetCtx()->StrStore, Resources->MinT_Var.VarName), Example.Min_T.Name);
+           FillCharBuffer(CharBufferFromStringId(GetCtx()->StrStore, Resources->MaxT_Var.VarName), Example.Max_T.Name);
            
-           StrCopyToStaticArrayWithZeroPadding(Resources->MinT_Var.VarNameBuffer, Example.Min_T.Name);
-           StrCopyToStaticArrayWithZeroPadding(Resources->MinT_Var.VarEquationBuffer, Example.Min_T.Equation);
-           Resources->MinT_Var.EquationMode = Example.Min_T.EquationMode;
+           FillCharBuffer(CharBufferFromStringId(GetCtx()->StrStore, Resources->MinT_Var.VarEquation), Example.Min_T.Equation);
+           FillCharBuffer(CharBufferFromStringId(GetCtx()->StrStore, Resources->MaxT_Var.VarEquation), Example.Max_T.Equation);
+           
+           Resources->MinT_Var.EquationOrDragFloatMode_Equation = Example.Min_T.EquationMode;
            Resources->MinT_Var.DragValue = Example.Min_T.Value;
            
-           StrCopyToStaticArrayWithZeroPadding(Resources->MaxT_Var.VarNameBuffer, Example.Max_T.Name);
-           StrCopyToStaticArrayWithZeroPadding(Resources->MaxT_Var.VarEquationBuffer, Example.Max_T.Equation);
-           Resources->MaxT_Var.EquationMode = Example.Max_T.EquationMode;
+           Resources->MaxT_Var.EquationOrDragFloatMode_Equation = Example.Max_T.EquationMode;
            Resources->MaxT_Var.DragValue = Example.Max_T.Value;
            
            // TODO(hbr): First deallocate everything
-           ListIter(Var, Resources->AdditionalVarsHead, parametric_curve_var)
+           ForEachElement(AdditionalVarIndex, Resources->AdditionalVars)
            {
-            RemoveAdditionalVar(Resources, Var);
+            parametric_curve_var *Var = Resources->AdditionalVars + AdditionalVarIndex;
+            if (IsParametricCurveVarActive(Var))
+            {
+             DeallocParametricCurveVar(Resources, Var);
+            }
            }
            
            ForEachElement(AdditionalVar, Example.AdditionalVars)
@@ -1041,18 +1040,18 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
             parametric_curve_predefined_example_var *SrcVar = Example.AdditionalVars + AdditionalVar;
             if (SrcVar->Name.Count > 0)
             {
-             parametric_curve_var *DstVar = AddNewAdditionalVar(Resources);
+             parametric_curve_var *DstVar = AllocParametricCurveVar(Resources);
              Assert(DstVar);
-             StrCopyToStaticArrayWithZeroPadding(DstVar->VarNameBuffer, SrcVar->Name);
-             StrCopyToStaticArrayWithZeroPadding(DstVar->VarEquationBuffer, SrcVar->Equation);
-             DstVar->EquationMode = SrcVar->EquationMode;
+             
+             FillCharBuffer(CharBufferFromStringId(GetCtx()->StrStore, DstVar->VarName), SrcVar->Name);
+             FillCharBuffer(CharBufferFromStringId(GetCtx()->StrStore, DstVar->VarEquation), SrcVar->Equation);
+             
+             DstVar->EquationOrDragFloatMode_Equation = SrcVar->EquationMode;
              DstVar->DragValue = SrcVar->Value;
             }
            }
            
            EquationChanged = true;
-           
-#undef StrCopyToStaticArrayWithZeroPadding
           }
          }
          
@@ -1060,50 +1059,58 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
          UI_Text(false, StrLit("Additional Vars"));
          UI_SameRow();
          
-         UI_Disabled(!CanAddAdditionalVar(Resources))
+         UI_Disabled(!ParametricCurveResourcesHasFreeAddditionalVar(Resources))
          {
           if (UI_Button(StrLit("+")))
           {
-           AddNewAdditionalVar(Resources);
+           AllocParametricCurveVar(Resources);
           }
          }
          
-         u32 VarCount = 0;
-         string *VarNames = PushArrayNonZero(Temp.Arena, MAX_ADDITIONAL_VAR_COUNT, string);
-         f32 *VarValues = PushArrayNonZero(Temp.Arena, MAX_ADDITIONAL_VAR_COUNT, f32);
+         u32 TotalVarCount = Resources->AdditionalVarCount;
+         u32 RunningVarCount = 0;
+         string *VarNames = PushArrayNonZero(Temp.Arena, TotalVarCount, string);
+         f32 *VarValues = PushArrayNonZero(Temp.Arena, TotalVarCount, f32);
          b32 VarChanged = false;
          u32 VarInputBoxWidthInChars = 4;
          
-         ListIter(Var, Resources->AdditionalVarsHead, parametric_curve_var)
+         ForEachElement(AdditionalVarIndex, Resources->AdditionalVars)
          {
-          UI_PushId(Var->Id);
-          
-          ui_input_result VarName = UI_InputText(Var->VarNameBuffer, MAX_VAR_NAME_BUFFER_LENGTH, VarInputBoxWidthInChars, StrLit("##Var"));
-          if (VarName.Changed)
+          parametric_curve_var *Var = Resources->AdditionalVars + AdditionalVarIndex;
+          if (IsParametricCurveVarActive(Var))
           {
-           VarChanged = true;
+           UI_PushId(Var->Id);
+           
+           char_buffer *VarName= CharBufferFromStringId(GetCtx()->StrStore, Var->VarName);
+           b32 Changed = UI_InputText2(VarName, VarInputBoxWidthInChars, StrLit("##Var"));
+           if (Changed)
+           {
+            VarChanged = true;
+           }
+           UI_SameRow();
+           UI_Text(false, StrLit(" := "));
+           UI_SameRow();
+           update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
+                                                                                  Var,
+                                                                                  VarChanged || ArenaClearedThisFrame,
+                                                                                  VarNames, VarValues, RunningVarCount,
+                                                                                  UpdateParametricCurveVar_Dynamic);
+           VarChanged |= Update.Changed;
+           
+           if (Update.Remove)
+           {
+            DeallocParametricCurveVar(Resources, Var);
+           }
+           else
+           {
+            Assert(RunningVarCount < Resources->AdditionalVarCount);
+            VarValues[RunningVarCount] = Update.Value;
+            VarNames[RunningVarCount] = StrFromCharBuffer(*VarName);
+            ++RunningVarCount;
+           }
+           
+           UI_PopId();
           }
-          UI_SameRow();
-          UI_Text(false, StrLit(" := "));
-          UI_SameRow();
-          update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena, Var,
-                                                                                 ArenaCleared || VarChanged,
-                                                                                 VarNames, VarValues, VarCount,
-                                                                                 UpdateParametricCurveVar_Dynamic);
-          VarChanged |= Update.Changed;
-          if (Update.Remove)
-          {
-           RemoveAdditionalVar(Resources, Var);
-          }
-          else
-          {
-           Assert(VarCount < MAX_ADDITIONAL_VAR_COUNT);
-           VarValues[VarCount] = Update.Value;
-           VarNames[VarCount] = VarName.Input;
-           ++VarCount;
-          }
-          
-          UI_PopId();
          }
          
          //- min/max bounds
@@ -1118,11 +1125,10 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
           UI_SameRow();
           update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
                                                                                  &Resources->MinT_Var,
-                                                                                 ArenaCleared || VarChanged,
-                                                                                 VarNames, VarValues, VarCount,
+                                                                                 VarChanged || ArenaClearedThisFrame,
+                                                                                 VarNames, VarValues, RunningVarCount,
                                                                                  UpdateParametricCurveVar_Static);
           EquationChanged |= Update.Changed;
-          Parametric->MinT = Update.Value;
          }
          
          UI_Label(StrLit("t_max"))
@@ -1136,11 +1142,10 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
           UI_SameRow();
           update_parametric_curve_var Update = UpdateAndRenderParametricCurveVar(EquationArena,
                                                                                  &Resources->MaxT_Var,
-                                                                                 ArenaCleared || VarChanged,
-                                                                                 VarNames, VarValues, VarCount,
+                                                                                 VarChanged || ArenaClearedThisFrame,
+                                                                                 VarNames, VarValues, RunningVarCount,
                                                                                  UpdateParametricCurveVar_Static);
           EquationChanged |= Update.Changed;
-          Parametric->MaxT = Update.Value;
          }
          
          //- (x,y) equations
@@ -1153,13 +1158,16 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
           UI_SameRow();
           UI_Text(false, StrLit(" := "));
           UI_SameRow();
-          ui_input_result X_Equation = UI_InputText(Resources->X_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, StrLit("##x(t)"));
-          if (ArenaCleared || VarChanged || X_Equation.Changed)
+          
+          char_buffer *X_Equation = CharBufferFromStringId(GetCtx()->StrStore, Resources->X_Equation);
+          changed_b32 Changed = UI_InputText2(X_Equation, 0, StrLit("##x(t)"));
+          if (VarChanged || Changed || ArenaClearedThisFrame)
           {
            EquationChanged = true;
            
-           parametric_equation_parse_result X_Parse = ParametricEquationParse(EquationArena, X_Equation.Input, VarCount, VarNames, VarValues);
-           Parametric->X_Equation = X_Parse.ParsedExpr;
+           string X_EquationStr = StrFromCharBuffer(*X_Equation);
+           parametric_equation_parse_result X_Parse = ParametricEquationParse(EquationArena, X_EquationStr, RunningVarCount, VarNames, VarValues);
+           Resources->X_Expr = X_Parse.ParsedExpr;
            Resources->X_Fail = X_Parse.Fail;
            Resources->X_ErrorMessage = X_Parse.ErrorMessage;
           }
@@ -1173,7 +1181,7 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
           }
           if (DEBUG_Vars->ParametricEquationDebugMode)
           {
-           UI_ParametricEquationExpr(Parametric->X_Equation, StrLit("x(t) expr"));
+           UI_ParametricEquationExpr(Resources->X_Expr, StrLit("x(t) expr"));
           }
          }
          
@@ -1186,13 +1194,16 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
           UI_SameRow();
           UI_Text(false, StrLit(" := "));
           UI_SameRow();
-          ui_input_result Y_Equation = UI_InputText(Resources->Y_EquationBuffer, MAX_EQUATION_BUFFER_LENGTH, 0, StrLit("##y(t)"));
-          if (ArenaCleared || VarChanged || Y_Equation.Changed)
+          
+          char_buffer *Y_Equation = CharBufferFromStringId(GetCtx()->StrStore, Resources->Y_Equation);
+          changed_b32 Changed = UI_InputText2(Y_Equation, 0, StrLit("##y(t)"));
+          if (VarChanged || Changed || ArenaClearedThisFrame)
           {
            EquationChanged = true;
            
-           parametric_equation_parse_result Y_Parse = ParametricEquationParse(EquationArena, Y_Equation.Input, VarCount, VarNames, VarValues);
-           Parametric->Y_Equation = Y_Parse.ParsedExpr;
+           string Y_EquationStr = StrFromCharBuffer(*Y_Equation);
+           parametric_equation_parse_result Y_Parse = ParametricEquationParse(EquationArena, Y_EquationStr, RunningVarCount, VarNames, VarValues);
+           Resources->Y_Expr = Y_Parse.ParsedExpr;
            Resources->Y_Fail = Y_Parse.Fail;
            Resources->Y_ErrorMessage = Y_Parse.ErrorMessage;
           }
@@ -1206,7 +1217,7 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
           }
           if (DEBUG_Vars->ParametricEquationDebugMode)
           {
-           UI_ParametricEquationExpr(Parametric->Y_Equation, StrLit("y(t) expr"));
+           UI_ParametricEquationExpr(Resources->Y_Expr, StrLit("y(t) expr"));
           }
          }
          
@@ -1215,9 +1226,16 @@ DstStaticArray[Min(Str.Count, ArrayCount(DstStaticArray))] = 0; \
           CrucialEntityParamChanged = true;
          }
          
-         if (EquationChanged && !ArenaCleared)
+         // NOTE(hbr): We could just allocate into [EquationArena] indefinitely. However this poses
+         // a potential issue where we could realistically allocate a lot of things. The issue with
+         // clearing the arena is that we have to do it at the beginning of this block of code - block for
+         // parametric curves. But we only get to actually learn that we want to clear in the middle of this
+         // block. My solution is to mark in the [parametric_curve_resources] that we will want to recompute
+         // everything next frame. Make sure that this isn't going indefinitely because [ArenaClearedThisFrame]
+         // will cause [EquationChanged] to be [true].
+         if (EquationChanged && !ArenaClearedThisFrame)
          {
-          Resources->ShouldClearArena = true;
+          Resources->ForceArenaClear = true;
          }
          
          EndTemp(Temp);

@@ -1,8 +1,8 @@
 #ifndef EDITOR_CONST_H
 #define EDITOR_CONST_H
 
-global string EditorAppName = StrLit("Creare");
-global string EditorSessionFileExtension = StrLit("cre");
+global string EditorAppName = StrLit("Apollo");
+global string EditorSessionFileExtension = StrLit("apl");
 global u32 EditorSaveFileMagicValue = 0xDEADC0DE;
 global u32 EditorVersion = 0x0;
 

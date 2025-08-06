@@ -51,11 +51,20 @@ GLFW_Compilation(arena *Arena, b32 ForceRecompile, build_platform BuildPlatform)
  return Target;
 }
 
-internal compilation_target
-Editor_Compilation(arena *Arena, string STB_Output)
+internal void
+DefineHotReloadMacro(compilation_target *Target, b32 BuildForHotReloading)
 {
- compilation_target Target = MakeTarget(Target_Lib, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/editor.cpp")), 0);
+ string Value = (BuildForHotReloading ? StrLit("1") : StrLit("0"));
+ DefineMacro(Target, StrLit("BUILD_HOT_RELOAD"), Value);
+}
+
+internal compilation_target
+Editor_Compilation(arena *Arena, b32 BuildForHotReloading, string STB_Output)
+{
+ compilation_target_type TargetType = (BuildForHotReloading ? Target_Lib : Target_Obj);
+ compilation_target Target = MakeTarget(TargetType, OS_ExecutableRelativeToFullPath(Arena, StrLit("../code/editor.cpp")), 0);
  StaticLink(&Target, STB_Output);
+ DefineHotReloadMacro(&Target, BuildForHotReloading);
  
  return Target;
 }
@@ -94,8 +103,10 @@ Renderer_Compilation(arena *Arena, build_platform BuildPlatform)
 
 internal compilation_target
 PlatformExe_Compilation(arena *Arena,
+                        b32 BuildForHotReloading,
                         string EditorOutput, string RendererOutput,
                         string ImGuiOutput, string GLFW_Output,
+                        string StubsOutput, string STB_Output,
                         build_platform BuildPlatform)
 {
  operating_system OS = DetectOS();
@@ -146,10 +157,29 @@ PlatformExe_Compilation(arena *Arena,
  
  DefineMacro(&Target, StrLit("EDITOR_DLL"), EditorOutput);
  DefineMacro(&Target, StrLit("EDITOR_RENDERER_DLL"), RendererOutput);
+ DefineHotReloadMacro(&Target, BuildForHotReloading);
  
  StaticLink(&Target, ImGuiOutput);
  StaticLink(&Target, GLFW_Output);
  
+ if (BuildForHotReloading)
+ {
+  StaticLink(&Target, StubsOutput);
+ }
+ else
+ {
+  StaticLink(&Target, EditorOutput);
+ }
+ 
+ StaticLink(&Target, STB_Output);
+ 
+ return Target;
+}
+
+internal compilation_target
+Stubs_Compilation(arena *Arena, build_platform BuildPlatform)
+{
+ compilation_target Target = MakeTarget(Target_Obj, StrLit("../code/editor_stubs.cpp"), 0);
  return Target;
 }
 
@@ -199,6 +229,9 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
   case OS_Linux: {BuildPlatform = BuildPlatform_Native;}break;
  }
  
+ b32 BuildForHotReloading = Debug;
+ //BuildForHotReloading = false;
+ 
  compiler_setup Setup = MakeCompilerSetup(Compiler, Debug, true, Verbose);
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code")));
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/third_party/imgui")));
@@ -209,16 +242,22 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
  compilation_target STB = STB_Compilation(Temp.Arena, ForceRecompile);
  compilation_target ImGui = ImGui_Compilation(Temp.Arena, ForceRecompile);
  compilation_target Renderer = Renderer_Compilation(Temp.Arena, BuildPlatform);
+ compilation_target Stubs = Stubs_Compilation(Temp.Arena, BuildPlatform);
  
  string STB_Output = ComputeCompilationTargetOutput(Setup, STB).OutputTarget;
  string ImGuiOutput = ComputeCompilationTargetOutput(Setup, ImGui).OutputTarget;
  string GLFW_Output = ComputeCompilationTargetOutput(Setup, GLFW).OutputTarget;
  string RendererOutput = ComputeCompilationTargetOutput(Setup, Renderer).OutputTarget;
+ string StubsOutput = ComputeCompilationTargetOutput(Setup, Stubs).OutputTarget;
  
- compilation_target Editor = Editor_Compilation(Temp.Arena, STB_Output);
+ compilation_target Editor = Editor_Compilation(Temp.Arena, BuildForHotReloading, STB_Output);
  string EditorOutput = ComputeCompilationTargetOutput(Setup, Editor).OutputTarget;
  
- compilation_target PlatformExe = PlatformExe_Compilation(Temp.Arena, EditorOutput, RendererOutput, ImGuiOutput, GLFW_Output, BuildPlatform);
+ compilation_target PlatformExe = PlatformExe_Compilation(Temp.Arena, BuildForHotReloading,
+                                                          EditorOutput, RendererOutput,
+                                                          ImGuiOutput, GLFW_Output,
+                                                          StubsOutput, STB_Output,
+                                                          BuildPlatform);
  
  u32 CompilationUnitCount = 0;
  if (Renderer.TargetType != Target_None)
@@ -254,11 +293,17 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
  os_process_handle STBProcess = Compile(Setup, STB);
  os_process_handle ImGuiProcess = Compile(Setup, ImGui);
  os_process_handle GLFWProcess = Compile(Setup, GLFW);
+ os_process_handle StubsProcess = Compile(Setup, Stubs);
  
  ExitCode = OS_CombineExitCodes(ExitCode, OS_ProcessWait(STBProcess));
  os_process_handle EditorProcess = Compile(Setup, Editor);
  
  ExitCode = OS_CombineExitCodes(ExitCode, OS_ProcessWait(ImGuiProcess));
+ ExitCode = OS_CombineExitCodes(ExitCode, OS_ProcessWait(StubsProcess));
+ if (!BuildForHotReloading)
+ {
+  ExitCode = OS_CombineExitCodes(ExitCode, OS_ProcessWait(EditorProcess));
+ }
  os_process_handle PlatformExeProcess = Compile(Setup, PlatformExe);
  
  EnqueueProcess(ProcessQueue, EditorProcess);

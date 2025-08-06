@@ -1175,6 +1175,7 @@ struct editor
  b32 IsPendingActionTrackingGroup;
  action_tracking_group PendingActionTrackingGroup;
  tracked_action *FreeTrackedAction;
+ 
  curve_points_static_node *FreeCurvePointsNode;
  
  editor_command_node *EditorCommandsHead;

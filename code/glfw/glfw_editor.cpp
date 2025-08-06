@@ -216,6 +216,9 @@ PLATFORM_SET_WINDOW_TITLE(GLFWSetWindowTitle)
  }
 }
 
+EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender);
+EDITOR_ON_CODE_RELOAD(EditorOnCodeReload);
+
 internal void
 EntryPoint(int ArgCount, char **Args)
 {
@@ -369,9 +372,21 @@ Table[GLFWButton] = PlatformButton
                                                             TempEditorFunctions.Functions,
                                                             ArrayCount(EditorFunctions.Functions));
    
+   EditorFunctions.UpdateAndRender = EditorUpdateAndRender;
+   EditorFunctions.OnCodeReload = EditorOnCodeReload;
+   
+   
    editor_memory EditorMemory = Platform_MakeEditorMemory(PermamentArena, &RendererMemory,
                                                           &LowPriorityQueue, &HighPriorityQueue,
                                                           Platform, Profiler);
+   
+   b32 DoHotReload;
+#if BUILD_HOT_RELOAD
+   DoHotReload = true;
+#else
+   DoHotReload = false;
+   EditorFunctions.OnCodeReload(&EditorMemory);
+#endif
    
    b32 Running = true;
    b32 RefreshRequested = true;
@@ -379,16 +394,22 @@ Table[GLFWButton] = PlatformButton
    
    while (Running)
    {
+    
     //- hot reload
     b32 CodeReloaded = false;
-    ProfileBlock("Hot Reload")
+    if (DoHotReload)
     {
-     if (HotReloadIfOutOfSync(&EditorCode))
+     ProfileBlock("Hot Reload")
      {
-      EditorFunctions.OnCodeReload(&EditorMemory);
-      CodeReloaded = true;
+      if (HotReloadIfOutOfSync(&EditorCode))
+      {
+       EditorFunctions.OnCodeReload(&EditorMemory);
+       CodeReloaded = true;
+      }
      }
     }
+    
+    b32 CodeIsValid = (DoHotReload ? EditorCode.IsValid : true);
     
     //- process input events
     v2u WindowDim = {};
@@ -444,7 +465,7 @@ Table[GLFWButton] = PlatformButton
     render_frame *Frame = GLFWRendererBeginFrame(Renderer, &RendererMemory, WindowDim);
     
     Input.dtForFrame = Platform_ClockFrame(&Clock);
-    if (EditorCode.IsValid && Frame)
+    if (CodeIsValid && Frame)
     {
      EditorFunctions.UpdateAndRender(&EditorMemory, &Input, Frame);
     }

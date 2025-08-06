@@ -280,11 +280,7 @@ struct editor_memory
  profiler *Profiler;
 };
 
-#define EDITOR_UPDATE_AND_RENDER(Name) void Name(editor_memory *Memory, platform_input_output *Input, render_frame *Frame)
-typedef EDITOR_UPDATE_AND_RENDER(editor_update_and_render);
-
-#define EDITOR_ON_CODE_RELOAD(Name) void Name(editor_memory *Memory)
-typedef EDITOR_ON_CODE_RELOAD(editor_on_code_reload);
+#include "editor_platform_functions.h"
 
 union editor_function_table
 {

@@ -19,7 +19,9 @@
 #include "editor_platform.cpp"
 #include "editor_ctx.cpp"
 
+#if BUILD_HOT_RELOAD
 platform_api Platform;
+#endif
 
 internal void
 MovePointAlongCurve(curve *Curve, v2 *TranslateInput, f32 *PointFractionInput, b32 Forward)
@@ -1819,8 +1821,15 @@ RenderHelpUI(editor *Editor)
  {
   if (UI_BeginWindow(&Editor->HelpWindow, UIWindowFlag_AutoResize, StrLit("Help")))
   {
-   UI_Text(false,
-           StrLit("Parametric Curve Editor overview and tutorial."));
+   UI_TextF(false, "Parametric Curve Editor -");
+   UI_SameRow();
+   UI_Colored(UI_Color_Text, GreenColor)
+   {
+    UI_TextF(false, "%S", EditorAppName);
+   }
+   UI_SameRow();
+   UI_TextF(false, "- overview and tutorial.");
+   
    UI_NewRow();
    UI_Text(false,
            StrLit("Controls are made to be as intuitive as possible. Read this tutorial, but\n"
@@ -1971,15 +1980,23 @@ RenderHelpUI(editor *Editor)
     if (UI_BeginTree(StrLit("Right button")))
     {
      UI_NewRow();
-     UI_Text(false, StrLit("Remove/deselect curves/control points."));
+     UI_Text(false, StrLit("Remove/deselect control points."));
      UI_NewRow();
      
      UI_Text(false, StrLit("In more detail:"));
-     UI_BulletText(StrLit("clicking on curve deletes it"));
      UI_BulletText(StrLit("clicking on control point deletes it and selects that curve"));
      UI_BulletText(StrLit("clicking outside of curve (\"on nothing\") deselects currently selected curve (if one exists)"));
      UI_BulletText(StrLit("while splitting Bezier curve, clicking on split point, actually splits the curve"));
      
+     UI_NewRow();
+     
+     UI_EndTree();
+    }
+    
+    if (UI_BeginTree(StrLit("Right button + Left Control")))
+    {
+     UI_NewRow();
+     UI_Text(false, StrLit("Remove/deselect curves."));
      UI_NewRow();
      
      UI_EndTree();
@@ -4056,7 +4073,9 @@ EditorOnCodeReloadImpl(editor_memory *Memory)
  InitGlobalsOnInitOrCodeReload(Memory->Editor);
 }
 
+#if BUILD_HOT_RELOAD
 DLL_EXPORT
+#endif
 EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
 {
  ProfileFunctionBegin();
@@ -4064,7 +4083,9 @@ EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender)
  ProfileEnd();
 }
 
+#if BUILD_HOT_RELOAD
 DLL_EXPORT
+#endif
 EDITOR_ON_CODE_RELOAD(EditorOnCodeReload)
 {
  EditorOnCodeReloadImpl(Memory);

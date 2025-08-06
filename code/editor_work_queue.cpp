@@ -23,6 +23,7 @@ DoWork(work_queue *Queue)
  return ShouldSleep;
 }
 
+internal
 OS_THREAD_FUNC(WorkQueueThreadEntry)
 {
  ThreadCtxInit();

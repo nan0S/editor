@@ -30,8 +30,9 @@ TODO features:
 
 crucial:
 - Checbyshev polynomial bezier degree lowering method
-- update help regarding right click and holding ctrl
 - incluce imgui tutorial to get familiar with the ui widgets used throughout the project
+- icon
+- maybe different title bar
 
 important:
 - extracing animated bezier curve perfectly
@@ -44,7 +45,6 @@ maybe:
 - section about moving cubic bezier helpers in help
 - section about undo/redo in help
 - section about parametric equations in help
-- remove DLL loading in release mode
 - add resource monitor - memory/texture handles - to investigate if there are any leaks
 - holding Ctrl-Z should do a bunch of undos in a row - aka. sticky keys or something
 - "sample"? tool - from point that lets us sample color from the application and use it to color curve for example
@@ -110,6 +110,7 @@ new things added:
 - convex hull around pieces of b-spline segments
 - extract animated curve - bezier can be 100% matching, other can do with interpolation
 - saving/loading project from/to file
+- remove DLL loading in release mode
 
  */
 

@@ -112,58 +112,58 @@ UpdateAndRenderPointTracking(rendering_entity_handle Handle)
  curve_params *CurveParams = &Curve->Params;
  point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
  
- if (Tracking->Active)
+ 
+ switch (Tracking->Type)
  {
-  switch (Tracking->Type)
-  {
-   case PointTrackingAlongCurve_BezierCurveSplit: {
-    f32 Radius = GetCurveTrackedPointRadius(Curve);
-    rgba Color = RGBA(0.0f, 1.0f, 0.0f, 0.5f);
-    f32 OutlineThickness = 0.3f * Radius;
-    rgba OutlineColor = RGBA_Darken(Color, 0.5f);
-    
-    PushCircle(RenderGroup,
-               Tracking->LocalSpaceTrackedPoint,
-               Radius, Color,
-               GetCurvePartVisibilityZOffset(CurvePartVisibility_BezierSplitPoint),
-               OutlineThickness, OutlineColor);
-   }break;
+  case PointTrackingAlongCurve_None: {}break;
+  
+  case PointTrackingAlongCurve_BezierCurveSplit: {
+   f32 Radius = GetCurveTrackedPointRadius(Curve);
+   rgba Color = RGBA(0.0f, 1.0f, 0.0f, 0.5f);
+   f32 OutlineThickness = 0.3f * Radius;
+   rgba OutlineColor = RGBA_Darken(Color, 0.5f);
    
-   case PointTrackingAlongCurve_DeCasteljauVisualization: {
-    u32 IterationCount = Tracking->Intermediate.IterationCount;
-    f32 P = 0.0f;
-    f32 Delta_P = 1.0f / (IterationCount - 1);
-    rgba GradientA = RGBA_U8(255, 0, 144);
-    rgba GradientB = RGBA_U8(155, 200, 0);
-    // TODO(hbr): Shouldn't this use some of the functions that are already used for drwaing curve points to be consistent?
-    f32 PointSize = CurveParams->DrawParams.Points.Radius;
+   PushCircle(RenderGroup,
+              Tracking->LocalSpaceTrackedPoint,
+              Radius, Color,
+              GetCurvePartVisibilityZOffset(CurvePartVisibility_BezierSplitPoint),
+              OutlineThickness, OutlineColor);
+  }break;
+  
+  case PointTrackingAlongCurve_DeCasteljauVisualization: {
+   u32 IterationCount = Tracking->Intermediate.IterationCount;
+   f32 P = 0.0f;
+   f32 Delta_P = 1.0f / (IterationCount - 1);
+   rgba GradientA = RGBA_U8(255, 0, 144);
+   rgba GradientB = RGBA_U8(155, 200, 0);
+   // TODO(hbr): Shouldn't this use some of the functions that are already used for drwaing curve points to be consistent?
+   f32 PointSize = CurveParams->DrawParams.Points.Radius;
+   
+   u32 PointIndex = 0;
+   for (u32 Iteration = 0;
+        Iteration < IterationCount;
+        ++Iteration)
+   {
+    rgba IterationColor = Lerp(GradientA, GradientB, P);
     
-    u32 PointIndex = 0;
-    for (u32 Iteration = 0;
-         Iteration < IterationCount;
-         ++Iteration)
+    PushVertexArray(RenderGroup,
+                    Tracking->LineVerticesPerIteration[Iteration].Vertices,
+                    Tracking->LineVerticesPerIteration[Iteration].VertexCount,
+                    Tracking->LineVerticesPerIteration[Iteration].Primitive,
+                    IterationColor, GetCurvePartVisibilityZOffset(CurvePartVisibility_DeCasteljauAlgorithmLines));
+    
+    for (u32 I = 0; I < IterationCount - Iteration; ++I)
     {
-     rgba IterationColor = Lerp(GradientA, GradientB, P);
-     
-     PushVertexArray(RenderGroup,
-                     Tracking->LineVerticesPerIteration[Iteration].Vertices,
-                     Tracking->LineVerticesPerIteration[Iteration].VertexCount,
-                     Tracking->LineVerticesPerIteration[Iteration].Primitive,
-                     IterationColor, GetCurvePartVisibilityZOffset(CurvePartVisibility_DeCasteljauAlgorithmLines));
-     
-     for (u32 I = 0; I < IterationCount - Iteration; ++I)
-     {
-      v2 Point = Tracking->Intermediate.P[PointIndex];
-      PushCircle(RenderGroup,
-                 Point, PointSize, IterationColor,
-                 GetCurvePartVisibilityZOffset(CurvePartVisibility_DeCasteljauAlgorithmPoints));
-      ++PointIndex;
-     }
-     
-     P += Delta_P;
+     v2 Point = Tracking->Intermediate.P[PointIndex];
+     PushCircle(RenderGroup,
+                Point, PointSize, IterationColor,
+                GetCurvePartVisibilityZOffset(CurvePartVisibility_DeCasteljauAlgorithmPoints));
+     ++PointIndex;
     }
-   }break;
-  }
+    
+    P += Delta_P;
+   }
+  }break;
  }
 }
 
@@ -1410,24 +1410,17 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       f32 Fraction = Tracking->Fraction;
       b32 Changed = false;
       
-      b32 BezierTrackingActive = false;
-      b32 SplittingTrackingActive = false;
-      switch (Tracking->Type)
-      {
-       case PointTrackingAlongCurve_DeCasteljauVisualization: {BezierTrackingActive = Tracking->Active;}break;
-       case PointTrackingAlongCurve_BezierCurveSplit: {SplittingTrackingActive = Tracking->Active;}break;
-      }
+      b32 BezierTrackingActive = (Tracking->Type == PointTrackingAlongCurve_DeCasteljauVisualization);
+      b32 SplittingTrackingActive = (Tracking->Type == PointTrackingAlongCurve_BezierCurveSplit);
       
       UI_Label(StrLit("DeCasteljauVisualization"))
       {
        if (UI_Checkbox(&BezierTrackingActive, StrLit("##DeCasteljauEnabled")))
        {
         Changed = true;
-        Tracking->Active = BezierTrackingActive;
-        if (Tracking->Active)
-        {
-         Tracking->Type = PointTrackingAlongCurve_DeCasteljauVisualization;
-        }
+        Tracking->Type = (BezierTrackingActive ?
+                          PointTrackingAlongCurve_DeCasteljauVisualization :
+                          PointTrackingAlongCurve_None);
        }
        UI_SameRow();
        UI_SeparatorText(StrLit("De Casteljau's Algorithm"));
@@ -1443,11 +1436,9 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
        if (UI_Checkbox(&SplittingTrackingActive, StrLit("##SplittingEnabled")))
        {
         Changed = true;
-        Tracking->Active = SplittingTrackingActive;
-        if (Tracking->Active)
-        {
-         Tracking->Type = PointTrackingAlongCurve_BezierCurveSplit;
-        }
+        Tracking->Type = (SplittingTrackingActive ?
+                          PointTrackingAlongCurve_BezierCurveSplit :
+                          PointTrackingAlongCurve_None);
        }
        UI_SameRow();
        UI_SeparatorText(StrLit("Split Bezier Curve"));
@@ -1463,7 +1454,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
        }
       }
       
-      if (Tracking->Active && Changed)
+      if (Tracking->Type && Changed)
       {
        SetTrackingPointFraction(&EntityWitness, Fraction);
       }
@@ -1635,7 +1626,10 @@ RenderMenuBarUI(editor *Editor)
   {
    UI_MenuItem(&Editor->EntityListWindow, NilStr, StrLit("Entity List"));
    UI_MenuItem(&Editor->SelectedEntityWindow, NilStr, StrLit("Selected Entity"));
+#if BUILD_DEBUG
+   UI_MenuItem(&Editor->DiagnosticsWindow, NilStr, StrLit("Diagnostics"));
    UI_MenuItem(&Editor->ProfilerWindow, NilStr, StrLit("Profiler"));
+#endif
    UI_MenuItem(&Editor->Grid, NilStr, StrLit("Grid"));
    UI_EndMenu();
   }
@@ -2417,7 +2411,7 @@ ProcessInputEvents(editor *Editor,
      // NOTE(hbr): just move entity if ctrl is pressed
      BeginMovingEntity(LeftClick, Editor, Entity);
     }
-    else if ((Collision.Flags & Collision_CurveLine) && CollisionTracking->Active)
+    else if ((Collision.Flags & Collision_CurveLine) && CollisionTracking->Type)
     {
      BeginMovingTrackingPoint(LeftClick, Collision.Entity);
      f32 Fraction = SafeDiv0(Cast(f32)Collision.CurveSampleIndex, (CollisionCurve->CurveSampleCount- 1));
@@ -2624,6 +2618,7 @@ ProcessInputEvents(editor *Editor,
         PerformBezierCurveSplit(Editor, Entity);
        }break;
        
+       case PointTrackingAlongCurve_None:
        case PointTrackingAlongCurve_DeCasteljauVisualization: {}break;
       }
      }
@@ -2701,14 +2696,24 @@ ProcessInputEvents(editor *Editor,
   ForEachEnumVal(Command, EditorCommand_Count, editor_command)
   {
    editor_keyboard_shortcut_group *Group = EditorKeyboardShortcuts + Command;
-   ForEachIndex(ShortcutIndex, Group->Count)
-   {
-    editor_keyboard_shortcut *Shortcut = Group->Shortcuts + ShortcutIndex;
-    if (!Eat && IsKeyPress(Event, Shortcut->Key, Shortcut->Modifiers))
+   
+   b32 IsActive = true;
+#if !(BUILD_DEBUG)
+   IsActive = !Group->DevSpecific;
+#endif
+   
+   if (IsActive)
+   {   
+    ForEachIndex(ShortcutIndex, Group->Count)
     {
-     Eat = true;
-     PushEditorCmd(Editor, Command);
-     break;
+     editor_keyboard_shortcut *Shortcut = Group->Shortcuts + ShortcutIndex;
+     
+     if (!Eat && IsKeyPress(Event, Shortcut->Key, Shortcut->Modifiers))
+     {
+      Eat = true;
+      PushEditorCmd(Editor, Command);
+      break;
+     }
     }
    }
   }
@@ -3591,6 +3596,7 @@ RenderDevConsoleUI(editor *Editor)
    UI_Checkbox(&DEBUG_Vars->ShowSampleCurvePoints, StrLit("Show Sample Curve Points"));
    UI_ExponentialAnimation(&Camera->Animation);
    UI_TextF(false, "DrawnGridLinesCount=%u", DEBUG_Vars->DrawnGridLinesCount);
+   UI_TextF(false, "String Store String Count: %u\n", GetCtx()->StrStore->StrCount);
   }
   UI_EndWindow();
  }

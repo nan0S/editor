@@ -178,16 +178,16 @@ struct visible_cubic_bezier_points
 
 enum point_tracking_along_curve_type
 {
+ PointTrackingAlongCurve_None,
  PointTrackingAlongCurve_DeCasteljauVisualization,
  PointTrackingAlongCurve_BezierCurveSplit,
 };
 
 struct point_tracking_along_curve_state
 {
- b32 Active;
+ point_tracking_along_curve_type Type;
  f32 Fraction;
  v2 LocalSpaceTrackedPoint;
- point_tracking_along_curve_type Type;
  all_de_casteljau_intermediate_results Intermediate;
  v4 *IterationColors;
  vertex_array *LineVerticesPerIteration;

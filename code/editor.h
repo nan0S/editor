@@ -25,17 +25,15 @@
 /* TODO(hbr):
 
 @ stack:
-- remove some TODOs introduces when writing project loading from file
- - we still leak resources - texture_handles
 
 TODO features:
 
 crucial:
 - Checbyshev polynomial bezier degree lowering method
 - update help regarding right click and holding ctrl
+- incluce imgui tutorial to get familiar with the ui widgets used throughout the project
 
 important:
-- incluce imgui tutorial to get familiar with the ui widgets used throughout the project
 - extracing animated bezier curve perfectly
  - undo/redo should actually support running out of space
 
@@ -69,7 +67,8 @@ maybe:
 - I need to test what happens when queue texture memory is emptied - because I think there is a bug in there
  - because clicks are now highly independent, we might now delete control point while moving the same control point which could lead to some weird behaviours, investigate that
  - focusing on entity is not 100% correct mathematically - if camera is rotated and entity is rotated, it zooms out a little too much compared to what it "should", although probably noone will notice anyway, I can't figure out the math behing this
- 
+ - imgui modal background color fades in in two steps and because in release mode we don't update the window if [dt] is not requested, it will enter phase 2 only when mouse is moved or something like that
+
 fixed:
 - adding points to periodic curve doesn't work again
 - inserting control point in the middle of polynomial curve is sometimes broken

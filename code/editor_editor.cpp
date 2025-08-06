@@ -400,7 +400,7 @@ LoadEmptyProject(editor *Editor)
   AppendControlPoint(&Witness, V2(+0.5f, +0.5f));
   AppendControlPoint(&Witness, V2(-0.5f, +0.5f));
   
-  Entity->Curve.PointTracking.Active = true;
+  Entity->Curve.PointTracking.Type = PointTrackingAlongCurve_DeCasteljauVisualization;
   SetTrackingPointFraction(&Witness, 0.5f);
   
   EndEntityModify(Witness);
@@ -427,6 +427,76 @@ LoadEmptyProject(editor *Editor)
   
   EndEntityModify(Witness);
  }
+}
+
+internal entity *
+AllocEntityInternal(entity_store *Store, b32 DontTrack, entity *From)
+{
+ entity_list_node *Node = Store->Free;
+ if (Node)
+ {
+  StackPop(Store->Free);
+ }
+ else
+ {
+  Node = PushStructNonZero(Store->Arena, entity_list_node);
+ }
+ 
+ entity *Entity = &Node->Entity;
+ u32 Generation = Entity->Generation;
+ StructZero(Entity);
+ 
+ Entity->Id = Store->IdCounter++;
+ Entity->Generation = Generation;
+ 
+ curve *Curve = &Entity->Curve;
+ image *Image = &Entity->Image;
+ 
+ curve *FromCurve = &From->Curve;
+ image *FromImage = &From->Image;
+ 
+ if (From)
+ {
+  Entity->Name = From->Name;
+  
+  Curve->ParametricResources.MinT_Var.Equation = FromCurve->ParametricResources.MinT_Var.Equation;
+  Curve->ParametricResources.MaxT_Var.Equation = FromCurve->ParametricResources.MaxT_Var.Equation;
+  Curve->ParametricResources.X_Equation.Equation = FromCurve->ParametricResources.X_Equation.Equation;
+  Curve->ParametricResources.Y_Equation.Equation = FromCurve->ParametricResources.Y_Equation.Equation;
+  
+  Image->FilePath = FromImage->FilePath;
+ }
+ else
+ {
+  Entity->Name = AllocStringOfSize(GetCtx()->StrStore, 128);
+  
+  Curve->ParametricResources.MinT_Var.Equation = AllocStringOfSize(GetCtx()->StrStore, 32);
+  Curve->ParametricResources.MaxT_Var.Equation = AllocStringOfSize(GetCtx()->StrStore, 32);
+  Curve->ParametricResources.X_Equation.Equation = AllocStringOfSize(GetCtx()->StrStore, 128);
+  Curve->ParametricResources.Y_Equation.Equation = AllocStringOfSize(GetCtx()->StrStore, 128);
+  
+  Image->FilePath = AllocStringOfSize(GetCtx()->StrStore, 128);
+ }
+ 
+ // NOTE(hbr): It shouldn't really matter anyway that we allocate arenas even for
+ // entities other than curves.
+ Curve->Points = AllocCurvePointsFromStore(GetCtx()->CurvePointsStore);
+ Curve->ComputeArena = AllocArenaFromStore(GetCtx()->ArenaStore, Megabytes(32));
+ Curve->DegreeLowering.Arena = AllocArenaFromStore(GetCtx()->ArenaStore, Megabytes(32));
+ 
+ if (!DontTrack)
+ {
+  ActivateEntity(Store, Entity);
+ }
+ 
+ return Entity;
+}
+
+internal entity *
+AllocEntityFromEntity(entity_store *Store, entity *From)
+{
+ entity *Result = AllocEntityInternal(Store, false, From);
+ return Result;
 }
 
 internal b32
@@ -503,7 +573,7 @@ LoadProjectFromFile(editor *Editor, string FilePath)
    entity Serialized = {};
    DeserializeStruct(&Deserial, &Serialized);
    
-   entity *Entity = AllocEntity(EntityStore, false);
+   entity *Entity = AllocEntityFromEntity(EntityStore, &Serialized);
    switch (Serialized.Type)
    {
     case Entity_Curve: {
@@ -785,8 +855,8 @@ PerformBezierCurveSplit(editor *Editor, entity *Entity)
  curve_points_static *Points = CurvePointsFromId(GetCtx()->CurvePointsStore, Curve->Points);
  u32 ControlPointCount = Points->ControlPointCount;
  
- Assert(Tracking->Active);
- Tracking->Active = false;
+ Assert(Tracking->Type == PointTrackingAlongCurve_BezierCurveSplit);
+ Tracking->Type = PointTrackingAlongCurve_None;
  
  entity *LeftEntity = AddEntity(Editor);
  entity *RightEntity = AddEntity(Editor);
@@ -1806,44 +1876,8 @@ CurvePointsFromId(curve_points_store *Store, curve_points_id Id)
 internal entity *
 AllocEntity(entity_store *Store, b32 DontTrack)
 {
- entity_list_node *Node = Store->Free;
- if (Node)
- {
-  StackPop(Store->Free);
- }
- else
- {
-  Node = PushStructNonZero(Store->Arena, entity_list_node);
- }
- 
- entity *Entity = &Node->Entity;
- u32 Generation = Entity->Generation;
- StructZero(Entity);
- 
- Entity->Id = Store->IdCounter++;
- Entity->Generation = Generation;
- Entity->Name = AllocStringOfSize(GetCtx()->StrStore, 128);
- 
- // NOTE(hbr): It shouldn't really matter anyway that we allocate arenas even for
- // entities other than curves.
- curve *Curve = &Entity->Curve;
- Curve->Points = AllocCurvePointsFromStore(GetCtx()->CurvePointsStore);
- Curve->ComputeArena = AllocArenaFromStore(GetCtx()->ArenaStore, Megabytes(32));
- Curve->DegreeLowering.Arena = AllocArenaFromStore(GetCtx()->ArenaStore, Megabytes(32));
- Curve->ParametricResources.MinT_Var.Equation = AllocStringOfSize(GetCtx()->StrStore, 32);
- Curve->ParametricResources.MaxT_Var.Equation = AllocStringOfSize(GetCtx()->StrStore, 32);
- Curve->ParametricResources.X_Equation.Equation = AllocStringOfSize(GetCtx()->StrStore, 128);
- Curve->ParametricResources.Y_Equation.Equation = AllocStringOfSize(GetCtx()->StrStore, 128);
- 
- image *Image = &Entity->Image;
- Image->FilePath = AllocStringOfSize(GetCtx()->StrStore, 128);
- 
- if (!DontTrack)
- {
-  ActivateEntity(Store, Entity);
- }
- 
- return Entity;
+ entity *Result = AllocEntityInternal(Store, DontTrack, 0);
+ return Result;
 }
 
 internal void
@@ -2184,7 +2218,7 @@ CheckCollisionWithEntities(editor *Editor, v2 AtP, f32 Tolerance)
       }
      }
      
-     if (Tracking->Active)
+     if (Tracking->Type != PointTrackingAlongCurve_None)
      {
       f32 PointRadius = GetCurveTrackedPointRadius(Curve);
       if (PointCollision(LocalAtP, Tracking->LocalSpaceTrackedPoint, PointRadius + Tolerance))
@@ -2427,8 +2461,23 @@ ControlPointHandleFromIndex(u32 Index)
 inline internal u32
 IndexFromControlPointHandle(control_point_handle Handle)
 {
- Assert(!ControlPointHandleMatch(Handle, ControlPointHandleZero()));
- u32 Result = Handle.Index - 1;
+ u32 Result = 0;
+ if (!ControlPointHandleMatch(Handle, ControlPointHandleZero()))
+ {
+  Result = Handle.Index - 1;
+ }
+ return Result;
+}
+
+inline internal b32
+IndexFromControlPointHandleSafe(control_point_handle Handle, u32 *Out)
+{
+ b32 Result = false;
+ if (!ControlPointHandleMatch(Handle, ControlPointHandleZero()))
+ {
+  *Out = Handle.Index - 1;
+  Result = true;
+ }
  return Result;
 }
 
@@ -3258,58 +3307,61 @@ TranslateCurvePointTo(entity_with_modify_witness *EntityWitness,
  u32 BezierOffset = 0;
  ControlPointAndBezierOffsetFromCurvePoint(CurvePoint, &ControlPoint, &BezierOffset);
  
- u32 ControlPointIndex = IndexFromControlPointHandle(ControlPoint);
- curve_points_static *Points = GetCurvePoints(Curve);
- 
- if (ControlPointIndex < Points->ControlPointCount)
+ u32 ControlPointIndex = 0;
+ if (IndexFromControlPointHandleSafe(ControlPoint, &ControlPointIndex))
  {
-  cubic_bezier_point *B = Points->CubicBezierPoints + ControlPointIndex;
-  v2 *TranslatePoint = B->Ps + BezierOffset;
-  v2 LocalP = WorldToLocalEntityPosition(Entity, P);
+  curve_points_static *Points = GetCurvePoints(Curve);
   
-  if (BezierOffset == 1)
+  if (ControlPointIndex < Points->ControlPointCount)
   {
-   v2 LocalTranslation = LocalP - B->P1;
+   cubic_bezier_point *B = Points->CubicBezierPoints + ControlPointIndex;
+   v2 *TranslatePoint = B->Ps + BezierOffset;
+   v2 LocalP = WorldToLocalEntityPosition(Entity, P);
    
-   B->P0 += LocalTranslation;
-   B->P2 += LocalTranslation;
-   
-   Points->ControlPoints[ControlPointIndex] += LocalTranslation;
-  }
-  else
-  {
-   Assert(BezierOffset == 0 || BezierOffset == 2);
-   v2 *Twin = B->Ps + (2 - BezierOffset);
-   
-   v2 DesiredTwinDirection;
-   if (Flags & TranslateCurvePoint_MatchBezierTwinDirection)
+   if (BezierOffset == 1)
    {
-    DesiredTwinDirection = B->P1 - LocalP;
+    v2 LocalTranslation = LocalP - B->P1;
+    
+    B->P0 += LocalTranslation;
+    B->P2 += LocalTranslation;
+    
+    Points->ControlPoints[ControlPointIndex] += LocalTranslation;
    }
    else
    {
-    DesiredTwinDirection = *Twin - B->P1;
+    Assert(BezierOffset == 0 || BezierOffset == 2);
+    v2 *Twin = B->Ps + (2 - BezierOffset);
+    
+    v2 DesiredTwinDirection;
+    if (Flags & TranslateCurvePoint_MatchBezierTwinDirection)
+    {
+     DesiredTwinDirection = B->P1 - LocalP;
+    }
+    else
+    {
+     DesiredTwinDirection = *Twin - B->P1;
+    }
+    Normalize(&DesiredTwinDirection);
+    
+    v2 DesiredLengthVector;
+    if (Flags & TranslateCurvePoint_MatchBezierTwinLength)
+    {
+     DesiredLengthVector = B->P1 - LocalP;
+    }
+    else
+    {
+     DesiredLengthVector = *Twin - B->P1;
+    }
+    f32 DesiredTwinLength = Norm(DesiredLengthVector);
+    
+    *Twin = B->P1 + DesiredTwinLength * DesiredTwinDirection;
    }
-   Normalize(&DesiredTwinDirection);
    
-   v2 DesiredLengthVector;
-   if (Flags & TranslateCurvePoint_MatchBezierTwinLength)
-   {
-    DesiredLengthVector = B->P1 - LocalP;
-   }
-   else
-   {
-    DesiredLengthVector = *Twin - B->P1;
-   }
-   f32 DesiredTwinLength = Norm(DesiredLengthVector);
-   
-   *Twin = B->P1 + DesiredTwinLength * DesiredTwinDirection;
+   *TranslatePoint = LocalP;
   }
   
-  *TranslatePoint = LocalP;
+  MarkEntityModified(EntityWitness);
  }
- 
- MarkEntityModified(EntityWitness);
 }
 
 internal void
@@ -3596,7 +3648,7 @@ InitEntityPart(entity *Entity,
  Entity->XForm = XForm;
  SetEntityName(Entity, Name);
  Entity->SortingLayer = SortingLayer;
- Entity->Flags = Flags;
+ Entity->Flags = (Flags & ~EntityFlag_Selected);
 }
 
 internal void
@@ -3709,6 +3761,7 @@ InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src)
   case Entity_Curve: {
    InitEntityCurvePart(DstCurve, SrcCurve->Params);
    InitParametricCurveResources(&DstCurve->ParametricResources, &SrcCurve->ParametricResources);
+   DstCurve->PointTracking = SrcCurve->PointTracking;
    curve_points_static *SrcPoints = GetCurvePoints(SrcCurve);
    SetCurvePoints(DstWitness, CurvePointsHandleFromCurvePointsStatic(SrcPoints));
    SelectControlPoint(DstCurve, SrcCurve->SelectedControlPoint);
@@ -4449,7 +4502,7 @@ RecomputeCurve(curve *Curve)
  point_tracking_along_curve_state *Tracking = &Curve->PointTracking;
  if (IsCurveEligibleForPointTracking(Curve))
  {
-  if (Tracking->Active)
+  if (Tracking->Type != PointTrackingAlongCurve_None)
   {
    f32 Fraction = Tracking->Fraction;
    
@@ -4483,7 +4536,7 @@ RecomputeCurve(curve *Curve)
  }
  else
  {
-  Tracking->Active = false;
+  Tracking->Type = PointTrackingAlongCurve_None;
  }
  
  u32 BSplineConvexHullCount = 0;

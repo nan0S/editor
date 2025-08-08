@@ -1068,7 +1068,6 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
          parametric_curve_resources *Resources = &Curve->ParametricResources;
          temp_arena Temp = TempArena(0);
          
-#if 1
          //- predefined examples
          // TODO(hbr): This is very adhoc, refactor this
          local parametric_curve_predefined_example_type PredefinedExample = {};
@@ -1127,7 +1126,6 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
            CrucialEntityParamChanged = true;
           }
          }
-#endif
          
          UI_Text(false, StrLit("Additional Vars"));
          UI_SameRow();
@@ -1531,21 +1529,21 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
      }
     }
     
-    if (UI_BeginTabItem(StrLit("Info")))
+    if (UI_BeginTabItem(StrLit("Details")))
     {
      if (Curve)
      {
-      UI_Label(StrLit("Info"))
-      {
-       curve_points_static *Points = GetCurvePoints(Curve);
-       UI_TextF(false, "Number of control points  %u", Points->ControlPointCount);
-       UI_TextF(false, "Number of samples         %u", Curve->CurveSampleCount);
-      }
+      curve_points_static *Points = GetCurvePoints(Curve);
+      UI_TextF(false, "Number of control points  %u", Points->ControlPointCount);
+      UI_TextF(false, "Number of samples         %u", Curve->CurveSampleCount);
      }
      
      if (Image)
      {
-      // TODO(hbr): print some info
+      string ImageFilePath = StringFromStringId(Image->FilePath);
+      UI_TextF(false, "File path  %S", ImageFilePath);
+      UI_TextF(false, "Width      %u pixels", Image->OriginalWidth);
+      UI_TextF(false, "Height     %u pixels", Image->OriginalHeight);
      }
      
      UI_EndTabItem();
@@ -1839,6 +1837,213 @@ RenderHelpUI(editor *Editor)
    UI_Text(false,
            StrLit("NOTE: Most things that apply to curves and curve manipulation (i.e.\n"
                   "move/select/delete) also apply to images, or in general - entities.\n\n"));
+   
+   if (UI_CollapsingHeader(StrLit("UI tutorial")))
+   {
+    UI_Text(false, StrLit("ImGui was used to create UI for this application. Those already\n"
+                          "familiar with this library can skip this tutorial. Otherwise, let's\n"
+                          "go through basic UI widgets and functionalities used throughout the\n"
+                          "application:"));
+    
+    UI_SeparatorText(StrLit("Widgets"));
+    
+    UI_Text(false, StrLit("HINT: Right click on different widgets and see what happens!"));
+    
+    //- buttons/checkboxes
+    {    
+     local rgba Colors[2] = { NiceGreenColor, NiceRedColor };
+     local u32 ColorIndex = 0;
+     UI_Colored(UI_Color_Item, Colors[ColorIndex])
+     {
+      if (UI_Button(StrLit("Click me!")))
+      {
+       ColorIndex = 1-ColorIndex;
+      }
+      if (ResetCtxMenu(StrLit("ResetButton"))) {ColorIndex = 0;}
+     }
+     UI_SameRow();
+     UI_Disabled(true)
+     {
+      UI_Button(StrLit("Disabled Button"));
+     }
+     UI_SameRow();
+     UI_Button(StrLit("Hover over me!"));
+     if (UI_IsItemHovered())
+     {
+      UI_Tooltip(StrLit("Hopefully some useful details here!"));
+     }
+     
+     local b32 Checkbox = false;
+     string Label = (Checkbox ? StrLit("Click to disable!") : StrLit("Click to enable!"));
+     UI_Checkbox(&Checkbox, Label);
+     if (ResetCtxMenu(StrLit("ResetCheckbox"))) {Checkbox = false;}
+     
+     UI_HelpMarkerWithTooltip(StrLit("Hello, World!"));
+     UI_SameRow();
+     UI_Text(false, StrLit("Hover over the question mark!"));
+    }
+    
+    //- text input
+    {
+     local char Buffer[128];
+     local char_buffer CharBuffer = MakeCharBuffer(Buffer, ArrayCount(Buffer));
+     UI_InputText2(&CharBuffer, 0, StrLit("Type something!"));
+     if (ResetCtxMenu(StrLit("ResetInput"))) {StructZero(Buffer);}
+    }
+    
+    //- slider
+    {
+     local i32 Integer = 0;
+     UI_SliderInteger(&Integer, 0, 50, StrLit("Slide the slider!"));
+     if (ResetCtxMenu(StrLit("ResetSlider"))) {Integer = 0;}
+    }
+    
+    //- drag
+    {
+     local f32 Scalar = 0;
+     local v2 Vector = {};
+     UI_DragFloat(&Scalar, 0, 0, 0, StrLit("Drag to adjust scalar value!"));
+     if (ResetCtxMenu(StrLit("ResetDrag"))) {StructZero(&Scalar);}
+     UI_DragFloat2(&Vector, 0, 0, 0, StrLit("Drag to adjust vector values!"));
+     if (ResetCtxMenu(StrLit("ResetDrag2"))) {StructZero(&Vector);}
+     UI_Text(false, StrLit("HINT: Double click on the \"drag\" field to input the value directly!"));
+    }
+    
+    //- color picker
+    {
+     local rgba Color = {};
+     UI_ColorPicker(&Color, StrLit("Pick color!"));
+     if (ResetCtxMenu(StrLit("ResetColor"))) {StructZero(&Color);}
+     UI_Text(false, StrLit("HINT: Click on the small color preview to open color picker!"));
+     UI_Text(false, StrLit("HINT: You can also \"drag\" individual RGBA components!"));
+    }
+    
+    //- combo
+    {
+     local u32 Value = 0;
+     local string ValueNames[] = {
+      StrLit("Variant A"),
+      StrLit("Variant B"),
+      StrLit("Variant C"),
+      StrLit("Special Variant"),
+     };
+     local u32 ValueCount = ArrayCount(ValueNames);
+     UI_Combo(&Value, ValueCount, ValueNames, StrLit("Click on me to pick variant!"));
+     if (ResetCtxMenu(StrLit("ResetCombo"))) {StructZero(&Value);}
+    }
+    
+    //- tree
+    {  
+     if (UI_BeginTree(StrLit("Click to expand/collapse!##Tree")))
+     {
+      UI_BulletText(StrLit("Bullet A"));
+      local i32 Slider = 0;
+      UI_SliderInteger(&Slider, -25, 25, StrLit("Slider"));
+      if (ResetCtxMenu(StrLit("ResetSliderTree"))) {StructZero(&Slider);}
+      local char Buffer[128];
+      local char_buffer Input = MakeCharBuffer(Buffer, ArrayCount(Buffer));
+      UI_InputText2(&Input, 0, StrLit("Input"));
+      if (ResetCtxMenu(StrLit("ResetInputTree"))) {StructZero(Buffer);}
+      UI_BulletText(StrLit("Bullet B"));
+      UI_EndTree();
+     }
+    }
+    
+    //- selectables
+    {
+     if (UI_CollapsingHeader(StrLit("Click to expand/collapse!##CollapsingHeader")))
+     {
+      local b32 Selected[3];
+      ForEachElement(Index, Selected)
+      {
+       UI_PushId(Cast(u32)Index);
+       b32 Sel = Selected[Index];
+       if (UI_SelectableItem(Sel, StrLit("Click on me to (de)select!")))
+       {
+        Selected[Index] = !Selected[Index];
+       }
+       UI_PopId();
+      }
+      local b32 SpecialSelected = false;
+      if (UI_SelectableItem(SpecialSelected,
+                            StrLit("Right click on me!")))
+      {
+       SpecialSelected = !SpecialSelected;
+      }
+      string CtxMenu = StrLit("EntityContextMenu");
+      if (UI_IsItemHovered() && UI_IsMouseClicked(UIMouseButton_Right))
+      {
+       UI_OpenPopup(CtxMenu);
+      }
+      local b32 IsMsg = false;
+      local string Msg = {};
+      if (UI_BeginPopup(CtxMenu, 0))
+      {
+       if(UI_MenuItem(0, NilStr, StrLit("Action A")))
+       {
+        IsMsg = true;
+        Msg = StrLit("Action A chosen!");
+       }
+       if(UI_MenuItem(0, NilStr, StrLit("Action B")))
+       {
+        IsMsg = true;
+        Msg = StrLit("Action B chosen!");
+       }
+       if(UI_MenuItem(0, NilStr, StrLit("Action C")))
+       {
+        IsMsg = true;
+        Msg = StrLit("Action C chosen!");
+       }
+       UI_EndPopup();
+      }
+      if (IsMsg)
+      {
+       UI_Text(false, Msg);
+      }
+     }
+    }
+    
+    //- windows
+    {
+     local b32 WindowIsOpen = false;
+     if (UI_Button(StrLit("Click me to spawn a new window!")))
+     {
+      WindowIsOpen = true;
+     }
+     if (WindowIsOpen)
+     {
+      if (UI_BeginWindow(&WindowIsOpen, 0, StrLit("UI Tutorial window (drag me around!)")))
+      {
+       UI_Text(false, StrLit("HINT: Click on the downward-pointing arrow in the top-left\n"
+                             "corner to \"collapse/expand\" the window."));
+       UI_Text(false, StrLit("HINT: Use the handle in the bottom-right corner to resize the window."));
+       UI_Text(false, StrLit("HINT: Use \"X\" button in the top-right corner to close the window."));
+       UI_Text(false, StrLit("HINT: Drag the window to move it around."));
+      }
+      UI_EndWindow();
+     }
+     
+    }
+    
+    //- tabs
+    {    
+     UI_BeginTabBar(StrLit("Tabs"));
+     if (UI_BeginTabItem(StrLit("Tab A (click on me!)")))
+     {
+      UI_Text(false, StrLit("This is content of Tab A"));
+      UI_EndTabItem();
+     }
+     
+     if (UI_BeginTabItem(StrLit("Tab B (click on me!)")))
+     {
+      UI_Text(false, StrLit("Entirely different content - Tab B"));
+      UI_EndTabItem();
+     }
+     UI_EndTabBar();
+    }
+    
+    UI_NewRow();
+   }
    
    if (UI_CollapsingHeader(StrLit("Keyboard shortcuts")))
    {

@@ -24,7 +24,7 @@ TextureHandleZero(void)
 inline internal b32
 TextureHandleMatch(render_texture_handle T1, render_texture_handle T2)
 {
- b32 Result = (T1.U32[0] == T2.U32[1]);
+ b32 Result = (T1.U32[0] == T2.U32[0]);
  return Result;
 }
 

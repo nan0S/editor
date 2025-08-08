@@ -1101,3 +1101,12 @@ SerializeString(arena *Arena, string_list *List, string Str)
  SerializeStruct(Arena, List, &Str.Count);
  SerializeData(Arena, List, Str.Data, Str.Count);
 }
+
+internal char_buffer
+MakeCharBuffer(char *Buffer, u64 Capacity)
+{
+ char_buffer CharBuf = {};
+ CharBuf.Data = Buffer;
+ CharBuf.Capacity = Capacity;
+ return CharBuf;
+}

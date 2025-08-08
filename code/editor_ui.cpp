@@ -961,7 +961,8 @@ UI_BeginPopupModal(b32 *IsOpen, string Label)
 
 internal void UI_CloseCurrentPopup(void) { Platform.ImGui.CloseCurrentPopup(); }
 
-internal b32 UI_BeginTree(string Label)
+internal b32
+UI_BeginTree(string Label)
 {
  temp_arena Temp = TempArena(0);
  string CLabel = CStrFromStr(Temp.Arena, Label);

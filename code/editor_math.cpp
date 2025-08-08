@@ -2305,3 +2305,32 @@ Diag3x3(f32 X, f32 Y)
  };
  return R;
 }
+
+internal f32
+TriangleArea(v2 P0, v2 P1, v2 P2)
+{
+ f32 C = Cross(P1 - P0, P2 - P0);
+ f32 Area = Abs(0.5f * C);
+ return Area;
+}
+
+internal samples
+MakeSamples(void)
+{
+ samples Samples = {};
+ Samples.SamplesMin = F32_MAX;
+ Samples.SamplesMax = F32_MIN;
+ return Samples;
+}
+
+internal void
+AddSample(samples *Set, f32 Sample)
+{
+ Set->SamplesMin = Min(Set->SamplesMin, Sample);
+ Set->SamplesMax = Max(Set->SamplesMax, Sample);
+ Set->SamplesSum += Sample;
+ Set->SamplesSum2 += Sample*Sample;
+ ++Set->Count;
+ Set->SamplesAvg = SafeDiv0(Set->SamplesSum, Set->Count);
+ Set->SamplesStddev = SqrtF32(SafeDiv0(Set->SamplesSum2 - 2*Set->SamplesAvg*Set->SamplesSum, Set->Count) + Set->SamplesAvg);
+}

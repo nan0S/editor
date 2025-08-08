@@ -173,6 +173,9 @@ PlatformExe_Compilation(arena *Arena,
  
  StaticLink(&Target, STB_Output);
  
+ // TODO(hbr): Do it more elegant?? 
+ StaticLink(&Target, StrLit("../data/resource.res"));
+ 
  return Target;
 }
 

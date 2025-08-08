@@ -29,12 +29,11 @@
 TODO features:
 
 crucial:
-- Checbyshev polynomial bezier degree lowering method
-- incluce imgui tutorial to get familiar with the ui widgets used throughout the project
-- icon
-- maybe different title bar
+- title bar icon
+- open "Help" on the first program open
 
 important:
+- Checbyshev polynomial bezier degree lowering method
 - extracing animated bezier curve perfectly
  - undo/redo should actually support running out of space
 
@@ -111,6 +110,8 @@ new things added:
 - extract animated curve - bezier can be 100% matching, other can do with interpolation
 - saving/loading project from/to file
 - remove DLL loading in release mode
+- icon
+- incluce imgui tutorial to get familiar with the ui widgets used throughout the project
 
  */
 

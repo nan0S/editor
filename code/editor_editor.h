@@ -570,6 +570,8 @@ struct curve
 struct image
 {
  scale2d Dim;
+ u32 OriginalWidth;
+ u32 OriginalHeight;
  string_id FilePath;
  render_texture_handle TextureHandle;
 };
@@ -917,6 +919,15 @@ struct action_tracking_group
  tracked_action *ActionsTail;
 };
 global action_tracking_group NilActionTrackingGroup;
+struct action_tracking_group_batch
+{
+ action_tracking_group_batch *Next;
+ action_tracking_group_batch *Prev;
+ 
+ action_tracking_group ActionTrackingGroups[64];
+ u32 ActionTrackingGroupIndex;
+ u32 ActionTrackingGroupCount;
+};
 
 struct begin_modify_curve_points_static_tracked_result
 {
@@ -1169,9 +1180,8 @@ struct editor
  selected_entity_transform_state SelectedEntityTransformState;
  entity_handle SelectedEntity;
  
- u32 ActionTrackingGroupCount;
- u32 ActionTrackingGroupIndex;
- action_tracking_group ActionTrackingGroups[1024];
+ action_tracking_group_batch *CurrentActionTrackingGroupBatch;
+ action_tracking_group_batch *FreeActionTrackingGroupBatch;
  b32 IsPendingActionTrackingGroup;
  action_tracking_group PendingActionTrackingGroup;
  tracked_action *FreeTrackedAction;

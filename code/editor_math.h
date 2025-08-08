@@ -86,6 +86,9 @@ read_only global rgba BlueColor        = RGBA(0.0f, 0.0f, 1.0f, 1.0f);
 read_only global rgba YellowColor      = RGBA(1.0f, 1.0f, 0.0f, 1.0f);
 read_only global rgba TransparentColor = RGBA(0.0f, 0.0f, 0.0f, 0.0f);
 
+read_only global rgba NiceGreenColor = RGB_Hex(0x448724);
+read_only global rgba NiceRedColor = RGB_Hex(0x902F23);
+
 //- operations
 inline internal v2  operator+ (v2 U, v2 V)   { return V2(U.X + V.X, U.Y + V.Y); }
 inline internal v2  operator- (v2 U, v2 V)   { return V2(U.X - V.X, U.Y - V.Y); }
@@ -115,9 +118,6 @@ inline internal rgba operator*(rgba C, f32 Scale) { return RGBA_V4(C.C * Scale);
 inline internal rgba &operator*=(rgba &C, f32 Scale) { C.C *= Scale; return C; }
 
 //~ Calculations, linear algebra
-inline internal f32 Cube(f32 X) { return X * X * X; }
-inline internal f32 Square(f32 X) { return X * X; }
-
 internal f32 Norm(v2 V);
 internal f32 NormSquared(v2 V);
 internal i32 NormSquared(v2i V);
@@ -274,5 +274,21 @@ internal b32               SegmentCollision(v2 Position, v2 LineA, v2 LineB, f32
 internal line_intersection LineIntersection(v2 A, v2 B, v2 C, v2 D);
 internal f32               AABBSignedDistance(v2 P, v2 BoxP, v2 BoxSize);
 internal f32               SegmentSignedDistance(v2 P, v2 SegmentBegin, v2 SegmentEnd, f32 SegmentWidth);
+internal f32               TriangleArea(v2 P0, v2 P1, v2 P2);
+
+//~ Misc
+struct samples
+{
+ f32 SamplesMax;
+ f32 SamplesMin;
+ f32 SamplesSum;
+ f32 SamplesSum2;
+ f32 SamplesAvg;
+ f32 SamplesStddev;
+ u32 Count;
+};
+
+internal samples MakeSamples(void);
+internal void    AddSample(samples *Set, f32 Sample);
 
 #endif //EDITOR_MATH_H

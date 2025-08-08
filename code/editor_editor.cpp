@@ -1121,34 +1121,85 @@ DeallocWholeActionTrackingGroup(editor *Editor, action_tracking_group *Group)
  }
 }
 
+internal b32
+IsActionTrackingGroupEmpty(action_tracking_group *Group)
+{
+ b32 Empty = (Group->ActionsHead == 0);
+ return Empty;
+}
+
+internal b32
+IsActionTrackingGroupBatchFull(action_tracking_group_batch *Batch)
+{
+ b32 Result = (Batch->ActionTrackingGroupIndex == ArrayCount(Batch->ActionTrackingGroups));
+ return Result;
+}
+
 internal void
 EndActionTrackingGroup(editor *Editor, action_tracking_group *Group)
 {
- if (Group->ActionsHead &&
-     (Editor->ActionTrackingGroupIndex < ArrayCount(Editor->ActionTrackingGroups)))
- {  
-  // NOTE(hbr): Iterate through every action from the future (aka. actions that have been undo'ed)
-  // and deallocate all AddEntity entities. Because they live in that future and that future only.
-  // And we ditch that future and create a new path.
-  for (u32 GroupIndex = Editor->ActionTrackingGroupIndex;
-       GroupIndex < Editor->ActionTrackingGroupCount;
-       ++GroupIndex)
+ if (!IsActionTrackingGroupEmpty(Group))
+ {
+  action_tracking_group_batch *CurrentBatch = Editor->CurrentActionTrackingGroupBatch;
+  
+  for (action_tracking_group_batch *Batch = CurrentBatch;
+       (Batch && (Batch->ActionTrackingGroupCount != 0));
+       Batch = Batch->Next)
   {
-   action_tracking_group *Remove = Editor->ActionTrackingGroups + GroupIndex;
-   ListIter(Action, Remove->ActionsHead, tracked_action)
+   // NOTE(hbr): Iterate through every action from the future (aka. actions that have been undo'ed)
+   // and deallocate all AddEntity entities. Because they live in that future and that future only.
+   // And we ditch that future and create a new path.
+   for (u32 GroupIndex = Batch->ActionTrackingGroupIndex;
+        GroupIndex < Batch->ActionTrackingGroupCount;
+        ++GroupIndex)
    {
-    if (Action->Type == TrackedAction_AddEntity)
+    action_tracking_group *Remove = Batch->ActionTrackingGroups + GroupIndex;
+    ListIter(Action, Remove->ActionsHead, tracked_action)
     {
-     entity *Entity = EntityFromHandle(Action->Entity, true);
-     Assert(Entity);
-     DeallocEntity(Editor->EntityStore, Entity);
+     if (Action->Type == TrackedAction_AddEntity)
+     {
+      entity *Entity = EntityFromHandle(Action->Entity, true);
+      Assert(Entity);
+      DeallocEntity(Editor->EntityStore, Entity);
+     }
+    }
+    DeallocWholeActionTrackingGroup(Editor, Remove);
+   }
+   
+   Batch->ActionTrackingGroupCount = Batch->ActionTrackingGroupIndex;
+  }
+  
+  {  
+   action_tracking_group_batch *Batch = CurrentBatch;
+   
+   if (Batch == 0 || IsActionTrackingGroupBatchFull(Batch))
+   {
+    if (Batch)
+    {
+     Batch = Batch->Next;
     }
    }
-   DeallocWholeActionTrackingGroup(Editor, Remove);
+   if (Batch)
+   {
+    Assert(!IsActionTrackingGroupBatchFull(Batch));
+   }
+   else
+   {
+    Batch = PushStruct(Editor->Arena, action_tracking_group_batch);
+    if (CurrentBatch)
+    {
+     CurrentBatch->Next = Batch;
+    }
+    Batch->Prev = CurrentBatch;
+   }
+   
+   Batch->ActionTrackingGroups[Batch->ActionTrackingGroupIndex] = *Group;
+   ++Batch->ActionTrackingGroupIndex;
+   Batch->ActionTrackingGroupCount = Batch->ActionTrackingGroupIndex;
+   
+   Editor->CurrentActionTrackingGroupBatch = Batch;
   }
-  Editor->ActionTrackingGroups[Editor->ActionTrackingGroupIndex] = *Group;
-  ++Editor->ActionTrackingGroupIndex;
-  Editor->ActionTrackingGroupCount = Editor->ActionTrackingGroupIndex;
+  
   // TODO(hbr): I'm not sure if this is the best place to do this
   MarkProjectAsModified(Editor);
  }
@@ -1612,13 +1663,44 @@ SelectEntity(editor *Editor, entity *Entity)
  Editor->SelectedEntity = MakeEntityHandle(Entity);
 }
 
+internal action_tracking_group_batch *
+PrevActionTrackingGroupBatch(editor *Editor)
+{
+ action_tracking_group_batch *Batch = Editor->CurrentActionTrackingGroupBatch;
+ if (Batch)
+ {
+  if (Batch->ActionTrackingGroupIndex == 0)
+  {
+   Batch = Batch->Prev;
+  }
+ }
+ return Batch;
+}
+
+internal action_tracking_group_batch *
+NextActionTrackingGroupBatch(editor *Editor)
+{
+ action_tracking_group_batch *Batch = Editor->CurrentActionTrackingGroupBatch;
+ if (Batch)
+ {
+  if (Batch->ActionTrackingGroupIndex >= Batch->ActionTrackingGroupCount)
+  {
+   Batch = Batch->Next;
+  }
+ }
+ return Batch;
+}
+
 internal void
 Undo(editor *Editor)
 {
- if (Editor->ActionTrackingGroupIndex > 0)
+ action_tracking_group_batch *Batch = PrevActionTrackingGroupBatch(Editor);
+ if (Batch && Batch->ActionTrackingGroupIndex > 0)
  {
-  --Editor->ActionTrackingGroupIndex;
-  action_tracking_group *Group = Editor->ActionTrackingGroups + Editor->ActionTrackingGroupIndex;
+  Editor->CurrentActionTrackingGroupBatch = Batch;
+  --Batch->ActionTrackingGroupIndex;
+  action_tracking_group *Group = Batch->ActionTrackingGroups + Batch->ActionTrackingGroupIndex;
+  
   ListIterRev(Action, Group->ActionsTail, tracked_action)
   {
    b32 AllowDeactived = (Action->Type == TrackedAction_RemoveEntity);
@@ -1674,10 +1756,13 @@ Undo(editor *Editor)
 internal void
 Redo(editor *Editor)
 {
- if (Editor->ActionTrackingGroupIndex < Editor->ActionTrackingGroupCount)
+ action_tracking_group_batch *Batch = NextActionTrackingGroupBatch(Editor);
+ if (Batch && Batch->ActionTrackingGroupIndex < Batch->ActionTrackingGroupCount)
  {
-  action_tracking_group *Group = Editor->ActionTrackingGroups + Editor->ActionTrackingGroupIndex;
-  ++Editor->ActionTrackingGroupIndex;
+  Editor->CurrentActionTrackingGroupBatch = Batch;
+  action_tracking_group *Group = Batch->ActionTrackingGroups + Batch->ActionTrackingGroupIndex;
+  ++Batch->ActionTrackingGroupIndex;
+  
   ListIter(Action, Group->ActionsHead, tracked_action)
   {
    b32 AllowDeactived = (Action->Type == TrackedAction_AddEntity);
@@ -1880,6 +1965,8 @@ AllocEntity(entity_store *Store, b32 DontTrack)
  return Result;
 }
 
+volatile u32 GlobalCounter = 0;
+
 internal void
 DeallocEntity(entity_store *Store, entity *Entity)
 {
@@ -1890,6 +1977,9 @@ DeallocEntity(entity_store *Store, entity *Entity)
  DeallocArenaFromStore(GetCtx()->ArenaStore, Curve->DegreeLowering.Arena);
  DeallocStringFromStore(GetCtx()->StrStore, Curve->ParametricResources.X_Equation.Equation);
  DeallocStringFromStore(GetCtx()->StrStore, Curve->ParametricResources.Y_Equation.Equation);
+ 
+ GlobalCounter += Image->TextureHandle.U32[0];
+ 
  DeallocTextureHandle(Store, Image->TextureHandle);
  
  DeactiveEntity(Store, Entity);
@@ -3667,10 +3757,14 @@ InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams)
 internal void
 InitEntityImagePart(image *Image,
                     scale2d Dim,
+                    u32 OriginalWidth,
+                    u32 OriginalHeight,
                     string ImageFilePath,
                     render_texture_handle TextureHandle)
 {
  Image->Dim = Dim;
+ Image->OriginalWidth = OriginalWidth;
+ Image->OriginalHeight = OriginalHeight;
  char_buffer *FilePathBuffer = CharBufferFromStringId(GetCtx()->StrStore, Image->FilePath);
  FillCharBuffer(FilePathBuffer, ImageFilePath);
  Image->TextureHandle = TextureHandle;
@@ -3683,7 +3777,7 @@ InitEntityImagePart(image *Image,
                     render_texture_handle TextureHandle)
 {
  scale2d Dim = Scale2D(Cast(f32)Width / Height, 1.0f);
- InitEntityImagePart(Image, Dim, ImageFilePath, TextureHandle);
+ InitEntityImagePart(Image, Dim, Width, Height, ImageFilePath, TextureHandle);
 }
 
 internal void
@@ -3771,7 +3865,7 @@ InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src)
    DeallocTextureHandle(GetCtx()->EntityStore, DstImage->TextureHandle);
    render_texture_handle TextureHandle = CopyTextureHandle(GetCtx()->EntityStore, SrcImage->TextureHandle);
    string SrcFilePath = StringFromStringId(GetCtx()->StrStore, SrcImage->FilePath);
-   InitEntityImagePart(DstImage, SrcImage->Dim, SrcFilePath, TextureHandle);
+   InitEntityImagePart(DstImage, SrcImage->Dim, SrcImage->OriginalWidth, SrcImage->OriginalHeight, SrcFilePath, TextureHandle);
   }break;
   
   case Entity_Count: InvalidPath;

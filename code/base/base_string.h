@@ -119,4 +119,7 @@ internal void SerializeString(arena *Arena, string_list *List, string Str);
 #define SerializeStruct(Arena, List, Ptr) SerializeData(Arena, List, Ptr, SizeOf(*(Ptr)))
 #define SerializeArray(Arena, List, Array, Count) SerializeData(Arena, List, Array, (Count) * (SizeOf(*(Array))))
 
+//- char buffer
+internal char_buffer MakeCharBuffer(char *Buffer, u64 Capacity);
+
 #endif //BASE_STRING_H

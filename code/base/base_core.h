@@ -348,6 +348,8 @@ StaticAssert(COMPILATION_UNIT_INDEX < COMPILATION_UNIT_COUNT, CompilationUnitMac
 #define MaxUnsignedRepresentableForType(Expr) ((1 << (SizeOf(Expr)*8)) - 1)
 #define AtIndexUntyped(Base, Index, ElemSize) Cast(void *)(Cast(umm)Base + Index * ElemSize)
 #define AdvancedPtrUntyped(Ptr, ElemSize) AtIndexUntyped(Ptr, 1, ElemSize)
+#define Square(X) ((X) * (X))
+#define Cube(X) ((X) * (X) * (X))
 
 #define MemoryCopy(Dst, Src, Bytes) memcpy(Dst, Src, Bytes)
 #define MemoryMove(Dst, Src, Bytes) memmove(Dst, Src, Bytes)

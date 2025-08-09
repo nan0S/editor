@@ -9,8 +9,7 @@
 struct os_state
 {
  arena *Arena;
- string ExecutableDirPath;
- string AppDir;
+ os_info Info;
 };
 global os_state OS_State;
 
@@ -18,11 +17,16 @@ internal void
 OS_Init(int ArgCount, char *Args[])
 {
  MarkUnused(ArgCount);
- //arena *Arena = AllocArena(Megabytes(1));
- arena *Arena = 0;
- //OS_State.Arena = Arena;
- OS_State.ExecutableDirPath = PathChopLastPart(StrFromCStr(Args[0]));
- OS_State.AppDir = OS_AppDir(Arena);
+ arena *Arena = AllocArena(Megabytes(1));
+ OS_State.Arena = Arena;
+ OS_State.Info.ExecutableDirPath = PathChopLastPart(StrFromCStr(Args[0]));
+ OS_State.Info.AppDir = OS_AppDir(Arena);
+}
+
+internal os_info
+OS_Info(void)
+{
+ return OS_State.Info;
 }
 
 internal string
@@ -163,7 +167,7 @@ OS_PrintFileFV(os_file_handle File, char const *Format, va_list Args)
 internal string
 OS_ExecutableRelativeToFullPath(arena *Arena, string Relative)
 {
- string Absolute = PathConcat(Arena, OS_State.ExecutableDirPath, Relative);
+ string Absolute = PathConcat(Arena, OS_State.Info.ExecutableDirPath, Relative);
  string Result = OS_FullPathFromPath(Arena, Absolute);
  return Result;
 }

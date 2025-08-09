@@ -75,21 +75,6 @@ __ProfileBegin(char const *Label, char const *File, int Line, u16 AnchorIndex)
  Block->StartTSC = OS_ReadCPUTimer();
 }
 
-inline internal b32
-ProfilerIsAnchorActive(anchor_index Index)
-{
- profiler *Profiler = GlobalProfiler;
- b32 Result = (Profiler->AnchorLabels[Index.Index].Data != 0);
- return Result;
-}
-
-inline internal anchor_index
-MakeAnchorIndex(u32 Index)
-{
- anchor_index Result = {SafeCastU16(Index)};
- return Result;
-}
-
 inline internal void
 __ProfileEnd(void)
 {
@@ -133,5 +118,25 @@ __ProfileEnd(void)
  
  Profiler->AnchorParentIndex = Block->ParentIndex;
 }
+
+inline internal b32
+ProfilerIsAnchorActive(anchor_index Index)
+{
+ profiler *Profiler = GlobalProfiler;
+ b32 Result = (Profiler->AnchorLabels[Index.Index].Data != 0);
+ return Result;
+}
+
+inline internal anchor_index
+MakeAnchorIndex(u32 Index)
+{
+ anchor_index Result = {SafeCastU16(Index)};
+ return Result;
+}
+
+#else
+
+inline internal b32 ProfilerIsAnchorActive(anchor_index Index) { return false; }
+inline internal anchor_index MakeAnchorIndex(u32 Index) { return {}; }
 
 #endif

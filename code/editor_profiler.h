@@ -1,7 +1,7 @@
 #ifndef EDITOR_PROFILER_H
 #define EDITOR_PROFILER_H
 
-#define EDITOR_PROFILER 1
+#define EDITOR_PROFILER 0
 
 #if EDITOR_PROFILER
 
@@ -116,9 +116,5 @@ internal void ProfilerReset(profiler *Profiler); // useful when some code hot-re
 
 internal b32          ProfilerIsAnchorActive(anchor_index Index);
 internal anchor_index MakeAnchorIndex(u32 Index);
-
-//- ignore
-internal void __ProfileBegin(char const *Label, u16 AnchorIndex);
-internal void __ProfileEnd(void);
 
 #endif //EDITOR_PROFILER_H

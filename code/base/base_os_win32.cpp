@@ -277,12 +277,16 @@ OS_FileCopy(string Src, string Dst)
 }
 
 internal b32
-OS_FileExists(string Path)
+OS_FileExists(string Path, b32 IncludeDirs)
 {
  temp_arena Temp = TempArena(0);
  string CPath = CStrFromStr(Temp.Arena, Path);
  DWORD Attributes = GetFileAttributesA(CPath.Data);
- b32 Result = (Attributes != INVALID_FILE_ATTRIBUTES) && !(Attributes & FILE_ATTRIBUTE_DIRECTORY);
+ b32 Result = (Attributes != INVALID_FILE_ATTRIBUTES);
+ if (!IncludeDirs)
+ {
+  Result = Result && !(Attributes & FILE_ATTRIBUTE_DIRECTORY);
+ }
  EndTemp(Temp);
  
  return Result;
@@ -852,24 +856,14 @@ OS_MessageBox(string Msg)
  EndTemp(Temp);
 }
 
-
-internal string OS_AppDir(arena *Arena) { return {}; }
-
-#if 0
 internal string
 OS_AppDir(arena *Arena)
 {
-#if 0
  string Result = {};
  char Buffer[MAX_PATH] = {};
- 
  if (SUCCEEDED(SHGetFolderPathA(0, CSIDL_APPDATA, 0, 0, Buffer)))
  {
   Result = StrCopy(Arena, StrFromCStr(Buffer));
  }
- 
  return Result;
-#endif
- return {};
 }
-#endif

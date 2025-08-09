@@ -33,7 +33,7 @@ X_Macro(IsMouseClicked, ImGui::IsMouseClicked, bool, ImGuiMouseButton button, bu
 X_Macro(IsMouseDoubleClicked, ImGui::IsMouseDoubleClicked, bool, ImGuiMouseButton button, button) \
 X_Macro(IsWindowHovered, ImGui::IsWindowHovered, bool, void, Nothing) \
 X_Macro(SetCursorPos, ImGui::SetCursorPos, void, ImVec2 local_pos, local_pos) \
-X_Macro(SetNextItemOpen, ImGui::SetNextItemOpen, void, bool is_open Comma ImGuiCond cond, cond Comma is_open) \
+X_Macro(SetNextItemOpen, ImGui::SetNextItemOpen, void, bool is_open Comma ImGuiCond cond, is_open Comma cond) \
 X_Macro(SetNextWindowSizeConstraints, ImGui::SetNextWindowSizeConstraints, void, ImVec2 min_size Comma ImVec2 max_size, min_size Comma max_size) \
 X_Macro(BringWindowToDisplayFront, ImGui::BringWindowToDisplayFront, void, ImGuiWindow *window, window) \
 X_Macro(GetCurrentWindow, ImGui::GetCurrentWindow, ImGuiWindow *, void, Nothing) \

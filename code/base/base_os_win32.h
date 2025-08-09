@@ -3,7 +3,8 @@
 
 #include <windows.h>
 #include <intrin.h>
-//#include <Shlobj.h>
+#include <Shlobj.h>
+#pragma comment(lib, "shell32")
 
 typedef HANDLE os_file_handle;
 typedef HMODULE os_library_handle;

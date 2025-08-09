@@ -128,7 +128,7 @@ Compile(compiler_setup Setup, compilation_target Target)
   string TargetName = CompilationTargetOutput.TargetName;
   
   //- possibly don't recompile
-  if ((Target.Flags & CompilationFlag_DontRecompileIfAlreadyExists) && OS_FileExists(OutputTarget))
+  if ((Target.Flags & CompilationFlag_DontRecompileIfAlreadyExists) && OS_FileExists(OutputTarget, false))
   {
    // NOTE(hbr): Nothing to do
   }

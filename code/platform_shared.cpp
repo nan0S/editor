@@ -124,13 +124,13 @@ Platform_PrintDebugInputEvents(platform_input_output *Input)
 internal main_window_params
 Platform_GetMainWindowInitialParams(u32 ScreenWidth, u32 ScreenHeight)
 {
- u32 WindowWidth =  ScreenWidth * 1/2;
+ //u32 WindowWidth =  ScreenWidth * 1/2;
  //u32 WindowWidth =  ScreenWidth;
- //u32 WindowWidth =  ScreenWidth * 9/10;
+ u32 WindowWidth =  ScreenWidth * 9/10;
  
- u32 WindowHeight = ScreenHeight * 1/2;
+ //u32 WindowHeight = ScreenHeight * 1/2;
  //u32 WindowHeight = ScreenHeight;
- //u32 WindowHeight = ScreenHeight * 9/10;
+ u32 WindowHeight = ScreenHeight * 9/10;
  
  u32 WindowX = (ScreenWidth - WindowWidth) / 2;
  u32 WindowY = (ScreenHeight - WindowHeight) / 2;
@@ -147,6 +147,7 @@ Platform_GetMainWindowInitialParams(u32 ScreenWidth, u32 ScreenHeight)
 }
 
 PLATFORM_SET_WINDOW_TITLE(PlatformSetWindowTitleStub) {}
+PLATFORM_TOGGLE_FULLSCREEN(PlatformToggleFullscreenStub) {}
 
 #define X_Macro(Name, ImGuiName, ReturnType, Args, ArgNames) internal ReturnType ImGui##Name(Args){return ImGuiName(ArgNames);}
 ImGuiFunctions
@@ -161,6 +162,8 @@ platform_api Platform = {
  OS_SaveFileDialog,
  OS_ReadEntireFile,
  PlatformSetWindowTitleStub,
+ OS_Info,
+ PlatformToggleFullscreenStub,
  WorkQueueAddEntry,
  WorkQueueCompleteAllWork,
  

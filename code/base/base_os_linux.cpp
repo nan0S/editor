@@ -206,6 +206,8 @@ OS_FileCopy(string Src, string Dst)
 internal b32
 OS_FileExists(string Path)
 {
+ // TODO(hbr): Implement this with [IncludeDirs] argument
+ NotImplemented;
  temp_arena Temp = TempArena(0);
  string CPath = CStrFromStr(Temp.Arena, Path);
  int Ret = access(CPath.Data, R_OK);

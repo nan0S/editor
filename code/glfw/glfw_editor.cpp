@@ -222,7 +222,7 @@ EDITOR_ON_CODE_RELOAD(EditorOnCodeReload);
 // TODO(hbr): This is a Win32 specific function but I needed to write this quickly.
 // And I also didn't want to require another file distributed with the executable.
 internal void
-GLFWSetWindowIcon(GLFWwindow *Window)
+GLFW_x_Win32_SetWindowIcon(GLFWwindow *Window)
 {
  HICON Icon = LoadIconA(GetModuleHandle(0), MAKEINTRESOURCE(1));
  
@@ -293,6 +293,58 @@ GLFWSetWindowIcon(GLFWwindow *Window)
   
   EndTemp(Temp);
  }
+}
+
+internal b32
+Win32WindowIsFullScreen(HWND window)
+{
+ DWORD window_style = GetWindowLong(window, GWL_STYLE);
+ return !(window_style & WS_OVERLAPPEDWINDOW);
+}
+
+internal void
+Win32SetWindowFullScreen(HWND window, b32 fullscreen)
+{
+ local WINDOWPLACEMENT last_window_placement;
+ DWORD window_style = GetWindowLong(window, GWL_STYLE);
+ b32 is_fullscreen_already = Win32WindowIsFullScreen(window);
+ if(fullscreen)
+ {
+  if(!is_fullscreen_already)
+  {
+   GetWindowPlacement(window, &last_window_placement);
+  }
+  MONITORINFO monitor_info = {sizeof(monitor_info)};
+  if(GetMonitorInfo(MonitorFromWindow(window, MONITOR_DEFAULTTOPRIMARY), &monitor_info))
+  {
+   SetWindowLong(window, GWL_STYLE, window_style & ~WS_OVERLAPPEDWINDOW);
+   SetWindowPos(window, HWND_TOP,
+                monitor_info.rcMonitor.left,
+                monitor_info.rcMonitor.top,
+                monitor_info.rcMonitor.right - monitor_info.rcMonitor.left,
+                monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top,
+                SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+  }
+ }
+ else
+ {
+  SetWindowLong(window, GWL_STYLE, window_style | WS_OVERLAPPEDWINDOW);
+  SetWindowPlacement(window, &last_window_placement);
+  SetWindowPos(window, 0, 0, 0, 0, 0,
+               SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+               SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+ }
+}
+
+// TODO(hbr): This is bad, we are using Win32 api in GLFW platform layer, but again, I'm in rush
+internal void
+GLFWToggleFullscreen(void)
+{
+ glfw_state *State = &GlobalGLFWState;
+ HWND Window = GetActiveWindow();
+ b32 NewFullScreen = !State->FullScreen;
+ Win32SetWindowFullScreen(Window, NewFullScreen);
+ State->FullScreen = NewFullScreen;
 }
 
 internal void
@@ -411,7 +463,9 @@ Table[GLFWButton] = PlatformButton
   
   GLFWwindow *Window = glfwCreateWindow(WindowWidth, WindowHeight, WindowParams.Title, 0, 0);
   GLFWState->Window = Window;
+  
   Platform.SetWindowTitle = GLFWSetWindowTitle;
+  Platform.ToggleFullscreen = GLFWToggleFullscreen;
   
   if (Window)
   {
@@ -421,7 +475,13 @@ Table[GLFWButton] = PlatformButton
    glfwSetScrollCallback(Window, GLFWMouseScrollCallback);
    glfwSetDropCallback(Window, GLFWDropCallback);
    
-   GLFWSetWindowIcon(Window);
+#if 0   
+   GLFWmonitor *Monitor = glfwGetPrimaryMonitor();
+   GLFWvidmode const *Mode = glfwGetVideoMode(Monitor);
+   glfwSetWindowMonitor(Window, Monitor, 0, 0, Mode->width, Mode->height, Mode->refreshRate);
+#endif
+   
+   GLFW_x_Win32_SetWindowIcon(Window);
    
    //- renderer
    renderer_memory RendererMemory = Platform_MakeRendererMemory(PermamentArena, Profiler,
@@ -438,6 +498,11 @@ Table[GLFWButton] = PlatformButton
    ImGui::CreateContext();
    ImGui_ImplGlfw_InitForOpenGL(Window, true);
    ImGui_ImplOpenGL3_Init();
+   
+   // NOTE(hbr): I don't need the ini file, it's annoying
+   auto &ImGuiIO = ImGui::GetIO();
+   ImGuiIO.LogFilename = 0;
+   ImGuiIO.IniFilename = 0;
    
    //- init editor stuff
    editor_function_table EditorFunctions = {};
@@ -509,6 +574,7 @@ Table[GLFWButton] = PlatformButton
      {
       platform_event *Event = GLFWPushPlatformEvent(Window, PlatformEvent_WindowClose);
       MarkUnused(Event);
+      Running = false;
      }
      
      Input.EventCount = GLFWState->GLFWInput.EventCount;
@@ -554,12 +620,12 @@ Table[GLFWButton] = PlatformButton
     
     GLFWRendererEndFrame(Renderer, &RendererMemory, Frame);
     
+    RefreshRequested = Input.RefreshRequested;
+    
     if (!ProfilingStopped)
     {
      ProfilerEndFrame(Profiler);
     }
-    
-    RefreshRequested = Input.RefreshRequested;
     ProfilingStopped = Input.ProfilingStopped;
     
     if (CodeReloaded)

@@ -983,11 +983,33 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       }
      }
      
+     if (ModifyActivated && (SelectedTransform->TransformAction == 0))
+     {
+      SelectedTransform->TransformAction = BeginEntityTransform(Editor, Entity);
+     }
+     // NOTE(hbr): Modify the Entity transform in the middle in case modify has been
+     // activated and deactivated in the same frame.
+     Entity->XForm = NewXForm;
+     if (ModifyDeactivated && (SelectedTransform->TransformAction != 0))
+     {
+      EndEntityTransform(Editor, SelectedTransform->TransformAction);
+      SelectedTransform->TransformAction = 0;
+     }
+     
+#if 0     
      if (ModifyActivated && ModifyDeactivated)
      {
-      // NOTE(hbr): If two things happened in the same frame, then we already should be tracking something
-      // and we don't want to stop.
-      Assert(SelectedTransform->TransformAction != 0);
+      // NOTE(hbr): If two things happened in the same frame, then if we already were tracking
+      // something, then we should just continue. Otherwise, quickly begin tracking and end.
+      if (SelectedTransform->TransformAction == 0)
+      {
+       tracked_action *Transform = BeginEntityTransform(Editor, Entity);
+       EndEntityTransform(Editor, Transform);
+      }
+      else
+      {
+       // NOTE(hbr): Nothing to do
+      }
      }
      else if (ModifyActivated && !ModifyDeactivated)
      {
@@ -1004,16 +1026,14 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       // but we don't have it everywhere unfortunately.
       if (SelectedTransform->TransformAction)
       {
-       EndEntityTransform(Editor, SelectedTransform->TransformAction);
-       SelectedTransform->TransformAction = 0;
+       
       }
      }
      else
      {
       // NOTE(hbr): Nothing to do
      }
-     
-     Entity->XForm = NewXForm;
+#endif
      
      {     
       b32 Visible = IsEntityVisible(Entity);
@@ -1838,14 +1858,14 @@ RenderHelpUI(editor *Editor)
  {
   if (UI_BeginWindow(&Editor->HelpWindow, UIWindowFlag_AutoResize, StrLit("Help")))
   {
-   UI_TextF(false, "Parametric Curve Editor -");
+   UI_TextF(false, "Welcome to");
    UI_SameRow();
    UI_Colored(UI_Color_Text, GreenColor)
    {
     UI_TextF(false, "%S", EditorAppName);
    }
    UI_SameRow();
-   UI_TextF(false, "- overview and tutorial.");
+   UI_TextF(false, "- parametric curve editor. Here is the editor's quick overview and tutorial.");
    
    UI_NewRow();
    UI_Text(false,
@@ -1857,6 +1877,10 @@ RenderHelpUI(editor *Editor)
            StrLit("NOTE: Most things that apply to curves and curve manipulation (i.e.\n"
                   "move/select/delete) also apply to images, or in general - entities.\n\n"));
    
+   // NOTE(hbr): I have no fucking idea why I need to pass true here and not false what I would expect.
+   // It's literally the opposite behaviour of what I'm expecting even thgough I checked ImGui expectes
+   // "is_open" and not "is_not_open" and I'm passing it correctly. Fuck that.
+   UI_SetNextItemOpen(true, UICond_Once);
    if (UI_CollapsingHeader(StrLit("UI tutorial")))
    {
     UI_Text(false, StrLit("ImGui was used to create UI for this application. Those already\n"
@@ -2064,6 +2088,7 @@ RenderHelpUI(editor *Editor)
     UI_NewRow();
    }
    
+   UI_SetNextItemOpen(false, UICond_Once);
    if (UI_CollapsingHeader(StrLit("Keyboard shortcuts")))
    {
     if (UI_BeginTable(2, StrLit("KeyboardShortcuts")))
@@ -2080,7 +2105,7 @@ RenderHelpUI(editor *Editor)
          Description = StrLit("New project");
         }break;
         case EditorCommand_Open: {
-         Description = StrLit("Open file");
+         Description = StrLit("Open file (new project or image)");
         }break;
         case EditorCommand_Save: {
          Description = StrLit("Save project");
@@ -2112,6 +2137,9 @@ RenderHelpUI(editor *Editor)
         case EditorCommand_ToggleUI: {
          Description = StrLit("Toggle UI");
         }break;
+        case EditorCommand_ToggleFullscreen: {
+         Description = StrLit("Toggle fullscreen");
+        }break;
         
         case EditorCommand_Count: InvalidPath;
        }
@@ -2138,6 +2166,7 @@ RenderHelpUI(editor *Editor)
     }
    }
    
+   UI_SetNextItemOpen(true, UICond_Once);
    if (UI_CollapsingHeader(StrLit("Mouse controls")))
    {
     if (UI_BeginTree(StrLit("Left button")))
@@ -4221,13 +4250,16 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  editor *Editor = Memory->Editor;
  if (!Editor)
  {
-  Editor = Memory->Editor = PushStruct(Memory->PermamentArena, editor);
-  Editor->EditorMemory = Memory;
+  arena *PermamentArena = Memory->PermamentArena;
+  Editor = Memory->Editor = PushStruct(PermamentArena, editor);
+  Editor->Persistent.Memory = Memory;
+  
   // TODO(hbr): Quick fix
   NilExpr = &Editor->NilParametricExpr;
   DEBUG_Vars = &Editor->DEBUG_Vars;
-  LoadEmptyProject(Editor);
+  LoadLastSessionOrEmptyProject(Editor);
   InitGlobalsOnInitOrCodeReload(Editor);
+  
   // NOTE(hbr): Sanity check that I didn't mess up keyboard shortcut definitions
   ForEachEnumVal(EditorCmd, EditorCommand_Count, editor_command)
   {

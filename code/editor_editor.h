@@ -1070,6 +1070,7 @@ enum editor_command
  EditorCommand_Undo,
  EditorCommand_Redo,
  EditorCommand_ToggleUI,
+ EditorCommand_ToggleFullscreen,
  
  EditorCommand_Count,
 };
@@ -1161,11 +1162,15 @@ struct editor_serializable_state
  EditorSerializableStateStructMembers;
 };
 
+struct persistent_state
+{
+ editor_memory *Memory;
+ string SessionFilePath;
+};
+
 struct editor
 {
  arena *Arena;
- 
- editor_memory *EditorMemory;
  
  arena_store *ArenaStore;
  renderer_transfer_queue *RendererQueue;
@@ -1176,6 +1181,8 @@ struct editor
  curve_points_store *CurvePointsStore;
  struct work_queue *LowPriorityQueue;
  struct work_queue *HighPriorityQueue;
+ 
+ persistent_state Persistent;
  
  selected_entity_transform_state SelectedEntityTransformState;
  entity_handle SelectedEntity;
@@ -1359,6 +1366,7 @@ internal curve_params DefaultCubicSplineCurveParams(void);
 //~ editor and editor systems
 
 //- basic operations
+internal void LoadLastSessionOrEmptyProject(editor *Editor);
 internal void LoadEmptyProject(editor *Editor);
 internal success_b32 LoadProjectFromFile(editor *Editor, string FilePath);
 internal success_b32 SaveProjectIntoFile(editor *Editor, string FilePath);

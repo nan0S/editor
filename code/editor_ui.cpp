@@ -104,7 +104,8 @@ internal void
 UI_SetNextItemOpen(b32 Open, ui_cond Cond)
 {
  ImGuiCond ImCond = UICondToImGuiCond(Cond);
- Platform.ImGui.SetNextItemOpen(Cast(bool)Open, ImCond);
+ bool OpenAsBool = Cast(bool)Open;
+ Platform.ImGui.SetNextItemOpen(OpenAsBool, ImCond);
 }
 
 internal ImVec2

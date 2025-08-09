@@ -207,6 +207,7 @@ struct platform_input_output
 typedef os_file_dialog_result platform_file_dialog_result;
 typedef os_file_dialog_filter platform_file_dialog_filter;
 typedef os_file_dialog_filters platform_file_dialog_filters;
+typedef os_info platform_info;
 
 #define PLATFORM_ALLOC_VIRTUAL_MEMORY(Name) void *Name(u64 Size, b32 Commit)
 typedef PLATFORM_ALLOC_VIRTUAL_MEMORY(platform_alloc_virtual_memory);
@@ -232,6 +233,12 @@ typedef PLATFORM_READ_ENTIRE_FILE(platform_read_entire_file);
 #define PLATFORM_SET_WINDOW_TITLE(Name) void Name(string Title)
 typedef PLATFORM_SET_WINDOW_TITLE(platform_set_window_title);
 
+#define PLATFORM_GET_PLATFORM_INFO(Name) platform_info Name(void)
+typedef PLATFORM_GET_PLATFORM_INFO(platform_get_platform_info);
+
+#define PLATFORM_TOGGLE_FULLSCREEN(Name) void Name(void)
+typedef PLATFORM_TOGGLE_FULLSCREEN(platform_toggle_fullscreen);
+
 typedef void work_queue_func(void *UserData);
 #define PLATFORM_WORK_QUEUE_ADD_ENTRY(Name) void Name(work_queue *Queue, work_queue_func *Func, void *UserData)
 typedef PLATFORM_WORK_QUEUE_ADD_ENTRY(platform_work_queue_add_entry);
@@ -250,6 +257,8 @@ struct platform_api
  platform_save_file_dialog *SaveFileDialog;
  platform_read_entire_file *ReadEntireFile;
  platform_set_window_title *SetWindowTitle;
+ platform_get_platform_info *GetPlatformInfo;
+ platform_toggle_fullscreen *ToggleFullscreen;
  
  platform_work_queue_add_entry *WorkQueueAddEntry;
  platform_work_queue_complete_all_work *WorkQueueCompleteAllWork;

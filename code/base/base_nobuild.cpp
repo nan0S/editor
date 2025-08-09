@@ -65,8 +65,8 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
  string SourceCodePath1 = PathConcat(Arena, CodeDir, SourceCodeFileNameCand1);
  string SourceCodePath2 = PathConcat(Arena, CodeDir, SourceCodeFileNameCand2);
  
- b32 Cand1Exists = OS_FileExists(SourceCodePath1);
- b32 Cand2Exists = OS_FileExists(SourceCodePath2);
+ b32 Cand1Exists = OS_FileExists(SourceCodePath1, false);
+ b32 Cand2Exists = OS_FileExists(SourceCodePath2, false);
  
  string SourceCodePath = {};
  if (Cand1Exists && !Cand2Exists)

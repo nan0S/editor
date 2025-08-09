@@ -245,7 +245,7 @@ enum operating_system
  OS_Linux,
 };
 
-#if defined(BUILD_DEBUG)
+#if BUILD_DEBUG
 # define Assert(Expr) AssertAlways(Expr)
 #else
 # define Assert(Expr) (void)(Expr)

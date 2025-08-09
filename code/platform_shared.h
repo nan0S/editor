@@ -39,6 +39,4 @@ struct main_window_params
  char const *Title;
 };
 
-
-
 #endif //PLATFORM_SHARED_H

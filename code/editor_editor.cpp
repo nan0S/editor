@@ -306,7 +306,8 @@ InitProjectChangeRequestState(arena_store *ArenaStore,
 internal void
 AllocEditorResources(editor *Editor)
 {
- editor_memory *Memory = Editor->EditorMemory;
+ persistent_state Persistent = Editor->Persistent;
+ editor_memory *Memory = Persistent.Memory;
  
  if (Editor->ArenaStore)
  {
@@ -315,7 +316,7 @@ AllocEditorResources(editor *Editor)
  }
  
  arena_store *ArenaStore = AllocArenaStore();
- Editor->EditorMemory = Memory;
+ Editor->Persistent = Persistent;
  Editor->ArenaStore = ArenaStore;
  Editor->Arena = AllocArenaFromStore(ArenaStore, Gigabytes(64));
  Editor->LowPriorityQueue = Memory->LowPriorityQueue;
@@ -353,7 +354,15 @@ SetProjectFilePath(editor *Editor, b32 IsFileBacked, string FilePath)
  Editor->IsProjectFileBacked = IsFileBacked;
  ClearArena(Editor->ProjectFilePathArena);
  Editor->ProjectFilePath = StrCopy(Editor->ProjectFilePathArena, FilePath);
+ 
  UpdateWindowTitle(Editor);
+ 
+ if (IsFileBacked)
+ {
+  string ProjectPath = FilePath;
+  string SessionFilePath = Editor->Persistent.SessionFilePath;
+  OS_WriteDataToFile(SessionFilePath, FilePath);
+ }
 }
 
 internal void
@@ -365,6 +374,35 @@ InitEditor(editor *Editor,
  Editor->SerializableState = SerializableState;
  Editor->ProjectModified = false;
  SetProjectFilePath(Editor, IsFileBacked, FilePath);
+}
+
+internal void
+LoadLastSessionOrEmptyProject(editor *Editor)
+{
+ temp_arena Temp = TempArena(0);
+ arena *PermamentArena = Editor->Persistent.Memory->PermamentArena;
+ 
+ os_info Info = Platform.GetPlatformInfo();
+ string EditorAppDir = PathConcat(PermamentArena, Info.AppDir, EditorAppName);
+ string SessionFilePath = PathConcat(PermamentArena, EditorAppDir, StrLit("session"));
+ Editor->Persistent.SessionFilePath = SessionFilePath;
+ 
+ if (OS_FileExists(EditorAppDir, true))
+ {
+  string LastSession = OS_ReadEntireFile(Temp.Arena, SessionFilePath);
+  if (!LoadProjectFromFile(Editor, LastSession))
+  {
+   LoadEmptyProject(Editor);
+  }
+ }
+ else
+ {
+  OS_DirMake(EditorAppDir);
+  LoadEmptyProject(Editor);
+  Editor->HelpWindow = true;
+ }
+ 
+ EndTemp(Temp);
 }
 
 internal void
@@ -1270,6 +1308,10 @@ ExecuteEditorCommand(editor *Editor, editor_command Cmd)
    {
     DuplicateEntity(Editor, Entity);
    }
+  }break;
+  
+  case EditorCommand_ToggleFullscreen: {
+   Platform.ToggleFullscreen();
   }break;
   
   case EditorCommand_Count: InvalidPath;

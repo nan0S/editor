@@ -9,7 +9,14 @@
 # error unsupported OS
 #endif
 
-internal void OS_Init(int ArgCount, char *Args[]);
+struct os_info
+{
+ string ExecutableDirPath;
+ string AppDir;
+};
+
+internal void    OS_Init(int ArgCount, char *Args[]);
+internal os_info OS_Info(void);
 
 //- memory
 internal void *OS_Reserve(u64 Reserve, b32 Commit);
@@ -77,14 +84,13 @@ internal void OS_PrintFileFV(os_file_handle File, char const *Format, va_list Ar
 internal success_b32 OS_FileDelete(string Path);
 internal success_b32 OS_FileMove(string Src, string Dst);
 internal success_b32 OS_FileCopy(string Src, string Dst);
-internal success_b32 OS_FileExists(string Path);
+internal success_b32 OS_FileExists(string Path, b32 IncludeDirs);
 internal success_b32 OS_DirMake(string Path);
 internal success_b32 OS_DirRemove(string Path);
 internal success_b32 OS_DirChange(string Path);
 internal string      OS_CurrentDir(arena *Arena);
 internal string      OS_FullPathFromPath(arena *Arena, string Path);
 internal string      OS_ExecutableRelativeToFullPath(arena *Arena, string Rel);
-internal string      OS_AppDir(arena *Arena);
 
 //- libraries
 internal os_library_handle OS_LibraryLoad(string Path);

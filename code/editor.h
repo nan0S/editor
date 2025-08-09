@@ -29,13 +29,11 @@
 TODO features:
 
 crucial:
-- open "Help" on the first program open
 
 important:
 - Checbyshev polynomial bezier degree lowering method
 - extracing animated bezier curve perfectly
 - saving to PNG
-- opening last project
 - save every time interval
 
 maybe:
@@ -115,6 +113,8 @@ new things added:
 - incluce imgui tutorial to get familiar with the ui widgets used throughout the project
 - undo/redo should actually support running out of space
 - title bar icon
+- open "Help" on the first program open
+- opening last project
 
  */
 
@@ -151,6 +151,7 @@ global read_only editor_keyboard_shortcut_group EditorKeyboardShortcuts[] =
  {EditorCommand_Undo, {{PlatformKey_Z, KeyModifierFlag(Ctrl)}}, 1, false},
  {EditorCommand_Redo, {{PlatformKey_R, KeyModifierFlag(Ctrl)}}, 1, false},
  {EditorCommand_ToggleUI, {{PlatformKey_Tab, NoKeyModifier}}, 1, false},
+ {EditorCommand_ToggleFullscreen, {{PlatformKey_F11, NoKeyModifier}}, 1, false},
 };
 StaticAssert(ArrayCount(EditorKeyboardShortcuts) == EditorCommand_Count, EditorKeyboardShortcutsDefined);
 

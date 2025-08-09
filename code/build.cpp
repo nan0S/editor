@@ -233,9 +233,8 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
  }
  
  b32 BuildForHotReloading = Debug;
- //BuildForHotReloading = false;
  
- compiler_setup Setup = MakeCompilerSetup(Compiler, Debug, true, Verbose);
+ compiler_setup Setup = MakeCompilerSetup(Compiler, Debug, Debug, Verbose);
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code")));
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/third_party/imgui")));
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/third_party/glfw")));

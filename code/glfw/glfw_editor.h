@@ -15,6 +15,7 @@ struct glfw_state
  platform_key GLFWToPlatformKeyTable[GLFW_KEY_LAST + 1];
  arena *InputArena;
  GLFWwindow *Window;
+ b32 FullScreen;
 };
 
 struct glfw_imgui_maybe_capture_input_result

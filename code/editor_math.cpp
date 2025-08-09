@@ -1966,7 +1966,7 @@ SegmentCollision(v2 P, v2 LineA, v2 LineB, f32 LineWidth)
  if (DotUV >= 0.0f)
  {
   f32 Inv_SegmentLengthSquared = 1.0f / SegmentLengthSquared;
-  f32 ProjectionLengthSquared = Square(DotUV) * Inv_SegmentLengthSquared;
+  f32 ProjectionLengthSquared = Sqr(DotUV) * Inv_SegmentLengthSquared;
   
   if (ProjectionLengthSquared <= DotUV)
   {

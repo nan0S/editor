@@ -2296,7 +2296,7 @@ UpdateAndRenderNotifications(editor *Editor, platform_input_output *Input, rende
      case NotificationPhase_Count:      { Remove = true; } break;
     }
     // NOTE(hbr): Quadratic interpolation instead of linear.
-    Fade = 1.0f - Square(1.0f - Fade);
+    Fade = 1.0f - Sqr(1.0f - Fade);
     
     if (!Editor->HideUI)
     {    
@@ -2815,7 +2815,7 @@ ProcessInputEvents(editor *Editor,
    Eat = true;
    
    // NOTE(hbr): perform click action only if button was released roughly in the same place
-   b32 ReleasedClose = (NormSquared(RightClick->ClickP - MouseP) <= Square(CollisionTolerance));
+   b32 ReleasedClose = (NormSquared(RightClick->ClickP - MouseP) <= Sqr(CollisionTolerance));
    if (ReleasedClose)
    {
     collision *Collision = &RightClick->CollisionAtP;
@@ -2893,8 +2893,8 @@ ProcessInputEvents(editor *Editor,
    if (MiddleClick->Rotate)
    {
     v2 CenterP = Camera->P;
-    if (NormSquared(FromP - CenterP) >= Square(RotationRadius) &&
-        NormSquared(ToP   - CenterP) >= Square(RotationRadius))
+    if (NormSquared(FromP - CenterP) >= Sqr(RotationRadius) &&
+        NormSquared(ToP   - CenterP) >= Sqr(RotationRadius))
     {
      rotation2d Rotation = Rotation2DFromMovementAroundPoint(FromP, ToP, CenterP);
      RotateCameraAround(Camera, Rotation2DInverse(Rotation), CenterP);
@@ -3151,8 +3151,8 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
     f32 w0 = p;
     
     f32 m2 = m*(m-1) * w2/w0;
-    f32 m1 = -2*m*(m-1) * w1/w0 - 2*Square(m) * w1*(w1-w0)/Square(w0);
-    f32 m0 = 2*m*(m-1) * w1/w0 + 2*Square(m) * (w1-w0)/w0 - m*(m-1)* w2/w0 + 2*Square(m * (w1-w0)/w0);
+    f32 m1 = -2*m*(m-1) * w1/w0 - 2*Sqr(m) * w1*(w1-w0)/Sqr(w0);
+    f32 m0 = 2*m*(m-1) * w1/w0 + 2*Sqr(m) * (w1-w0)/w0 - m*(m-1)* w2/w0 + 2*Sqr(m * (w1-w0)/w0);
     
     v2 P_n = P;
     v2 P_n_1 = Q;
@@ -3162,8 +3162,8 @@ Merge2Curves(entity_with_modify_witness *MergeWitness,
     f32 w_n_1 = q;
     f32 w_n_2 = s;
     
-    f32 m_n = 2*n*(n-1) * w_n_1/w_n - 2*Square(n) * (w_n - w_n_1)/w_n - n*(n-1) * w_n_2/w_n + 2*Square(n * (w_n - w_n_1)/w_n);
-    f32 m_n_1 = -2*n*(n-1) * w_n_1/w_n + 2*Square(n) * w_n_1*(w_n-w_n_1)/Square(w_n);
+    f32 m_n = 2*n*(n-1) * w_n_1/w_n - 2*Sqr(n) * (w_n - w_n_1)/w_n - n*(n-1) * w_n_2/w_n + 2*Sqr(n * (w_n - w_n_1)/w_n);
+    f32 m_n_1 = -2*n*(n-1) * w_n_1/w_n + 2*Sqr(n) * w_n_1*(w_n-w_n_1)/Sqr(w_n);
     f32 m_n_2 = n*(n-1) * w_n_2/w_n;
     
     T_ = (n*(n-1))/(m*(m-1)*m2) * (m_n*P_n + m_n_1*P_n_1 + m_n_2*P_n_2 - m1*P1 - m0*P0);

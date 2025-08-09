@@ -84,6 +84,7 @@ internal success_b32 OS_DirChange(string Path);
 internal string      OS_CurrentDir(arena *Arena);
 internal string      OS_FullPathFromPath(arena *Arena, string Path);
 internal string      OS_ExecutableRelativeToFullPath(arena *Arena, string Rel);
+internal string      OS_AppDir(arena *Arena);
 
 //- libraries
 internal os_library_handle OS_LibraryLoad(string Path);

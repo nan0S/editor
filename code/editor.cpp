@@ -983,18 +983,37 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       }
      }
      
-     if (ModifyActivated)
+     if (ModifyActivated && ModifyDeactivated)
+     {
+      // NOTE(hbr): If two things happened in the same frame, then we already should be tracking something
+      // and we don't want to stop.
+      Assert(SelectedTransform->TransformAction != 0);
+     }
+     else if (ModifyActivated && !ModifyDeactivated)
      {
       Assert(SelectedTransform->TransformAction == 0);
-      SelectedTransform->TransformAction = BeginEntityTransform(Editor, Entity);
+      if (SelectedTransform->TransformAction == 0)
+      {
+       SelectedTransform->TransformAction = BeginEntityTransform(Editor, Entity);
+      }
      }
-     Entity->XForm = NewXForm;
-     if (ModifyDeactivated)
+     else if (!ModifyActivated && ModifyDeactivated)
      {
-      Assert(SelectedTransform->TransformAction != 0);
-      EndEntityTransform(Editor, SelectedTransform->TransformAction);
-      SelectedTransform->TransformAction = 0;
+      Assert(SelectedTransform->TransformAction);
+      // NOTE(hbr): Assert but be extra safe for production. Zero-is-initialization would be great here
+      // but we don't have it everywhere unfortunately.
+      if (SelectedTransform->TransformAction)
+      {
+       EndEntityTransform(Editor, SelectedTransform->TransformAction);
+       SelectedTransform->TransformAction = 0;
+      }
      }
+     else
+     {
+      // NOTE(hbr): Nothing to do
+     }
+     
+     Entity->XForm = NewXForm;
      
      {     
       b32 Visible = IsEntityVisible(Entity);
@@ -3819,6 +3838,7 @@ RenderDevConsoleUI(editor *Editor)
    UI_ExponentialAnimation(&Camera->Animation);
    UI_TextF(false, "DrawnGridLinesCount=%u", DEBUG_Vars->DrawnGridLinesCount);
    UI_TextF(false, "String Store String Count: %u\n", GetCtx()->StrStore->StrCount);
+   UI_TextF(false, "TransformAction: %p", Editor->SelectedEntityTransformState.TransformAction);
   }
   UI_EndWindow();
  }

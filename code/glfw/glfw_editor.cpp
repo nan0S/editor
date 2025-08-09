@@ -219,6 +219,82 @@ PLATFORM_SET_WINDOW_TITLE(GLFWSetWindowTitle)
 EDITOR_UPDATE_AND_RENDER(EditorUpdateAndRender);
 EDITOR_ON_CODE_RELOAD(EditorOnCodeReload);
 
+// TODO(hbr): This is a Win32 specific function but I needed to write this quickly.
+// And I also didn't want to require another file distributed with the executable.
+internal void
+GLFWSetWindowIcon(GLFWwindow *Window)
+{
+ HICON Icon = LoadIconA(GetModuleHandle(0), MAKEINTRESOURCE(1));
+ 
+ ICONINFO IconInfo;
+ BITMAP BmpColor;
+ if (GetIconInfo(Icon, &IconInfo) != 0 &&
+     GetObject(IconInfo.hbmColor, SizeOf(BITMAP), &BmpColor) != 0)
+ {
+  temp_arena Temp = TempArena(0);
+  
+  u32 Width = BmpColor.bmWidth;
+  u32 Height = BmpColor.bmHeight;
+  u32 Size = Width * Height * 4;
+  
+  char *Pixels = PushArrayNonZero(Temp.Arena, Size, char);
+  
+  BITMAPINFO Bmi = {};
+  Bmi.bmiHeader.biSize = SizeOf(BITMAPINFOHEADER);
+  Bmi.bmiHeader.biWidth = Width;
+  Bmi.bmiHeader.biHeight = Height;
+  Bmi.bmiHeader.biPlanes = 1;
+  Bmi.bmiHeader.biBitCount = 32;
+  Bmi.bmiHeader.biCompression = BI_RGB;
+  
+  HDC DC = GetDC(0);
+  GetDIBits(DC, IconInfo.hbmColor, 0, Height, Pixels, &Bmi, DIB_RGB_COLORS);
+  ReleaseDC(0, DC);
+  
+  struct pixel {
+   u8 P[4];
+  };
+  
+  // NOTE(hbr): Flip image vertically because that's what Win32 returns and
+  // that's what glfw expects.
+  pixel *Ps = Cast(pixel *)Pixels;
+  for (u32 Y = 0;
+       Y < Height/2;
+       ++Y)
+  {
+   for (u32 X = 0;
+        X < Width;
+        ++X)
+   {
+    u32 Top = Index2D(Y, X, Width);
+    u32 Bot = Index2D(Height-1-Y, X, Width);
+    Swap(Ps[Top], Ps[Bot], pixel);
+   }
+  }
+  
+  // NOTE(hbr): We need RGBA not BGRA
+  for (u32 I = 0;
+       I < Size/4;
+       ++I)
+  {
+   Swap(Ps[I].P[0], Ps[I].P[2], u8);
+  }
+  
+  GLFWimage Image;
+  Image.width = Width;
+  Image.height = Height;
+  Image.pixels = Cast(unsigned char *)Pixels;
+  
+  glfwSetWindowIcon(Window, 1, &Image);
+  
+  DeleteObject(IconInfo.hbmColor);
+  DeleteObject(IconInfo.hbmMask);
+  DestroyIcon(Icon);
+  
+  EndTemp(Temp);
+ }
+}
+
 internal void
 EntryPoint(int ArgCount, char **Args)
 {
@@ -344,6 +420,8 @@ Table[GLFWButton] = PlatformButton
    glfwSetMouseButtonCallback(Window, GLFWMouseButtonCallback);
    glfwSetScrollCallback(Window, GLFWMouseScrollCallback);
    glfwSetDropCallback(Window, GLFWDropCallback);
+   
+   GLFWSetWindowIcon(Window);
    
    //- renderer
    renderer_memory RendererMemory = Platform_MakeRendererMemory(PermamentArena, Profiler,

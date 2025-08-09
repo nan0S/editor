@@ -3,6 +3,7 @@
 
 #include <windows.h>
 #include <intrin.h>
+//#include <Shlobj.h>
 
 typedef HANDLE os_file_handle;
 typedef HMODULE os_library_handle;

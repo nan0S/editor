@@ -851,3 +851,25 @@ OS_MessageBox(string Msg)
  MessageBoxA(0, CMsg.Data, 0, MB_OK);
  EndTemp(Temp);
 }
+
+
+internal string OS_AppDir(arena *Arena) { return {}; }
+
+#if 0
+internal string
+OS_AppDir(arena *Arena)
+{
+#if 0
+ string Result = {};
+ char Buffer[MAX_PATH] = {};
+ 
+ if (SUCCEEDED(SHGetFolderPathA(0, CSIDL_APPDATA, 0, 0, Buffer)))
+ {
+  Result = StrCopy(Arena, StrFromCStr(Buffer));
+ }
+ 
+ return Result;
+#endif
+ return {};
+}
+#endif

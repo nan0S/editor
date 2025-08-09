@@ -29,13 +29,14 @@
 TODO features:
 
 crucial:
-- title bar icon
 - open "Help" on the first program open
 
 important:
 - Checbyshev polynomial bezier degree lowering method
 - extracing animated bezier curve perfectly
- - undo/redo should actually support running out of space
+- saving to PNG
+- opening last project
+- save every time interval
 
 maybe:
 - better error msgs when curves fail to merge
@@ -112,6 +113,8 @@ new things added:
 - remove DLL loading in release mode
 - icon
 - incluce imgui tutorial to get familiar with the ui widgets used throughout the project
+- undo/redo should actually support running out of space
+- title bar icon
 
  */
 

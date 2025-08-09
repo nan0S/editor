@@ -6,14 +6,23 @@
 # error unsupported OS
 #endif
 
-global string GlobalExecutableDirPath;
+struct os_state
+{
+ arena *Arena;
+ string ExecutableDirPath;
+ string AppDir;
+};
+global os_state OS_State;
 
 internal void
 OS_Init(int ArgCount, char *Args[])
 {
  MarkUnused(ArgCount);
- string ExecutablePath = StrFromCStr(Args[0]);
- GlobalExecutableDirPath = PathChopLastPart(ExecutablePath);
+ //arena *Arena = AllocArena(Megabytes(1));
+ arena *Arena = 0;
+ //OS_State.Arena = Arena;
+ OS_State.ExecutableDirPath = PathChopLastPart(StrFromCStr(Args[0]));
+ OS_State.AppDir = OS_AppDir(Arena);
 }
 
 internal string
@@ -154,7 +163,7 @@ OS_PrintFileFV(os_file_handle File, char const *Format, va_list Args)
 internal string
 OS_ExecutableRelativeToFullPath(arena *Arena, string Relative)
 {
- string Absolute = PathConcat(Arena, GlobalExecutableDirPath, Relative);
+ string Absolute = PathConcat(Arena, OS_State.ExecutableDirPath, Relative);
  string Result = OS_FullPathFromPath(Arena, Absolute);
  return Result;
 }

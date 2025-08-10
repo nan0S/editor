@@ -10,6 +10,7 @@ read_only global string NilStr;
 
 struct string_list_node
 {
+ string_list_node *Prev;
  string_list_node *Next;
  string Str;
 };
@@ -103,6 +104,7 @@ internal string      PathListJoin(arena *Arena, string_list *Path);
 internal void        StrListPush(arena *Arena, string_list *List, string Str);
 internal void        StrListPushF(arena *Arena, string_list *List, char const *Format, ...);
 internal void        StrListPushFV(arena *Arena, string_list *List, char const *Format, va_list Args);
+internal void        StrListRemove(string_list *List, string_list_node *Node);
 internal string      StrListJoin(arena *Arena, string_list *List, string_list_join_options Opts);
 internal string_list StrListCopy(arena *Arena, string_list *List);
 internal void        StrListConcatInPlace(string_list *List, string_list *ToPush);

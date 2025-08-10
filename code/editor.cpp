@@ -191,10 +191,10 @@ UpdateAndRenderDegreeLowering(editor *Editor, rendering_entity_handle Handle)
    b32 Ok = false;
    b32 Revert = false;
    
-   if(UI_BeginWindow(&IsDegreeLoweringWindowOpen, 0, StrLit("Degree Lowering")))
+   if(UI_BeginWindow(&IsDegreeLoweringWindowOpen, UIWindowFlag_AutoResize, StrLit("Degree Lowering")))
    {          
     UI_Text(true, StrLit("Degree lowering failed. Tweak the middle point to fit the curve manually."));
-    UI_SeparatorText(NilStr);
+    //UI_SeparatorText(NilStr);
     MixChanged = UI_SliderFloat(&Lowering->MixParameter, 0.0f, 1.0f, StrLit("Middle Point Mix"));
     
     Ok = UI_Button(StrLit("OK"));
@@ -1610,6 +1610,31 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
 }
 
 internal void
+RenderMenuBarFileCommand(editor *Editor, editor_command Cmd)
+{
+ temp_arena Temp = TempArena(0);
+ 
+ editor_keyboard_shortcut_group *Group = EditorKeyboardShortcuts + Cmd;
+ string_list ShortcutStrsList = {};
+ ForEachIndex(ShortcutIndex, Group->Count)
+ {
+  editor_keyboard_shortcut *Shortcut = Group->Shortcuts + ShortcutIndex;
+  string ShortcutStr = PlatformKeyCombinationToString(Temp.Arena, Shortcut->Key, Shortcut->Modifiers);
+  StrListPush(Temp.Arena, &ShortcutStrsList, ShortcutStr);
+ }
+ string_list_join_options JoinOpts = {};
+ JoinOpts.Sep = StrLit("|");
+ string ShortcutString = StrListJoin(Temp.Arena, &ShortcutStrsList, JoinOpts);
+ string CommandString = EditorCommandNames[Cmd];
+ if (UI_MenuItem(0, ShortcutString, CommandString))
+ {
+  PushEditorCmd(Editor, Cmd);
+ }
+ 
+ EndTemp(Temp);
+}
+
+internal void
 RenderMenuBarUI(editor *Editor)
 {
  temp_arena Temp = TempArena(0);
@@ -1617,34 +1642,28 @@ RenderMenuBarUI(editor *Editor)
  {
   if (UI_BeginMenu(StrLit("File")))
   {
-   editor_command Cmds[] =
+   RenderMenuBarFileCommand(Editor, EditorCommand_New);
+   RenderMenuBarFileCommand(Editor, EditorCommand_Open);
+   
+   if (UI_BeginMenu(StrLit("Recent")))
    {
-    EditorCommand_New,
-    EditorCommand_Open,
-    EditorCommand_Save,
-    EditorCommand_SaveAs,
-    EditorCommand_Quit,
-   };
-   ForEachElement(CmdIndex, Cmds)
-   {
-    editor_command Cmd = Cmds[CmdIndex];
-    editor_keyboard_shortcut_group *Group = EditorKeyboardShortcuts + Cmd;
-    string_list ShortcutStrsList = {};
-    ForEachIndex(ShortcutIndex, Group->Count)
+    editor_last_sessions Sessions = Editor->PersistentState.LastSessions;
+    ListIterRev(Node, Sessions.ProjectFilePaths.Tail, string_list_node)
     {
-     editor_keyboard_shortcut *Shortcut = Group->Shortcuts + ShortcutIndex;
-     string ShortcutStr = PlatformKeyCombinationToString(Temp.Arena, Shortcut->Key, Shortcut->Modifiers);
-     StrListPush(Temp.Arena, &ShortcutStrsList, ShortcutStr);
+     string ProjectFilePath = Node->Str;
+     if (UI_MenuItem(0, NilStr, ProjectFilePath))
+     {
+      project_change_request Request = MakeLoadProjectProjectChangeRequest(ProjectFilePath);
+      RequestProjectChange(Editor, Request);
+     }
     }
-    string_list_join_options JoinOpts = {};
-    JoinOpts.Sep = StrLit("|");
-    string ShortcutString = StrListJoin(Temp.Arena, &ShortcutStrsList, JoinOpts);
-    string CommandString = EditorCommandNames[Cmd];
-    if (UI_MenuItem(0, ShortcutString, CommandString))
-    {
-     PushEditorCmd(Editor, Cmd);
-    }
+    UI_EndMenu();
    }
+   
+   RenderMenuBarFileCommand(Editor, EditorCommand_Save);
+   RenderMenuBarFileCommand(Editor, EditorCommand_SaveAs);
+   RenderMenuBarFileCommand(Editor, EditorCommand_Quit);
+   
    UI_EndMenu();
   }
   
@@ -4133,8 +4152,9 @@ UpdateAndRenderChangingProject(editor *Editor, platform_input_output *Input)
  temp_arena Temp = TempArena(0);
  project_change_request_state *ProjectChange = &Editor->ProjectChange;
  b32 QuitRequested = false;
+ project_change_request Request = ProjectChange->Request;
  
- switch (ProjectChange->Request)
+ switch (Request.Type)
  {
   case ProjectChangeRequest_OpenFile: {
    platform_file_dialog_filter PNG = {};
@@ -4202,6 +4222,13 @@ UpdateAndRenderChangingProject(editor *Editor, platform_input_output *Input)
    TrySaveProject(Editor, true);
   }break;
   
+  case ProjectChangeRequest_LoadProject: {
+   change_project_method Change = {};
+   Change.Type = ChangeProjectMethod_LoadProjectFromFile;
+   Change.FilePath = Request.ProjectFilePath;
+   QuitRequested = TryChangeProject(Editor, Change, false);
+  }break;
+  
   case ProjectChangeRequest_Quit: {
    change_project_method Change = {};
    Change.Type = ChangeProjectMethod_Quit;
@@ -4235,7 +4262,7 @@ UpdateAndRenderChangingProject(editor *Editor, platform_input_output *Input)
   UI_EndPopup();
  }
  
- ProjectChange->Request = ProjectChangeRequest_None; 
+ ProjectChange->Request = MakeNoneProjectChangeRequest(); 
  if (QuitRequested)
  {
   Input->QuitRequested = true;
@@ -4252,12 +4279,11 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  {
   arena *PermamentArena = Memory->PermamentArena;
   Editor = Memory->Editor = PushStruct(PermamentArena, editor);
-  Editor->Persistent.Memory = Memory;
   
   // TODO(hbr): Quick fix
   NilExpr = &Editor->NilParametricExpr;
   DEBUG_Vars = &Editor->DEBUG_Vars;
-  LoadLastSessionOrEmptyProject(Editor);
+  LoadLastSessionOrEmptyProject(Editor, Memory);
   InitGlobalsOnInitOrCodeReload(Editor);
   
   // NOTE(hbr): Sanity check that I didn't mess up keyboard shortcut definitions

@@ -306,7 +306,7 @@ InitProjectChangeRequestState(arena_store *ArenaStore,
 internal void
 AllocEditorResources(editor *Editor)
 {
- persistent_state Persistent = Editor->Persistent;
+ editor_persistent_state Persistent = Editor->PersistentState;
  editor_memory *Memory = Persistent.Memory;
  
  if (Editor->ArenaStore)
@@ -316,7 +316,7 @@ AllocEditorResources(editor *Editor)
  }
  
  arena_store *ArenaStore = AllocArenaStore();
- Editor->Persistent = Persistent;
+ Editor->PersistentState = Persistent;
  Editor->ArenaStore = ArenaStore;
  Editor->Arena = AllocArenaFromStore(ArenaStore, Gigabytes(64));
  Editor->LowPriorityQueue = Memory->LowPriorityQueue;
@@ -348,6 +348,87 @@ AllocEditorResources(editor *Editor)
  InitProjectChangeRequestState(ArenaStore, &Editor->ProjectChange);
 }
 
+internal editor_last_sessions
+LoadLastSessions(arena *Arena, b32 *SessionDirJustCreated)
+{
+ temp_arena Temp = TempArena(0);
+ 
+ os_info Info = Platform.GetPlatformInfo();
+ string EditorAppDir = PathConcat(Temp.Arena, Info.AppDir, EditorAppName);
+ string LastSessionsFilePath = PathConcat(Arena, EditorAppDir, StrLit("session"));
+ 
+ string_list ProjectFilePaths = {};
+ 
+ if (OS_FileExists(EditorAppDir, true))
+ {
+  *SessionDirJustCreated = false;
+  
+  string LastSessionsData = OS_ReadEntireFile(Temp.Arena, LastSessionsFilePath);
+  deserialize_stream Stream = MakeDeserializeStream(LastSessionsData);
+  
+  u32 ProjectFileCount = 0;
+  DeserializeStruct(&Stream, &ProjectFileCount);
+  ForEachIndex(ProjectIndex, ProjectFileCount)
+  {
+   string ProjectFilePath = DeserializeString(Arena, &Stream);
+   StrListPush(Arena, &ProjectFilePaths, ProjectFilePath);
+  }
+ }
+ else
+ {
+  OS_DirMake(EditorAppDir);
+  *SessionDirJustCreated = true;
+ }
+ 
+ editor_last_sessions Result = {};
+ Result.LastSessionsFilePath = LastSessionsFilePath;
+ Result.ProjectFilePaths = ProjectFilePaths;
+ 
+ EndTemp(Temp);
+ 
+ return Result;
+}
+
+internal void
+SaveLastSessions(editor_last_sessions LastSessions)
+{
+ temp_arena Temp = TempArena(0);
+ string_list Paths = LastSessions.ProjectFilePaths;
+ 
+ string_list List = {};
+ u32 PathCount = SafeCastU32(Paths.NodeCount);
+ SerializeStruct(Temp.Arena, &List, &PathCount);
+ ListIter(Node, Paths.Head, string_list_node)
+ {
+  string Path = Node->Str;
+  SerializeString(Temp.Arena, &List, Path);
+ }
+ 
+ string_list_join_options Opts = {};
+ string Joined = StrListJoin(Temp.Arena, &List, Opts);
+ OS_WriteDataToFile(LastSessions.LastSessionsFilePath, Joined);
+ 
+ EndTemp(Temp);
+}
+
+internal void
+AddSessionToLastSessions(arena *Arena, editor_last_sessions *LastSessions, string ProjectFilePath)
+{
+ string_list *Projects = &LastSessions->ProjectFilePaths;
+ ListIter(Node, Projects->Head, string_list_node)
+ {
+  string Project = Node->Str;
+  if (StrEqual(Project, ProjectFilePath))
+  {
+   StrListRemove(Projects, Node);
+   break;
+  }
+ }
+ 
+ string CopiedProjectFilePath = StrCopy(Arena, ProjectFilePath);
+ StrListPush(Arena, Projects, CopiedProjectFilePath);
+}
+
 internal void
 SetProjectFilePath(editor *Editor, b32 IsFileBacked, string FilePath)
 {
@@ -359,9 +440,9 @@ SetProjectFilePath(editor *Editor, b32 IsFileBacked, string FilePath)
  
  if (IsFileBacked)
  {
-  string ProjectPath = FilePath;
-  string SessionFilePath = Editor->Persistent.SessionFilePath;
-  OS_WriteDataToFile(SessionFilePath, FilePath);
+  editor_persistent_state *Persistent = &Editor->PersistentState;
+  AddSessionToLastSessions(Persistent->Arena, &Persistent->LastSessions, FilePath);
+  SaveLastSessions(Persistent->LastSessions);
  }
 }
 
@@ -377,32 +458,38 @@ InitEditor(editor *Editor,
 }
 
 internal void
-LoadLastSessionOrEmptyProject(editor *Editor)
+LoadLastSessionOrEmptyProject(editor *Editor, editor_memory *Memory)
 {
- temp_arena Temp = TempArena(0);
- arena *PermamentArena = Editor->Persistent.Memory->PermamentArena;
+ arena *PermamentArena = Memory->PermamentArena;
+ editor_persistent_state *Persistent = &Editor->PersistentState;
  
- os_info Info = Platform.GetPlatformInfo();
- string EditorAppDir = PathConcat(PermamentArena, Info.AppDir, EditorAppName);
- string SessionFilePath = PathConcat(PermamentArena, EditorAppDir, StrLit("session"));
- Editor->Persistent.SessionFilePath = SessionFilePath;
+ b32 SessionDirJustCreated = false;
+ editor_last_sessions LastSessions = LoadLastSessions(PermamentArena, &SessionDirJustCreated);
  
- if (OS_FileExists(EditorAppDir, true))
+ Persistent->Memory = Memory;
+ Persistent->Arena = PermamentArena;
+ Persistent->LastSessions = LastSessions;
+ 
+ if (SessionDirJustCreated)
  {
-  string LastSession = OS_ReadEntireFile(Temp.Arena, SessionFilePath);
-  if (!LoadProjectFromFile(Editor, LastSession))
+  // NOTE(hbr): This means editor has been opened on that machine for the first time. Show help.
+  LoadEmptyProject(Editor);
+  Editor->HelpWindow = true;
+ }
+ else
+ {
+  // NOTE(hbr): Try to load last session - otherwise, fallback to empty project
+  b32 LastSessionLoadedSuccessfully = false;
+  if (LastSessions.ProjectFilePaths.Tail)
+  {
+   string LastSession = LastSessions.ProjectFilePaths.Tail->Str;
+   LastSessionLoadedSuccessfully = LoadProjectFromFile(Editor, LastSession);
+  }
+  if (!LastSessionLoadedSuccessfully)
   {
    LoadEmptyProject(Editor);
   }
  }
- else
- {
-  OS_DirMake(EditorAppDir);
-  LoadEmptyProject(Editor);
-  Editor->HelpWindow = true;
- }
- 
- EndTemp(Temp);
 }
 
 internal void
@@ -423,48 +510,6 @@ LoadEmptyProject(editor *Editor)
 #endif
  InitCamera(&SerializableState.Camera);
  InitEditor(Editor, SerializableState, false, NilStr);
- 
- // TODO(hbr): remove
- {
-  entity *Entity = AllocEntity(GetCtx()->EntityStore, false);
-  entity_with_modify_witness Witness = BeginEntityModify(Entity);
-  
-  curve_params Params = Editor->CurveDefaultParams;
-  Params.Type = Curve_Bezier;
-  InitEntityAsCurve(Entity, StrLit("de-casteljau"), Params);
-  
-  AppendControlPoint(&Witness, V2(-0.5f, -0.5f));
-  AppendControlPoint(&Witness, V2(+0.5f, -0.5f));
-  AppendControlPoint(&Witness, V2(+0.5f, +0.5f));
-  AppendControlPoint(&Witness, V2(-0.5f, +0.5f));
-  
-  Entity->Curve.PointTracking.Type = PointTrackingAlongCurve_DeCasteljauVisualization;
-  SetTrackingPointFraction(&Witness, 0.5f);
-  
-  EndEntityModify(Witness);
- }
- 
- {
-  entity *Entity = AllocEntity(GetCtx()->EntityStore, false);
-  entity_with_modify_witness Witness = BeginEntityModify(Entity);
-  
-  curve_params Params = Editor->CurveDefaultParams;
-  Params.Type = Curve_BSpline;
-  InitEntityAsCurve(Entity, StrLit("b-spline"), Params);
-  
-  u32 PointCount = 30;
-  curve_points_modify_handle Handle = BeginModifyCurvePoints(&Witness, PointCount, ModifyCurvePointsWhichPoints_ControlPointsOnly);
-  for (u32 PointIndex = 0;
-       PointIndex < PointCount;
-       ++PointIndex)
-  {
-   v2 Point = V2(1.0f * PointIndex / PointCount, 1.0f * PointIndex / PointCount);
-   Handle.ControlPoints[PointIndex] = Point;
-  }
-  EndModifyCurvePoints(Handle);
-  
-  EndEntityModify(Witness);
- }
 }
 
 internal entity *
@@ -1247,6 +1292,63 @@ EndActionTrackingGroup(editor *Editor, action_tracking_group *Group)
  }
 }
 
+internal project_change_request
+MakeNoneProjectChangeRequest(void)
+{
+ project_change_request Request = {};
+ Request.Type = ProjectChangeRequest_None;
+ return Request;
+}
+
+internal project_change_request
+MakeNewProjectChangeRequest(void)
+{
+ project_change_request Request = {};
+ Request.Type = ProjectChangeRequest_NewProject;
+ return Request;
+}
+
+internal project_change_request
+MakeOpenFileProjectChangeRequest(void)
+{
+ project_change_request Request = {};
+ Request.Type = ProjectChangeRequest_OpenFile;
+ return Request;
+}
+
+internal project_change_request
+MakeSaveProjectChangeRequest(void)
+{
+ project_change_request Request = {};
+ Request.Type = ProjectChangeRequest_SaveProject;
+ return Request;
+}
+
+internal project_change_request
+MakeSaveAsProjectChangeRequest(void)
+{
+ project_change_request Request = {};
+ Request.Type = ProjectChangeRequest_SaveProjectAs;
+ return Request;
+}
+
+internal project_change_request
+MakeQuitProjectChangeRequest(void)
+{
+ project_change_request Request = {};
+ Request.Type = ProjectChangeRequest_Quit;
+ return Request;
+}
+
+internal project_change_request
+MakeLoadProjectProjectChangeRequest(string ProjectFilePath)
+{
+ project_change_request Request = {};
+ Request.Type = ProjectChangeRequest_LoadProject;
+ Request.ProjectFilePath = ProjectFilePath;
+ return Request;
+}
+
 internal void
 RequestProjectChange(editor *Editor, project_change_request Request)
 {
@@ -1262,11 +1364,11 @@ ExecuteEditorCommand(editor *Editor, editor_command Cmd)
 {
  switch (Cmd)
  {
-  case EditorCommand_New: {RequestProjectChange(Editor, ProjectChangeRequest_NewProject);}break;
-  case EditorCommand_Open: {RequestProjectChange(Editor, ProjectChangeRequest_OpenFile);}break;
-  case EditorCommand_Save: {RequestProjectChange(Editor, ProjectChangeRequest_SaveProject);}break;
-  case EditorCommand_SaveAs: {RequestProjectChange(Editor, ProjectChangeRequest_SaveProjectAs);}break;
-  case EditorCommand_Quit: {RequestProjectChange(Editor, ProjectChangeRequest_Quit);}break;
+  case EditorCommand_New: {RequestProjectChange(Editor, MakeNewProjectChangeRequest());}break;
+  case EditorCommand_Open: {RequestProjectChange(Editor, MakeOpenFileProjectChangeRequest());}break;
+  case EditorCommand_Save: {RequestProjectChange(Editor, MakeSaveProjectChangeRequest());}break;
+  case EditorCommand_SaveAs: {RequestProjectChange(Editor, MakeSaveAsProjectChangeRequest());}break;
+  case EditorCommand_Quit: {RequestProjectChange(Editor, MakeQuitProjectChangeRequest());}break;
   case EditorCommand_ToggleDevConsole: {Editor->DevConsole = !Editor->DevConsole;}break;
   case EditorCommand_ToggleProfiler: {Editor->Profiler.Stopped = !Editor->Profiler.Stopped;}break;
   case EditorCommand_Undo: {Undo(Editor);}break;

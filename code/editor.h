@@ -115,6 +115,7 @@ new things added:
 - title bar icon
 - open "Help" on the first program open
 - opening last project
+- recent session files
 
  */
 

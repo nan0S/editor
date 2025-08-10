@@ -959,7 +959,7 @@ StrListPush(arena *Arena, string_list *List, string Str)
 {
  string_list_node *Node = PushStructNonZero(Arena, string_list_node);
  Node->Str = Str;
- QueuePush(List->Head, List->Tail, Node);
+ DLLPushBack(List->Head, List->Tail, Node);
  ++List->NodeCount;
  List->TotalSize += Str.Count;
 }
@@ -980,6 +980,16 @@ StrListPushFV(arena *Arena, string_list *List, char const *Format, va_list Args)
  StrListPush(Arena, List, S);
 }
 
+internal void
+StrListRemove(string_list *List, string_list_node *Node)
+{
+ Assert(List->NodeCount > 0);
+ --List->NodeCount;
+ Assert(List->TotalSize >= Node->Str.Count);
+ List->TotalSize -= Node->Str.Count;
+ DLLRemove(List->Head, List->Tail, Node);
+}
+
 internal string_list
 StrListCopy(arena *Arena, string_list *List)
 {
@@ -998,6 +1008,7 @@ StrListConcatInPlace(string_list *List, string_list *ToPush)
  if (List->Tail)
  {
   List->Tail->Next = ToPush->Head;
+  if (ToPush->Head) ToPush->Head->Prev = List->Tail;
   if (ToPush->Tail) List->Tail = ToPush->Tail;
   List->NodeCount += ToPush->NodeCount;
   List->TotalSize += ToPush->TotalSize;

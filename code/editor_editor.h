@@ -1116,14 +1116,20 @@ struct change_project_method
  change_project_method_type Type;
  string FilePath;
 };
-enum project_change_request
+enum project_change_request_type
 {
  ProjectChangeRequest_None,
  ProjectChangeRequest_NewProject,
  ProjectChangeRequest_OpenFile,
+ ProjectChangeRequest_LoadProject,
  ProjectChangeRequest_SaveProject,
  ProjectChangeRequest_SaveProjectAs,
  ProjectChangeRequest_Quit,
+};
+struct project_change_request
+{
+ project_change_request_type Type;
+ string ProjectFilePath;
 };
 struct project_change_request_state
 {
@@ -1162,10 +1168,17 @@ struct editor_serializable_state
  EditorSerializableStateStructMembers;
 };
 
-struct persistent_state
+struct editor_last_sessions
 {
+ string LastSessionsFilePath;
+ string_list ProjectFilePaths; // sorted from most oldest to most recent
+};
+
+struct editor_persistent_state
+{
+ arena *Arena;
  editor_memory *Memory;
- string SessionFilePath;
+ editor_last_sessions LastSessions;
 };
 
 struct editor
@@ -1182,7 +1195,7 @@ struct editor
  struct work_queue *LowPriorityQueue;
  struct work_queue *HighPriorityQueue;
  
- persistent_state Persistent;
+ editor_persistent_state PersistentState;
  
  selected_entity_transform_state SelectedEntityTransformState;
  entity_handle SelectedEntity;
@@ -1366,10 +1379,19 @@ internal curve_params DefaultCubicSplineCurveParams(void);
 //~ editor and editor systems
 
 //- basic operations
-internal void LoadLastSessionOrEmptyProject(editor *Editor);
+internal void LoadLastSessionOrEmptyProject(editor *Editor, editor_memory *Memory);
 internal void LoadEmptyProject(editor *Editor);
 internal success_b32 LoadProjectFromFile(editor *Editor, string FilePath);
 internal success_b32 SaveProjectIntoFile(editor *Editor, string FilePath);
+
+internal project_change_request MakeNoneProjectChangeRequest(void);
+internal project_change_request MakeNewProjectChangeRequest(void);
+internal project_change_request MakeOpenFileProjectChangeRequest(void);
+internal project_change_request MakeSaveProjectChangeRequest(void);
+internal project_change_request MakeSaveAsProjectChangeRequest(void);
+internal project_change_request MakeQuitProjectChangeRequest(void);
+internal project_change_request MakeLoadProjectProjectChangeRequest(string ProjectFilePath);
+internal void RequestProjectChange(editor *Editor, project_change_request Request);
 
 internal void DuplicateEntity(editor *Editor, entity *Entity);
 internal void SplitCurveOnControlPoint(editor *Editor, entity *Entity);

@@ -574,7 +574,6 @@ Table[GLFWButton] = PlatformButton
      {
       platform_event *Event = GLFWPushPlatformEvent(Window, PlatformEvent_WindowClose);
       MarkUnused(Event);
-      Running = false;
      }
      
      Input.EventCount = GLFWState->GLFWInput.EventCount;

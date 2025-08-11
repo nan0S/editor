@@ -1300,7 +1300,7 @@ internal u32 PartitionKnotIndexFromBSplineKnotHandle(curve *Curve, b_spline_knot
 internal void InitEntityPart(entity *Entity, entity_type Type, xform2d XForm, string Name, i32 SortingLayer, entity_flags Flags);
 internal void InitEntityAsImage(entity *Entity, v2 P, u32 Width, u32 Height, string ImageFilePath, render_texture_handle TextureHandle);
 internal void InitEntityAsCurve(entity *Entity, string Name, curve_params CurveParams);
-internal void InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src);
+internal void InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src, b32 CopyBSplineCurveInCaseCustom = false);
 internal void InitEntityPartFromEntity(entity *Dst, entity *Src);
 internal void InitEntityImagePart(image *Image, scale2d Dim, string ImageFilePath, render_texture_handle TextureHandle);
 internal void InitEntityImagePart(image *Image, u32 Width, u32 Height, string ImageFilePath, render_texture_handle TextureHandle);

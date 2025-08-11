@@ -661,7 +661,7 @@ LoadProjectFromFile(editor *Editor, string FilePath)
    {
     case Entity_Curve: {
      entity_with_modify_witness Witness = BeginEntityModify(Entity);
-     InitEntityFromEntity(&Witness, &Serialized);
+     InitEntityFromEntity(&Witness, &Serialized, true);
      EndEntityModify(Witness);
     }break;
     
@@ -3977,7 +3977,7 @@ InitParametricCurveResources(parametric_curve_resources *Dst, parametric_curve_r
 }
 
 internal void
-InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src)
+InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src, b32 CopyBSplineCurveInCaseCustom)
 {
  entity *Dst = DstWitness->Entity;
  curve *DstCurve = &Dst->Curve;
@@ -3998,6 +3998,11 @@ InitEntityFromEntity(entity_with_modify_witness *DstWitness, entity *Src)
  {
   case Entity_Curve: {
    InitEntityCurvePart(DstCurve, SrcCurve->Params);
+   // TODO(hbr): This is mega ad-hoc, fix in the future
+   if (CopyBSplineCurveInCaseCustom)
+   {
+    DstCurve->ComputedBSplineParams = SrcCurve->ComputedBSplineParams;
+   }
    InitParametricCurveResources(&DstCurve->ParametricResources, &SrcCurve->ParametricResources);
    DstCurve->PointTracking = SrcCurve->PointTracking;
    curve_points_static *SrcPoints = GetCurvePoints(SrcCurve);

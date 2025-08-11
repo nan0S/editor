@@ -219,7 +219,7 @@ DefineCompilationUnitMacros(compilation_target *Target, u32 *CompilationUnitInde
 }
 
 internal exit_code_int
-CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, b32 ForceRecompile, b32 Verbose)
+CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, b32 ForceRecompile, b32 Verbose, b32 GenerateDebuggerInfo)
 {
  exit_code_int ExitCode = 0;
  temp_arena Temp = TempArena(0);
@@ -234,7 +234,7 @@ CompileEditor(process_queue *ProcessQueue, compiler_choice Compiler, b32 Debug, 
  
  b32 BuildForHotReloading = Debug;
  
- compiler_setup Setup = MakeCompilerSetup(Compiler, Debug, Debug, Verbose);
+ compiler_setup Setup = MakeCompilerSetup(Compiler, Debug, Debug ? true : GenerateDebuggerInfo, Verbose);
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code")));
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/third_party/imgui")));
  IncludePath(&Setup, OS_ExecutableRelativeToFullPath(Temp.Arena, StrLit("../code/third_party/glfw")));
@@ -335,6 +335,7 @@ int main(int ArgCount, char *Args[])
   b32 Release = false;
   b32 ForceRecompile = false;
   b32 Verbose = false;
+  b32 GenerateDebuggerInfo = false;
   compiler_choice Compiler = Compiler_Default;
   for (int ArgIndex = 1;
        ArgIndex < ArgCount;
@@ -373,6 +374,10 @@ int main(int ArgCount, char *Args[])
    {
     Compiler = Compiler_Default;
    }
+   if (StrMatch(Arg, StrLit("generate-debug"), true))
+   {
+    GenerateDebuggerInfo = true;
+   }
   }
   if (!Debug && !Release)
   {
@@ -383,12 +388,12 @@ int main(int ArgCount, char *Args[])
   process_queue ProcessQueue = {};
   if (Debug)
   {
-   exit_code_int SubProcessExitCode = CompileEditor(&ProcessQueue, Compiler, true, ForceRecompile, Verbose);
+   exit_code_int SubProcessExitCode = CompileEditor(&ProcessQueue, Compiler, true, ForceRecompile, Verbose, GenerateDebuggerInfo);
    ExitCode = OS_CombineExitCodes(ExitCode, SubProcessExitCode);
   }
   if (Release)
   {
-   exit_code_int SubProcessExitCode = CompileEditor(&ProcessQueue, Compiler, false, ForceRecompile, Verbose);
+   exit_code_int SubProcessExitCode = CompileEditor(&ProcessQueue, Compiler, false, ForceRecompile, Verbose, GenerateDebuggerInfo);
    ExitCode = OS_CombineExitCodes(ExitCode, SubProcessExitCode);
   }
   

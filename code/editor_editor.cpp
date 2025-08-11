@@ -1370,6 +1370,7 @@ ExecuteEditorCommand(editor *Editor, editor_command Cmd)
   case EditorCommand_SaveAs: {RequestProjectChange(Editor, MakeSaveAsProjectChangeRequest());}break;
   case EditorCommand_Quit: {RequestProjectChange(Editor, MakeQuitProjectChangeRequest());}break;
   case EditorCommand_ToggleDevConsole: {Editor->DevConsole = !Editor->DevConsole;}break;
+  case EditorCommand_ToggleDiagnostics: {Editor->DiagnosticsWindow = !Editor->DiagnosticsWindow;}break;
   case EditorCommand_ToggleProfiler: {Editor->Profiler.Stopped = !Editor->Profiler.Stopped;}break;
   case EditorCommand_Undo: {Undo(Editor);}break;
   case EditorCommand_Redo: {Redo(Editor);}break;
@@ -3222,7 +3223,7 @@ GetCurveControlPointDrawInfo(entity *Entity, control_point_handle Point)
   Result.Radius *= 2.0f;
  }
  
- if (ControlPointHandleMatch(Point, Curve->SelectedControlPoint))
+ if (IsEntitySelected(Entity) && ControlPointHandleMatch(Point, Curve->SelectedControlPoint))
  {
   //Result.OutlineColor = RGBA_Brighten(Result.OutlineColor, 0.5f);
   

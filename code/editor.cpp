@@ -1857,7 +1857,7 @@ RenderDiagnosticsUI(editor *Editor, platform_input_output *Input)
   if (UI_BeginWindow(&Editor->DiagnosticsWindow, UIWindowFlag_AutoResize, StrLit("Diagnostics")))
   {
    frame_stats *Stats = &Editor->FrameStats;
-   f32 dt = ExtractDeltaTimeOnly(Input);
+   f32 dt = UseAndExtractDeltaTime(Input);
    
    UI_TextF(false, "%-20s %.2f ms", "Frame time", 1000.0f * dt);
    UI_TextF(false, "%-20s %.0f", "FPS", Stats->FPS);
@@ -2115,7 +2115,7 @@ RenderHelpUI(editor *Editor)
      ForEachEnumVal(EditorCmd, EditorCommand_Count, editor_command)
      {
       editor_keyboard_shortcut_group *Group = EditorKeyboardShortcuts + EditorCmd;
-      if (!Group->DevSpecific)
+      if (Group->ShowToTheUser)
       {
        string Description = NilStr;
        switch (EditorCmd)
@@ -2158,6 +2158,9 @@ RenderHelpUI(editor *Editor)
         }break;
         case EditorCommand_ToggleFullscreen: {
          Description = StrLit("Toggle fullscreen");
+        }break;
+        case EditorCommand_ToggleDiagnostics: {
+         Description = StrLit("Toggle diagnostics");
         }break;
         
         case EditorCommand_Count: InvalidPath;

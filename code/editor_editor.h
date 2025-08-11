@@ -1071,6 +1071,7 @@ enum editor_command
  EditorCommand_Redo,
  EditorCommand_ToggleUI,
  EditorCommand_ToggleFullscreen,
+ EditorCommand_ToggleDiagnostics,
  
  EditorCommand_Count,
 };

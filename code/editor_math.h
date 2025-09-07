@@ -196,7 +196,7 @@ internal void CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u32 N);
 internal f32  CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N);
 
 //- Bezier curve
-struct bezier_lower_degree
+struct bezier_lower_degree_inverse_degree_elevation
 {
  b32 Failure;
  
@@ -219,15 +219,16 @@ union cubic_bezier_point
  v2 Ps[3];
 };
 
-internal v2                  BezierCurveEvaluate(f32 T, v2 *P, u32 N);
-internal v2                  BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u32 N);
-internal void                BezierCurveElevateDegree(v2 *P, u32 N);
-internal void                BezierCurveElevateDegreeWeighted(v2 *P, f32 *W, u32 N);
-internal bezier_lower_degree BezierCurveLowerDegree(v2 *P, f32 *W, u32 N);
-internal void                BezierCubicCalculateAllControlPoints(u32 N, v2 *P, cubic_bezier_point *Out);
-internal void                BezierCurveSplit(f32 T, u32 N, v2 *P, f32 *W, 
-                                              v2 *LeftPoints, f32 *LeftWeights,
-                                              v2 *RightPoints, f32 *RightWeights);
+internal v2                                           BezierCurveEvaluate(f32 T, v2 *P, u32 N);
+internal v2                                           BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u32 N);
+internal void                                         BezierCurveElevateDegree(v2 *P, u32 N);
+internal void                                         BezierCurveElevateDegreeWeighted(v2 *P, f32 *W, u32 N);
+internal bezier_lower_degree_inverse_degree_elevation BezierCurveLowerDegreeUsingInverseDegreeElevation(v2 *P, f32 *W, u32 N);
+internal void                                         BezierCurveLowerDegreeOptimalUniformNorm(v2 *P, f32 *W, u32 N);
+internal void                                         BezierCubicCalculateAllControlPoints(u32 N, v2 *P, cubic_bezier_point *Out);
+internal void                                         BezierCurveSplit(f32 T, u32 N, v2 *P, f32 *W, 
+                                                                       v2 *LeftPoints, f32 *LeftWeights,
+                                                                       v2 *RightPoints, f32 *RightWeights);
 
 struct all_de_casteljau_intermediate_results
 {

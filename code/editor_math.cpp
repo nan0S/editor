@@ -1513,10 +1513,10 @@ BezierCurveElevateDegreeWeighted(v2 *P, f32 *W, u32 N)
 
 #if 1
 // NOTE(hbr): Optimized, O(1) memory version
-internal bezier_lower_degree
-BezierCurveLowerDegree(v2 *P, f32 *W, u32 N)
+internal bezier_lower_degree_inverse_degree_elevation
+BezierCurveLowerDegreeUsingInverseDegreeElevation(v2 *P, f32 *W, u32 N)
 {
- bezier_lower_degree Result = {};
+ bezier_lower_degree_inverse_degree_elevation Result = {};
  
  if (N >= 2)
  {
@@ -1588,7 +1588,7 @@ BezierCurveLowerDegree(v2 *P, f32 *W, u32 N)
 #else
 // NOTE(hbr): Non-optimzed, O(N) memory version for reference
 internal void
-BezierCurveLowerDegree(v2 *P, f32 *W, u32 N)
+BezierCurveLowerDegreeUsingInverseDegreeElevation(v2 *P, f32 *W, u32 N)
 {
  if (N >= 1)
  {
@@ -1786,55 +1786,74 @@ CalculateChebyshevPolynomialThroughBernstein(arena *Arena, u32 n)
  return w;
 }
 
-internal void
-BezierLowerDegreeUniformNormOptimal(f32 *w, u32 N)
+internal f32 *
+ConvertBernsteinIntoStandardBasis(arena *Arena, f32 *B, u32 N)
 {
- f32 alpha_n = 0.0f;
- f32 coeff = 1.0f;
+ f32 *S = PushArray(Arena, N, f32);
  u32 n = N-1;
+ for (u32 i = 0; i <= n; ++i)
+ {
+  for (u32 j = 0; j <= n-i; ++j)
+  {
+   f32 binom_n_i = GeneralBinomial(Cast(f32)n, i);
+   f32 binom_n_i_j = GeneralBinomial(Cast(f32)(n - i), j);
+   f32 minus_one_n_i_j = MinusOnePow(n - i - j);
+   f32 coeff = binom_n_i * binom_n_i_j * minus_one_n_i_j * B[i];
+   S[n - j] += coeff;
+  }
+ }
+ 
+ return S;
+}
+
+internal v2
+CalculateAlphaN(v2 *P, u32 N)
+{
+ u32 n = N-1;
+ v2 alpha_n = V2(0, 0);
+ f32 coeff = 1.0f;
  for (u32 idx = 0; idx < N; ++idx)
  {
   u32 i = n-idx;
-  alpha_n += w[i] * coeff;
+  alpha_n += P[i] * coeff;
   coeff *= (-1);
   coeff *= i;
   coeff /= (n-i+1);
  }
+ alpha_n = alpha_n / PowerOf2(2*n - 1);
  
- //for ()
- 
- {
-  temp_arena Temp = TempArena(0);
-  
-  u32 n = 6;
-  f32 *T = CalculateChebyshevPolynomial01(Temp.Arena, n);
-  f32 *D = CalculateChebyshevPolynomialThroughBernstein(Temp.Arena, n);
-  
-  EndTemp(Temp);
- }
- 
+ return alpha_n;
 }
 
 internal void
 BezierCurveLowerDegreeUniformNormOptimal(v2 *P, f32 *W, u32 N)
 {
- temp_arena Temp = TempArena(0);
- 
- f32 *Xs = PushArrayNonZero(Temp.Arena, N, f32);
- f32 *Ys = PushArrayNonZero(Temp.Arena, N, f32);
- 
- BezierLowerDegreeUniformNormOptimal(Xs, N);
- BezierLowerDegreeUniformNormOptimal(Ys, N);
- 
- for (u32 I = 0; I < N; ++I)
+ if (N > 0)
  {
-  P[I].X = Xs[I];
-  P[I].Y = Ys[I];
-  W[I] = 1.0f;
+  u32 n = N-1;
+  v2 alpha_n = CalculateAlphaN(P, N);
+  u64 n_fact = Factorial(n);
+  u64 two_n_fact = Factorial(2*n);
+  f32 n_fact_f = Cast(f32)n_fact;
+  f32 two_n_fact_f = Cast(f32)two_n_fact;
+  f32 c_outer = PowF32(2.0f, Cast(f32)(2*n)) * n_fact * n_fact / two_n_fact;
+  
+  for (u32 i = 0; i <= n; ++i)
+  {
+   f32 minus_one_pow = MinusOnePow(n - i);
+   f32 binom_n_2_i = GeneralBinomial(n - 0.5f, i);
+   f32 binom_n_2_n_i = GeneralBinomial(n - 0.5f, n - i);
+   f32 binom_n_i = GeneralBinomial(Cast(f32)n, i);
+   f32 beta_i = minus_one_pow * binom_n_2_i * binom_n_2_n_i / binom_n_i;
+   
+   P[i] = P[i] - alpha_n * c_outer * beta_i;
+  }
+  
+  bezier_lower_degree_inverse_degree_elevation Lower = BezierCurveLowerDegreeUsingInverseDegreeElevation(P, W, N);
+  Assert(!Lower.Failure);
  }
- 
- EndTemp(Temp);
 }
+
 
 // TODO(hbr): this is not finished
 #if 0

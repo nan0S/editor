@@ -1097,9 +1097,11 @@ internal void
 BeginLoweringBezierCurveDegree(editor *Editor, curve_degree_lowering_state *Lowering)
 {
  arena *Arena = Lowering->Arena;
+ bezier_curve_degree_reduction_method Method = Lowering->Method;
  StructZero(Lowering);
  Lowering->Arena = Arena;
  Lowering->Stage = BezierCurveDegreeReductionStage_ChoosingMethod;
+ Lowering->Method = Method;
 }
 
 internal void
@@ -1121,7 +1123,6 @@ EndLoweringBezierCurveDegree(editor *Editor,
  {
   Lowering->Stage = BezierCurveDegreeReductionStage_NotActive;
  }
- 
 }
 
 internal void

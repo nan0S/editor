@@ -256,7 +256,7 @@ struct curve_degree_lowering_state
  arena *Arena;
  curve_points_static *OriginalCurvePoints;
  vertex_array OriginalCurveVertices;
- bezier_lower_degree LowerDegree;
+ bezier_lower_degree_inverse_degree_elevation LowerDegree;
  f32 MixParameter;
  string DisplayMsg;
 };

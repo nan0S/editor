@@ -1658,78 +1658,179 @@ BezierCurveLowerDegree(v2 *P, f32 *W, u32 N)
 }
 #endif
 
-internal f32
-Factorial(i32 n)
+internal f32 *
+CalculateChebyshevPolynomial01(arena *Arena, u32 n)
 {
- f32 Result = 1;
- for (i32 i = 1; i <= n; ++i)
+ f32 *T = PushArrayNonZero(Arena, n + 1, f32);
+ 
+ if (n == 0)
  {
-  Result *= Cast(f32)i;
+  T[0] = 1;
  }
- return Result;
-}
-
-internal f32
-Newton(i32 n, i32 k)
-{
- f32 Result = Factorial(n) / Factorial(k) / Factorial(n-k);
- return Result;
-}
-
-internal f32
-MinusOnePow(i32 Exponent)
-{
- i32 Result = 1;
- if (Exponent & 1) Result = -1;
- return Cast(f32)Result;
-}
-
-internal f32
-DoubleFactorial(i32 n)
-{
- f32 Result = 1;
- for (i32 i = n; i >= 1; i -= 2)
+ else if (n == 1)
  {
-  Result *= Cast(f32)i;
+  T[0] = -1;
+  T[1] = 2;
  }
- return Result;
+ else
+ {
+  temp_arena Temp = TempArena(Arena);
+  
+  f32 *T_1 = CalculateChebyshevPolynomial01(Temp.Arena, n-1);
+  f32 *T_2 = CalculateChebyshevPolynomial01(Temp.Arena, n-2);
+  
+  for (u32 i = 0; i <= n; ++i)
+  {
+#define SafeAccess(A, N, I) (I < N ? A[I] : 0)
+   f32 A = (i > 0 ? SafeAccess(T_1, n-1+1, i-1) : 0);
+   f32 B = SafeAccess(T_1, n-1+1, i);
+   f32 C = SafeAccess(T_2, n-2+1, i);
+   T[i] = 4*A - 2*B - C;
+#undef SafeAccess
+  }
+  
+  EndTemp(Temp);
+ }
+ 
+ return T;
 }
 
-// TODO(hbr): this is not finished
+internal u64
+SafeMultU64(u64 a, u64 b)
+{
+ if (a != 0 && b > U64_MAX / a)
+ {
+  Assert(!"Overflow!");
+ }
+ u64 r = a * b;
+ return r;
+}
+
+internal u64
+Factorial(u64 n)
+{
+ u64 f = 1;
+ for (u64 i = 1; i <= n; ++i)
+ {
+  f = SafeMultU64(f, i);
+ }
+ return f;
+}
+
+internal u64
+PowInteger(u64 a, u64 k)
+{
+ u64 r = 1;
+ while (k)
+ {
+  if (k & 1) r = SafeMultU64(r, a);
+  a = SafeMultU64(a, a);
+  k <<= 1;
+ }
+ return r;
+}
+
+internal f32
+GeneralBinomial(f32 a, u32 k)
+{
+ f32 r = 1.0f;
+ f32 x = a;
+ for (u32 i = 0; i < k; ++i)
+ {
+  r *= x;
+  x -= 1;
+ }
+ r /= Factorial(k);
+ return r;
+}
+
+internal f32
+MinusOnePow(u32 n)
+{
+ f32 r = 0;
+ if (n & 1) r = -1.0f;
+ else r = 1.0f;
+ return r;
+}
+
+internal f32 *
+CalculateChebyshevPolynomialThroughBernstein(arena *Arena, u32 n)
+{
+ f32 *w = PushArray(Arena, n+1, f32);
+ 
+ u64 n_fact = Factorial(n);
+ u64 two_n_fact = Factorial(2*n);
+ 
+ f32 n_fact_f = Cast(f32)n_fact;
+ f32 two_n_fact_f = Cast(f32)two_n_fact;
+ 
+ f32 c_outer = PowF32(2.0f, Cast(f32)(2*n)) * n_fact * n_fact / two_n_fact;
+ 
+ for (u32 i = 0; i <= n; ++i)
+ {
+  f32 minus_one_pow = MinusOnePow(n - i);
+  f32 binom_n_2_i = GeneralBinomial(n - 0.5f, i);
+  f32 binom_n_2_n_i = GeneralBinomial(n - 0.5f, n - i);
+  f32 binom_n_i = GeneralBinomial(Cast(f32)n, i);
+  f32 beta_i = minus_one_pow * binom_n_2_i * binom_n_2_n_i / binom_n_i;
+  
+  for (u32 j = 0; j <= n-i; ++j)
+  {
+   f32 binom_n_i_j = GeneralBinomial(Cast(f32)(n-i), j);
+   f32 minus_one_n_i_j = MinusOnePow(n-i-j);
+   
+   w[n-j] += c_outer * beta_i * binom_n_i  * binom_n_i_j * minus_one_n_i_j;
+  }
+ }
+ 
+ return w;
+}
+
+internal void
+BezierLowerDegreeUniformNormOptimal(f32 *w, u32 N)
+{
+ f32 alpha_n = 0.0f;
+ f32 coeff = 1.0f;
+ u32 n = N-1;
+ for (u32 idx = 0; idx < N; ++idx)
+ {
+  u32 i = n-idx;
+  alpha_n += w[i] * coeff;
+  coeff *= (-1);
+  coeff *= i;
+  coeff /= (n-i+1);
+ }
+ 
+ //for ()
+ 
+ {
+  temp_arena Temp = TempArena(0);
+  
+  u32 n = 6;
+  f32 *T = CalculateChebyshevPolynomial01(Temp.Arena, n);
+  f32 *D = CalculateChebyshevPolynomialThroughBernstein(Temp.Arena, n);
+  
+  EndTemp(Temp);
+ }
+ 
+}
+
 internal void
 BezierCurveLowerDegreeUniformNormOptimal(v2 *P, f32 *W, u32 N)
 {
- // TODO(hbr): remove this arena once got rid of allocations
  temp_arena Temp = TempArena(0);
  
- // TODO(hbr): Don't allocate this, we can just overwrite P
- v2 *w = PushArrayNonZero(Temp.Arena, N, v2);
+ f32 *Xs = PushArrayNonZero(Temp.Arena, N, f32);
+ f32 *Ys = PushArrayNonZero(Temp.Arena, N, f32);
  
- i32 n = Cast(i32)N-1;
+ BezierLowerDegreeUniformNormOptimal(Xs, N);
+ BezierLowerDegreeUniformNormOptimal(Ys, N);
  
- v2 SumAlphaN = V2(0, 0);
- for (i32 k = 0; k <= n; ++k)
+ for (u32 I = 0; I < N; ++I)
  {
-  SumAlphaN += P[k] * (Newton(n, k) * MinusOnePow(n-k));
- }
- v2 AlphaN = 1/PowF32(2.0f, Cast(f32)n) * SumAlphaN;
- 
- for (i32 k = 0; k <= n; ++k)
- {
-  f32 Betak = Cast(f32)(DoubleFactorial(2*n-1) * MinusOnePow(n-k) / (DoubleFactorial(2*k-1) * DoubleFactorial(2*n-2*k-1)));
-  w[k] = P[k] - AlphaN*Betak;
- }
- 
- // TODO(hbr): pass weights as well
- bezier_lower_degree Lower = BezierCurveLowerDegree(w, W, N);
- for (i32 i = 0; i <= n; ++i)
- {
-  W[i] = 1.0f;
- }
- 
- for (i32 i = 0; i <= n; ++i)
- {
-  P[i] = w[i];
+  P[I].X = Xs[I];
+  P[I].Y = Ys[I];
+  W[I] = 1.0f;
  }
  
  EndTemp(Temp);

@@ -177,6 +177,7 @@ internal i32 GaussianElimination(f32 *A, f32 *B, u32 Rows, u32 Cols); // returns
 internal void EquidistantPoints(f32 *Ti, u32 N, f32 A, f32 B);
 internal void ChebychevPoints(f32 *Ti, u32 N);
 
+
 // Barycentric form polynomial
 internal void BarycentricOmega(f32 *Omega, f32 *Ti, u32 N);
 internal void BarycentricOmegaWerner(f32 *Omega, f32 *Ti, u32 N);

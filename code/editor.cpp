@@ -180,71 +180,176 @@ UpdateAndRenderDegreeLowering(editor *Editor, rendering_entity_handle Handle)
   curve *Curve = SafeGetCurve(Entity);
   curve_params *CurveParams = &Curve->Params;
   curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
-  entity_with_modify_witness EntityWitness = BeginEntityModify(Entity);
+  entity_with_modify_witness Witness = BeginEntityModify(Entity);
   
-  if (Lowering->Active)
+  if (Lowering->Stage != BezierCurveDegreeReductionStage_NotActive)
   {
-   Assert(CurveParams->Type == Curve_Bezier);
-   
    b32 IsDegreeLoweringWindowOpen = true;
-   b32 MixChanged = false;
-   b32 Ok = false;
-   b32 Revert = false;
+   b32 FinishThisLowering = false;
+   b32 GoBack = false;
+   string GoBackMsg = NilStr;
    
-   if(UI_BeginWindow(&IsDegreeLoweringWindowOpen, UIWindowFlag_AutoResize, StrLit("Degree Lowering")))
-   {          
-    UI_Text(true, StrLit("Degree lowering failed. Tweak the middle point to fit the curve manually."));
-    //UI_SeparatorText(NilStr);
-    MixChanged = UI_SliderFloat(&Lowering->MixParameter, 0.0f, 1.0f, StrLit("Middle Point Mix"));
+   if(UI_BeginWindow(&IsDegreeLoweringWindowOpen,
+                     UIWindowFlag_AutoResize,
+                     StrLit("Degree Reduction")))
+   {
+    if (!StrIsEmpty(Lowering->DisplayMsg))
+    {
+     UI_Text(false, Lowering->DisplayMsg);
+    }
     
-    Ok = UI_Button(StrLit("OK"));
-    UI_SameRow();
-    Revert = UI_Button(StrLit("Revert"));
+    b32 StillChoosingMethod = (Lowering->Stage == BezierCurveDegreeReductionStage_ChoosingMethod);
+    UI_BeginDisabled(!StillChoosingMethod);
+    UI_Combo(SafeCastToPtr(Lowering->Method, u32),
+             BezierCurveDegreeLoweringMethod_Count,
+             BezierCurveDegreeLoweringMethodNames,
+             StrLit("Method"));
+    UI_EndDisabled();
+    
+    b32 Disabled = false;
+    if (Lowering->Method == BezierCurveDegreeLoweringMethod_UniformNormOptimal)
+    {
+     Disabled = true;
+     UI_Text(false, StrLit("Uniform Optimal method of degree lowering is not yet supported."));
+    }
+    
+    UI_Disabled(Disabled)
+    {     
+     switch (Lowering->Stage)
+     {
+      case BezierCurveDegreeReductionStage_ChoosingMethod: {
+       if (UI_Button(StrLit("Reduce!")))
+       {
+        curve *Curve = SafeGetCurve(Entity);
+        Assert(IsRegularBezierCurve(Curve));
+        
+        curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
+        curve_points_store *CurvePointsStore = Editor->CurvePointsStore;
+        curve_points_static *Points = CurvePointsFromId(CurvePointsStore, Curve->Points);
+        
+        u32 PointCount = Points->ControlPointCount;
+        if (PointCount > 0)
+        {
+         begin_modify_curve_points_static_tracked_result Modify = BeginModifyCurvePointsTracked(Editor, &Witness, PointCount - 1, ModifyCurvePointsWhichPoints_ControlPointsAndWeights);
+         curve_points_modify_handle ModifyPoints = Modify.ModifyPoints;
+         tracked_action *ModifyAction = Modify.ModifyAction;
+         
+         curve_points_static *OriginalPoints = AllocCurvePoints(Editor);
+         CopyCurvePointsFromCurve(Curve, CurvePointsDynamicFromStatic(OriginalPoints));
+         
+         // TODO(hbr): implement this
+#if 1
+         bezier_lower_degree LowerDegree = BezierCurveLowerDegree(ModifyPoints.ControlPoints, ModifyPoints.Weights, PointCount);
+#else
+         bezier_lower_degree LowerDegree = {};
+         BezierCurveLowerDegreeUniformNormOptimal(ModifyPoints.ControlPoints, ModifyPoints.Weights, PointCount);
+#endif
+         
+         if (LowerDegree.Failure)
+         {
+          Lowering->Stage = BezierCurveDegreeReductionStage_InverseDegreeElevationFailed;
+          Lowering->OriginalCurvePoints = OriginalPoints;
+          Lowering->OriginalCurveVertices = CopyLineVertices(Lowering->Arena, Curve->CurveVertices);
+          f32 T = 0.5f;
+          Lowering->LowerDegree = LowerDegree;
+          Lowering->MixParameter = T;
+          ModifyPoints.ControlPoints[LowerDegree.MiddlePointIndex] = Lerp(LowerDegree.P_I, LowerDegree.P_II, T);
+          ModifyPoints.Weights[LowerDegree.MiddlePointIndex] = Lerp(LowerDegree.W_I, LowerDegree.W_II, T);
+         }
+         else
+         {
+          DeallocCurvePoints(Editor, OriginalPoints);
+          Lowering->Stage = BezierCurveDegreeReductionStage_Succeeded;
+         }
+         
+         EndModifyCurvePointsTracked(Editor, ModifyAction, ModifyPoints);
+        }
+       }
+      }break;
+      
+      case BezierCurveDegreeReductionStage_InverseDegreeElevationFailed: {
+       
+       UI_Text(true, StrLit("Degree reduction"));
+       UI_SameRow();
+       UI_Colored(UI_Color_Text, RedColor)
+       {
+        UI_Text(true, StrLit("failed"));
+       }
+       UI_SameRow();
+       UI_Text(true, StrLit("."));
+       UI_Text(true, StrLit("Tweak the mix parameter to fit the curve manually."));
+       
+       b32 MixChanged = UI_SliderFloat(&Lowering->MixParameter, 0.0f, 1.0f, StrLit("Mix"));
+       
+       b32 Accept = UI_Button(StrLit("Accept"));
+       UI_SameRow();
+       b32 Revert = UI_Button(StrLit("Revert"));
+       
+       Assert(CurveParams->Type == Curve_Bezier);
+       
+       //-
+       curve_points_static *Points = GetCurvePoints(Curve);
+       Assert(Lowering->LowerDegree.MiddlePointIndex < Points->ControlPointCount);
+       
+       if (MixChanged)
+       {
+        v2 NewControlPoint = Lerp(Lowering->LowerDegree.P_I, Lowering->LowerDegree.P_II, Lowering->MixParameter);
+        f32 NewControlPointWeight = Lerp(Lowering->LowerDegree.W_I, Lowering->LowerDegree.W_II, Lowering->MixParameter);
+        
+        control_point_handle MiddlePoint = ControlPointHandleFromIndex(Lowering->LowerDegree.MiddlePointIndex);
+        SetControlPoint(&Witness,
+                        MiddlePoint,
+                        NewControlPoint,
+                        NewControlPointWeight);
+       }
+       
+       if (Revert)
+       {
+        curve_points_static *Points = Lowering->OriginalCurvePoints;
+        Assert(Points);
+        SetCurvePointsTracked(Editor, &Witness, CurvePointsHandleFromCurvePointsStatic(Points));
+       }
+       
+       rgba Color = Curve->Params.DrawParams.Line.Color;
+       Color.A *= 0.5f;
+       PushVertexArray(RenderGroup,
+                       Lowering->OriginalCurveVertices.Vertices,
+                       Lowering->OriginalCurveVertices.VertexCount,
+                       Lowering->OriginalCurveVertices.Primitive,
+                       Color,
+                       GetCurvePartVisibilityZOffset(CurvePartVisibility_LineShadow));
+       
+       if (Accept || Revert)
+       {
+        GoBack = true;
+        FinishThisLowering = true;
+       }
+      }break;
+      
+      case BezierCurveDegreeReductionStage_Succeeded: {
+       GoBack = true;
+       GoBackMsg = StrLit("Degree reduction succeeded!");
+       FinishThisLowering = true;
+      }break;
+      
+      case BezierCurveDegreeReductionStage_NotActive: InvalidPath;
+     }
+    }
    }
    UI_EndWindow();
    
-   //-
-   curve_points_static *Points = GetCurvePoints(Curve);
-   Assert(Lowering->LowerDegree.MiddlePointIndex < Points->ControlPointCount);
-   
-   if (MixChanged)
+   if (!IsDegreeLoweringWindowOpen)
    {
-    v2 NewControlPoint = Lerp(Lowering->LowerDegree.P_I, Lowering->LowerDegree.P_II, Lowering->MixParameter);
-    f32 NewControlPointWeight = Lerp(Lowering->LowerDegree.W_I, Lowering->LowerDegree.W_II, Lowering->MixParameter);
-    
-    control_point_handle MiddlePoint = ControlPointHandleFromIndex(Lowering->LowerDegree.MiddlePointIndex);
-    SetControlPoint(&EntityWitness,
-                    MiddlePoint,
-                    NewControlPoint,
-                    NewControlPointWeight);
+    GoBack = false;
+    FinishThisLowering = true;
    }
-   
-   if (Revert)
+   if (FinishThisLowering)
    {
-    curve_points_static *Points = Lowering->OriginalCurvePoints;
-    Assert(Points);
-    SetCurvePointsTracked(Editor, &EntityWitness, CurvePointsHandleFromCurvePointsStatic(Points));
-   }
-   
-   if (Ok || Revert || !IsDegreeLoweringWindowOpen)
-   {
-    EndLoweringBezierCurveDegree(Editor, Lowering);
+    EndLoweringBezierCurveDegree(Editor, Lowering, GoBack, GoBackMsg);
    }
   }
   
-  if (Lowering->Active)
-  {
-   rgba Color = Curve->Params.DrawParams.Line.Color;
-   Color.A *= 0.5f;
-   PushVertexArray(RenderGroup,
-                   Lowering->OriginalCurveVertices.Vertices,
-                   Lowering->OriginalCurveVertices.VertexCount,
-                   Lowering->OriginalCurveVertices.Primitive,
-                   Color,
-                   GetCurvePartVisibilityZOffset(CurvePartVisibility_LineShadow));
-  }
-  
-  EndEntityModify(EntityWitness);
+  EndEntityModify(Witness);
  }
 }
 
@@ -442,7 +547,29 @@ InterpolateAnimationCurve(animating_curves_state *Animation, v2 *Samples)
  if (Entity0 && Entity1)
  {
   string Name = StrF(Temp.Arena, "%S+%S extracted", GetEntityName(Entity0), GetEntityName(Entity1));
-  InitEntityAsCurve(Entity, Name, DefaultCubicSplineCurveParams());
+  
+  curve_params Params = DefaultCurveParams();
+  switch (Animation->ReconstructionMethod.Type)
+  {
+   case CurveReconstructionMethod_Polynomial: {
+    Params.Type = Curve_Polynomial;
+    Params.Polynomial.Type = PolynomialInterpolation_Barycentric;
+    Params.Polynomial.PointSpacing = Animation->ReconstructionMethod.PolynomialPointSpacing;
+   }break;
+   
+   case CurveReconstructionMethod_CubicSpline: {
+    Params.Type = Curve_CubicSpline;
+    Params.CubicSpline = CubicSpline_Periodic;
+   }break;
+   
+   case CurveReconstructionMethod_CubicBezier: {
+    Params.Type = Curve_Bezier;
+    Params.Bezier = Bezier_CubicSpline;
+   }break;
+   
+   case CurveReconstructionMethod_Count: InvalidPath;
+  }
+  InitEntityAsCurve(Entity, Name, Params);
   curve *Curve = SafeGetCurve(Entity);
   
   u32 SampleCount = Animation->AnimationCurveSamplePointCount;
@@ -1426,18 +1553,18 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
         }
         if (UI_IsItemHovered())
         {
-         UI_Tooltip(StrLit("Elevate Bezier curve degree, maintain its shape"));
+         UI_Tooltip(StrLit("Elevate Bezier curve degree, while maintaining shape"));
         }
         
         UI_SameRow();
         
-        if (UI_Button(StrLit("Lower Degree")))
+        if (UI_Button(StrLit("Reduce Degree")))
         {
-         BeginLoweringBezierCurveDegree(Editor, Entity);
+         BeginLoweringBezierCurveDegree(Editor, &Curve->DegreeLowering);
         }
         if (UI_IsItemHovered())
         {
-         UI_Tooltip(StrLit("Lower Bezier curve degree, maintain its shape (if possible)"));
+         UI_Tooltip(StrLit("Reduce Bezier curve degree"));
         }
        }
       }
@@ -1669,11 +1796,11 @@ RenderMenuBarUI(editor *Editor)
   
   if(UI_BeginMenu(StrLit("Actions")))
   {
-   if (UI_MenuItem(0, NilStr, StrLit("Animate Curves")))
+   if (UI_MenuItem(0, NilStr, StrLit("Transform Curves")))
    {
     BeginAnimatingCurves(&Editor->AnimatingCurves);
    }
-   if (UI_MenuItem(0, NilStr, StrLit("Merge Curves")))
+   if (UI_MenuItem(0, NilStr, StrLit("Join Curves")))
    {
     BeginMergingCurves(&Editor->MergingCurves);
    }
@@ -2534,7 +2661,7 @@ RenderAnimatingCurvesUI(editor *Editor)
  if (Animation->Flags & AnimatingCurves_Active)
  {
   b32 WindowOpen = true;
-  UI_BeginWindow(&WindowOpen, UIWindowFlag_AutoResize, StrLit("Curve Animation"));
+  UI_BeginWindow(&WindowOpen, UIWindowFlag_AutoResize, StrLit("Curve Transformation"));
   
   if (WindowOpen)
   {
@@ -2567,7 +2694,7 @@ RenderAnimatingCurvesUI(editor *Editor)
      }
     }
    }
-   UI_SliderFloat(&Animation->Bouncing.Speed, 0.0f, 4.0f, StrLit("Animation Speed"));
+   UI_SliderFloat(&Animation->Bouncing.Speed, 0.0f, 4.0f, StrLit("Speed"));
    
    if (!Animation->AlreadySetup)
    {
@@ -2575,9 +2702,10 @@ RenderAnimatingCurvesUI(editor *Editor)
     Animation->AlreadySetup = true;
    }
    
-   UI_HelpMarkerWithTooltip(StrLit("Extract curve by computing Cubic Spline interpolation of animated curve shape"));
+   UI_HelpMarkerWithTooltip(StrLit("Reconstruct curve by sampling points and \n"
+                                   "computing interpolating curve through these samples"));
    UI_SameRow();
-   UI_SeparatorText(StrLit("Extraction"));
+   UI_SeparatorText(StrLit("Reconstruction"));
    
    if (UI_SliderUnsigned(&Animation->ExtractedCurveDetail, 0,
                          Animation->AnimationCurveSamplePointCount,
@@ -2585,8 +2713,22 @@ RenderAnimatingCurvesUI(editor *Editor)
    {
     Animation->ExtractedCurveDetailCustom = true;
    }
+   UI_SameRow();
+   UI_HelpMarkerWithTooltip(StrLit("Number of points to sample"));
    
-   if (UI_Button(StrLit("Extract")))
+   UI_Combo(SafeCastToPtr(Animation->ReconstructionMethod.Type, u32),
+            CurveReconstructionMethod_Count,
+            CurveReconstructionMethodNames,
+            StrLit("Method"));
+   if (Animation->ReconstructionMethod.Type == CurveReconstructionMethod_Polynomial)
+   {
+    UI_Combo(SafeCastToPtr(Animation->ReconstructionMethod.PolynomialPointSpacing, u32),
+             PointSpacing_Count,
+             PointSpacingNames,
+             StrLit("Point Spacing"));
+   }
+   
+   if (UI_Button(StrLit("Extract!")))
    {
     temp_arena Temp = TempArena(0);
     
@@ -2615,7 +2757,7 @@ RenderAnimatingCurvesUI(editor *Editor)
     Animation->Flags &= ~AnimatingCurves_Preview;
    }
    UI_SameRow();
-   UI_HelpMarkerWithTooltip(StrLit("Preview interpolated curve instead of animated one"));
+   UI_HelpMarkerWithTooltip(StrLit("Preview reconstructed curve"));
   }
   else
   {
@@ -3284,15 +3426,15 @@ RenderMergingCurvesUI(editor *Editor)
  if (Merging->Active)
  {
   b32 WindowOpen = true;
-  UI_BeginWindow(&WindowOpen, UIWindowFlag_AutoResize, StrLit("Merging Curves"));
+  UI_BeginWindow(&WindowOpen, UIWindowFlag_AutoResize, StrLit("Join Curves"));
   
   if (WindowOpen)
   {
    UI_SeparatorText(StrLit("Choice"));
    UpdateAndRenderChoose2CurvesUI(&Merging->Choose2Curves, Editor);
    
-   UI_SeparatorText(StrLit("Merging"));
-   b32 MergeMethodChanged = UI_Combo(SafeCastToPtr(Merging->Method, u32), CurveMerge_Count, CurveMergeNames, StrLit("Merge Method"));
+   UI_SeparatorText(StrLit("Joining"));
+   b32 MergeMethodChanged = UI_Combo(SafeCastToPtr(Merging->Method, u32), CurveMerge_Count, CurveMergeNames, StrLit("Method"));
    
    entity *Entity0 = EntityFromHandle(Merging->Choose2Curves.Curves[0]);
    entity *Entity1 = EntityFromHandle(Merging->Choose2Curves.Curves[1]);
@@ -3307,7 +3449,14 @@ RenderMergingCurvesUI(editor *Editor)
    }
    else
    {
-    Compatibility.WhyIncompatible = StrLit("not all curves selected");
+    if (Curve0 == 0)
+    {
+     Compatibility.WhyIncompatible = StrLit("Curve 0 not selected");
+    }
+    else
+    {
+     Compatibility.WhyIncompatible = StrLit("Curve 1 not selected");
+    }
    }
    
    b32 Changed0 = EntityModified(Merging->EntityVersioned[0], Entity0);
@@ -3332,7 +3481,7 @@ RenderMergingCurvesUI(editor *Editor)
    
    UI_Disabled(!Compatibility.Compatible)
    {
-    if (UI_Button(StrLit("Merge")))
+    if (UI_Button(StrLit("Join!")))
     {
      EndMergingCurves(Editor, true);
     }
@@ -4297,6 +4446,9 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  }
  
  BeginEditorFrame(Editor);
+ 
+ 
+ BezierCurveLowerDegreeUniformNormOptimal(0, 0, 0);
  
  render_group RenderGroup_ = {};
  render_group *RenderGroup = &RenderGroup_;

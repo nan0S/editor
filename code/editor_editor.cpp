@@ -1094,62 +1094,34 @@ SupplyCurve(choose_2_curves_state *Choosing, entity *Curve)
 }
 
 internal void
-BeginLoweringBezierCurveDegree(editor *Editor, entity *Entity)
+BeginLoweringBezierCurveDegree(editor *Editor, curve_degree_lowering_state *Lowering)
 {
- curve *Curve = SafeGetCurve(Entity);
- Assert(IsRegularBezierCurve(Curve));
- 
- curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
- curve_points_store *CurvePointsStore = Editor->CurvePointsStore;
- curve_points_static *Points = CurvePointsFromId(CurvePointsStore, Curve->Points);
- 
- u32 PointCount = Points->ControlPointCount;
- if (PointCount > 0)
- {
-  entity_with_modify_witness Witness = BeginEntityModify(Entity);
-  begin_modify_curve_points_static_tracked_result Modify = BeginModifyCurvePointsTracked(Editor, &Witness, PointCount - 1, ModifyCurvePointsWhichPoints_ControlPointsAndWeights);
-  curve_points_modify_handle ModifyPoints = Modify.ModifyPoints;
-  tracked_action *ModifyAction = Modify.ModifyAction;
-  
-  curve_points_static *OriginalPoints = AllocCurvePoints(Editor);
-  CopyCurvePointsFromCurve(Curve, CurvePointsDynamicFromStatic(OriginalPoints));
-  
-  // TODO(hbr): implement this
-#if 1
-  bezier_lower_degree LowerDegree = BezierCurveLowerDegree(ModifyPoints.ControlPoints, ModifyPoints.Weights, PointCount);
-#else
-  bezier_lower_degree LowerDegree = {};
-  BezierCurveLowerDegreeUniformNormOptimal(ModifyPoints.ControlPoints, ModifyPoints.Weights, PointCount);
-#endif
-  
-  if (LowerDegree.Failure)
-  {
-   Lowering->Active = true;
-   Lowering->OriginalCurvePoints = OriginalPoints;
-   Lowering->OriginalCurveVertices = CopyLineVertices(Lowering->Arena, Curve->CurveVertices);
-   f32 T = 0.5f;
-   Lowering->LowerDegree = LowerDegree;
-   Lowering->MixParameter = T;
-   ModifyPoints.ControlPoints[LowerDegree.MiddlePointIndex] = Lerp(LowerDegree.P_I, LowerDegree.P_II, T);
-   ModifyPoints.Weights[LowerDegree.MiddlePointIndex] = Lerp(LowerDegree.W_I, LowerDegree.W_II, T);
-  }
-  else
-  {
-   DeallocCurvePoints(Editor, OriginalPoints);
-  }
-  
-  EndModifyCurvePointsTracked(Editor, ModifyAction, ModifyPoints);
-  EndEntityModify(Witness);
- }
+ arena *Arena = Lowering->Arena;
+ StructZero(Lowering);
+ Lowering->Arena = Arena;
+ Lowering->Stage = BezierCurveDegreeReductionStage_ChoosingMethod;
 }
 
 internal void
-EndLoweringBezierCurveDegree(editor *Editor, curve_degree_lowering_state *Lowering)
+EndLoweringBezierCurveDegree(editor *Editor,
+                             curve_degree_lowering_state *Lowering,
+                             b32 GoBack, string GoBackMsg)
 {
- Lowering->Active = false;
  ClearArena(Lowering->Arena);
- Assert(Lowering->OriginalCurvePoints);
- DeallocCurvePoints(Editor, Lowering->OriginalCurvePoints);
+ if (Lowering->OriginalCurvePoints)
+ {
+  DeallocCurvePoints(Editor, Lowering->OriginalCurvePoints);
+ }
+ if (GoBack)
+ {
+  BeginLoweringBezierCurveDegree(Editor, Lowering);
+  Lowering->DisplayMsg = GoBackMsg;
+ }
+ else
+ {
+  Lowering->Stage = BezierCurveDegreeReductionStage_NotActive;
+ }
+ 
 }
 
 internal void
@@ -2997,7 +2969,7 @@ GetVisibleCubicBezierPoints(entity *Entity)
  if (IsEntitySelected(Entity) &&
      IsControlPointSelected(Curve) &&
      Curve->Params.Type == Curve_Bezier &&
-     Curve->Params.Bezier == Bezier_Cubic)
+     Curve->Params.Bezier == Bezier_CubicSpline)
  {
   cubic_bezier_point_handle StartPoint = CubicBezierPointFromControlPoint(Curve->SelectedControlPoint);
   
@@ -3031,7 +3003,7 @@ IsCurveEligibleForPointTracking(curve *Curve)
  curve_params *Params = &Curve->Params;
  curve_type Interpolation = Params->Type;
  bezier_type BezierVariant = Params->Bezier;
- b32 Result = (Interpolation == Curve_Bezier && BezierVariant == Bezier_Regular);
+ b32 Result = (Interpolation == Curve_Bezier && BezierVariant == Bezier_Rational);
  
  return Result;
 }
@@ -3040,7 +3012,7 @@ internal b32
 CurveHasWeights(curve *Curve)
 {
  b32 Result = (Curve->Params.Type == Curve_Bezier &&
-               Curve->Params.Bezier == Bezier_Regular);
+               Curve->Params.Bezier == Bezier_Rational);
  return Result;
 }
 
@@ -3083,7 +3055,7 @@ IsCurveReversed(entity *Entity)
 internal b32
 IsRegularBezierCurve(curve *Curve)
 {
- b32 Result = (Curve->Params.Type == Curve_Bezier && Curve->Params.Bezier == Bezier_Regular);
+ b32 Result = (Curve->Params.Type == Curve_Bezier && Curve->Params.Bezier == Bezier_Rational);
  return Result;
 }
 
@@ -3139,8 +3111,8 @@ AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method M
     {
      switch (Params0->Bezier)
      {
-      case Bezier_Regular: {Compatible = true;}break;
-      case Bezier_Cubic: {
+      case Bezier_Rational: {Compatible = true;}break;
+      case Bezier_CubicSpline: {
        if (Concat_C0_G1) Compatible = true;
        else WhyIncompatible = StrLit("cubic bezier curves" Concat_C0_G1_Str);
       }break;
@@ -4665,8 +4637,8 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
   case Curve_Bezier: {
    switch (Params->Bezier)
    {
-    case Bezier_Regular: {CalcRegularBezier(Controls, Weights, PointCount, SampleCount, OutSamples);}break;
-    case Bezier_Cubic: {CalcCubicBezier(Beziers, PointCount, SampleCount, OutSamples);}break;
+    case Bezier_Rational: {CalcRegularBezier(Controls, Weights, PointCount, SampleCount, OutSamples);}break;
+    case Bezier_CubicSpline: {CalcCubicBezier(Beziers, PointCount, SampleCount, OutSamples);}break;
     case Bezier_Count: InvalidPath;
    }
   } break;
@@ -4876,15 +4848,6 @@ DefaultCurveParams(void)
  Params.SamplesPerControlPoint = 50;
  Params.TotalSamples = 1000;
  
- return Params;
-}
-
-internal curve_params
-DefaultCubicSplineCurveParams(void)
-{
- curve_params Params = DefaultCurveParams();
- Params.Type = Curve_CubicSpline;
- Params.CubicSpline = CubicSpline_Natural;
  return Params;
 }
 

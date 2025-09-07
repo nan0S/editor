@@ -77,13 +77,13 @@ StaticAssert(ArrayCount(CubicSplineNames) == CubicSpline_Count, CubicSplineNames
 
 enum bezier_type : u32
 {
- Bezier_Regular,
- Bezier_Cubic,
+ Bezier_Rational,
+ Bezier_CubicSpline,
  Bezier_Count,
 };
 global read_only string BezierNames[] = {
- StrLitComp("Regular"),
- StrLitComp("Cubic")
+ StrLitComp("Rational"),
+ StrLitComp("Cubic Spline")
 };
 StaticAssert(ArrayCount(BezierNames) == Bezier_Count, BezierNamesDefined);
 
@@ -229,14 +229,36 @@ struct curve_points_handle
  f32 *BSplineKnots;
 };
 
+enum bezier_curve_degree_reduction_method : u32
+{
+ BezierCurveDegreeLoweringMethod_InverseOfDegreeElevation,
+ BezierCurveDegreeLoweringMethod_UniformNormOptimal,
+ BezierCurveDegreeLoweringMethod_Count,
+};
+global read_only string BezierCurveDegreeLoweringMethodNames[] =
+{
+ StrLit("Inverse Degree Elevation"),
+ StrLit("Uniform Norm Optimal"),
+};
+
+enum bezier_curve_degree_reduction_stage
+{
+ BezierCurveDegreeReductionStage_NotActive,
+ BezierCurveDegreeReductionStage_ChoosingMethod,
+ BezierCurveDegreeReductionStage_InverseDegreeElevationFailed,
+ BezierCurveDegreeReductionStage_Succeeded,
+};
+
 struct curve_degree_lowering_state
 {
- b32 Active;
+ bezier_curve_degree_reduction_stage Stage;
+ bezier_curve_degree_reduction_method Method;
  arena *Arena;
  curve_points_static *OriginalCurvePoints;
  vertex_array OriginalCurveVertices;
  bezier_lower_degree LowerDegree;
  f32 MixParameter;
+ string DisplayMsg;
 };
 
 typedef u32 translate_curve_point_flags;
@@ -1019,11 +1041,32 @@ enum
  AnimatingCurves_Preview = (1<<2),
 };
 typedef u32 animating_curves_flags;
+
+enum curve_reconstruction_method_type : u32
+{
+ CurveReconstructionMethod_Polynomial,
+ CurveReconstructionMethod_CubicSpline,
+ CurveReconstructionMethod_CubicBezier,
+ CurveReconstructionMethod_Count,
+};
+struct curve_reconstruction_method
+{
+ curve_reconstruction_method_type Type;
+ point_spacing PolynomialPointSpacing;
+};
+global read_only string CurveReconstructionMethodNames[] = 
+{
+ StrLit("Polynomial"),
+ StrLit("Cubic Polynomial Spline"),
+ StrLit("Cubic Bezier Spline"),
+};
+
 struct animating_curves_state
 {
  animating_curves_flags Flags;
  choose_2_curves_state Choose2Curves;
  bouncing_parameter Bouncing;
+ curve_reconstruction_method ReconstructionMethod;
  b32 AlreadySetup;
  u32 ExtractedCurveDetail;
  b32 ExtractedCurveDetailCustom;
@@ -1375,7 +1418,6 @@ internal b32 IsParametricCurveVarActive(parametric_curve_field *Var);
 
 //- misc
 internal curve_params DefaultCurveParams(void);
-internal curve_params DefaultCubicSplineCurveParams(void);
 
 //~ editor and editor systems
 
@@ -1443,8 +1485,8 @@ internal void BeginChoosing2Curves(choose_2_curves_state *Choosing);
 internal b32 SupplyCurve(choose_2_curves_state *Choosing, entity *Curve);
 
 //- lowering bezier curve degree
-internal void BeginLoweringBezierCurveDegree(editor *Editor, entity *Entity);
-internal void EndLoweringBezierCurveDegree(editor *Editor, curve_degree_lowering_state *Lowering);
+internal void BeginLoweringBezierCurveDegree(editor *Editor, curve_degree_lowering_state *Lowering);
+internal void EndLoweringBezierCurveDegree(editor *Editor, curve_degree_lowering_state *Lowering, b32 CompletelyEnd);
 
 //- click states
 internal void BeginMovingEntity(editor_left_click_state *Left, editor *Editor, entity *Entity);

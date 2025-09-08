@@ -1854,6 +1854,49 @@ BezierCurveLowerDegreeUniformNormOptimal(v2 *P, f32 *W, u32 N)
  }
 }
 
+internal void
+BezierCurveLowerDegreeUniformNormOptimal2(v2 *P, f32 *W, u32 N)
+{
+ if (N > 0)
+ {
+  u32 n = N - 1;
+  
+  // calculate c_n := (n!)^2 / (2n)!
+  f32 c_n = 2.0f;
+  for (u32 i = 1; i <= n; ++i)
+  {
+   c_n *= Cast(f32)i / (n + i);
+  }
+  
+  // calculate alpha_n := sum_(i=0,..n) P_i binom(n, i) (-1)^(n-i)
+  v2 alpha_n = V2(0, 0);
+  f32 coeff = 1.0f;
+  for (u32 idx = 0; idx <= n; ++idx)
+  {
+   u32 i = n - idx;
+   alpha_n += coeff * P[i];
+   coeff *= -Cast(f32)i / (n - i + 1);
+  }
+  
+  // calculate beta_n' := binom(n-1/2, n)
+  f32 beta_n_prim = 1.0f;
+  for (u32 i = 1; i <= n; ++i)
+  {
+   beta_n_prim *=  Cast(f32)(i - 0.5f) / i;
+  }
+  
+  f32 beta_i = c_n * beta_n_prim;
+  for (u32 idx = 0; idx <= n; ++idx)
+  {
+   u32 i = n - idx;
+   P[i] -= beta_i * alpha_n;
+   beta_i *= (-1) * (i - 0.5f) / (n - i + 0.5f);
+  }
+  
+  bezier_lower_degree_inverse_degree_elevation Lower = BezierCurveLowerDegreeUsingInverseDegreeElevation(P, W, N);
+  //Assert(!Lower.Failure);
+ }
+}
 
 // TODO(hbr): this is not finished
 #if 0

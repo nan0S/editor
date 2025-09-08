@@ -1205,6 +1205,77 @@ BSplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *
  return Result;
 }
 
+internal v2
+NURBS_Evaluate(f32 T,
+               v2 *ControlPoints,
+               f32 *Weights,
+               b_spline_knot_params KnotParams,
+               f32 *Knots)
+{
+ temp_arena Temp = TempArena(0);
+ 
+ // NOTE(hbr): This is unfortunately necessary. Otherwise it freaks out on tail.
+ T = Clamp(T, KnotParams.A, KnotParams.B - F32_EPS);
+ //T = Clamp(T, Knots[0] + 10*F32_EPS, Knots[KnotParams.KnotCount - 1] - 10*F32_EPS);
+ //T = Clamp(T, KnotParams.A, KnotParams.B);
+ 
+ i32 Degree = Cast(i32)KnotParams.Degree;
+ i32 PartitionSize = Cast(i32)KnotParams.PartitionSize;
+ 
+ i32 Rows = Cast(i32)Degree;
+ i32 Cols = Cast(i32)Degree;
+ // TODO(hbr): I noticed, that it is a bug to not add 1 here, investiagate whether this is enough or there is something more to it.
+ v2 *C = PushArray2DNonZero(Temp.Arena, Rows+1, Cols+1, v2);
+ f32 *W = PushArray2DNonZero(Temp.Arena, Rows+1, Cols+1, f32);
+ 
+#define c(k, i) C[Index2D(k, i+m, Cols)]
+#define w(k, i) W[Index2D(k, i+m, Cols)]
+ 
+ ControlPoints += Degree;
+ Weights += Degree;
+ 
+ i32 m = Degree;
+ i32 n = PartitionSize - 1;
+ 
+ f32 *t = Knots + KnotParams.Degree;
+ 
+ i32 j = -m;
+ for (; j+1 < n+m; ++j)
+ {
+  if (t[j] <= T && T < t[j + 1])
+  {
+   break;
+  }
+ }
+ 
+ for (i32 i = j-m; i <= j; ++i)
+ {
+  c(0, i) = ControlPoints[i];
+  w(0, i) = Weights[i];
+ }
+ 
+ for (i32 k = 1; k <= m; ++k)
+ {
+  for (i32 i = j-m+k; i <= j; ++i)
+  {
+   f32 alpha = (T - t[i]) / (t[m+i+1-k] - t[i]);
+   f32 new_w = alpha * w(k-1, i) + (1-alpha) * w(k-1, i-1);
+   w(k, i) = new_w;
+   c(k, i) = alpha * w(k-1, i)/new_w * c(k-1, i) + (1-alpha) * w(k-1, i-1)/new_w * c(k-1, i-1);
+  }
+ }
+ 
+ v2 Result = c(m, j);
+ 
+ EndTemp(Temp);
+ 
+#undef c
+#undef w
+ 
+ return Result;
+}
+
+
 #endif
 
 // NOTE(hbr): Those should be local conveniance internal, but impossible in C.

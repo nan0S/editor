@@ -3012,8 +3012,9 @@ IsCurveEligibleForPointTracking(curve *Curve)
 internal b32
 CurveHasWeights(curve *Curve)
 {
- b32 Result = (Curve->Params.Type == Curve_Bezier &&
-               Curve->Params.Bezier == Bezier_Rational);
+ curve_params *P = &Curve->Params;
+ b32 Result = ((P->Type == Curve_Bezier && P->Bezier == Bezier_Rational) ||
+               (P->Type == Curve_BSpline));
  return Result;
 }
 
@@ -4453,7 +4454,7 @@ PartitionKnotIndexToKnotIndex(u32 PartitionKnotIndex, b_spline_knot_params KnotP
 }
 
 internal void
-CalcBSpline(v2 *Controls,
+CalcBSpline(v2 *Controls, f32 *Weights,
             b_spline_knot_params KnotParams, f32 *Knots,
             u32 SampleCount, v2 *OutSamples)
 {
@@ -4485,11 +4486,11 @@ CalcBSpline(v2 *Controls,
   
   ForEachIndex(Index, CurrentSampleCount)
   {
-   *Out++ = BSplineEvaluate(T, Controls, KnotParams, Knots);
+   *Out++ = NURBS_Evaluate(T, Controls, Weights, KnotParams, Knots);
    T += DeltaT;
   }
  }
- *Out++ = BSplineEvaluate(KnotParams.B, Controls, KnotParams, Knots);
+ *Out++ = NURBS_Evaluate(KnotParams.B, Controls, KnotParams, Knots);
  Assert(Cast(u64)(Out - OutSamples) == SampleCount);
  
 #else
@@ -4501,7 +4502,7 @@ CalcBSpline(v2 *Controls,
       SampleIndex < SampleCount;
       ++SampleIndex)
  {
-  OutSamples[SampleIndex] = BSplineEvaluate(T, Controls, KnotParams, Knots);
+  OutSamples[SampleIndex] = NURBS_Evaluate(T, Controls, Weights, KnotParams, Knots);
   T += Delta_T;
  }
  
@@ -4659,11 +4660,11 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
         ++PartitionKnotIndex)
    {
     f32 T = BSplineKnots[Degree + PartitionKnotIndex];
-    v2 KnotPoint = BSplineEvaluate(T, Controls, KnotParams, BSplineKnots);
+    v2 KnotPoint = NURBS_Evaluate(T, Controls, Weights, KnotParams, BSplineKnots);
     PartitionKnots[PartitionKnotIndex] = KnotPoint;
    }
    
-   CalcBSpline(Controls, KnotParams, BSplineKnots, SampleCount, OutSamples);
+   CalcBSpline(Controls, Weights, KnotParams, BSplineKnots, SampleCount, OutSamples);
   }break;
   
   case Curve_Parametric: {CalcParametric(ComputeArena, Parametric, SampleCount, OutSamples);}break;

@@ -1205,12 +1205,13 @@ BSplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *
  return Result;
 }
 
+// TODO(hbr): Fix it
 internal v2
-NURBS_Evaluate(f32 T,
-               v2 *ControlPoints,
-               f32 *Weights,
-               b_spline_knot_params KnotParams,
-               f32 *Knots)
+NURBS_Evaluate_(f32 T,
+                v2 *ControlPoints,
+                f32 *Weights,
+                b_spline_knot_params KnotParams,
+                f32 *Knots)
 {
  temp_arena Temp = TempArena(0);
  

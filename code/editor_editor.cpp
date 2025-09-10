@@ -4502,7 +4502,8 @@ CalcBSpline(v2 *Controls, f32 *Weights,
       SampleIndex < SampleCount;
       ++SampleIndex)
  {
-  OutSamples[SampleIndex] = NURBS_Evaluate(T, Controls, Weights, KnotParams, Knots);
+  //OutSamples[SampleIndex] = NURBS_Evaluate(T, Controls, Weights, KnotParams, Knots);
+  OutSamples[SampleIndex] = BSplineEvaluate(T, Controls, KnotParams, Knots);
   T += Delta_T;
  }
  
@@ -4660,7 +4661,8 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
         ++PartitionKnotIndex)
    {
     f32 T = BSplineKnots[Degree + PartitionKnotIndex];
-    v2 KnotPoint = NURBS_Evaluate(T, Controls, Weights, KnotParams, BSplineKnots);
+    //v2 KnotPoint = NURBS_Evaluate(T, Controls, Weights, KnotParams, BSplineKnots);
+    v2 KnotPoint = BSplineEvaluate(T, Controls, KnotParams, BSplineKnots);
     PartitionKnots[PartitionKnotIndex] = KnotPoint;
    }
    

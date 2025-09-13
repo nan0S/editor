@@ -1146,35 +1146,13 @@ BSplineEvaluate(f32 T, v2 *Controls, b_spline_knot_params KnotParams, f32 *Knots
  return Result;
 }
 
-
-#if 0
-/*
-Standard denotation:
-- u: parameter to evaluate the curve at from [a,b]
-- W: control points
-- w: weights
-- t: knots
-- we have t[-m,...-1], t[0,...,n], t[n+1,...,n+m]
-- 
-*/
-internal v2
-BSpline_Evaluate(f32 u,
-                 v2 *W,
-                 f32 *w,
-                 i32 n,
-                 i32 m,
-                 f32 *t)
-{
-}
-#endif
-
 // TODO(hbr): It doesn't work quite well for Degree == 1.
 internal v2
-NURBS_Evaluate(f32 T,
-               v2 *Controls,
-               f32 *Weights,
-               b_spline_knot_params KnotParams,
-               f32 *Knots)
+NURBS_EvaluateScalar(f32 T,
+                     v2 *Controls,
+                     f32 *Weights,
+                     b_spline_knot_params KnotParams,
+                     f32 *Knots)
 {
  temp_arena Temp = TempArena(0);
  
@@ -1241,14 +1219,13 @@ NURBS_Evaluate(f32 T,
  return Result;
 }
 
-// nurbs_simd4.c
 #include <stdlib.h>
 #include <stdio.h>
 #include <xmmintrin.h>  // SSE
 #include <emmintrin.h>  // SSE2 (if needed)
 
-// helper from scalar implementation
-static int find_span_scalar(u32 n, u32 m, const f32 *Knots, f32 t) {
+internal int
+find_span_scalar(u32 n, u32 m, f32 *Knots, f32 t) {
  u32 lo = m;
  u32 hi = n + m - 1;
  if (t >= Knots[hi + 1]) return hi;
@@ -1266,8 +1243,8 @@ static int find_span_scalar(u32 n, u32 m, const f32 *Knots, f32 t) {
  return (int)lo;
 }
 
-// Evaluate 4 parameter values at once (t4[0..3]) -> out[0..3]
-static void nurbs_eval_simd4(const v2 *P, const f32 *W, u32 n, u32 m, const f32 *Knots, const f32 t4[4], v2 out[4]) {
+internal void
+NURBS_EvaluateSSE(v2 *P, f32 *W, u32 n, u32 m, f32 *Knots, f32 t4[4], v2 out[4]) {
  u32 N_ctrl = n + m;
  
  // find spans per lane
@@ -1493,7 +1470,7 @@ CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u32 N)
 }
 
 internal f32
-CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N)
+CubicSplineEvaluateScalar(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N)
 {
  f32 Result = 0.0f;
  
@@ -1501,30 +1478,12 @@ CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N)
  else if (N == 1) { Result = Y[0]; } // NOTE(hbr): No interpolation in one point case
  else
  {
-#if 0
-  // NOTE(hbr): Binary search to find correct range.
-  u32 I = 0;
-  {
-   // NOTE(hbr): Maybe optimize to not use binary search
-   u32 Left = 0, Right = N-1;
-   while (Left + 1 < Right)
-   {
-    u32 Middle = (Left + Right) >> 1;
-    if (T >= Ti[Middle]) Left = Middle;
-    else Right = Middle;
-   }
-   Assert(T >= Ti[Left]);
-   Assert(Left == N-2 || T < Ti[Left+1]);
-   I = Left;
-  }
-#else
   // NOTE(hbr): Just linearly search
   u32 I = 0;
   for (I = N-2; I > 0; --I)
   {
    if (T >= Ti[I]) break;
   }
-#endif
   
   // NOTE(hbr): Maybe optimize Hi here and T-Ti
   f32 Term1 = M[I+1] / (6.0f * Hi(Ti, I)) * Cube(T - Ti[I]);
@@ -1536,63 +1495,6 @@ CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N)
  
  return Result;
 }
-
-#if 0
-
-// NOTE(hbr): O(n^2) time, O(n) memory versions for reference
-internal v2
-BezierCurveEvaluate(f32 T, v2 *P, u32 N)
-{
- temp_arena Temp = TempArena(0);
- 
- v2 *E = PushArrayNonZero(Temp.Arena, N, v2);
- MemoryCopy(E, P, N * SizeOf(E[0]));
- 
- for (u32 I = 1; I < N; ++I)
- {
-  for (u32 J = 0; J < N-I; ++J)
-  {
-   E[J] = (1-T)*E[J] + T*E[J+1];
-  }
- }
- 
- v2 Result = E[0];
- EndTemp(Temp);
- 
- return Result;
-}
-
-internal v2
-BezierCurveEvaluateRational(f32 T, v2 *P, f32 *W, u32 N)
-{
- temp_arena Temp = TempArena(0);
- 
- v2 *EP = PushArrayNonZero(Temp.Arena, N, v2);
- f32 *EW = PushArrayNonZero(Temp.Arena, N, f32);
- MemoryCopy(EP, P, N * SizeOf(EP[0]));
- MemoryCopy(EW, W, N * SizeOf(EW[0]));
- 
- for (u32 I = 1; I < N; ++I)
- {
-  for (u32 J = 0; J < N-I; ++J)
-  {
-   f32 EWJ = (1-T)*EW[J] + T*EW[J+1];
-   
-   f32 WL = EW[J] / EWJ;
-   f32 WR = EW[J+1] / EWJ;
-   
-   EP[J] = (1-T)*WL*EP[J] + T*WR*EP[J+1];
-   EW[J] = EWJ;
-  }
- }
- 
- v2 Result = EP[0];
- EndTemp(Temp);
- 
- return Result;
-}
-
-#else
 
 // NOTE(hbr): O(n) time, O(1) memory versions
 internal v2
@@ -1613,7 +1515,7 @@ BezierCurveEvaluate(f32 T, v2 *P, u32 N)
 }
 
 internal v2
-BezierCurveEvaluateRational_Scalar(f32 T, v2 *P, f32 *W, u32 N)
+BezierCurveRationalEvaluateScalar(f32 T, v2 *P, f32 *W, u32 N)
 {
  f32 H = 1.0f;
  f32 U = 1 - T;
@@ -1630,11 +1532,7 @@ BezierCurveEvaluateRational_Scalar(f32 T, v2 *P, f32 *W, u32 N)
 }
 
 internal void
-BezierCurveEvaluateRational_SSE(const float T[4],
-                                const v2 *P,
-                                const float *W,
-                                unsigned N,
-                                v2 out[4])
+BezierCurveRationalEvaluateSSE(f32 T[4], v2 *P, f32 *W, u32 N, v2 Out[4])
 {
  __m128 t  = _mm_loadu_ps(T);          // [T0 T1 T2 T3]
  __m128 u  = _mm_sub_ps(_mm_set1_ps(1.0f), t); // U = 1 - T
@@ -1674,20 +1572,15 @@ BezierCurveEvaluateRational_SSE(const float T[4],
  _mm_storeu_ps(out_y, Qy); // writes [Q0.Y Q1.Y Q2.Y Q3.Y]
  
  for (int lane = 0; lane < 4; ++lane) {
-  out[lane].X = out_x[lane];
-  out[lane].Y = out_y[lane];
+  Out[lane].X = out_x[lane];
+  Out[lane].Y = out_y[lane];
  }
 }
 
-// Evaluate rational Bézier curve at 8 parameters T[8] in parallel
 internal void
-BezierCurveEvaluateRational_AVX2(const float T[8],
-                                 const v2 *P,
-                                 const float *W,
-                                 unsigned N,
-                                 v2 out[8])
+BezierCurveRationalEvaluateAVX2(f32 T[8], v2 *P, f32 *W, u32 N, v2 Out[8])
 {
- __m256 t  = _mm256_loadu_ps(T);                    // [T0..T7]
+ __m256 t  = _mm256_loadu_ps(T);
  __m256 u  = _mm256_sub_ps(_mm256_set1_ps(1.0f), t); // U = 1 - T
  
  // H = 1
@@ -1697,8 +1590,7 @@ BezierCurveEvaluateRational_AVX2(const float T[8],
  __m256 Qx = _mm256_set1_ps(P[0].X);
  __m256 Qy = _mm256_set1_ps(P[0].Y);
  
- // Loop over K
- for (unsigned K = 1; K < N; ++K) {
+ for (u32 K = 1; K < N; ++K) {
   __m256 num = _mm256_mul_ps(H, t);                            // H * T
   num = _mm256_mul_ps(num, _mm256_set1_ps((float)(N - K)));    // * (N-K)
   num = _mm256_mul_ps(num, _mm256_set1_ps(W[K]));              // * W[K]
@@ -1724,23 +1616,18 @@ BezierCurveEvaluateRational_AVX2(const float T[8],
                      _mm256_mul_ps(H, Py));
  }
  
- // Store results back
  f32 out_x[8], out_y[8];
- _mm256_storeu_ps(out_x, Qx); // writes [Q0.X Q1.X ... Q7.X]
- _mm256_storeu_ps(out_y, Qy); // writes [Q0.Y Q1.Y ... Q7.Y]
+ _mm256_storeu_ps(out_x, Qx);
+ _mm256_storeu_ps(out_y, Qy);
  
- for (int lane = 0; lane < 8; ++lane) {
-  out[lane].X = out_x[lane];
-  out[lane].Y = out_y[lane];
+ for (u32 lane = 0; lane < 8; ++lane) {
+  Out[lane].X = out_x[lane];
+  Out[lane].Y = out_y[lane];
  }
 }
 
 internal void
-BezierCurveEvaluateRational_AVX512(const float T[16],
-                                   const v2 *P,
-                                   const float *W,
-                                   unsigned N,
-                                   v2 out[16])
+BezierCurveRational_Evaluate_AVX512(f32 T[16], v2 *P, f32 *W, u32 N, v2 Out[16])
 {
  __m512 t  = _mm512_loadu_ps(T);
  __m512 u  = _mm512_sub_ps(_mm512_set1_ps(1.0f), t);
@@ -1749,7 +1636,7 @@ BezierCurveEvaluateRational_AVX512(const float T[16],
  __m512 Qx = _mm512_set1_ps(P[0].X);
  __m512 Qy = _mm512_set1_ps(P[0].Y);
  
- for (unsigned K = 1; K < N; ++K) {
+ for (u32 K = 1; K < N; ++K) {
   __m512 num = _mm512_mul_ps(H, t);
   num = _mm512_mul_ps(num, _mm512_set1_ps((float)(N - K)));
   num = _mm512_mul_ps(num, _mm512_set1_ps(W[K]));
@@ -1771,21 +1658,18 @@ BezierCurveEvaluateRational_AVX512(const float T[16],
   Qy = _mm512_add_ps(_mm512_mul_ps(one_minus_H, Qy), _mm512_mul_ps(H, Py));
  }
  
- // Store results back
  f32 out_x[8], out_y[8];
  _mm512_storeu_ps(out_x, Qx);
  _mm512_storeu_ps(out_y, Qy);
  
- for (int lane = 0; lane < 8; ++lane) {
-  out[lane].X = out_x[lane];
-  out[lane].Y = out_y[lane];
+ for (u32 lane = 0; lane < 8; ++lane) {
+  Out[lane].X = out_x[lane];
+  Out[lane].Y = out_y[lane];
  }
 }
 
-#endif
-
 internal void
-BezierCurveElevateDegree(v2 *P, u32 N)
+BezierCurve_ElevateDegree(v2 *P, u32 N)
 {
  if (N > 0)
  {
@@ -1802,7 +1686,7 @@ BezierCurveElevateDegree(v2 *P, u32 N)
 }
 
 internal void
-BezierCurveElevateDegreeWeighted(v2 *P, f32 *W, u32 N)
+BezierCurveRational_EvelateDegree(v2 *P, f32 *W, u32 N)
 {
  if (N > 0)
  {
@@ -2146,35 +2030,6 @@ BezierCurveLowerDegreeUniformNormOptimal(v2 *P, f32 *W, u32 N)
 {
  if (N > 0)
  {
-  u32 n = N-1;
-  v2 alpha_n = CalculateAlphaN(P, N);
-  u64 n_fact = Factorial(n);
-  u64 two_n_fact = Factorial(2*n);
-  f32 n_fact_f = Cast(f32)n_fact;
-  f32 two_n_fact_f = Cast(f32)two_n_fact;
-  f32 c_outer = PowF32(2.0f, Cast(f32)(2*n)) * n_fact * n_fact / two_n_fact;
-  
-  for (u32 i = 0; i <= n; ++i)
-  {
-   f32 minus_one_pow = MinusOnePow(n - i);
-   f32 binom_n_2_i = GeneralBinomial(n - 0.5f, i);
-   f32 binom_n_2_n_i = GeneralBinomial(n - 0.5f, n - i);
-   f32 binom_n_i = GeneralBinomial(Cast(f32)n, i);
-   f32 beta_i = minus_one_pow * binom_n_2_i * binom_n_2_n_i / binom_n_i;
-   
-   P[i] = P[i] - alpha_n * c_outer * beta_i;
-  }
-  
-  bezier_lower_degree_inverse_degree_elevation Lower = BezierCurveLowerDegreeUsingInverseDegreeElevation(P, W, N);
-  Assert(!Lower.Failure);
- }
-}
-
-internal void
-BezierCurveLowerDegreeUniformNormOptimal2(v2 *P, f32 *W, u32 N)
-{
- if (N > 0)
- {
   u32 n = N - 1;
   
   // calculate c_n := (n!)^2 / (2n)!
@@ -2213,56 +2068,6 @@ BezierCurveLowerDegreeUniformNormOptimal2(v2 *P, f32 *W, u32 N)
   //Assert(!Lower.Failure);
  }
 }
-
-// TODO(hbr): this is not finished
-#if 0
-internal void
-BezierCurveLowerDegreeUniformNormOptimal(v2 *P, f32 *W, u32 N)
-{
- // TODO(hbr): remove this arena once got rid of allocations
- temp_arena Temp = TempArena(0);
- 
- // TODO(hbr): Don't allocate this, we can just overwrite P
- v2 *w = PushArrayNonZero(Temp.Arena, N, v2);
- 
- i32 n = Cast(i32)N-1;
- 
- // NOTE(hbr): Compute 1/2^n
- f32 Mult = 1.0f;
- for (i32 i = 0; i < n; ++i)
- {
-  Mult *= 0.5f;
- }
- v2 AlphaN = V2(0, 0);
- for (i32 k = n; k >= 0; --k)
- {
-  AlphaN += P[k] * Mult;
-  Mult *= -k;
-  Mult /= (n-k+1);
- }
- 
- // TODO(hbr): Don't allocate this from arena
- f32 *B = PushArrayNonZero(Temp.Arena, N, f32);
- 
- f32 Beta = 1.0f;
- for (i32 k = n; k >= 0; --k)
- {
-  B[k] = Beta;
-  Beta *= -(2*k-1);
-  Beta /= 2*n-2*k+1;
- }
- 
- for (i32 k = n; k >= 0; --k)
- {
-  w[k] = P[k] - AlphaN*B[k];
- }
- 
- // TODO(hbr): pass weights as well
- BezierCurveLowerDegree(w, W, N);
- 
- EndTemp(Temp);
-}
-#endif
 
 internal inline void
 CalculateBezierCubicPointAt(u32 N, v2 *P, cubic_bezier_point *Out, u32 At)

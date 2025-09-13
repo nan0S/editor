@@ -22,7 +22,7 @@ RenderDevConsoleUI(editor *Editor)
    UI_TextF(false, "String Store String Count: %u\n", GetCtx()->StrStore->StrCount);
    UI_TextF(false, "TransformAction: %p", Editor->SelectedEntityTransformState.TransformAction);
    
-   UI_SliderUnsigned(&DEBUG_Vars->MultithreadedEvaluationBlockSize, 1, 10000, StrLit("Multithreaded Evaluation Block Size"));
+   UI_SliderUnsigned(&DEBUG_Vars->MultiThreadedEvaluationBlockSize, 1, 10000, StrLit("MultiThreaded Evaluation Block Size"));
    
    UI_Checkbox(&DEBUG_Vars->NURBS_Benchmark, StrLit("NURBS Benchmark"));
    UI_Combo(SafeCastToPtr(DEBUG_Vars->NURBS_EvalMethod, u32), NURBS_Eval_Count, NURBS_Eval_Names, StrLit("NURBS Eval Method"));
@@ -32,6 +32,9 @@ RenderDevConsoleUI(editor *Editor)
    
    UI_Checkbox(&DEBUG_Vars->Bezier_Benchmark, StrLit("Bezier Benchmark"));
    UI_Combo(SafeCastToPtr(DEBUG_Vars->Bezier_EvalMethod, u32), Bezier_Eval_Count, Bezier_Eval_Names, StrLit("Bezier Eval Method"));
+   
+   UI_Checkbox(&DEBUG_Vars->CubicSpline_Benchmark, StrLit("Cubic Spline Benchmark"));
+   UI_Combo(SafeCastToPtr(DEBUG_Vars->CubicSpline_EvalMethod, u32), CubicSpline_Eval_Count, CubicSpline_Eval_Names, StrLit("Cubic Spline Eval Method"));
   }
   UI_EndWindow();
  }
@@ -190,7 +193,7 @@ DevUpdateAndRender(editor *Editor)
  
  if (!DEBUG_Vars->Initialized)
  {
-  // NOTE(hbr): Create NURBS-curve benchmark
+  // NOTE(hbr): Create NURBS curve benchmark
   {  
    entity *Entity = AddEntity(Editor);
    curve_params BSplineCurveParams = DefaultCurveParams();
@@ -209,7 +212,7 @@ DevUpdateAndRender(editor *Editor)
    DEBUG_Vars->NURBS_BenchmarkEntity = Entity;
   }
   
-  // NOTE(hbr): Create Parametric-curve benchmark
+  // NOTE(hbr): Create Parametric curve benchmark
   {
    entity *Entity = AddEntity(Editor);
    
@@ -226,7 +229,7 @@ DevUpdateAndRender(editor *Editor)
    DEBUG_Vars->Parametric_BenchmarkEntity = Entity;
   }
   
-  // NOTE(hbr): Create Bezier-curve benchmark
+  // NOTE(hbr): Create Bezier curve benchmark
   {
    entity *Entity = AddEntity(Editor);
    
@@ -243,7 +246,24 @@ DevUpdateAndRender(editor *Editor)
    DEBUG_Vars->Bezier_Benchmark = true;
   }
   
-  DEBUG_Vars->MultithreadedEvaluationBlockSize = 1024;
+  // NOTE(hbr): Create Cubic Spline curve benchmark
+  {
+   entity *Entity = AddEntity(Editor);
+   
+   curve_params CubicSplineCurveParams = DefaultCurveParams();
+   CubicSplineCurveParams.Type = Curve_CubicSpline;
+   CubicSplineCurveParams.CubicSpline = CubicSpline_Natural;
+   
+   InitEntityAsCurve(Entity, StrLit("Cubic Spline Benchmark"), CubicSplineCurveParams);
+   entity_with_modify_witness Witness = BeginEntityModify(Entity);
+   AppendMultipleControlPoints(Editor, &Witness, 100);
+   EndEntityModify(Witness);
+   
+   DEBUG_Vars->CubicSpline_BenchmarkEntity = Entity;
+   DEBUG_Vars->CubicSpline_Benchmark = true;
+  }
+  
+  DEBUG_Vars->MultiThreadedEvaluationBlockSize = 1024;
   
 #if BUILD_DEV
   DEBUG_Vars->ParametricCurveMaxTotalSamples = 50000;
@@ -259,6 +279,7 @@ DevUpdateAndRender(editor *Editor)
   Editor->Profiler.ReferenceMs = 1000.0f / 30.0f;
  }
  
+ SetEntityVisibility(DEBUG_Vars->NURBS_BenchmarkEntity, DEBUG_Vars->NURBS_Benchmark);
  if (DEBUG_Vars->NURBS_Benchmark)
  { 
   entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->NURBS_BenchmarkEntity);
@@ -266,6 +287,7 @@ DevUpdateAndRender(editor *Editor)
   EndEntityModify(Witness);
  }
  
+ SetEntityVisibility(DEBUG_Vars->Parametric_BenchmarkEntity, DEBUG_Vars->Parametric_Benchmark);
  if (DEBUG_Vars->Parametric_Benchmark)
  { 
   entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->Parametric_BenchmarkEntity);
@@ -273,9 +295,18 @@ DevUpdateAndRender(editor *Editor)
   EndEntityModify(Witness);
  }
  
+ SetEntityVisibility(DEBUG_Vars->Bezier_BenchmarkEntity, DEBUG_Vars->Bezier_Benchmark);
  if (DEBUG_Vars->Bezier_Benchmark)
  { 
   entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->Bezier_BenchmarkEntity);
+  MarkEntityModified(&Witness);
+  EndEntityModify(Witness);
+ }
+ 
+ SetEntityVisibility(DEBUG_Vars->CubicSpline_BenchmarkEntity, DEBUG_Vars->CubicSpline_Benchmark);
+ if (DEBUG_Vars->CubicSpline_Benchmark)
+ { 
+  entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->CubicSpline_BenchmarkEntity);
   MarkEntityModified(&Witness);
   EndEntityModify(Witness);
  }

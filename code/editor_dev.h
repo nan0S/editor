@@ -8,22 +8,21 @@ struct entity;
 
 enum nurbs_eval_method : u32
 {
- NURBS_Eval_BSpline_Evaluate,
- NURBS_Eval_NURBS_Evaluate,
- NURBS_Eval_SimdWith1Lane,
- NURBS_Eval_SimdWith4Lanes,
- NURBS_Eval_SimdMultithreaded,
- NURBS_Eval_SimdMultithreadedUnrolled,
+ NURBS_Eval_Scalar_UsingBSplineEvaluate,
+ NURBS_Eval_Scalar,
+ NURBS_Eval_ScalarButUsingSSE,
+ NURBS_Eval_SSE,
+ NURBS_Eval_SSE_MultiThreaded,
  NURBS_Eval_Count
 };
 global read_only string NURBS_Eval_Names[] = {
- StrLit("NURBS_Eval_NURBS_Evaluate"),
- StrLit("NURBS_Eval_BSpline_Evaluate"),
- StrLit("NURBS_Eval_SimdWith1Lane"),
- StrLit("NURBS_Eval_SimdWith4Lanes"),
- StrLit("NURBS_Eval_SimdMultithreaded"),
- StrLit("NURBS_Eval_SimdMultithreadedUnrolled"),
+ StrLit("NURBS_Eval_Scalar_UsingBSplineEvaluate"),
+ StrLit("NURBS_Eval_Scalar"),
+ StrLit("NURBS_Eval_ScalarButUsingSSE"),
+ StrLit("NURBS_Eval_SSE"),
+ StrLit("NURBS_Eval_SSE_MultiThreaded"),
 };
+StaticAssert(ArrayCount(NURBS_Eval_Names) == NURBS_Eval_Count, NURBS_Eval_Names_AllDefined);
 
 enum parametric_eval_method : u32
 {
@@ -35,6 +34,7 @@ global read_only string Parametric_Eval_Names[] = {
  StrLit("Parametric_Eval_SingleThreaded"),
  StrLit("Parametric_Eval_MultiThreaded"),
 };
+StaticAssert(ArrayCount(Parametric_Eval_Names) == Parametric_Eval_Count, Parametric_Eval_Names_AllDefined);
 
 enum bezier_eval_method : u32
 {
@@ -42,10 +42,10 @@ enum bezier_eval_method : u32
  Bezier_Eval_SSE,
  Bezier_Eval_AVX2,
  Bezier_Eval_AVX512,
- Bezier_Eval_SSE_Multithreaded,
- Bezier_Eval_AVX2_Multithreaded,
- Bezier_Eval_AVX512_Multithreaded,
- Bezier_Eval_Adaptive_Multithreaded,
+ Bezier_Eval_SSE_MultiThreaded,
+ Bezier_Eval_AVX2_MultiThreaded,
+ Bezier_Eval_AVX512_MultiThreaded,
+ Bezier_Eval_Adaptive_MultiThreaded,
  Bezier_Eval_Count
 };
 global read_only string Bezier_Eval_Names[] = {
@@ -53,12 +53,24 @@ global read_only string Bezier_Eval_Names[] = {
  StrLit("Bezier_Eval_SSE"),
  StrLit("Bezier_Eval_AVX2"),
  StrLit("Bezier_Eval_AVX512"),
- StrLit("Bezier_Eval_SSE_Multithreaded"),
- StrLit("Bezier_Eval_AVX2_Multithreaded"),
- StrLit("Bezier_Eval_AVX512_Multithreaded"),
- StrLit("Bezier_Eval_Adaptive_Multithreaded"),
+ StrLit("Bezier_Eval_SSE_MultiThreaded"),
+ StrLit("Bezier_Eval_AVX2_MultiThreaded"),
+ StrLit("Bezier_Eval_AVX512_MultiThreaded"),
+ StrLit("Bezier_Eval_Adaptive_MultiThreaded"),
 };
 StaticAssert(ArrayCount(Bezier_Eval_Names) == Bezier_Eval_Count, Bezier_Eval_Names_AllDefined);
+
+enum cubic_spline_eval_method : u32
+{
+ CubicSpline_Eval_Scalar,
+ CubicSpline_Eval_Scalar_MultiThreaded,
+ CubicSpline_Eval_Count
+};
+global read_only string CubicSpline_Eval_Names[] = {
+ StrLit("CubicSpline_Eval_Scalar"),
+ StrLit("CubicSpline_Eval_Scalar_MultiThreaded"),
+};
+StaticAssert(ArrayCount(CubicSpline_Eval_Names) == CubicSpline_Eval_Count, CubicSpline_Eval_Names_AllDefined);
 
 struct debug_vars
 {
@@ -76,7 +88,11 @@ struct debug_vars
  entity *Bezier_BenchmarkEntity;
  bezier_eval_method Bezier_EvalMethod;
  
- u32 MultithreadedEvaluationBlockSize;
+ b32 CubicSpline_Benchmark;
+ entity *CubicSpline_BenchmarkEntity;
+ cubic_spline_eval_method CubicSpline_EvalMethod;
+ 
+ u32 MultiThreadedEvaluationBlockSize;
  
  b32 DevConsole;
  b32 ParametricEquationDebugMode;

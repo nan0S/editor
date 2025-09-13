@@ -177,13 +177,12 @@ internal i32 GaussianElimination(f32 *A, f32 *B, u32 Rows, u32 Cols); // returns
 internal void EquidistantPoints(f32 *Ti, u32 N, f32 A, f32 B);
 internal void ChebychevPoints(f32 *Ti, u32 N);
 
-
 // Barycentric form polynomial
 internal void BarycentricOmega(f32 *Omega, f32 *Ti, u32 N);
 internal void BarycentricOmegaWerner(f32 *Omega, f32 *Ti, u32 N);
 internal void BarycentricOmegaEquidistant(f32 *Omega, f32 *Ti, u32 N);
 internal void BarycentricOmegaChebychev(f32 *Omega, u32 N);
-internal f32  BarycentricEvaluate(f32 T, f32 *Omega, f32 *Ti, f32 *Y, u32 N);
+internal f32 BarycentricEvaluate(f32 T, f32 *Omega, f32 *Ti, f32 *Y, u32 N);
 
 //- Newton form polynomial
 internal void NewtonBeta(f32 *Beta, f32 *Ti, f32 *Y, u32 N);
@@ -193,7 +192,7 @@ internal f32  NewtonEvaluate(f32 T, f32 *Beta, f32 *Ti, u32 N);
 //- Cubic Spline interpolation
 internal void CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u32 N);
 internal void CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u32 N);
-internal f32  CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N);
+internal f32  CubicSplineEvaluate_Scalar(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N);
 
 //- Bezier curve
 struct bezier_lower_degree_inverse_degree_elevation
@@ -219,10 +218,14 @@ union cubic_bezier_point
  v2 Ps[3];
 };
 
-internal v2                                           BezierCurveEvaluate(f32 T, v2 *P, u32 N);
-internal v2                                           BezierCurveEvaluateRational_Scalar(f32 T, v2 *P, f32 *W, u32 N);
+internal v2 BezierCurveEvaluate(f32 T, v2 *P, u32 N);
+internal void BezierCurveRationalEvaluateScalar(f32 T[1], v2 *P, f32 *W, u32 N, v2 Out[1]);
+internal void BezierCurveRationalEvaluateSSE(f32 T[4], v2 *P, f32 *W, u32 N, v2 Out[4]);
+internal void BezierCurveRationalEvaluateAVX2(f32 T[8], v2 *P, f32 *W, u32 N, v2 Out[8]);
+internal void BezierCurveRationalEvaluateAVX512(f32 T[16], v2 *P, f32 *W, u32 N, v2 Out[16]);
+
 internal void                                         BezierCurveElevateDegree(v2 *P, u32 N);
-internal void                                         BezierCurveElevateDegreeWeighted(v2 *P, f32 *W, u32 N);
+internal void                                         BezierCurveRationalEvelateDegree(v2 *P, f32 *W, u32 N);
 internal bezier_lower_degree_inverse_degree_elevation BezierCurveLowerDegreeUsingInverseDegreeElevation(v2 *P, f32 *W, u32 N);
 internal void                                         BezierCurveLowerDegreeOptimalUniformNorm(v2 *P, f32 *W, u32 N);
 internal void                                         BezierCubicCalculateAllControlPoints(u32 N, v2 *P, cubic_bezier_point *Out);
@@ -262,6 +265,10 @@ internal void                   BSplineKnotsPeriodicExtension(b_spline_knot_para
 internal v2                     BSplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *Knots);
 internal b_spline_degree_bounds BSplineDegreeBounds(u32 ControlPointCount);
 internal b_spline_knot_params   BSplineKnotParamsFromDegree(u32 Degree, u32 ControlPointCount);
+
+// TODO(hbr): Inconsistent naming of variables but I don't have time now to change that
+internal v2 NURBS_EvaluateScalar(f32 T, v2 *Controls, f32 *Weights, b_spline_knot_params KnotParams, f32 *Knots);
+internal void NURBS_EvaluateSSE(v2 *P, f32 *W, u32 n, u32 m, f32 *Knots, f32 t4[4], v2 out[4]);
 
 //~ Collisions, intersections, geometry
 struct line_intersection

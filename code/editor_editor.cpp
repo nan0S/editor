@@ -877,9 +877,9 @@ ElevateBezierCurveDegree(editor *Editor, entity *Entity)
  tracked_action *ModifyAction = BeginModify.ModifyAction;
  if (ModifyPoints.PointCount == PointCount + 1)
  {
-  BezierCurveElevateDegreeWeighted(ModifyPoints.ControlPoints,
-                                   ModifyPoints.Weights,
-                                   PointCount);
+  BezierCurveRational_EvelateDegree(ModifyPoints.ControlPoints,
+                                    ModifyPoints.Weights,
+                                    PointCount);
  }
  EndModifyCurvePointsTracked(Editor, ModifyAction, ModifyPoints);
  EndEntityModify(Witness);
@@ -4339,6 +4339,131 @@ CalcPolynomial(v2 *Controls, u32 PointCount,
 }
 
 internal void
+CalcCubicSpline_Scalar(f32 *Xs,
+                       f32 *Ys,
+                       u32 PointCount,
+                       f32 *Ti,
+                       f32 *Mx,
+                       f32 *My,
+                       u32 SampleCount,
+                       f32 *Ts,
+                       v2 *OutSamples)
+{
+ ForEachIndex(SampleIndex, SampleCount)
+ {
+  f32 T = Ts[SampleIndex];
+  f32 X = CubicSplineEvaluateScalar(T, Mx, Ti, Xs, PointCount);
+  f32 Y = CubicSplineEvaluateScalar(T, My, Ti, Ys, PointCount);
+  OutSamples[SampleIndex] = V2(X, Y);
+ }
+}
+
+struct calc_cubic_spline_work
+{
+ f32 *Xs;
+ f32 *Ys;
+ u32 PointCount;
+ f32 *Ti;
+ f32 *Mx;
+ f32 *My;
+ u32 SampleCount;
+ f32 *Ts;
+ v2 *OutSamples;
+};
+
+internal void
+CalcCubicSpline_Work(void *UserData)
+{
+ calc_cubic_spline_work *Work = Cast(calc_cubic_spline_work *)UserData;
+ CalcCubicSpline_Scalar(Work->Xs,
+                        Work->Ys,
+                        Work->PointCount,
+                        Work->Ti,
+                        Work->Mx,
+                        Work->My,
+                        Work->SampleCount,
+                        Work->Ts,
+                        Work->OutSamples);
+}
+
+struct work_queue_blocks
+{
+ u32 BlockCount;
+ u32 BlockSize;
+};
+internal work_queue_blocks
+WorkQueueCalculateBlocks(work_queue *WorkQueue, u32 ComputeCount, u32 RequestBlockSize)
+{
+ u32 RequestBlockCount = (ComputeCount + RequestBlockSize - 1) / RequestBlockSize;
+ u32 FreeEntries = Platform.WorkQueueFreeEntryCount(WorkQueue);
+ u32 ActualBlockCount = Min(RequestBlockCount, FreeEntries);
+ u32 ActualBlockSize = (ComputeCount + ActualBlockCount - 1) / ActualBlockCount;
+ 
+ work_queue_blocks Result = {};
+ Result.BlockCount = ActualBlockCount;
+ Result.BlockSize = ActualBlockSize;
+ Assert(ActualBlockCount * ActualBlockSize >= ComputeCount);
+ Assert((ActualBlockCount - 1) * ActualBlockSize < ComputeCount || ActualBlockCount == 0);
+ 
+ return Result;
+}
+
+internal void
+CalcCubicSpline_MultiThreaded(f32 *Xs,
+                              f32 *Ys,
+                              u32 PointCount,
+                              f32 *Ti,
+                              f32 *Mx,
+                              f32 *My,
+                              u32 SampleCount,
+                              f32 *Ts,
+                              v2 *OutSamples)
+{
+ ProfileFunctionBegin();
+ 
+ temp_arena Temp = TempArena(0);
+ work_queue *WorkQueue = GetCtx()->HighPriorityQueue;
+ 
+ // NOTE(hbr): 256 selected experimentally
+ work_queue_blocks Blocks = WorkQueueCalculateBlocks(WorkQueue, SampleCount, 256);
+ u32 BlockCount = Blocks.BlockCount;
+ u32 BlockSize = Blocks.BlockSize;
+ u32 SamplesLeft = SampleCount;
+ f32 *TsAt = Ts;
+ v2 *OutSamplesAt = OutSamples;
+ 
+ calc_cubic_spline_work *Works = PushArray(Temp.Arena, BlockCount, calc_cubic_spline_work);
+ 
+ ForEachIndex(BlockIndex, BlockCount)
+ {
+  u32 BlockSampleCount = Min(SamplesLeft, BlockSize);
+  
+  calc_cubic_spline_work *Work = Works + BlockIndex;
+  Work->Xs = Xs;
+  Work->Ys = Ys;
+  Work->PointCount = PointCount;
+  Work->Ti = Ti;
+  Work->Mx = Mx;
+  Work->My = My;
+  Work->SampleCount = BlockSampleCount;
+  Work->Ts = TsAt;
+  Work->OutSamples = OutSamplesAt;
+  
+  Platform.WorkQueueAddEntry(WorkQueue, CalcCubicSpline_Work, Work);
+  
+  TsAt += BlockSampleCount;
+  OutSamplesAt += BlockSampleCount;
+  SamplesLeft -= BlockSampleCount;
+ }
+ 
+ Platform.WorkQueueCompleteAllWork(WorkQueue);
+ 
+ EndTemp(Temp);
+ 
+ ProfileEnd();
+}
+
+internal void
 CalcCubicSpline(v2 *Controls,
                 u32 PointCount,
                 cubic_spline_type Spline,
@@ -4382,21 +4507,26 @@ CalcCubicSpline(v2 *Controls,
    case CubicSpline_Count: InvalidPath;
   }
   
-  f32 Begin = Ti[0];
-  f32 End = Ti[PointCount - 1];
-  f32 T = Begin;
-  f32 Delta = (End - Begin) / (SampleCount - 1);
-  
-  for (u32 OutputIndex = 0;
-       OutputIndex < SampleCount;
-       ++OutputIndex)
+  f32 T = Ti[0];
+  f32 Delta_T = (Ti[PointCount - 1] - Ti[0]) / (SampleCount - 1);
+  f32 *Ts = PushArrayNonZero(Temp.Arena, SampleCount, f32);
+  ForEachIndex(SampleIndex, SampleCount)
   {
+   Ts[SampleIndex] = T;
+   T += Delta_T;
+  }
+  
+  switch (DEBUG_Vars->CubicSpline_EvalMethod)
+  {
+   case CubicSpline_Eval_Scalar: {
+    CalcCubicSpline_Scalar(SOA.Xs, SOA.Ys, PointCount, Ti, Mx, My, SampleCount, Ts, OutSamples);
+   }break;
    
-   f32 X = CubicSplineEvaluate(T, Mx, Ti, SOA.Xs, PointCount);
-   f32 Y = CubicSplineEvaluate(T, My, Ti, SOA.Ys, PointCount);
-   OutSamples[OutputIndex] = V2(X, Y);
+   case CubicSpline_Eval_Scalar_MultiThreaded: {
+    CalcCubicSpline_MultiThreaded(SOA.Xs, SOA.Ys, PointCount, Ti, Mx, My, SampleCount, Ts, OutSamples);
+   }break;
    
-   T += Delta;
+   case CubicSpline_Eval_Count: InvalidPath;
   }
   
   EndTemp(Temp);
@@ -4414,7 +4544,7 @@ CalcBezierRational_Scalar(v2 *Controls,
  ForEachIndex(SampleIndex, SampleCount)
  {
   f32 T = Ts[SampleIndex];
-  OutSamples[SampleIndex] = BezierCurveEvaluateRational_Scalar(T, Controls, Weights, PointCount);
+  OutSamples[SampleIndex] = BezierCurveRationalEvaluateScalar(T, Controls, Weights, PointCount);
  }
 }
 
@@ -4440,11 +4570,11 @@ CalcBezierRational_SSE(v2 *Controls,
   }
   v2 Out4[4] = {};
   
-  BezierCurveEvaluateRational_SSE(T4,
-                                  Controls,
-                                  Weights,
-                                  PointCount,
-                                  Out4);
+  BezierCurveRationalEvaluateSSE(T4,
+                                 Controls,
+                                 Weights,
+                                 PointCount,
+                                 Out4);
   
   for (u32 J = 0; J < 4; ++J)
   {
@@ -4480,11 +4610,11 @@ CalcBezierRational_AVX2(v2 *Controls,
   }
   v2 Out8[8] = {};
   
-  BezierCurveEvaluateRational_AVX2(T8,
-                                   Controls,
-                                   Weights,
-                                   PointCount,
-                                   Out8);
+  BezierCurveRationalEvaluateAVX2(T8,
+                                  Controls,
+                                  Weights,
+                                  PointCount,
+                                  Out8);
   
   for (u32 J = 0; J < 8; ++J)
   {
@@ -4520,11 +4650,11 @@ CalcBezierRational_AVX512(v2 *Controls,
   }
   v2 Out16[16] = {};
   
-  BezierCurveEvaluateRational_AVX512(T16,
-                                     Controls,
-                                     Weights,
-                                     PointCount,
-                                     Out16);
+  BezierCurveRational_Evaluate_AVX512(T16,
+                                      Controls,
+                                      Weights,
+                                      PointCount,
+                                      Out16);
   
   for (u32 J = 0; J < 16; ++J)
   {
@@ -4596,30 +4726,8 @@ CalcBezierRational_AVX512_Work(void *UserData)
                            Work->OutSamples);
 }
 
-struct work_queue_blocks
-{
- u32 BlockCount;
- u32 BlockSize;
-};
-internal work_queue_blocks
-WorkQueueCalculateBlocks(work_queue *WorkQueue, u32 ComputeCount, u32 RequestBlockSize)
-{
- u32 RequestBlockCount = (ComputeCount + RequestBlockSize - 1) / RequestBlockSize;
- u32 FreeEntries = Platform.WorkQueueFreeEntryCount(WorkQueue);
- u32 ActualBlockCount = Min(RequestBlockCount, FreeEntries);
- u32 ActualBlockSize = (ComputeCount + ActualBlockCount - 1) / ActualBlockCount;
- 
- work_queue_blocks Result = {};
- Result.BlockCount = ActualBlockCount;
- Result.BlockSize = ActualBlockSize;
- Assert(ActualBlockCount * ActualBlockSize >= ComputeCount);
- Assert((ActualBlockCount - 1) * ActualBlockSize < ComputeCount || ActualBlockCount == 0);
- 
- return Result;
-}
-
 internal void
-CalcBezierRational_Multithreaded(v2 *Controls,
+CalcBezierRational_MultiThreaded(v2 *Controls,
                                  f32 *Weights,
                                  u32 PointCount,
                                  u32 SampleCount,
@@ -4705,19 +4813,19 @@ CalcRationalBezier(v2 *Controls,
    CalcBezierRational_AVX512(Controls, Weights, PointCount, SampleCount, Ts, OutSamples);
   }break;
   
-  case Bezier_Eval_SSE_Multithreaded: {
-   CalcBezierRational_Multithreaded(Controls, Weights, PointCount, SampleCount, Ts, OutSamples, CalcBezierRational_SSE_Work);
+  case Bezier_Eval_SSE_MultiThreaded: {
+   CalcBezierRational_MultiThreaded(Controls, Weights, PointCount, SampleCount, Ts, OutSamples, CalcBezierRational_SSE_Work);
   }break;
   
-  case Bezier_Eval_AVX2_Multithreaded: {
-   CalcBezierRational_Multithreaded(Controls, Weights, PointCount, SampleCount, Ts, OutSamples, CalcBezierRational_AVX2_Work);
+  case Bezier_Eval_AVX2_MultiThreaded: {
+   CalcBezierRational_MultiThreaded(Controls, Weights, PointCount, SampleCount, Ts, OutSamples, CalcBezierRational_AVX2_Work);
   }break;
   
-  case Bezier_Eval_AVX512_Multithreaded: {
-   CalcBezierRational_Multithreaded(Controls, Weights, PointCount, SampleCount, Ts, OutSamples, CalcBezierRational_AVX512_Work);
+  case Bezier_Eval_AVX512_MultiThreaded: {
+   CalcBezierRational_MultiThreaded(Controls, Weights, PointCount, SampleCount, Ts, OutSamples, CalcBezierRational_AVX512_Work);
   }break;
   
-  case Bezier_Eval_Adaptive_Multithreaded: {
+  case Bezier_Eval_Adaptive_MultiThreaded: {
    work_queue_func *EvalFunc = 0;
    
    instruction_set_flags Flags = Platform.InstructionSetSupport();
@@ -4727,7 +4835,7 @@ CalcRationalBezier(v2 *Controls,
    else if (Flags & InstructionSet_SSE) EvalFunc = CalcBezierRational_SSE_Work;
    else EvalFunc = CalcBezierRational_Scalar_Work;
    
-   CalcBezierRational_Multithreaded(Controls, Weights, PointCount, SampleCount, Ts, OutSamples, EvalFunc);
+   CalcBezierRational_MultiThreaded(Controls, Weights, PointCount, SampleCount, Ts, OutSamples, EvalFunc);
   }break;
   
   case Bezier_Eval_Count: InvalidPath;
@@ -4775,13 +4883,13 @@ PartitionKnotIndexToKnotIndex(u32 PartitionKnotIndex, b_spline_knot_params KnotP
 }
 
 internal void
-Calc_NURBS_BSpline_Evaluate(v2 *Controls,
-                            f32 *Weights,
-                            b_spline_knot_params KnotParams,
-                            f32 *Knots,
-                            u32 SampleCount,
-                            f32 *Ts,
-                            v2 *OutSamples)
+CalcNURBS_ScalarUsingBSplineEvaluate(v2 *Controls,
+                                     f32 *Weights,
+                                     b_spline_knot_params KnotParams,
+                                     f32 *Knots,
+                                     u32 SampleCount,
+                                     f32 *Ts,
+                                     v2 *OutSamples)
 {
  ProfileFunctionBegin();
  
@@ -4797,74 +4905,63 @@ Calc_NURBS_BSpline_Evaluate(v2 *Controls,
 }
 
 internal void
-Calc_NURBS_NURBS_Evaluate(v2 *Controls,
-                          f32 *Weights,
-                          b_spline_knot_params KnotParams,
-                          f32 *Knots,
-                          u32 SampleCount,
-                          f32 *Ts,
-                          v2 *OutSamples)
+CalcNURBS_Scalar(v2 *Controls,
+                 f32 *Weights,
+                 b_spline_knot_params KnotParams,
+                 f32 *Knots,
+                 u32 SampleCount,
+                 f32 *Ts,
+                 v2 *OutSamples)
 {
- ProfileFunctionBegin();
- 
  for (u32 SampleIndex = 0;
       SampleIndex < SampleCount;
       ++SampleIndex)
  {
   f32 T = Ts[SampleIndex];
-  OutSamples[SampleIndex] = NURBS_Evaluate(T, Controls, Weights, KnotParams, Knots);
+  OutSamples[SampleIndex] = NURBS_EvaluateScalar(T, Controls, Weights, KnotParams, Knots);
  }
- 
- ProfileEnd();
 }
 
+
 internal void
-Calc_NURBS_SimdWith1Lane(v2 *Controls,
-                         f32 *Weights,
-                         b_spline_knot_params KnotParams,
-                         f32 *Knots,
-                         u32 SampleCount,
-                         f32 *Ts,
-                         v2 *OutSamples)
+CalcNURBS_ScalarButUsingSSE(v2 *Controls,
+                            f32 *Weights,
+                            b_spline_knot_params KnotParams,
+                            f32 *Knots,
+                            u32 SampleCount,
+                            f32 *Ts,
+                            v2 *OutSamples)
 {
- ProfileFunctionBegin();
- 
  for (u32 SampleIndex = 0;
       SampleIndex < SampleCount;
       ++SampleIndex)
  {
-  v2 Out4[4] = {};
+  f32 T = Ts[SampleIndex];
   f32 T4[4] = {};
-  T4[0] = Ts[SampleIndex];
-  nurbs_eval_simd4(Controls,
-                   Weights,
-                   KnotParams.PartitionSize - 1,
-                   KnotParams.Degree,
-                   Knots,
-                   T4,
-                   Out4);
+  T4[0] = T;
+  v2 Out4[4] = {};
+  
+  NURBS_EvaluateSSE(Controls,
+                    Weights,
+                    KnotParams.PartitionSize - 1,
+                    KnotParams.Degree,
+                    Knots,
+                    T4,
+                    Out4);
+  
   OutSamples[SampleIndex] = Out4[0];
  }
- 
- ProfileEnd();
 }
 
-
 internal void
-Calc_NURBS_SimdWith4Lanes(v2 *Controls,
-                          f32 *Weights,
-                          b_spline_knot_params KnotParams,
-                          f32 *Knots,
-                          u32 SampleCount,
-                          f32 *Ts,
-                          v2 *OutSamples,
-                          b32 Profile)
+CalcNURBS_SSE(v2 *Controls,
+              f32 *Weights,
+              b_spline_knot_params KnotParams,
+              f32 *Knots,
+              u32 SampleCount,
+              f32 *Ts,
+              v2 *OutSamples)
 {
- if (Profile)
- {
-  ProfileFunctionBegin();
- }
- 
  u32 Blocks = (SampleCount + 3) / 4;
  u32 I = 0;
  while (Blocks--)
@@ -4879,13 +4976,13 @@ Calc_NURBS_SimdWith4Lanes(v2 *Controls,
   }
   v2 Out4[4] = {};
   
-  nurbs_eval_simd4(Controls,
-                   Weights,
-                   KnotParams.PartitionSize - 1,
-                   KnotParams.Degree,
-                   Knots,
-                   T4,
-                   Out4);
+  NURBS_EvaluateSSE(Controls,
+                    Weights,
+                    KnotParams.PartitionSize - 1,
+                    KnotParams.Degree,
+                    Knots,
+                    T4,
+                    Out4);
   
   for (u32 J = 0; J < 4; ++J)
   {
@@ -4896,128 +4993,6 @@ Calc_NURBS_SimdWith4Lanes(v2 *Controls,
   }
   
   I += 4;
- }
- 
- if (Profile)
- {
-  ProfileEnd();
- }
-}
-
-internal void
-Calc_NURBS_SimdWith4LanesUnrolled(v2 *Controls,
-                                  f32 *Weights,
-                                  b_spline_knot_params KnotParams,
-                                  f32 *Knots,
-                                  u32 SampleCount,
-                                  f32 *Ts,
-                                  v2 *OutSamples,
-                                  b32 Profile)
-{
- if (Profile)
- {
-  ProfileFunctionBegin();
- }
- 
- u32 Blocks = (SampleCount + 3) / 4;
- u32 I = 0;
- while (Blocks)
- {
-  u32 I0 = I + 0*4;
-  u32 I1 = I + 1*4;
-  u32 I2 = I + 2*4;
-  u32 I3 = I + 3*4;
-  
-  f32 T4_0[4] = {};
-  f32 T4_1[4] = {};
-  f32 T4_2[4] = {};
-  f32 T4_3[4] = {};
-  
-  for (u32 J = 0; J < 4; ++J)
-  {
-   if (I0 + J < SampleCount)
-   {
-    T4_0[J] = Ts[I0 + J];
-   }
-   if (I1 + J < SampleCount)
-   {
-    T4_1[J] = Ts[I1 + J];
-   }
-   if (I2 + J < SampleCount)
-   {
-    T4_2[J] = Ts[I2 + J];
-   }
-   if (I3 + J < SampleCount)
-   {
-    T4_3[J] = Ts[I3 + J];
-   }
-  }
-  
-  v2 Out4_0[4] = {};
-  v2 Out4_1[4] = {};
-  v2 Out4_2[4] = {};
-  v2 Out4_3[4] = {};
-  
-  nurbs_eval_simd4(Controls,
-                   Weights,
-                   KnotParams.PartitionSize - 1,
-                   KnotParams.Degree,
-                   Knots,
-                   T4_0,
-                   Out4_0);
-  
-  nurbs_eval_simd4(Controls,
-                   Weights,
-                   KnotParams.PartitionSize - 1,
-                   KnotParams.Degree,
-                   Knots,
-                   T4_1,
-                   Out4_1);
-  
-  nurbs_eval_simd4(Controls,
-                   Weights,
-                   KnotParams.PartitionSize - 1,
-                   KnotParams.Degree,
-                   Knots,
-                   T4_2,
-                   Out4_2);
-  
-  nurbs_eval_simd4(Controls,
-                   Weights,
-                   KnotParams.PartitionSize - 1,
-                   KnotParams.Degree,
-                   Knots,
-                   T4_3,
-                   Out4_3);
-  
-  for (u32 J = 0; J < 4; ++J)
-  {
-   if (I0 + J < SampleCount)
-   {
-    OutSamples[I0 + J] = Out4_0[J];
-   }
-   if (I1 + J < SampleCount)
-   {
-    OutSamples[I1 + J] = Out4_1[J];
-   }
-   if (I2 + J < SampleCount)
-   {
-    OutSamples[I2 + J] = Out4_2[J];
-   }
-   if (I3 + J < SampleCount)
-   {
-    OutSamples[I3 + J] = Out4_3[J];
-   }
-  }
-  
-  I += 16;
-  if (Blocks >= 4) Blocks -= 4;
-  else Blocks = 0;
- }
- 
- if (Profile)
- {
-  ProfileEnd();
  }
 }
 
@@ -5033,45 +5008,28 @@ struct calc_nurbs_work
 };
 
 internal void
-Calc_NURBS_SimdWork(void *UserData)
+CalcNURBS_SSE_Work(void *UserData)
 {
  calc_nurbs_work *Work = Cast(calc_nurbs_work *)UserData;
- Calc_NURBS_SimdWith4Lanes(Work->Controls,
-                           Work->Weights,
-                           Work->KnotParams,
-                           Work->Knots,
-                           Work->SampleCount,
-                           Work->Ts,
-                           Work->OutSamples,
-                           false);
+ CalcNURBS_SSE(Work->Controls,
+               Work->Weights,
+               Work->KnotParams,
+               Work->Knots,
+               Work->SampleCount,
+               Work->Ts,
+               Work->OutSamples);
 }
 
 internal void
-Calc_NURBS_SimdUnrolledWork(void *UserData)
+CalcNURBS_MultiThreaded(v2 *Controls,
+                        f32 *Weights,
+                        b_spline_knot_params KnotParams,
+                        f32 *Knots,
+                        u32 SampleCount,
+                        f32 *Ts,
+                        v2 *OutSamples,
+                        work_queue_func *CalcNURBS_Work)
 {
- calc_nurbs_work *Work = Cast(calc_nurbs_work *)UserData;
- Calc_NURBS_SimdWith4LanesUnrolled(Work->Controls,
-                                   Work->Weights,
-                                   Work->KnotParams,
-                                   Work->Knots,
-                                   Work->SampleCount,
-                                   Work->Ts,
-                                   Work->OutSamples,
-                                   false);
-}
-
-internal void
-Calc_NURBS_SimdMultithreaded(v2 *Controls,
-                             f32 *Weights,
-                             b_spline_knot_params KnotParams,
-                             f32 *Knots,
-                             u32 SampleCount,
-                             f32 *Ts,
-                             v2 *OutSamples,
-                             work_queue_func *Calc_NURBS_Work)
-{
- ProfileFunctionBegin();
- 
  temp_arena Temp = TempArena(0);
  work_queue *WorkQueue = GetCtx()->HighPriorityQueue;
  
@@ -5100,7 +5058,7 @@ Calc_NURBS_SimdMultithreaded(v2 *Controls,
   Work->Ts = TsAt;
   Work->OutSamples = OutSamplesAt;
   
-  Platform.WorkQueueAddEntry(WorkQueue, Calc_NURBS_Work, Work);
+  Platform.WorkQueueAddEntry(WorkQueue, CalcNURBS_Work, Work);
   
   TsAt += BlockSampleCount;
   OutSamplesAt += BlockSampleCount;
@@ -5112,86 +5070,45 @@ Calc_NURBS_SimdMultithreaded(v2 *Controls,
  Platform.WorkQueueCompleteAllWork(WorkQueue);
  
  EndTemp(Temp);
- 
- ProfileEnd();
 }
 
 internal void
-Calc_NURBS(v2 *Controls,
-           f32 *Weights,
-           b_spline_knot_params KnotParams,
-           f32 *Knots,
-           u32 SampleCount,
-           f32 *Ts,
-           v2 *OutSamples)
+CalcNURBS(v2 *Controls,
+          f32 *Weights,
+          b_spline_knot_params KnotParams,
+          f32 *Knots,
+          u32 SampleCount,
+          f32 *Ts,
+          v2 *OutSamples)
 {
+ ProfileFunctionBegin();
+ 
  switch (DEBUG_Vars->NURBS_EvalMethod)
  {
-  case NURBS_Eval_BSpline_Evaluate: {
-   Calc_NURBS_BSpline_Evaluate(Controls,
-                               Weights,
-                               KnotParams,
-                               Knots,
-                               SampleCount,
-                               Ts,
-                               OutSamples);
+  case NURBS_Eval_Scalar_UsingBSplineEvaluate: {
+   CalcNURBS_ScalarUsingBSplineEvaluate(Controls, Weights, KnotParams, Knots, SampleCount, Ts, OutSamples);
   }break;
   
-  case NURBS_Eval_NURBS_Evaluate: {
-   Calc_NURBS_NURBS_Evaluate(Controls,
-                             Weights,
-                             KnotParams,
-                             Knots,
-                             SampleCount,
-                             Ts,
-                             OutSamples);
+  case NURBS_Eval_Scalar: {
+   CalcNURBS_Scalar(Controls, Weights, KnotParams, Knots, SampleCount, Ts, OutSamples);
   }break;
   
-  case NURBS_Eval_SimdWith1Lane: {
-   Calc_NURBS_SimdWith1Lane(Controls,
-                            Weights,
-                            KnotParams,
-                            Knots,
-                            SampleCount,
-                            Ts,
-                            OutSamples);
+  case NURBS_Eval_ScalarButUsingSSE: {
+   CalcNURBS_ScalarButUsingSSE(Controls, Weights, KnotParams, Knots, SampleCount, Ts, OutSamples);
   }break;
   
-  case NURBS_Eval_SimdWith4Lanes: {
-   Calc_NURBS_SimdWith4Lanes(Controls,
-                             Weights,
-                             KnotParams,
-                             Knots,
-                             SampleCount,
-                             Ts,
-                             OutSamples,
-                             true);
+  case NURBS_Eval_SSE: {
+   CalcNURBS_SSE(Controls, Weights, KnotParams, Knots, SampleCount, Ts, OutSamples);
   }break;
   
-  case NURBS_Eval_SimdMultithreaded: {
-   Calc_NURBS_SimdMultithreaded(Controls,
-                                Weights,
-                                KnotParams,
-                                Knots,
-                                SampleCount,
-                                Ts,
-                                OutSamples,
-                                Calc_NURBS_SimdWork);
-  }break;
-  
-  case NURBS_Eval_SimdMultithreadedUnrolled: {
-   Calc_NURBS_SimdMultithreaded(Controls,
-                                Weights,
-                                KnotParams,
-                                Knots,
-                                SampleCount,
-                                Ts,
-                                OutSamples,
-                                Calc_NURBS_SimdUnrolledWork);
+  case NURBS_Eval_SSE_MultiThreaded: {
+   CalcNURBS_MultiThreaded(Controls, Weights, KnotParams, Knots, SampleCount, Ts, OutSamples, CalcNURBS_SSE_Work);
   }break;
   
   case NURBS_Eval_Count: InvalidPath;
  }
+ 
+ ProfileEnd();
 }
 
 internal void
@@ -5431,13 +5348,13 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
    Points->BSplineKnotCount = KnotParams.KnotCount;
    
    v2 *PartitionKnots = PushArrayNonZero(Curve->ComputeArena, PartitionSize, v2);
-   Calc_NURBS(Controls,
-              Weights,
-              KnotParams,
-              BSplineKnots,
-              PartitionSize,
-              BSplineKnots + Degree,
-              PartitionKnots);
+   CalcNURBS(Controls,
+             Weights,
+             KnotParams,
+             BSplineKnots,
+             PartitionSize,
+             BSplineKnots + Degree,
+             PartitionKnots);
    
    Curve->BSplinePartitionKnots = PartitionKnots;
    
@@ -5449,13 +5366,13 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
     Ts[SampleIndex] = T;
     T += Delta_T;
    }
-   Calc_NURBS(Controls,
-              Weights,
-              KnotParams,
-              BSplineKnots,
-              SampleCount,
-              Ts,
-              OutSamples);
+   CalcNURBS(Controls,
+             Weights,
+             KnotParams,
+             BSplineKnots,
+             SampleCount,
+             Ts,
+             OutSamples);
   }break;
   
   case Curve_Parametric: {CalcParametric(ComputeArena, Parametric, SampleCount, OutSamples);}break;
@@ -5517,7 +5434,7 @@ RecomputeCurve(curve *Curve)
   {
    f32 Fraction = Tracking->Fraction;
    
-   v2 LocalSpaceTrackedPoint = BezierCurveEvaluateRational_Scalar(Fraction, Controls, Weights, ControlCount);
+   v2 LocalSpaceTrackedPoint = BezierCurveRationalEvaluateScalar(Fraction, Controls, Weights, ControlCount);
    Tracking->LocalSpaceTrackedPoint = LocalSpaceTrackedPoint;
    
    if (Tracking->Type == PointTrackingAlongCurve_DeCasteljauVisualization)

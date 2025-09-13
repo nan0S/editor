@@ -251,7 +251,7 @@ UpdateAndRenderDegreeLowering(editor *Editor, rendering_entity_handle Handle)
          }break;
          
          case BezierCurveDegreeLoweringMethod_UniformNormOptimal: {
-          BezierCurveLowerDegreeUniformNormOptimal2(ModifyPoints.ControlPoints, ModifyPoints.Weights, PointCount);
+          BezierCurveLowerDegreeUniformNormOptimal(ModifyPoints.ControlPoints, ModifyPoints.Weights, PointCount);
           Lowering->Stage = BezierCurveDegreeReductionStage_Succeeded;
          }break;
          

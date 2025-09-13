@@ -21,13 +21,17 @@ RenderDevConsoleUI(editor *Editor)
    UI_TextF(false, "DrawnGridLinesCount=%u", DEBUG_Vars->DrawnGridLinesCount);
    UI_TextF(false, "String Store String Count: %u\n", GetCtx()->StrStore->StrCount);
    UI_TextF(false, "TransformAction: %p", Editor->SelectedEntityTransformState.TransformAction);
-   UI_Combo(SafeCastToPtr(DEBUG_Vars->NURBS_EvalMethod, u32), NURBS_Eval_Count, NURBS_Eval_Names, StrLit("NURBS Eval Method"));
-   UI_SliderUnsigned(&DEBUG_Vars->NURBS_MultithreadedEvaluationBlockSize, 1, 10000, StrLit("NURBS Multithreaded Evaluation Block Size"));
+   
+   UI_SliderUnsigned(&DEBUG_Vars->MultithreadedEvaluationBlockSize, 1, 10000, StrLit("Multithreaded Evaluation Block Size"));
+   
    UI_Checkbox(&DEBUG_Vars->NURBS_Benchmark, StrLit("NURBS Benchmark"));
+   UI_Combo(SafeCastToPtr(DEBUG_Vars->NURBS_EvalMethod, u32), NURBS_Eval_Count, NURBS_Eval_Names, StrLit("NURBS Eval Method"));
+   
    UI_Checkbox(&DEBUG_Vars->Parametric_Benchmark, StrLit("Parametric Benchmark"));
-   UI_SliderUnsigned(&DEBUG_Vars->ParametricCurveMaxTotalSamples, 0, 100000, StrLit("Parametric Curve Max Total Samples"));
    UI_Combo(SafeCastToPtr(DEBUG_Vars->Parametric_EvalMethod, u32), Parametric_Eval_Count, Parametric_Eval_Names, StrLit("Parametric Eval Method"));
-   UI_SliderUnsigned(&DEBUG_Vars->Parametric_MultithreadedEvaluationBlockSize, 1, 10000, StrLit("Parametric Multithreaded Evaluation Block Size"));
+   
+   UI_Checkbox(&DEBUG_Vars->Bezier_Benchmark, StrLit("Bezier Benchmark"));
+   UI_Combo(SafeCastToPtr(DEBUG_Vars->Bezier_EvalMethod, u32), Bezier_Eval_Count, Bezier_Eval_Names, StrLit("Bezier Eval Method"));
   }
   UI_EndWindow();
  }
@@ -148,6 +152,38 @@ UI_ExponentialAnimation(exponential_animation *Anim)
 }
 
 internal void
+AppendMultipleControlPoints(editor *Editor, entity_with_modify_witness *Witness, u32 PointsPerSide)
+{
+ f32 Side = 1.0f;
+ f32 Delta = Side / PointsPerSide;
+ v2 Center = 0.5f * V2(Side, Side);
+ 
+ for (u32 I = 1; I <= PointsPerSide; ++I)
+ {
+  v2 P = V2(I * Delta, 0.0f) - Center;
+  AppendControlPoint(Editor, Witness, P);
+ }
+ 
+ for (u32 I = 1; I <= PointsPerSide; ++I)
+ {
+  v2 P = V2(Side, I * Delta) - Center;
+  AppendControlPoint(Editor, Witness, P);
+ }
+ 
+ for (u32 I = 1; I <= PointsPerSide; ++I)
+ {
+  v2 P = V2(Side - I * Delta, Side) - Center;
+  AppendControlPoint(Editor, Witness, P);
+ }
+ 
+ for (u32 I = 1; I <= PointsPerSide; ++I)
+ {
+  v2 P = V2(0, Side - I * Delta) - Center;
+  AppendControlPoint(Editor, Witness, P);
+ }
+}
+
+internal void
 DevUpdateAndRender(editor *Editor)
 {
  DEBUG_Vars = &Editor->DEBUG_Vars;
@@ -167,36 +203,7 @@ DevUpdateAndRender(editor *Editor)
 #endif
    InitEntityAsCurve(Entity, StrLit("NURBS Benchmark"), BSplineCurveParams);
    entity_with_modify_witness Witness = BeginEntityModify(Entity);
-   
-   u32 PointsPerSide = 100;
-   f32 Side = 1.0f;
-   f32 Delta = Side / PointsPerSide;
-   v2 Center = 0.5f * V2(Side, Side);
-   
-   for (u32 I = 1; I <= PointsPerSide; ++I)
-   {
-    v2 P = V2(I * Delta, 0.0f) - Center;
-    AppendControlPoint(Editor, &Witness, P);
-   }
-   
-   for (u32 I = 1; I <= PointsPerSide; ++I)
-   {
-    v2 P = V2(Side, I * Delta) - Center;
-    AppendControlPoint(Editor, &Witness, P);
-   }
-   
-   for (u32 I = 1; I <= PointsPerSide; ++I)
-   {
-    v2 P = V2(Side - I * Delta, Side) - Center;
-    AppendControlPoint(Editor, &Witness, P);
-   }
-   
-   for (u32 I = 1; I <= PointsPerSide; ++I)
-   {
-    v2 P = V2(0, Side - I * Delta) - Center;
-    AppendControlPoint(Editor, &Witness, P);
-   }
-   
+   AppendMultipleControlPoints(Editor, &Witness, 100);
    EndEntityModify(Witness);
    
    DEBUG_Vars->NURBS_BenchmarkEntity = Entity;
@@ -219,11 +226,27 @@ DevUpdateAndRender(editor *Editor)
    DEBUG_Vars->Parametric_BenchmarkEntity = Entity;
   }
   
-  DEBUG_Vars->NURBS_MultithreadedEvaluationBlockSize = 1024;
-  DEBUG_Vars->Parametric_MultithreadedEvaluationBlockSize = 1024;
+  // NOTE(hbr): Create Bezier-curve benchmark
+  {
+   entity *Entity = AddEntity(Editor);
+   
+   curve_params BezierCurveParams = DefaultCurveParams();
+   BezierCurveParams.Type = Curve_Bezier;
+   BezierCurveParams.Bezier = Bezier_Rational;
+   
+   InitEntityAsCurve(Entity, StrLit("Bezier Benchmark"), BezierCurveParams);
+   entity_with_modify_witness Witness = BeginEntityModify(Entity);
+   AppendMultipleControlPoints(Editor, &Witness, 100);
+   EndEntityModify(Witness);
+   
+   DEBUG_Vars->Bezier_BenchmarkEntity = Entity;
+   DEBUG_Vars->Bezier_Benchmark = true;
+  }
+  
+  DEBUG_Vars->MultithreadedEvaluationBlockSize = 1024;
+  
 #if BUILD_DEV
   DEBUG_Vars->ParametricCurveMaxTotalSamples = 50000;
-  DEBUG_Vars->Parametric_Benchmark = true;
 #else
   DEBUG_Vars->ParametricCurveMaxTotalSamples = 5000;
 #endif
@@ -246,6 +269,13 @@ DevUpdateAndRender(editor *Editor)
  if (DEBUG_Vars->Parametric_Benchmark)
  { 
   entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->Parametric_BenchmarkEntity);
+  MarkEntityModified(&Witness);
+  EndEntityModify(Witness);
+ }
+ 
+ if (DEBUG_Vars->Bezier_Benchmark)
+ { 
+  entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->Bezier_BenchmarkEntity);
   MarkEntityModified(&Witness);
   EndEntityModify(Witness);
  }

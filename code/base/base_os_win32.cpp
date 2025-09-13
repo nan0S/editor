@@ -867,3 +867,18 @@ OS_AppDir(arena *Arena)
  }
  return Result;
 }
+
+internal instruction_set_flags
+OS_InstructionSetSupport(void)
+{
+ BOOL SSE = IsProcessorFeaturePresent(PF_XMMI_INSTRUCTIONS_AVAILABLE);
+ BOOL AVX2 = IsProcessorFeaturePresent(PF_AVX2_INSTRUCTIONS_AVAILABLE);
+ BOOL AVX512 = IsProcessorFeaturePresent(PF_AVX512F_INSTRUCTIONS_AVAILABLE);
+ 
+ instruction_set_flags Flags = 0;
+ if (SSE) Flags |= InstructionSet_SSE;
+ if (AVX2) Flags |= InstructionSet_AVX2;
+ if (AVX512) Flags |= InstructionSet_AVX512;
+ 
+ return Flags;
+}

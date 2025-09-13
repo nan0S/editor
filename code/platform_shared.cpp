@@ -167,6 +167,7 @@ platform_api Platform = {
  WorkQueueAddEntry,
  WorkQueueCompleteAllWork,
  WorkQueueFreeEntryCount,
+ OS_InstructionSetSupport,
  
  {
 #define X_Macro(Name, ImGuiName, ReturnType, Args, ArgNames) ImGui##Name,

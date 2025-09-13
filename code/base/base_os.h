@@ -135,6 +135,17 @@ internal u32 OS_AtomicIncr32(u32 volatile *Value);
 internal u32 OS_AtomicAdd32(u32 volatile *Value, u32 Add);
 internal u32 OS_AtomicCmpExch32(u32 volatile *Value, u32 Cmp, u32 Exch);
 
+//- instruction sets
+enum
+{
+ InstructionSet_SSE = (1<<0),
+ InstructionSet_AVX2 = (1<<1),
+ InstructionSet_AVX512 = (1<<2),
+};
+typedef u32 instruction_set_flags;
+
+internal instruction_set_flags OS_InstructionSetSupport(void);
+
 //- misc
 internal u64 OS_ReadCPUTimer(void);
 internal u64 OS_CPUTimerFreq(void);

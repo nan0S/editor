@@ -1538,6 +1538,7 @@ CubicSplineEvaluate(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N)
 }
 
 #if 0
+
 // NOTE(hbr): O(n^2) time, O(n) memory versions for reference
 internal v2
 BezierCurveEvaluate(f32 T, v2 *P, u32 N)
@@ -1562,7 +1563,7 @@ BezierCurveEvaluate(f32 T, v2 *P, u32 N)
 }
 
 internal v2
-BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u32 N)
+BezierCurveEvaluateRational(f32 T, v2 *P, f32 *W, u32 N)
 {
  temp_arena Temp = TempArena(0);
  
@@ -1590,7 +1591,9 @@ BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u32 N)
  
  return Result;
 }
+
 #else
+
 // NOTE(hbr): O(n) time, O(1) memory versions
 internal v2
 BezierCurveEvaluate(f32 T, v2 *P, u32 N)
@@ -1610,7 +1613,7 @@ BezierCurveEvaluate(f32 T, v2 *P, u32 N)
 }
 
 internal v2
-BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u32 N)
+BezierCurveEvaluateRational_Scalar(f32 T, v2 *P, f32 *W, u32 N)
 {
  f32 H = 1.0f;
  f32 U = 1 - T;
@@ -1625,6 +1628,160 @@ BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u32 N)
  
  return Q;
 }
+
+internal void
+BezierCurveEvaluateRational_SSE(const float T[4],
+                                const v2 *P,
+                                const float *W,
+                                unsigned N,
+                                v2 out[4])
+{
+ __m128 t  = _mm_loadu_ps(T);          // [T0 T1 T2 T3]
+ __m128 u  = _mm_sub_ps(_mm_set1_ps(1.0f), t); // U = 1 - T
+ 
+ // H = 1
+ __m128 H  = _mm_set1_ps(1.0f);
+ 
+ // Q = P[0]
+ __m128 Qx = _mm_set1_ps(P[0].X);
+ __m128 Qy = _mm_set1_ps(P[0].Y);
+ 
+ // Loop over K
+ for (unsigned K = 1; K < N; ++K) {
+  __m128 num = _mm_mul_ps(H, t);                     // H * T
+  num = _mm_mul_ps(num, _mm_set1_ps((float)(N - K))); // * (N-K)
+  num = _mm_mul_ps(num, _mm_set1_ps(W[K]));           // * W[K]
+  
+  __m128 denom = _mm_add_ps(
+                            _mm_mul_ps(_mm_mul_ps(_mm_set1_ps((float)K), u), _mm_set1_ps(W[K-1])),
+                            num
+                            );
+  
+  H = _mm_div_ps(num, denom);
+  
+  // Q = (1 - H)*Q + H*P[K]
+  __m128 one_minus_H = _mm_sub_ps(_mm_set1_ps(1.0f), H);
+  __m128 Px = _mm_set1_ps(P[K].X);
+  __m128 Py = _mm_set1_ps(P[K].Y);
+  
+  Qx = _mm_add_ps(_mm_mul_ps(one_minus_H, Qx), _mm_mul_ps(H, Px));
+  Qy = _mm_add_ps(_mm_mul_ps(one_minus_H, Qy), _mm_mul_ps(H, Py));
+ }
+ 
+ // Store results back
+ f32 out_x[4], out_y[4];
+ _mm_storeu_ps(out_x, Qx); // writes [Q0.X Q1.X Q2.X Q3.X]
+ _mm_storeu_ps(out_y, Qy); // writes [Q0.Y Q1.Y Q2.Y Q3.Y]
+ 
+ for (int lane = 0; lane < 4; ++lane) {
+  out[lane].X = out_x[lane];
+  out[lane].Y = out_y[lane];
+ }
+}
+
+// Evaluate rational Bézier curve at 8 parameters T[8] in parallel
+internal void
+BezierCurveEvaluateRational_AVX2(const float T[8],
+                                 const v2 *P,
+                                 const float *W,
+                                 unsigned N,
+                                 v2 out[8])
+{
+ __m256 t  = _mm256_loadu_ps(T);                    // [T0..T7]
+ __m256 u  = _mm256_sub_ps(_mm256_set1_ps(1.0f), t); // U = 1 - T
+ 
+ // H = 1
+ __m256 H  = _mm256_set1_ps(1.0f);
+ 
+ // Q = P[0]
+ __m256 Qx = _mm256_set1_ps(P[0].X);
+ __m256 Qy = _mm256_set1_ps(P[0].Y);
+ 
+ // Loop over K
+ for (unsigned K = 1; K < N; ++K) {
+  __m256 num = _mm256_mul_ps(H, t);                            // H * T
+  num = _mm256_mul_ps(num, _mm256_set1_ps((float)(N - K)));    // * (N-K)
+  num = _mm256_mul_ps(num, _mm256_set1_ps(W[K]));              // * W[K]
+  
+  __m256 denom = _mm256_add_ps(
+                               _mm256_mul_ps(
+                                             _mm256_mul_ps(_mm256_set1_ps((float)K), u),
+                                             _mm256_set1_ps(W[K - 1])
+                                             ),
+                               num
+                               );
+  
+  H = _mm256_div_ps(num, denom);
+  
+  // Q = (1 - H)*Q + H*P[K]
+  __m256 one_minus_H = _mm256_sub_ps(_mm256_set1_ps(1.0f), H);
+  __m256 Px = _mm256_set1_ps(P[K].X);
+  __m256 Py = _mm256_set1_ps(P[K].Y);
+  
+  Qx = _mm256_add_ps(_mm256_mul_ps(one_minus_H, Qx),
+                     _mm256_mul_ps(H, Px));
+  Qy = _mm256_add_ps(_mm256_mul_ps(one_minus_H, Qy),
+                     _mm256_mul_ps(H, Py));
+ }
+ 
+ // Store results back
+ f32 out_x[8], out_y[8];
+ _mm256_storeu_ps(out_x, Qx); // writes [Q0.X Q1.X ... Q7.X]
+ _mm256_storeu_ps(out_y, Qy); // writes [Q0.Y Q1.Y ... Q7.Y]
+ 
+ for (int lane = 0; lane < 8; ++lane) {
+  out[lane].X = out_x[lane];
+  out[lane].Y = out_y[lane];
+ }
+}
+
+internal void
+BezierCurveEvaluateRational_AVX512(const float T[16],
+                                   const v2 *P,
+                                   const float *W,
+                                   unsigned N,
+                                   v2 out[16])
+{
+ __m512 t  = _mm512_loadu_ps(T);
+ __m512 u  = _mm512_sub_ps(_mm512_set1_ps(1.0f), t);
+ __m512 H  = _mm512_set1_ps(1.0f);
+ 
+ __m512 Qx = _mm512_set1_ps(P[0].X);
+ __m512 Qy = _mm512_set1_ps(P[0].Y);
+ 
+ for (unsigned K = 1; K < N; ++K) {
+  __m512 num = _mm512_mul_ps(H, t);
+  num = _mm512_mul_ps(num, _mm512_set1_ps((float)(N - K)));
+  num = _mm512_mul_ps(num, _mm512_set1_ps(W[K]));
+  
+  __m512 denom = _mm512_add_ps(
+                               _mm512_mul_ps(
+                                             _mm512_mul_ps(_mm512_set1_ps((float)K), u),
+                                             _mm512_set1_ps(W[K - 1])),
+                               num
+                               );
+  
+  H = _mm512_div_ps(num, denom);
+  
+  __m512 one_minus_H = _mm512_sub_ps(_mm512_set1_ps(1.0f), H);
+  __m512 Px = _mm512_set1_ps(P[K].X);
+  __m512 Py = _mm512_set1_ps(P[K].Y);
+  
+  Qx = _mm512_add_ps(_mm512_mul_ps(one_minus_H, Qx), _mm512_mul_ps(H, Px));
+  Qy = _mm512_add_ps(_mm512_mul_ps(one_minus_H, Qy), _mm512_mul_ps(H, Py));
+ }
+ 
+ // Store results back
+ f32 out_x[8], out_y[8];
+ _mm512_storeu_ps(out_x, Qx);
+ _mm512_storeu_ps(out_y, Qy);
+ 
+ for (int lane = 0; lane < 8; ++lane) {
+  out[lane].X = out_x[lane];
+  out[lane].Y = out_y[lane];
+ }
+}
+
 #endif
 
 internal void

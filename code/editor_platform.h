@@ -249,6 +249,9 @@ typedef PLATFORM_WORK_QUEUE_COMPLETE_ALL_WORK(platform_work_queue_complete_all_w
 #define PLATFORM_WORK_QUEUE_FREE_ENTRY_COUNT(Name) u32 Name(work_queue *Queue)
 typedef PLATFORM_WORK_QUEUE_FREE_ENTRY_COUNT(platform_work_queue_free_entry_count);
 
+#define PLATFORM_INSTRUCTION_SET_SUPPORT(Name) instruction_set_flags Name(void)
+typedef PLATFORM_INSTRUCTION_SET_SUPPORT(platform_instruction_set_support);
+
 struct platform_api
 {
  platform_alloc_virtual_memory *AllocVirtualMemory;
@@ -266,6 +269,8 @@ struct platform_api
  platform_work_queue_add_entry *WorkQueueAddEntry;
  platform_work_queue_complete_all_work *WorkQueueCompleteAllWork;
  platform_work_queue_free_entry_count *WorkQueueFreeEntryCount;
+ 
+ platform_instruction_set_support *InstructionSetSupport;
  
  imgui_bindings ImGui;
 };

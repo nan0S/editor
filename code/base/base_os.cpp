@@ -10,6 +10,7 @@ struct os_state
 {
  arena *Arena;
  os_info Info;
+ instruction_set_flags InstructionSetFlags;
 };
 global os_state OS_State;
 
@@ -21,6 +22,7 @@ OS_Init(int ArgCount, char *Args[])
  OS_State.Arena = Arena;
  OS_State.Info.ExecutableDirPath = PathChopLastPart(StrFromCStr(Args[0]));
  OS_State.Info.AppDir = OS_AppDir(Arena);
+ OS_State.InstructionSetFlags = OS_InstructionSetSupport();
 }
 
 internal os_info

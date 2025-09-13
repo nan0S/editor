@@ -220,7 +220,7 @@ union cubic_bezier_point
 };
 
 internal v2                                           BezierCurveEvaluate(f32 T, v2 *P, u32 N);
-internal v2                                           BezierCurveEvaluateWeighted(f32 T, v2 *P, f32 *W, u32 N);
+internal v2                                           BezierCurveEvaluateRational_Scalar(f32 T, v2 *P, f32 *W, u32 N);
 internal void                                         BezierCurveElevateDegree(v2 *P, u32 N);
 internal void                                         BezierCurveElevateDegreeWeighted(v2 *P, f32 *W, u32 N);
 internal bezier_lower_degree_inverse_degree_elevation BezierCurveLowerDegreeUsingInverseDegreeElevation(v2 *P, f32 *W, u32 N);

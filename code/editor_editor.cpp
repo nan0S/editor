@@ -4339,9 +4339,11 @@ CalcPolynomial(v2 *Controls, u32 PointCount,
 }
 
 internal void
-CalcCubicSpline(v2 *Controls, u32 PointCount,
+CalcCubicSpline(v2 *Controls,
+                u32 PointCount,
                 cubic_spline_type Spline,
-                u32 SampleCount, v2 *OutSamples)
+                u32 SampleCount,
+                v2 *OutSamples)
 {
  if (PointCount > 0)
  {
@@ -4402,19 +4404,338 @@ CalcCubicSpline(v2 *Controls, u32 PointCount,
 }
 
 internal void
-CalcRegularBezier(v2 *Controls, f32 *Weights, u32 PointCount,
-                  u32 SampleCount, v2 *OutSamples)
+CalcBezierRational_Scalar(v2 *Controls,
+                          f32 *Weights,
+                          u32 PointCount,
+                          u32 SampleCount,
+                          f32 *Ts,
+                          v2 *OutSamples)
 {
- f32 T = 0.0f;
- f32 Delta_T = 1.0f / (SampleCount - 1);
- 
- for (u32 SampleIndex = 0;
-      SampleIndex < SampleCount;
-      ++SampleIndex)
+ ForEachIndex(SampleIndex, SampleCount)
  {
-  OutSamples[SampleIndex] = BezierCurveEvaluateWeighted(T, Controls, Weights, PointCount);
+  f32 T = Ts[SampleIndex];
+  OutSamples[SampleIndex] = BezierCurveEvaluateRational_Scalar(T, Controls, Weights, PointCount);
+ }
+}
+
+internal void
+CalcBezierRational_SSE(v2 *Controls,
+                       f32 *Weights,
+                       u32 PointCount,
+                       u32 SampleCount,
+                       f32 *Ts,
+                       v2 *OutSamples)
+{
+ u32 Blocks = (SampleCount + 3) / 4;
+ u32 I = 0;
+ while (Blocks--)
+ {
+  f32 T4[4] = {};
+  for (u32 J = 0; J < 4; ++J)
+  {
+   if (I + J < SampleCount)
+   {
+    T4[J] = Ts[I + J];
+   }
+  }
+  v2 Out4[4] = {};
+  
+  BezierCurveEvaluateRational_SSE(T4,
+                                  Controls,
+                                  Weights,
+                                  PointCount,
+                                  Out4);
+  
+  for (u32 J = 0; J < 4; ++J)
+  {
+   if (I + J < SampleCount)
+   {
+    OutSamples[I + J] = Out4[J];
+   }
+  }
+  
+  I += 4;
+ }
+}
+
+internal void
+CalcBezierRational_AVX2(v2 *Controls,
+                        f32 *Weights,
+                        u32 PointCount,
+                        u32 SampleCount,
+                        f32 *Ts,
+                        v2 *OutSamples)
+{
+ u32 Blocks = (SampleCount + 7) / 8;
+ u32 I = 0;
+ while (Blocks--)
+ {
+  f32 T8[8] = {};
+  for (u32 J = 0; J < 8; ++J)
+  {
+   if (I + J < SampleCount)
+   {
+    T8[J] = Ts[I + J];
+   }
+  }
+  v2 Out8[8] = {};
+  
+  BezierCurveEvaluateRational_AVX2(T8,
+                                   Controls,
+                                   Weights,
+                                   PointCount,
+                                   Out8);
+  
+  for (u32 J = 0; J < 8; ++J)
+  {
+   if (I + J < SampleCount)
+   {
+    OutSamples[I + J] = Out8[J];
+   }
+  }
+  
+  I += 8;
+ }
+}
+
+internal void
+CalcBezierRational_AVX512(v2 *Controls,
+                          f32 *Weights,
+                          u32 PointCount,
+                          u32 SampleCount,
+                          f32 *Ts,
+                          v2 *OutSamples)
+{
+ u32 Blocks = (SampleCount + 15) / 16;
+ u32 I = 0;
+ while (Blocks--)
+ {
+  f32 T16[16] = {};
+  for (u32 J = 0; J < 16; ++J)
+  {
+   if (I + J < SampleCount)
+   {
+    T16[J] = Ts[I + J];
+   }
+  }
+  v2 Out16[16] = {};
+  
+  BezierCurveEvaluateRational_AVX512(T16,
+                                     Controls,
+                                     Weights,
+                                     PointCount,
+                                     Out16);
+  
+  for (u32 J = 0; J < 16; ++J)
+  {
+   if (I + J < SampleCount)
+   {
+    OutSamples[I + J] = Out16[J];
+   }
+  }
+  
+  I += 16;
+ }
+}
+
+struct calc_bezier_rational_work
+{
+ v2 *Controls;
+ f32 *Weights;
+ u32 PointCount;
+ u32 SampleCount;
+ f32 *Ts;
+ v2 *OutSamples;
+};
+
+internal void
+CalcBezierRational_Scalar_Work(void *UserData)
+{
+ calc_bezier_rational_work *Work = Cast(calc_bezier_rational_work *)UserData;
+ CalcBezierRational_Scalar(Work->Controls,
+                           Work->Weights,
+                           Work->PointCount,
+                           Work->SampleCount,
+                           Work->Ts,
+                           Work->OutSamples);
+}
+
+internal void
+CalcBezierRational_SSE_Work(void *UserData)
+{
+ calc_bezier_rational_work *Work = Cast(calc_bezier_rational_work *)UserData;
+ CalcBezierRational_SSE(Work->Controls,
+                        Work->Weights,
+                        Work->PointCount,
+                        Work->SampleCount,
+                        Work->Ts,
+                        Work->OutSamples);
+}
+
+internal void
+CalcBezierRational_AVX2_Work(void *UserData)
+{
+ calc_bezier_rational_work *Work = Cast(calc_bezier_rational_work *)UserData;
+ CalcBezierRational_AVX2(Work->Controls,
+                         Work->Weights,
+                         Work->PointCount,
+                         Work->SampleCount,
+                         Work->Ts,
+                         Work->OutSamples);
+}
+
+internal void
+CalcBezierRational_AVX512_Work(void *UserData)
+{
+ calc_bezier_rational_work *Work = Cast(calc_bezier_rational_work *)UserData;
+ CalcBezierRational_AVX512(Work->Controls,
+                           Work->Weights,
+                           Work->PointCount,
+                           Work->SampleCount,
+                           Work->Ts,
+                           Work->OutSamples);
+}
+
+struct work_queue_blocks
+{
+ u32 BlockCount;
+ u32 BlockSize;
+};
+internal work_queue_blocks
+WorkQueueCalculateBlocks(work_queue *WorkQueue, u32 ComputeCount, u32 RequestBlockSize)
+{
+ u32 RequestBlockCount = (ComputeCount + RequestBlockSize - 1) / RequestBlockSize;
+ u32 FreeEntries = Platform.WorkQueueFreeEntryCount(WorkQueue);
+ u32 ActualBlockCount = Min(RequestBlockCount, FreeEntries);
+ u32 ActualBlockSize = (ComputeCount + ActualBlockCount - 1) / ActualBlockCount;
+ 
+ work_queue_blocks Result = {};
+ Result.BlockCount = ActualBlockCount;
+ Result.BlockSize = ActualBlockSize;
+ Assert(ActualBlockCount * ActualBlockSize >= ComputeCount);
+ Assert((ActualBlockCount - 1) * ActualBlockSize < ComputeCount || ActualBlockCount == 0);
+ 
+ return Result;
+}
+
+internal void
+CalcBezierRational_Multithreaded(v2 *Controls,
+                                 f32 *Weights,
+                                 u32 PointCount,
+                                 u32 SampleCount,
+                                 f32 *Ts,
+                                 v2 *OutSamples,
+                                 work_queue_func *EvalWorkFunc)
+{
+ temp_arena Temp = TempArena(0);
+ work_queue *WorkQueue = GetCtx()->HighPriorityQueue;
+ 
+ // NOTE(hbr): BlockSize found experimentally
+ work_queue_blocks Blocks = WorkQueueCalculateBlocks(WorkQueue, SampleCount, 200);
+ u32 BlockCount = Blocks.BlockCount;
+ u32 BlockSize = Blocks.BlockSize;
+ u32 SamplesLeft = SampleCount;
+ f32 *TsAt = Ts;
+ v2 *OutSamplesAt = OutSamples;
+ 
+ calc_bezier_rational_work *Works = PushArray(Temp.Arena, BlockCount, calc_bezier_rational_work);
+ 
+ ForEachIndex(BlockIndex, BlockCount)
+ {
+  u32 BlockSampleCount = Min(SamplesLeft, BlockSize);
+  
+  calc_bezier_rational_work *Work = Works + BlockIndex;
+  Work->Controls = Controls;
+  Work->Weights = Weights;
+  Work->PointCount = PointCount;
+  Work->SampleCount = BlockSampleCount;
+  Work->Ts = TsAt;
+  Work->OutSamples = OutSamplesAt;
+  
+  Platform.WorkQueueAddEntry(WorkQueue, EvalWorkFunc, Work);
+  
+  TsAt += BlockSampleCount;
+  OutSamplesAt += BlockSampleCount;
+  SamplesLeft -= BlockSampleCount;
+ }
+ 
+ Assert(SamplesLeft == 0);
+ 
+ Platform.WorkQueueCompleteAllWork(WorkQueue);
+ 
+ EndTemp(Temp);
+}
+
+internal void
+CalcRationalBezier(v2 *Controls,
+                   f32 *Weights,
+                   u32 PointCount,
+                   u32 SampleCount,
+                   v2 *OutSamples)
+{
+ ProfileFunctionBegin();
+ 
+ temp_arena Temp = TempArena(0);
+ 
+ f32 T = 0.0f;
+ // NOTE(hbr): We assume the interval is always [0,1]
+ f32 Delta_T = 1.0f / (SampleCount - 1);
+ f32 *Ts = PushArrayNonZero(Temp.Arena, SampleCount, f32);
+ ForEachIndex(SampleIndex, SampleCount)
+ {
+  Ts[SampleIndex] = T;
   T += Delta_T;
  }
+ 
+ switch (DEBUG_Vars->Bezier_EvalMethod)
+ {
+  case Bezier_Eval_Scalar: {
+   CalcBezierRational_Scalar(Controls, Weights, PointCount, SampleCount, Ts, OutSamples);
+  }break;
+  
+  case Bezier_Eval_SSE: {
+   CalcBezierRational_SSE(Controls, Weights, PointCount, SampleCount, Ts, OutSamples);
+  }break;
+  
+  case Bezier_Eval_AVX2: {
+   CalcBezierRational_AVX2(Controls, Weights, PointCount, SampleCount, Ts, OutSamples);
+  }break;
+  
+  case Bezier_Eval_AVX512: {
+   CalcBezierRational_AVX512(Controls, Weights, PointCount, SampleCount, Ts, OutSamples);
+  }break;
+  
+  case Bezier_Eval_SSE_Multithreaded: {
+   CalcBezierRational_Multithreaded(Controls, Weights, PointCount, SampleCount, Ts, OutSamples, CalcBezierRational_SSE_Work);
+  }break;
+  
+  case Bezier_Eval_AVX2_Multithreaded: {
+   CalcBezierRational_Multithreaded(Controls, Weights, PointCount, SampleCount, Ts, OutSamples, CalcBezierRational_AVX2_Work);
+  }break;
+  
+  case Bezier_Eval_AVX512_Multithreaded: {
+   CalcBezierRational_Multithreaded(Controls, Weights, PointCount, SampleCount, Ts, OutSamples, CalcBezierRational_AVX512_Work);
+  }break;
+  
+  case Bezier_Eval_Adaptive_Multithreaded: {
+   work_queue_func *EvalFunc = 0;
+   
+   instruction_set_flags Flags = Platform.InstructionSetSupport();
+   if (0) {}
+   else if (Flags & InstructionSet_AVX512) EvalFunc = CalcBezierRational_AVX512_Work;
+   else if (Flags & InstructionSet_AVX2) EvalFunc = CalcBezierRational_AVX2_Work;
+   else if (Flags & InstructionSet_SSE) EvalFunc = CalcBezierRational_SSE_Work;
+   else EvalFunc = CalcBezierRational_Scalar_Work;
+   
+   CalcBezierRational_Multithreaded(Controls, Weights, PointCount, SampleCount, Ts, OutSamples, EvalFunc);
+  }break;
+  
+  case Bezier_Eval_Count: InvalidPath;
+ }
+ 
+ EndTemp(Temp);
+ 
+ ProfileEnd();
 }
 
 internal void
@@ -4737,28 +5058,6 @@ Calc_NURBS_SimdUnrolledWork(void *UserData)
                                    Work->Ts,
                                    Work->OutSamples,
                                    false);
-}
-
-struct work_queue_blocks
-{
- u32 BlockCount;
- u32 BlockSize;
-};
-internal work_queue_blocks
-WorkQueueCalculateBlocks(work_queue *WorkQueue, u32 ComputeCount, u32 RequestBlockSize)
-{
- u32 RequestBlockCount = (ComputeCount + RequestBlockSize - 1) / RequestBlockSize;
- u32 FreeEntries = Platform.WorkQueueFreeEntryCount(WorkQueue);
- u32 ActualBlockCount = Min(RequestBlockCount, FreeEntries);
- u32 ActualBlockSize = (ComputeCount + ActualBlockCount - 1) / ActualBlockCount;
- 
- work_queue_blocks Result = {};
- Result.BlockCount = ActualBlockCount;
- Result.BlockSize = ActualBlockSize;
- Assert(ActualBlockCount * ActualBlockSize >= ComputeCount);
- Assert((ActualBlockCount - 1) * ActualBlockSize < ComputeCount || ActualBlockCount == 0);
- 
- return Result;
 }
 
 internal void
@@ -5117,7 +5416,7 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
   case Curve_Bezier: {
    switch (Params->Bezier)
    {
-    case Bezier_Rational: {CalcRegularBezier(Controls, Weights, PointCount, SampleCount, OutSamples);}break;
+    case Bezier_Rational: {CalcRationalBezier(Controls, Weights, PointCount, SampleCount, OutSamples);}break;
     case Bezier_CubicSpline: {CalcCubicBezier(Beziers, PointCount, SampleCount, OutSamples);}break;
     case Bezier_Count: InvalidPath;
    }
@@ -5218,7 +5517,7 @@ RecomputeCurve(curve *Curve)
   {
    f32 Fraction = Tracking->Fraction;
    
-   v2 LocalSpaceTrackedPoint = BezierCurveEvaluateWeighted(Fraction, Controls, Weights, ControlCount);
+   v2 LocalSpaceTrackedPoint = BezierCurveEvaluateRational_Scalar(Fraction, Controls, Weights, ControlCount);
    Tracking->LocalSpaceTrackedPoint = LocalSpaceTrackedPoint;
    
    if (Tracking->Type == PointTrackingAlongCurve_DeCasteljauVisualization)

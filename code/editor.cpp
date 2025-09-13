@@ -1276,7 +1276,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
         }break;
         
         //-@ render selected b-spline curve ui
-        case Curve_BSpline: {
+        case Curve_NURBS: {
          b_spline_params *BSpline = &CurveParams->BSpline;
          b_spline_knot_params *KnotParams = &BSpline->KnotParams;
          curve_points_static *Points = GetCurvePoints(Curve);

@@ -159,7 +159,7 @@ DevUpdateAndRender(editor *Editor)
    entity *Entity = AddEntity(Editor);
    curve_params BSplineCurveParams = DefaultCurveParams();
    BSplineCurveParams.TotalSamples = 50000;
-   BSplineCurveParams.Type = Curve_BSpline;
+   BSplineCurveParams.Type = Curve_NURBS;
 #if BUILD_DEBUG
    BSplineCurveParams.BSpline.KnotParams.Degree = 15;
 #else

@@ -2861,7 +2861,7 @@ internal b32
 IsBSplineCurve(curve *Curve)
 {
  curve_params *CurveParams = &Curve->Params;
- b32 Result = (CurveParams->Type == Curve_BSpline);
+ b32 Result = (CurveParams->Type == Curve_NURBS);
  return Result;
 }
 
@@ -2882,7 +2882,7 @@ UsesControlPoints(curve *Curve)
   case Curve_CubicSpline:
   case Curve_Bezier:
   case Curve_Polynomial:
-  case Curve_BSpline: {Result = true;}break;
+  case Curve_NURBS: {Result = true;}break;
   
   case Curve_Parametric: {}break;
   
@@ -3014,7 +3014,7 @@ CurveHasWeights(curve *Curve)
 {
  curve_params *P = &Curve->Params;
  b32 Result = ((P->Type == Curve_Bezier && P->Bezier == Bezier_Rational) ||
-               (P->Type == Curve_BSpline));
+               (P->Type == Curve_NURBS));
  return Result;
 }
 
@@ -3027,7 +3027,7 @@ IsCurveTotalSamplesMode(curve *Curve)
   case Curve_CubicSpline:
   case Curve_Bezier:
   case Curve_Polynomial:
-  case Curve_BSpline: {}break;
+  case Curve_NURBS: {}break;
   
   case Curve_Parametric: {
    Result = true;
@@ -3064,7 +3064,7 @@ IsRegularBezierCurve(curve *Curve)
 internal b32
 AreBSplineKnotsVisible(curve *Curve)
 {
- b32 Result = (Curve->Params.Type == Curve_BSpline && Curve->Params.DrawParams.BSplineKnots.Enabled);
+ b32 Result = (Curve->Params.Type == Curve_NURBS && Curve->Params.DrawParams.BSplineKnots.Enabled);
  return Result;
 }
 
@@ -3127,7 +3127,7 @@ AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method M
     }
    }break;
    
-   case Curve_BSpline: {
+   case Curve_NURBS: {
     if (Concat) Compatible = true;
     else WhyIncompatible = StrLit("B-spline curves" Concat_Str);
    }break;
@@ -5123,7 +5123,7 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
    }
   } break;
   
-  case Curve_BSpline: {
+  case Curve_NURBS: {
    MaybeRecomputeCurveBSplineKnots(Curve, false);
    
    b_spline_knot_params KnotParams = GetBSplineParams(Curve).KnotParams;

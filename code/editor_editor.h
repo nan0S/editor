@@ -21,7 +21,7 @@ enum curve_type : u32
  Curve_Bezier,
  Curve_Polynomial,
  Curve_Parametric,
- Curve_BSpline,
+ Curve_NURBS,
  Curve_Count
 };
 global read_only string CurveTypeNames[] = {
@@ -29,7 +29,7 @@ global read_only string CurveTypeNames[] = {
  StrLitComp("Bezier"),
  StrLitComp("Polynomial"),
  StrLitComp("Parametric"),
- StrLitComp("B-Spline")
+ StrLitComp("NURBS")
 };
 StaticAssert(ArrayCount(CurveTypeNames) == Curve_Count, CurveTypeNamesDefined);
 

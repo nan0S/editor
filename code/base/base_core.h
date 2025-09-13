@@ -42,6 +42,9 @@
 #if !defined(BUILD_DEBUG)
 # define BUILD_DEBUG 0
 #endif
+#if !defined(BUILD_DEV)
+# define BUILD_DEV 0
+#endif
 
 #if OS_WINDOWS
 # define thread_static __declspec(thread)
@@ -283,6 +286,8 @@ inline void *_SafeCastToPtr(void *Expr, u64 SizeOf1, u64 SizeOf2) { Assert(SizeO
 #define ConvertNameToString(Name) ConvertNameToString_(Name) // convert CustomName -> "CustomName"
 #define Comma ,
 #define Nothing
+
+#define IsFlagSet(Flags, Flag) ((Flags) & (Flag))
 
 #define ForEachElementUnsafe(Index, Array) for (u64 Index = 0; Index < ArrayCount(Array); ++Index)
 #if BUILD_DEBUG

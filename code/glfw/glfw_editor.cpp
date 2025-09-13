@@ -499,10 +499,12 @@ Table[GLFWButton] = PlatformButton
    ImGui_ImplGlfw_InitForOpenGL(Window, true);
    ImGui_ImplOpenGL3_Init();
    
+#if !(BUILD_DEV)
    // NOTE(hbr): I don't need the ini file, it's annoying
    auto &ImGuiIO = ImGui::GetIO();
    ImGuiIO.LogFilename = 0;
    ImGuiIO.IniFilename = 0;
+#endif
    
    //- init editor stuff
    editor_function_table EditorFunctions = {};

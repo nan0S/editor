@@ -1,0 +1,211 @@
+internal void
+RenderDevConsoleUI(editor *Editor)
+{
+ camera *Camera = &Editor->Camera;
+ 
+ if (DEBUG_Vars->DevConsole)
+ {
+  if (UI_BeginWindow(&DEBUG_Vars->DevConsole, 0, StrLit("Dev Console")))
+  {
+   if (UI_Button(StrLit("Add Notification")))
+   {
+    AddNotificationF(Editor, Notification_Error,
+                     "This is a dev notification\nblablablablablablablabla"
+                     "blablablabl ablablablablabla blabl abla blablablablab lablablabla"
+                     "bla bla blablabl ablablablablab lablablablablablablablablablabla"
+                     "blabla blab lablablablab lablabla blablablablablablablablablabla");
+   }
+   UI_Checkbox(&DEBUG_Vars->ParametricEquationDebugMode, StrLit("Parametric Equation Debug Mode Enabled"));
+   UI_Checkbox(&DEBUG_Vars->ShowSampleCurvePoints, StrLit("Show Sample Curve Points"));
+   UI_ExponentialAnimation(&Camera->Animation);
+   UI_TextF(false, "DrawnGridLinesCount=%u", DEBUG_Vars->DrawnGridLinesCount);
+   UI_TextF(false, "String Store String Count: %u\n", GetCtx()->StrStore->StrCount);
+   UI_TextF(false, "TransformAction: %p", Editor->SelectedEntityTransformState.TransformAction);
+   UI_Combo(SafeCastToPtr(DEBUG_Vars->NURBS_EvalMethod, u32), NURBS_Eval_Count, NURBS_Eval_Names, StrLit("NURBS Eval Method"));
+   UI_SliderUnsigned(&DEBUG_Vars->NURBS_MultithreadedEvaluationBlockSize, 1, 10000, StrLit("NURBS Multithreaded Evaluation Block Size"));
+  }
+  UI_EndWindow();
+ }
+}
+
+internal void
+UI_ParametricEquationExpr(parametric_equation_expr *Expr, u32 *Id)
+{
+ temp_arena Temp = TempArena(0);
+ 
+ UI_PushId(*Id);
+ *Id += 1;
+ 
+ string TypeStr = {};
+ switch (Expr->Type)
+ {
+  case ParametricEquationExpr_Unary: {
+   TypeStr = StrLit("Unary");
+  }break;
+  
+  case ParametricEquationExpr_Binary: {
+   char const *OpStr = "null";
+   switch (Expr->Binary.Operator)
+   {
+    case ParametricEquationBinaryOp_Pow: {OpStr = "^";}break;
+    case ParametricEquationBinaryOp_Plus: {OpStr = "+";}break;
+    case ParametricEquationBinaryOp_Minus: {OpStr = "-";}break;
+    case ParametricEquationBinaryOp_Mult: {OpStr = "*";}break;
+    case ParametricEquationBinaryOp_Div: {OpStr = "/";}break;
+    case ParametricEquationBinaryOp_Mod: {OpStr = "%";}break;
+   }
+   TypeStr = StrF(Temp.Arena, "BinaryOp(%s)", OpStr);
+  }break;
+  
+  case ParametricEquationExpr_Number: {
+   TypeStr = StrF(Temp.Arena, "Number(%f)", Expr->Number.Number);
+  }break;
+  
+  case ParametricEquationExpr_Application: {
+   parametric_equation_application_expr Application = Expr->Application;
+   string IdentifierName = ParametricEquationIdentifierName(Application.Identifier);
+   TypeStr = StrF(Temp.Arena, "Application(%S)", IdentifierName);
+  }break;
+ }
+ UI_Text(false, TypeStr);
+ 
+ switch (Expr->Type)
+ {
+  case ParametricEquationExpr_Unary: {
+   parametric_equation_unary_expr Unary = Expr->Unary;
+   
+   UI_SetNextItemOpen(true, UICond_Once);
+   if (UI_BeginTreeF("Sub"))
+   {
+    UI_ParametricEquationExpr(Unary.SubExpr, Id);
+    UI_EndTree();
+   }
+  }break;
+  
+  case ParametricEquationExpr_Binary: {
+   parametric_equation_binary_expr Binary = Expr->Binary;
+   
+   UI_SetNextItemOpen(true, UICond_Once);
+   if (UI_BeginTreeF("Left"))
+   {
+    UI_ParametricEquationExpr(Binary.Left, Id);
+    UI_EndTree();
+   }
+   
+   UI_SetNextItemOpen(true, UICond_Once);
+   if (UI_BeginTreeF("Right"))
+   {
+    UI_ParametricEquationExpr(Binary.Right, Id);
+    UI_EndTree();
+   }
+  }break;
+  
+  case ParametricEquationExpr_Number: {}break;
+  
+  case ParametricEquationExpr_Application: {
+   parametric_equation_application_expr Application = Expr->Application;
+   
+   for (u32 ArgIndex = 0;
+        ArgIndex < Application.ArgCount;
+        ++ArgIndex)
+   {
+    parametric_equation_expr *Arg = Application.Args[ArgIndex];
+    
+    UI_SetNextItemOpen(true, UICond_Once);
+    if (UI_BeginTreeF("%u", ArgIndex))
+    {
+     UI_ParametricEquationExpr(Arg, Id);
+     UI_EndTree();
+    }
+   }
+  }break;
+ }
+ 
+ UI_PopId();
+ 
+ EndTemp(Temp);
+}
+
+internal void
+UI_ParametricEquationExpr(parametric_equation_expr *Expr, string Label)
+{
+ UI_PushLabel(Label);
+ u32 Id = 0;
+ UI_ParametricEquationExpr(Expr, &Id);
+ UI_PopLabel();
+}
+
+internal void
+UI_ExponentialAnimation(exponential_animation *Anim)
+{
+ UI_SliderFloat(&Anim->PowBase, 0.0f, 10.0f, StrLit("PowBase"));
+ UI_SliderFloat(&Anim->ExponentMult, 0.0f, 10.0f, StrLit("ExponentMult"));
+}
+
+internal void
+DevUpdateAndRender(editor *Editor)
+{
+ DEBUG_Vars = &Editor->DEBUG_Vars;
+ 
+ if (!DEBUG_Vars->Initialized)
+ {
+  // NOTE(hbr): Create NURBS-benchmark
+  entity *Entity = AddEntity(Editor);
+  curve_params BSplineCurveParams = DefaultCurveParams();
+  BSplineCurveParams.Type = Curve_BSpline;
+#if BUILD_DEBUG
+  BSplineCurveParams.BSpline.KnotParams.Degree = 15;
+#else
+  BSplineCurveParams.BSpline.KnotParams.Degree = 26;
+#endif
+  InitEntityAsCurve(Entity, StrLit("Benchmark"), BSplineCurveParams);
+  entity_with_modify_witness Witness = BeginEntityModify(Entity);
+  
+  u32 PointsPerSide = 100;
+  f32 Side = 1.0f;
+  f32 Delta = Side / PointsPerSide;
+  v2 Center = 0.5f * V2(Side, Side);
+  
+  for (u32 I = 1; I <= PointsPerSide; ++I)
+  {
+   v2 P = V2(I * Delta, 0.0f) - Center;
+   AppendControlPoint(Editor, &Witness, P);
+  }
+  
+  for (u32 I = 1; I <= PointsPerSide; ++I)
+  {
+   v2 P = V2(Side, I * Delta) - Center;
+   AppendControlPoint(Editor, &Witness, P);
+  }
+  
+  for (u32 I = 1; I <= PointsPerSide; ++I)
+  {
+   v2 P = V2(Side - I * Delta, Side) - Center;
+   AppendControlPoint(Editor, &Witness, P);
+  }
+  
+  for (u32 I = 1; I <= PointsPerSide; ++I)
+  {
+   v2 P = V2(0, Side - I * Delta) - Center;
+   AppendControlPoint(Editor, &Witness, P);
+  }
+  
+  EndEntityModify(Witness);
+  
+  DEBUG_Vars->BenchmarkEntity = Entity;
+  DEBUG_Vars->NURBS_MultithreadedEvaluationBlockSize = 1024;
+  DEBUG_Vars->Initialized = true;
+  
+  
+  Editor->ProfilerWindow = true;
+  Editor->DiagnosticsWindow = true;
+  DEBUG_Vars->DevConsole = true;
+  Editor->Profiler.ReferenceMs = 1000.0f / 30.0f;
+ }
+ 
+ entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->BenchmarkEntity);
+ MarkEntityModified(&Witness);
+ EndEntityModify(Witness);
+ 
+ RenderDevConsoleUI(Editor);
+}

@@ -47,11 +47,18 @@ enum compilation_target_type
  Target_Lib,
 };
 
+enum
+{
+ CompilerFlag_DebugBuild = (1<<0),
+ CompilerFlag_DevBuild = (1<<1),
+ CompilerFlag_GenerateDebuggerInfo = (1<<2),
+ CompilerFlag_Verbose = (1<<3), // NOTE(hbr): print commands
+};
+typedef u32 compiler_flags;
+
 struct compiler_setup
 {
- b32 DebugBuild;
- b32 GenerateDebuggerInfo;
- b32 Verbose; // NOTE(hbr): print commands
+ compiler_flags Flags;
  compiler Compiler;
  string_list IncludePaths;
 };
@@ -100,7 +107,7 @@ struct process_queue
 
 internal void EquipBuild(arena *Arena);
 
-internal compiler_setup MakeCompilerSetup(compiler_choice Compiler, b32 DebugBuild, b32 GenerateDebuggerInfo, b32 Verbose);
+internal compiler_setup MakeCompilerSetup(compiler_choice Compiler, compiler_flags Flags);
 internal compilation_target MakeTarget(compilation_target_type TargetType, string SourcePathRel, compilation_flags Flags);
 internal void IncludePath(compiler_setup *Setup, string IncludePathRel);
 internal void LinkLibrary(compilation_target *Target, string Library);

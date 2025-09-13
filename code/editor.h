@@ -7,7 +7,7 @@
 #include "base/base_os.h"
 #include "base/base_memory.h"
 
-#include "editor_debug.h"
+#include "editor_dev.h"
 #include "editor_profiler.h"
 #include "editor_imgui.h"
 #include "editor_platform.h"
@@ -31,7 +31,6 @@ TODO features:
 crucial:
 
 important:
-- Checbyshev polynomial bezier degree lowering method
 - extracing animated bezier curve perfectly
 - saving to PNG
 - save every time interval

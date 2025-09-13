@@ -166,6 +166,7 @@ platform_api Platform = {
  PlatformToggleFullscreenStub,
  WorkQueueAddEntry,
  WorkQueueCompleteAllWork,
+ WorkQueueFreeEntryCount,
  
  {
 #define X_Macro(Name, ImGuiName, ReturnType, Args, ArgNames) ImGui##Name,

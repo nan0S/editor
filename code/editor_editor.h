@@ -1090,6 +1090,7 @@ enum visual_profiler_mode
 };
 struct visual_profiler_state
 {
+ arena *Arena;
  b32 Stopped;
  profiler *Profiler;
  visual_profiler_mode Mode;
@@ -1097,6 +1098,7 @@ struct visual_profiler_state
  f32 ReferenceMs;
  u32 FrameIndex;
  profiler_frame FrameSnapshot;
+ u32 FilterIndex;
 };
 
 enum editor_command
@@ -1196,7 +1198,6 @@ b32 DiagnosticsWindow; \
 b32 SelectedEntityWindow; \
 b32 HelpWindow; \
 b32 ProfilerWindow; \
-b32 DevConsole; \
 b32 Grid; \
 \
 rgba BackgroundColor; \

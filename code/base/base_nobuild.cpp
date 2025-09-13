@@ -176,7 +176,7 @@ RecompileYourselfIfNecessary(int ArgCount, char *Argv[])
    OS_PrintF("[recompiling myself]\n");
    
    // NOTE(hbr): Always debug and never debug info to be fast
-   compiler_setup Setup = MakeCompilerSetup(Compiler_Default, true, false, false);
+   compiler_setup Setup = MakeCompilerSetup(Compiler_Default, CompilerFlag_DebugBuild);
    compilation_target Target = MakeTarget(Target_Exe, SourceCodePath, CompilationFlag_TemporaryTarget);
    
    os_process_handle BuildCompileProcess = Compile(Setup, Target);

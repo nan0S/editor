@@ -1083,70 +1083,9 @@ BSplineKnotsPeriodicExtension(b_spline_knot_params KnotParams, f32 *Knots)
  }
 }
 
-#if 0
-
-// NOTE(hbr): Reference implementation
-internal v2
-BSplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *Knots)
-{
- temp_arena Temp = TempArena(0);
- 
- T = Clamp(T, Knots.A, Knots.B - F32_EPS);
- 
- i32 Degree = Cast(i32)Knots.Degree;
- i32 PartitionSize = Cast(i32)Knots.PartitionSize;
- 
- i32 Rows = Cast(i32)Degree;
- i32 Cols = Cast(i32)Degree;
- v2 *C = PushArray2DNonZero(Temp.Arena, Rows, Cols, v2);
- 
-#define c(k, i) C[Index2D(k, i+m, Cols)]
- 
- ControlPoints += Degree;
- 
- i32 m = Degree;
- i32 n = PartitionSize - 1;
- 
- f32 *t = Knots.Knots + Knots.Degree;
- 
- i32 j = -m;
- for (; j+1 < n+m; ++j)
- {
-  if (t[j] <= T && T < t[j + 1])
-  {
-   break;
-  }
- }
- 
- for (i32 i = j-m; i <= j; ++i)
- {
-  c(0, i) = ControlPoints[i];
- } 
- 
- for (i32 k = 1; k <= m; ++k)
- {
-  for (i32 i = j-m+k; i <= j; ++i)
-  {
-   v2 Num = (T - t[i]) * c(k-1, i) + (t[m+i+1-k] - T) * c(k-1, i-1);
-   f32 Den = t[m+i+1-k] - t[i];
-   c(k, i) = Num / Den;
-  }
- }
- 
- v2 Result = c(m, j);
- 
- EndTemp(Temp);
- 
-#undef c
- 
- return Result;
-}
-
-#else
-
 // TODO(hbr): This can be ppb optimized to use only O(m) memory
 internal v2
-BSplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *Knots)
+BSplineEvaluate(f32 T, v2 *Controls, b_spline_knot_params KnotParams, f32 *Knots)
 {
  temp_arena Temp = TempArena(0);
  
@@ -1165,7 +1104,7 @@ BSplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *
  
 #define c(k, i) C[Index2D(k, i+m, Cols)]
  
- ControlPoints += Degree;
+ Controls += Degree;
  
  i32 m = Degree;
  i32 n = PartitionSize - 1;
@@ -1181,22 +1120,24 @@ BSplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *
   }
  }
  
- for (i32 i = j-m; i <= j; ++i)
+ i32 start_i = j-m;
+ for (i32 i = start_i; i <= j; ++i)
  {
-  c(0, i) = ControlPoints[i];
+  c(0, i-start_i) = Controls[i];
  }
  
  for (i32 k = 1; k <= m; ++k)
  {
-  for (i32 i = j-m+k; i <= j; ++i)
+  i32 start_i = j-m+k;
+  for (i32 i = start_i; i <= j; ++i)
   {
-   v2 Num = (T - t[i]) * c(k-1, i) + (t[m+i+1-k] - T) * c(k-1, i-1);
+   v2 Num = (T - t[i]) * c(k-1, i-(start_i-1)) + (t[m+i+1-k] - T) * c(k-1, i-1-(start_i-1));
    f32 Den = t[m+i+1-k] - t[i];
-   c(k, i) = Num / Den;
+   c(k, i-start_i) = Num / Den;
   }
  }
  
- v2 Result = c(m, j);
+ v2 Result = c(m, j-start_i);
  
  EndTemp(Temp);
  
@@ -1205,13 +1146,35 @@ BSplineEvaluate(f32 T, v2 *ControlPoints, b_spline_knot_params KnotParams, f32 *
  return Result;
 }
 
-// TODO(hbr): Fix it
+
+#if 0
+/*
+Standard denotation:
+- u: parameter to evaluate the curve at from [a,b]
+- W: control points
+- w: weights
+- t: knots
+- we have t[-m,...-1], t[0,...,n], t[n+1,...,n+m]
+- 
+*/
 internal v2
-NURBS_Evaluate_(f32 T,
-                v2 *ControlPoints,
-                f32 *Weights,
-                b_spline_knot_params KnotParams,
-                f32 *Knots)
+BSpline_Evaluate(f32 u,
+                 v2 *W,
+                 f32 *w,
+                 i32 n,
+                 i32 m,
+                 f32 *t)
+{
+}
+#endif
+
+// TODO(hbr): It doesn't work quite well for Degree == 1.
+internal v2
+NURBS_Evaluate(f32 T,
+               v2 *Controls,
+               f32 *Weights,
+               b_spline_knot_params KnotParams,
+               f32 *Knots)
 {
  temp_arena Temp = TempArena(0);
  
@@ -1232,7 +1195,7 @@ NURBS_Evaluate_(f32 T,
 #define c(k, i) C[Index2D(k, i+m, Cols)]
 #define w(k, i) W[Index2D(k, i+m, Cols)]
  
- ControlPoints += Degree;
+ Controls += Degree;
  Weights += Degree;
  
  i32 m = Degree;
@@ -1249,24 +1212,26 @@ NURBS_Evaluate_(f32 T,
   }
  }
  
- for (i32 i = j-m; i <= j; ++i)
+ i32 start_i = j-m;
+ for (i32 i = start_i; i <= j; ++i)
  {
-  c(0, i) = ControlPoints[i];
-  w(0, i) = Weights[i];
+  c(0, i-start_i) = Controls[i];
+  w(0, i-start_i) = Weights[i];
  }
  
  for (i32 k = 1; k <= m; ++k)
  {
-  for (i32 i = j-m+k; i <= j; ++i)
+  i32 start_i = j-m+k;
+  for (i32 i = start_i; i <= j; ++i)
   {
    f32 alpha = (T - t[i]) / (t[m+i+1-k] - t[i]);
-   f32 new_w = alpha * w(k-1, i) + (1-alpha) * w(k-1, i-1);
-   w(k, i) = new_w;
-   c(k, i) = alpha * w(k-1, i)/new_w * c(k-1, i) + (1-alpha) * w(k-1, i-1)/new_w * c(k-1, i-1);
+   f32 new_w = alpha * w(k-1, i-(start_i-1)) + (1-alpha) * w(k-1, i-1-(start_i-1));
+   w(k, i-start_i) = new_w;
+   c(k, i-start_i) = alpha * w(k-1, i-(start_i-1))/new_w * c(k-1, i-(start_i-1)) + (1-alpha) * w(k-1, i-1-(start_i-1))/new_w * c(k-1, i-1-(start_i-1));
   }
  }
  
- v2 Result = c(m, j);
+ v2 Result = c(m, j-start_i);
  
  EndTemp(Temp);
  
@@ -1276,8 +1241,130 @@ NURBS_Evaluate_(f32 T,
  return Result;
 }
 
+// nurbs_simd4.c
+#include <stdlib.h>
+#include <stdio.h>
+#include <xmmintrin.h>  // SSE
+#include <emmintrin.h>  // SSE2 (if needed)
 
-#endif
+// helper from scalar implementation
+static int find_span_scalar(u32 n, u32 m, const f32 *Knots, f32 t) {
+ u32 lo = m;
+ u32 hi = n + m - 1;
+ if (t >= Knots[hi + 1]) return hi;
+ while (lo <= hi) {
+  u32 mid = (lo + hi) >> 1;
+  if (t < Knots[mid]) {
+   if (mid == 0) break;
+   hi = mid - 1;
+  } else if (t >= Knots[mid + 1]) {
+   lo = mid + 1;
+  } else {
+   return (int)mid;
+  }
+ }
+ return (int)lo;
+}
+
+// Evaluate 4 parameter values at once (t4[0..3]) -> out[0..3]
+static void nurbs_eval_simd4(const v2 *P, const f32 *W, u32 n, u32 m, const f32 *Knots, const f32 t4[4], v2 out[4]) {
+ u32 N_ctrl = n + m;
+ 
+ // find spans per lane
+ int span[4];
+ for (int lane = 0; lane < 4; ++lane) {
+  span[lane] = find_span_scalar(n, m, Knots, t4[lane]);
+ }
+ 
+ // allocate D_x[k], D_y[k], D_w[k] as __m128 for k=0..m
+ __m128 *D_x = (__m128*)malloc((m+1)*sizeof(__m128));
+ __m128 *D_y = (__m128*)malloc((m+1)*sizeof(__m128));
+ __m128 *D_w = (__m128*)malloc((m+1)*sizeof(__m128));
+ 
+ // initialize lanes: for k = 0..m, D_*[k] holds values for lanes 0..3 at that k
+ for (u32 k = 0; k <= (u32)m; ++k) {
+  f32 lane_x[4], lane_y[4], lane_w[4];
+  for (int lane = 0; lane < 4; ++lane) {
+   int j = span[lane];
+   u32 idx = (u32)(j - m + k);
+   // bounds checking (safety): clamp idx
+   if (idx >= N_ctrl) {
+    lane_x[lane] = 0.0f; lane_y[lane] = 0.0f; lane_w[lane] = 0.0f;
+   } else {
+    lane_x[lane] = P[idx].X * W[idx];
+    lane_y[lane] = P[idx].Y * W[idx];
+    lane_w[lane] = W[idx];
+   }
+  }
+  // Note: _mm_set_ps takes values in reverse lane order: (w3, w2, w1, w0)
+  D_x[k] = _mm_set_ps(lane_x[3], lane_x[2], lane_x[1], lane_x[0]);
+  D_y[k] = _mm_set_ps(lane_y[3], lane_y[2], lane_y[1], lane_y[0]);
+  D_w[k] = _mm_set_ps(lane_w[3], lane_w[2], lane_w[1], lane_w[0]);
+ }
+ 
+ // pack t into vector
+ __m128 T = _mm_set_ps(t4[3], t4[2], t4[1], t4[0]);
+ 
+ // de Boor: for r=1..m, for k=m..r
+ for (u32 r = 1; r <= (u32)m; ++r) {
+  for (int k = (int)m; k >= (int)r; --k) {
+   // compute per-lane alpha values and pack into vector
+   f32 alpha_lane[4];
+   for (int lane = 0; lane < 4; ++lane) {
+    int j = span[lane];
+    u32 i = (u32)(j - m + k);
+    f32 num = t4[lane] - Knots[i];
+    f32 den = Knots[i + m + 1 - r] - Knots[i];
+    alpha_lane[lane] = (den == 0.0f) ? 0.0f : (num / den);
+   }
+   __m128 alpha = _mm_set_ps(alpha_lane[3], alpha_lane[2], alpha_lane[1], alpha_lane[0]);
+   __m128 one = _mm_set1_ps(1.0f);
+   __m128 one_minus_alpha = _mm_sub_ps(one, alpha);
+   
+   // D[k] = (1-alpha)*D[k-1] + alpha*D[k]  (vectorized)
+   __m128 dx_k   = D_x[k];
+   __m128 dx_km1 = D_x[k-1];
+   __m128 dy_k   = D_y[k];
+   __m128 dy_km1 = D_y[k-1];
+   __m128 dw_k   = D_w[k];
+   __m128 dw_km1 = D_w[k-1];
+   
+   __m128 nx = _mm_add_ps(_mm_mul_ps(one_minus_alpha, dx_km1), _mm_mul_ps(alpha, dx_k));
+   __m128 ny = _mm_add_ps(_mm_mul_ps(one_minus_alpha, dy_km1), _mm_mul_ps(alpha, dy_k));
+   __m128 nw = _mm_add_ps(_mm_mul_ps(one_minus_alpha, dw_km1), _mm_mul_ps(alpha, dw_k));
+   
+   D_x[k] = nx;
+   D_y[k] = ny;
+   D_w[k] = nw;
+  }
+ }
+ 
+ // result in D_x[m], D_y[m], D_w[m]
+ __m128 rx = D_x[m];
+ __m128 ry = D_y[m];
+ __m128 rw = D_w[m];
+ 
+ // divide (rx/rw, ry/rw)
+ // guard against zero: we perform division; if rw==0 lane becomes INF/NaN -> we clamp afterwards
+ __m128 inv_rw = _mm_div_ps(_mm_set1_ps(1.0f), rw);
+ __m128 outx = _mm_mul_ps(rx, inv_rw);
+ __m128 outy = _mm_mul_ps(ry, inv_rw);
+ 
+ // store results back to out[4]
+ f32 out_x[4], out_y[4];
+ _mm_storeu_ps(out_x, outx); // stores lane order (w0..w3) as out_x[0..3]
+ _mm_storeu_ps(out_y, outy);
+ 
+ for (int lane = 0; lane < 4; ++lane) {
+  out[lane].X = out_x[lane];
+  out[lane].Y = out_y[lane];
+ }
+ 
+ free(D_x);
+ free(D_y);
+ free(D_w);
+}
+
 
 // NOTE(hbr): Those should be local conveniance internal, but impossible in C.
 inline internal f32 Hi(f32 *Ti, u32 I) { return Ti[I+1] - Ti[I]; }

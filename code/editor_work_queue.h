@@ -22,5 +22,6 @@ struct work_queue
 internal void WorkQueueInit(work_queue *Queue, u32 ThreadCount);
 internal void WorkQueueAddEntry(work_queue *Queue, work_queue_func *Func, void *UserData);
 internal void WorkQueueCompleteAllWork(work_queue *Queue);
+internal u32 WorkQueueFreeEntryCount(work_queue *Queue);
 
 #endif //EDITOR_WORK_QUEUE_H

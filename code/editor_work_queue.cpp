@@ -84,3 +84,10 @@ WorkQueueInit(work_queue *Queue, u32 ThreadCount)
   OS_ThreadLaunch(WorkQueueThreadEntry, Queue);
  }
 }
+
+internal u32
+WorkQueueFreeEntryCount(work_queue *Queue)
+{
+ u32 Result = ArrayCount(Queue->Entries) - Queue->EntryCount;
+ return Result;
+}

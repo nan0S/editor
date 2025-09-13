@@ -12,12 +12,12 @@
 #include "editor_parametric_equation.cpp"
 #include "editor_ui.cpp"
 #include "editor_stb.cpp"
-#include "editor_debug.cpp"
 #include "editor_camera.cpp"
 #include "editor_sort.cpp"
 #include "editor_editor.cpp"
 #include "editor_platform.cpp"
 #include "editor_ctx.cpp"
+#include "editor_dev.cpp"
 
 #if BUILD_HOT_RELOAD
 platform_api Platform;
@@ -1806,7 +1806,7 @@ RenderMenuBarUI(editor *Editor)
   {
    UI_MenuItem(&Editor->EntityListWindow, NilStr, StrLit("Entity List"));
    UI_MenuItem(&Editor->SelectedEntityWindow, NilStr, StrLit("Selected Entity"));
-#if BUILD_DEBUG
+#if BUILD_DEV
    UI_MenuItem(&Editor->DiagnosticsWindow, NilStr, StrLit("Diagnostics"));
    UI_MenuItem(&Editor->ProfilerWindow, NilStr, StrLit("Profiler"));
 #endif
@@ -3127,7 +3127,7 @@ ProcessInputEvents(editor *Editor,
    editor_keyboard_shortcut_group *Group = EditorKeyboardShortcuts + Command;
    
    b32 IsActive = true;
-#if !(BUILD_DEBUG)
+#if !(BUILD_DEV)
    IsActive = !Group->DevSpecific;
 #endif
    
@@ -3819,7 +3819,6 @@ RenderProfilerWindowContents(editor *Editor)
  }
  
  //- filter by anchor label
- local u32 FilterIndex = 0;
  u32 SpecialFilterCount = 0;
  u32 FilterNone = 0;
  u32 FilterAll = 0;
@@ -3871,7 +3870,7 @@ RenderProfilerWindowContents(editor *Editor)
    FilterLabels[FilterIndex] = AnchorFilters[FilterIndex].FilterLabel;
   }
   
-  UI_Combo(&FilterIndex, FilterCount, FilterLabels, StrLit("Anchor Filter"));
+  UI_Combo(&Visual->FilterIndex, FilterCount, FilterLabels, StrLit("Anchor Filter"));
  }
  
  UI_Colored(UI_Color_Text, YellowColor)
@@ -3905,14 +3904,14 @@ RenderProfilerWindowContents(editor *Editor)
     b32 ProfileClicked = false;
     
     //- render just frames, without splitting into anchors
-    if (FilterIndex == FilterNone)
+    if (Visual->FilterIndex == FilterNone)
     {
      string FrameLabel = StrF(Temp.Arena, "Frame %u", FrameIndex);
      f32 FrameTotalMs = MsFromTSC(Frame->TotalTSC, Profiler->Inv_CPU_Freq);
      ProfileClicked |= RenderProfile(&Layout, FrameLabel, FrameTotalMs, 0, FrameWidth, true);
     }
     //- render all frame anchors
-    else if (FilterIndex == FilterAll)
+    else if (Visual->FilterIndex == FilterAll)
     {
      temp_arena Temp2 = BeginTemp(Temp.Arena);
      sorted_profiler_frame_anchors SortedAnchors = SortProfilerFrameAnchors(Temp2.Arena, Frame, Profiler);
@@ -3931,10 +3930,10 @@ RenderProfilerWindowContents(editor *Editor)
      
      EndTemp(Temp2);
     }
-    else if (FilterIndex >= SpecialFilterCount)
+    else if (Visual->FilterIndex >= SpecialFilterCount)
     {
-     Assert(FilterIndex >= SpecialFilterCount);
-     anchor_index AnchorIndex = AnchorFilters[FilterIndex].AnchorIndex;
+     Assert(Visual->FilterIndex >= SpecialFilterCount);
+     anchor_index AnchorIndex = AnchorFilters[Visual->FilterIndex].AnchorIndex;
      string AnchorLabel = Profiler->AnchorLabels[AnchorIndex.Index];
      f32 AnchorMs = MsFromTSC(Frame->Anchors[AnchorIndex.Index].TotalSelfTSC, Profiler->Inv_CPU_Freq);
      ProfileClicked |= RenderProfile(&Layout, AnchorLabel, AnchorMs, AnchorIndex.Index, FrameWidth, true);
@@ -4009,34 +4008,6 @@ RenderProfilerUI(editor *Editor)
   UI_EndWindow();
  }
  ProfileEnd();
-}
-
-internal void
-RenderDevConsoleUI(editor *Editor)
-{
- camera *Camera = &Editor->Camera;
- 
- if (Editor->DevConsole)
- {
-  if (UI_BeginWindow(&Editor->DevConsole, 0, StrLit("Dev Console")))
-  {
-   if (UI_Button(StrLit("Add Notification")))
-   {
-    AddNotificationF(Editor, Notification_Error,
-                     "This is a dev notification\nblablablablablablablabla"
-                     "blablablabl ablablablablabla blabl abla blablablablab lablablabla"
-                     "bla bla blablabl ablablablablab lablablablablablablablablablabla"
-                     "blabla blab lablablablab lablabla blablablablablablablablablabla");
-   }
-   UI_Checkbox(&DEBUG_Vars->ParametricEquationDebugMode, StrLit("Parametric Equation Debug Mode Enabled"));
-   UI_Checkbox(&DEBUG_Vars->ShowSampleCurvePoints, StrLit("Show Sample Curve Points"));
-   UI_ExponentialAnimation(&Camera->Animation);
-   UI_TextF(false, "DrawnGridLinesCount=%u", DEBUG_Vars->DrawnGridLinesCount);
-   UI_TextF(false, "String Store String Count: %u\n", GetCtx()->StrStore->StrCount);
-   UI_TextF(false, "TransformAction: %p", Editor->SelectedEntityTransformState.TransformAction);
-  }
-  UI_EndWindow();
- }
 }
 
 internal void
@@ -4442,6 +4413,8 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  
  BeginEditorFrame(Editor);
  
+ DevUpdateAndRender(Editor);
+ 
  render_group RenderGroup_ = {};
  render_group *RenderGroup = &RenderGroup_;
  {
@@ -4465,10 +4438,9 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
   RenderHelpUI(Editor);
   RenderAnimatingCurvesUI(Editor);
   RenderMergingCurvesUI(Editor);
-  RenderDevConsoleUI(Editor);
   RenderProfilerUI(Editor);
   
-#if BUILD_DEBUG
+#if BUILD_DEV
   UI_RenderDemoWindow();
 #endif
   
@@ -4488,7 +4460,7 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  RenderCurveShadowWhenMoving(Editor, RenderGroup);
  
  Input->ProfilingStopped = Editor->Profiler.Stopped;
-#if BUILD_DEBUG
+#if BUILD_DEV || BUILD_DEBUG
  Input->RefreshRequested = true;
 #endif
  

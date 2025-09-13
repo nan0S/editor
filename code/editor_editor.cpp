@@ -1342,7 +1342,7 @@ ExecuteEditorCommand(editor *Editor, editor_command Cmd)
   case EditorCommand_Save: {RequestProjectChange(Editor, MakeSaveProjectChangeRequest());}break;
   case EditorCommand_SaveAs: {RequestProjectChange(Editor, MakeSaveAsProjectChangeRequest());}break;
   case EditorCommand_Quit: {RequestProjectChange(Editor, MakeQuitProjectChangeRequest());}break;
-  case EditorCommand_ToggleDevConsole: {Editor->DevConsole = !Editor->DevConsole;}break;
+  case EditorCommand_ToggleDevConsole: {Editor->DEBUG_Vars.DevConsole = !Editor->DEBUG_Vars.DevConsole;}break;
   case EditorCommand_ToggleDiagnostics: {Editor->DiagnosticsWindow = !Editor->DiagnosticsWindow;}break;
   case EditorCommand_ToggleProfiler: {Editor->Profiler.Stopped = !Editor->Profiler.Stopped;}break;
   case EditorCommand_Undo: {Undo(Editor);}break;
@@ -4454,60 +4454,445 @@ PartitionKnotIndexToKnotIndex(u32 PartitionKnotIndex, b_spline_knot_params KnotP
 }
 
 internal void
-CalcBSpline(v2 *Controls, f32 *Weights,
-            b_spline_knot_params KnotParams, f32 *Knots,
-            u32 SampleCount, v2 *OutSamples)
+Calc_NURBS_BSpline_Evaluate(v2 *Controls,
+                            f32 *Weights,
+                            b_spline_knot_params KnotParams,
+                            f32 *Knots,
+                            u32 SampleCount,
+                            f32 *Ts,
+                            v2 *OutSamples)
 {
- // TODO(hbr): This slightly breakes moving BSpline along the curve.
- // When we calculate how much to move point forward or backwards, we
- // convert from [0,1] fraction into [SampleIndex], assuming that
- // sample points are sampled uniformly. This isn't the case with the code below.
-#if 0
- v2 *Out = OutSamples;
- u32 SamplesPerPartitionKnot = (SampleCount - 1) / (KnotParams.PartitionSize - 1);
- u32 SamplesLeft = SampleCount - 1 - SamplesPerPartitionKnot * (KnotParams.PartitionSize - 1);
- 
- for (u32 PartitionKnotIndex = 1;
-      PartitionKnotIndex < KnotParams.PartitionSize;
-      ++PartitionKnotIndex)
- {
-  u32 PrevKnot = PartitionKnotIndexToKnotIndex(PartitionKnotIndex - 1, KnotParams);
-  u32 NextKnot = PartitionKnotIndexToKnotIndex(PartitionKnotIndex - 0, KnotParams);
-  
-  f32 PrevT = Knots[PrevKnot];
-  f32 NextT = Knots[NextKnot];
-  
-  u32 CurrentSampleCount = SamplesPerPartitionKnot;
-  if (PartitionKnotIndex == 1) CurrentSampleCount += SamplesLeft;
-  
-  f32 T = PrevT;
-  Assert(NextT >= PrevT);
-  f32 DeltaT = (NextT - PrevT) / CurrentSampleCount;
-  
-  ForEachIndex(Index, CurrentSampleCount)
-  {
-   *Out++ = NURBS_Evaluate(T, Controls, Weights, KnotParams, Knots);
-   T += DeltaT;
-  }
- }
- *Out++ = NURBS_Evaluate(KnotParams.B, Controls, KnotParams, Knots);
- Assert(Cast(u64)(Out - OutSamples) == SampleCount);
- 
-#else
- 
- f32 T = KnotParams.A;
- f32 Delta_T = (KnotParams.B - KnotParams.A) / (SampleCount - 1);
+ ProfileFunctionBegin();
  
  for (u32 SampleIndex = 0;
       SampleIndex < SampleCount;
       ++SampleIndex)
  {
-  //OutSamples[SampleIndex] = NURBS_Evaluate(T, Controls, Weights, KnotParams, Knots);
+  f32 T = Ts[SampleIndex];
   OutSamples[SampleIndex] = BSplineEvaluate(T, Controls, KnotParams, Knots);
-  T += Delta_T;
  }
  
-#endif
+ ProfileEnd();
+}
+
+internal void
+Calc_NURBS_NURBS_Evaluate(v2 *Controls,
+                          f32 *Weights,
+                          b_spline_knot_params KnotParams,
+                          f32 *Knots,
+                          u32 SampleCount,
+                          f32 *Ts,
+                          v2 *OutSamples)
+{
+ ProfileFunctionBegin();
+ 
+ for (u32 SampleIndex = 0;
+      SampleIndex < SampleCount;
+      ++SampleIndex)
+ {
+  f32 T = Ts[SampleIndex];
+  OutSamples[SampleIndex] = NURBS_Evaluate(T, Controls, Weights, KnotParams, Knots);
+ }
+ 
+ ProfileEnd();
+}
+
+internal void
+Calc_NURBS_SimdWith1Lane(v2 *Controls,
+                         f32 *Weights,
+                         b_spline_knot_params KnotParams,
+                         f32 *Knots,
+                         u32 SampleCount,
+                         f32 *Ts,
+                         v2 *OutSamples)
+{
+ ProfileFunctionBegin();
+ 
+ for (u32 SampleIndex = 0;
+      SampleIndex < SampleCount;
+      ++SampleIndex)
+ {
+  v2 Out4[4] = {};
+  f32 T4[4] = {};
+  T4[0] = Ts[SampleIndex];
+  nurbs_eval_simd4(Controls,
+                   Weights,
+                   KnotParams.PartitionSize - 1,
+                   KnotParams.Degree,
+                   Knots,
+                   T4,
+                   Out4);
+  OutSamples[SampleIndex] = Out4[0];
+ }
+ 
+ ProfileEnd();
+}
+
+
+internal void
+Calc_NURBS_SimdWith4Lanes(v2 *Controls,
+                          f32 *Weights,
+                          b_spline_knot_params KnotParams,
+                          f32 *Knots,
+                          u32 SampleCount,
+                          f32 *Ts,
+                          v2 *OutSamples,
+                          b32 Profile)
+{
+ if (Profile)
+ {
+  ProfileFunctionBegin();
+ }
+ 
+ u32 Blocks = (SampleCount + 3) / 4;
+ u32 I = 0;
+ while (Blocks--)
+ {
+  f32 T4[4] = {};
+  for (u32 J = 0; J < 4; ++J)
+  {
+   if (I + J < SampleCount)
+   {
+    T4[J] = Ts[I + J];
+   }
+  }
+  v2 Out4[4] = {};
+  
+  nurbs_eval_simd4(Controls,
+                   Weights,
+                   KnotParams.PartitionSize - 1,
+                   KnotParams.Degree,
+                   Knots,
+                   T4,
+                   Out4);
+  
+  for (u32 J = 0; J < 4; ++J)
+  {
+   if (I + J < SampleCount)
+   {
+    OutSamples[I + J] = Out4[J];
+   }
+  }
+  
+  I += 4;
+ }
+ 
+ if (Profile)
+ {
+  ProfileEnd();
+ }
+}
+
+internal void
+Calc_NURBS_SimdWith4LanesUnrolled(v2 *Controls,
+                                  f32 *Weights,
+                                  b_spline_knot_params KnotParams,
+                                  f32 *Knots,
+                                  u32 SampleCount,
+                                  f32 *Ts,
+                                  v2 *OutSamples,
+                                  b32 Profile)
+{
+ if (Profile)
+ {
+  ProfileFunctionBegin();
+ }
+ 
+ u32 Blocks = (SampleCount + 3) / 4;
+ u32 I = 0;
+ while (Blocks)
+ {
+  u32 I0 = I + 0*4;
+  u32 I1 = I + 1*4;
+  u32 I2 = I + 2*4;
+  u32 I3 = I + 3*4;
+  
+  f32 T4_0[4] = {};
+  f32 T4_1[4] = {};
+  f32 T4_2[4] = {};
+  f32 T4_3[4] = {};
+  
+  for (u32 J = 0; J < 4; ++J)
+  {
+   if (I0 + J < SampleCount)
+   {
+    T4_0[J] = Ts[I0 + J];
+   }
+   if (I1 + J < SampleCount)
+   {
+    T4_1[J] = Ts[I1 + J];
+   }
+   if (I2 + J < SampleCount)
+   {
+    T4_2[J] = Ts[I2 + J];
+   }
+   if (I3 + J < SampleCount)
+   {
+    T4_3[J] = Ts[I3 + J];
+   }
+  }
+  
+  v2 Out4_0[4] = {};
+  v2 Out4_1[4] = {};
+  v2 Out4_2[4] = {};
+  v2 Out4_3[4] = {};
+  
+  nurbs_eval_simd4(Controls,
+                   Weights,
+                   KnotParams.PartitionSize - 1,
+                   KnotParams.Degree,
+                   Knots,
+                   T4_0,
+                   Out4_0);
+  
+  nurbs_eval_simd4(Controls,
+                   Weights,
+                   KnotParams.PartitionSize - 1,
+                   KnotParams.Degree,
+                   Knots,
+                   T4_1,
+                   Out4_1);
+  
+  nurbs_eval_simd4(Controls,
+                   Weights,
+                   KnotParams.PartitionSize - 1,
+                   KnotParams.Degree,
+                   Knots,
+                   T4_2,
+                   Out4_2);
+  
+  nurbs_eval_simd4(Controls,
+                   Weights,
+                   KnotParams.PartitionSize - 1,
+                   KnotParams.Degree,
+                   Knots,
+                   T4_3,
+                   Out4_3);
+  
+  for (u32 J = 0; J < 4; ++J)
+  {
+   if (I0 + J < SampleCount)
+   {
+    OutSamples[I0 + J] = Out4_0[J];
+   }
+   if (I1 + J < SampleCount)
+   {
+    OutSamples[I1 + J] = Out4_1[J];
+   }
+   if (I2 + J < SampleCount)
+   {
+    OutSamples[I2 + J] = Out4_2[J];
+   }
+   if (I3 + J < SampleCount)
+   {
+    OutSamples[I3 + J] = Out4_3[J];
+   }
+  }
+  
+  I += 16;
+  if (Blocks >= 4) Blocks -= 4;
+  else Blocks = 0;
+ }
+ 
+ if (Profile)
+ {
+  ProfileEnd();
+ }
+}
+
+struct calc_nurbs_work
+{
+ v2 *Controls;
+ f32 *Weights;
+ b_spline_knot_params KnotParams;
+ f32 *Knots;
+ u32 SampleCount;
+ f32 *Ts;
+ v2 *OutSamples;
+};
+
+internal void
+Calc_NURBS_SimdWork(void *UserData)
+{
+ calc_nurbs_work *Work = Cast(calc_nurbs_work *)UserData;
+ Calc_NURBS_SimdWith4Lanes(Work->Controls,
+                           Work->Weights,
+                           Work->KnotParams,
+                           Work->Knots,
+                           Work->SampleCount,
+                           Work->Ts,
+                           Work->OutSamples,
+                           false);
+}
+
+internal void
+Calc_NURBS_SimdUnrolledWork(void *UserData)
+{
+ calc_nurbs_work *Work = Cast(calc_nurbs_work *)UserData;
+ Calc_NURBS_SimdWith4LanesUnrolled(Work->Controls,
+                                   Work->Weights,
+                                   Work->KnotParams,
+                                   Work->Knots,
+                                   Work->SampleCount,
+                                   Work->Ts,
+                                   Work->OutSamples,
+                                   false);
+}
+
+struct work_queue_blocks
+{
+ u32 BlockCount;
+ u32 BlockSize;
+};
+internal work_queue_blocks
+WorkQueueCalculateBlocks(work_queue *WorkQueue, u32 ComputeCount, u32 RequestBlockSize)
+{
+ u32 RequestBlockCount = (ComputeCount + RequestBlockSize - 1) / RequestBlockSize;
+ u32 FreeEntries = Platform.WorkQueueFreeEntryCount(WorkQueue);
+ u32 ActualBlockCount = Min(RequestBlockCount, FreeEntries);
+ u32 ActualBlockSize = (ComputeCount + ActualBlockCount - 1) / ActualBlockCount;
+ 
+ work_queue_blocks Result = {};
+ Result.BlockCount = ActualBlockCount;
+ Result.BlockSize = ActualBlockSize;
+ Assert(ActualBlockCount * ActualBlockSize >= ComputeCount);
+ Assert((ActualBlockCount - 1) * ActualBlockSize < ComputeCount || ActualBlockCount == 0);
+ 
+ return Result;
+}
+
+internal void
+Calc_NURBS_SimdMultithreaded(v2 *Controls,
+                             f32 *Weights,
+                             b_spline_knot_params KnotParams,
+                             f32 *Knots,
+                             u32 SampleCount,
+                             f32 *Ts,
+                             v2 *OutSamples,
+                             work_queue_func *Calc_NURBS_Work)
+{
+ ProfileFunctionBegin();
+ 
+ temp_arena Temp = TempArena(0);
+ work_queue *WorkQueue = GetCtx()->HighPriorityQueue;
+ 
+ // NOTE(hbr): Experimentally found that 100 is the fastest here. It seems "low" because
+ // NURBS evaluation algorithm has O(m^2) complexity, so there is quite a bit of work
+ // done there.
+ work_queue_blocks Blocks = WorkQueueCalculateBlocks(WorkQueue, SampleCount, 100);
+ u32 BlockCount = Blocks.BlockCount;
+ u32 BlockSize = Blocks.BlockSize;
+ u32 SamplesLeft = SampleCount;
+ f32 *TsAt = Ts;
+ v2 *OutSamplesAt = OutSamples;
+ 
+ calc_nurbs_work *Works = PushArray(Temp.Arena, BlockCount, calc_nurbs_work);
+ 
+ ForEachIndex(BlockIndex, BlockCount)
+ {
+  u32 BlockSampleCount = Min(SamplesLeft, BlockSize);
+  
+  calc_nurbs_work *Work = Works + BlockIndex;
+  Work->Controls = Controls;
+  Work->Weights = Weights;
+  Work->KnotParams = KnotParams;
+  Work->Knots = Knots;
+  Work->SampleCount = BlockSampleCount;
+  Work->Ts = TsAt;
+  Work->OutSamples = OutSamplesAt;
+  
+  Platform.WorkQueueAddEntry(WorkQueue, Calc_NURBS_Work, Work);
+  
+  TsAt += BlockSampleCount;
+  OutSamplesAt += BlockSampleCount;
+  SamplesLeft -= BlockSampleCount;
+ }
+ 
+ Assert(SamplesLeft == 0);
+ 
+ Platform.WorkQueueCompleteAllWork(WorkQueue);
+ 
+ EndTemp(Temp);
+ 
+ ProfileEnd();
+}
+
+internal void
+Calc_NURBS(v2 *Controls,
+           f32 *Weights,
+           b_spline_knot_params KnotParams,
+           f32 *Knots,
+           u32 SampleCount,
+           f32 *Ts,
+           v2 *OutSamples)
+{
+ switch (DEBUG_Vars->NURBS_EvalMethod)
+ {
+  case NURBS_Eval_BSpline_Evaluate: {
+   Calc_NURBS_BSpline_Evaluate(Controls,
+                               Weights,
+                               KnotParams,
+                               Knots,
+                               SampleCount,
+                               Ts,
+                               OutSamples);
+  }break;
+  
+  case NURBS_Eval_NURBS_Evaluate: {
+   Calc_NURBS_NURBS_Evaluate(Controls,
+                             Weights,
+                             KnotParams,
+                             Knots,
+                             SampleCount,
+                             Ts,
+                             OutSamples);
+  }break;
+  
+  case NURBS_Eval_SimdWith1Lane: {
+   Calc_NURBS_SimdWith1Lane(Controls,
+                            Weights,
+                            KnotParams,
+                            Knots,
+                            SampleCount,
+                            Ts,
+                            OutSamples);
+  }break;
+  
+  case NURBS_Eval_SimdWith4Lanes: {
+   Calc_NURBS_SimdWith4Lanes(Controls,
+                             Weights,
+                             KnotParams,
+                             Knots,
+                             SampleCount,
+                             Ts,
+                             OutSamples,
+                             true);
+  }break;
+  
+  case NURBS_Eval_SimdMultithreaded: {
+   Calc_NURBS_SimdMultithreaded(Controls,
+                                Weights,
+                                KnotParams,
+                                Knots,
+                                SampleCount,
+                                Ts,
+                                OutSamples,
+                                Calc_NURBS_SimdWork);
+  }break;
+  
+  case NURBS_Eval_SimdMultithreadedUnrolled: {
+   Calc_NURBS_SimdMultithreaded(Controls,
+                                Weights,
+                                KnotParams,
+                                Knots,
+                                SampleCount,
+                                Ts,
+                                OutSamples,
+                                Calc_NURBS_SimdUnrolledWork);
+  }break;
+  
+  case NURBS_Eval_Count: InvalidPath;
+ }
 }
 
 internal void
@@ -4621,6 +5006,8 @@ CalcParametric(arena *Arena,
 internal void
 CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
 {
+ temp_arena Temp = TempArena(0);
+ 
  curve_points_static *Points = GetCurvePoints(Curve);
  u32 PointCount = Points->ControlPointCount;
  v2 *Controls = Points->ControlPoints;
@@ -4655,24 +5042,39 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
    Points->BSplineKnotCount = KnotParams.KnotCount;
    
    v2 *PartitionKnots = PushArrayNonZero(Curve->ComputeArena, PartitionSize, v2);
-   Curve->BSplinePartitionKnots = PartitionKnots;
-   for (u32 PartitionKnotIndex = 0;
-        PartitionKnotIndex < PartitionSize;
-        ++PartitionKnotIndex)
-   {
-    f32 T = BSplineKnots[Degree + PartitionKnotIndex];
-    //v2 KnotPoint = NURBS_Evaluate(T, Controls, Weights, KnotParams, BSplineKnots);
-    v2 KnotPoint = BSplineEvaluate(T, Controls, KnotParams, BSplineKnots);
-    PartitionKnots[PartitionKnotIndex] = KnotPoint;
-   }
+   Calc_NURBS(Controls,
+              Weights,
+              KnotParams,
+              BSplineKnots,
+              PartitionSize,
+              BSplineKnots + Degree,
+              PartitionKnots);
    
-   CalcBSpline(Controls, Weights, KnotParams, BSplineKnots, SampleCount, OutSamples);
+   Curve->BSplinePartitionKnots = PartitionKnots;
+   
+   f32 T = KnotParams.A;
+   f32 Delta_T = (KnotParams.B - KnotParams.A) / (SampleCount - 1);
+   f32 *Ts = PushArrayNonZero(Temp.Arena, SampleCount, f32);
+   ForEachIndex(SampleIndex, SampleCount)
+   {
+    Ts[SampleIndex] = T;
+    T += Delta_T;
+   }
+   Calc_NURBS(Controls,
+              Weights,
+              KnotParams,
+              BSplineKnots,
+              SampleCount,
+              Ts,
+              OutSamples);
   }break;
   
   case Curve_Parametric: {CalcParametric(ComputeArena, Parametric, SampleCount, OutSamples);}break;
   
   case Curve_Count: InvalidPath;
  }
+ 
+ EndTemp(Temp);
 }
 
 // TODO(hbr): This function needs some serious refactoring.

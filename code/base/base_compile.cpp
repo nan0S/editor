@@ -7,7 +7,7 @@ EquipBuild(arena *Arena)
 }
 
 internal compiler_setup
-MakeCompilerSetup(compiler_choice Compiler, b32 DebugBuild, b32 GenerateDebuggerInfo, b32 Verbose)
+MakeCompilerSetup(compiler_choice Compiler, compiler_flags Flags)
 {
  compiler_setup Result = {};
  switch (Compiler)
@@ -25,9 +25,7 @@ MakeCompilerSetup(compiler_choice Compiler, b32 DebugBuild, b32 GenerateDebugger
 #endif
   }break;
  }
- Result.DebugBuild = DebugBuild;
- Result.GenerateDebuggerInfo = GenerateDebuggerInfo;
- Result.Verbose = Verbose;
+ Result.Flags = Flags;
  
  return Result;
 }
@@ -87,7 +85,7 @@ ComputeCompilationTargetOutput(compiler_setup Setup, compilation_target Target)
   }
   else
   {
-   BuildTargetSuffix = (Setup.DebugBuild ? "debug" : "release");
+   BuildTargetSuffix = ((Setup.Flags & CompilerFlag_DebugBuild) ? "debug" : "release");
   }
   
   string TargetFullName = StrAfterLastSlash(Target.SourcePath);
@@ -140,7 +138,7 @@ Compile(compiler_setup Setup, compilation_target Target)
     case MSVC: {
      StrListPushF(Arena, Cmd, "cl");
      
-     if (Setup.DebugBuild)
+     if (Setup.Flags & CompilerFlag_DebugBuild)
      {
       StrListPushF(Arena, Cmd, "-Od");
      }
@@ -149,10 +147,10 @@ Compile(compiler_setup Setup, compilation_target Target)
       StrListPushF(Arena, Cmd, "-O2");
       StrListPushF(Arena, Cmd, "-Oi"); // generate intrinsic instructions (possibly)
      }
-     if (Setup.GenerateDebuggerInfo)
+     if (Setup.Flags & CompilerFlag_GenerateDebuggerInfo)
      {
       StrListPushF(Arena, Cmd, "-Z7"); // full debug information - also in execs/libraries/objs
-      if (!Setup.DebugBuild)
+      if (!(Setup.Flags & CompilerFlag_DebugBuild))
       {
        StrListPushF(Arena, Cmd, "-Zo"); // enhanced debug info for optimized builds
       }
@@ -187,7 +185,7 @@ Compile(compiler_setup Setup, compilation_target Target)
     case GCC:
     case Clang: {
      StrListPushF(Arena, Cmd, (Setup.Compiler == GCC) ? "gcc" : "clang");
-     if (Setup.DebugBuild)
+     if (Setup.Flags & CompilerFlag_DebugBuild)
      {
       StrListPushF(Arena, Cmd, "-O0");
      }
@@ -195,7 +193,7 @@ Compile(compiler_setup Setup, compilation_target Target)
      {
       StrListPushF(Arena, Cmd, "-Ofast");
      }
-     if (Setup.GenerateDebuggerInfo)
+     if (Setup.Flags & CompilerFlag_GenerateDebuggerInfo)
      {
       StrListPushF(Arena, Cmd, "-g");
      }
@@ -217,7 +215,8 @@ Compile(compiler_setup Setup, compilation_target Target)
    }
    
    //- define variables
-   StrListPushF(Arena, Cmd, Setup.DebugBuild ? "-DBUILD_DEBUG=1" : "-DBUILD_DEBUG=0");
+   StrListPushF(Arena, Cmd, (Setup.Flags & CompilerFlag_DebugBuild) ? "-DBUILD_DEBUG=1" : "-DBUILD_DEBUG=0");
+   StrListPushF(Arena, Cmd, (Setup.Flags & CompilerFlag_DevBuild) ? "-DBUILD_DEV=1" : "-DBUILD_DEV=0");
    for (u32 MacroIndex = 0;
         MacroIndex < Target.DefineMacroCount;
         ++MacroIndex)
@@ -295,7 +294,7 @@ Compile(compiler_setup Setup, compilation_target Target)
     }break;
    }
    
-   if (Setup.Verbose)
+   if (Setup.Flags & CompilerFlag_Verbose)
    {
     string_list_join_options Opts = {};
     Opts.Sep = StrLit(" ");

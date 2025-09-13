@@ -12,7 +12,10 @@ enum nurbs_eval_method : u32
  NURBS_Eval_Scalar,
  NURBS_Eval_ScalarButUsingSSE,
  NURBS_Eval_SSE,
+ NURBS_Eval_AVX2,
  NURBS_Eval_SSE_MultiThreaded,
+ NURBS_Eval_AVX2_MultiThreaded,
+ NURBS_Eval_Adaptive_MultiThreaded,
  NURBS_Eval_Count
 };
 global read_only string NURBS_Eval_Names[] = {
@@ -20,7 +23,10 @@ global read_only string NURBS_Eval_Names[] = {
  StrLit("NURBS_Eval_Scalar"),
  StrLit("NURBS_Eval_ScalarButUsingSSE"),
  StrLit("NURBS_Eval_SSE"),
+ StrLit("NURBS_Eval_AVX2"),
  StrLit("NURBS_Eval_SSE_MultiThreaded"),
+ StrLit("NURBS_Eval_AVX2_MultiThreaded"),
+ StrLit("NURBS_Eval_Adaptive_MultiThreaded"),
 };
 StaticAssert(ArrayCount(NURBS_Eval_Names) == NURBS_Eval_Count, NURBS_Eval_Names_AllDefined);
 

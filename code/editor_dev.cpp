@@ -243,7 +243,6 @@ DevUpdateAndRender(editor *Editor)
    EndEntityModify(Witness);
    
    DEBUG_Vars->Bezier_BenchmarkEntity = Entity;
-   DEBUG_Vars->Bezier_Benchmark = true;
   }
   
   // NOTE(hbr): Create Cubic Spline curve benchmark
@@ -260,7 +259,7 @@ DevUpdateAndRender(editor *Editor)
    EndEntityModify(Witness);
    
    DEBUG_Vars->CubicSpline_BenchmarkEntity = Entity;
-   DEBUG_Vars->CubicSpline_Benchmark = true;
+   //DEBUG_Vars->CubicSpline_Benchmark = true;
   }
   
   DEBUG_Vars->MultiThreadedEvaluationBlockSize = 1024;

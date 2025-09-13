@@ -1342,6 +1342,121 @@ NURBS_EvaluateSSE(v2 *P, f32 *W, u32 n, u32 m, f32 *Knots, f32 t4[4], v2 out[4])
  free(D_w);
 }
 
+internal void
+NURBS_EvaluateAVX2(v2 *P, f32 *W, u32 n, u32 m, f32 *Knots, f32 t8[8], v2 out[8])
+{
+ u32 N_ctrl = n + m;
+ 
+ // find spans per lane (scalar)
+ int span[8];
+ for (int lane = 0; lane < 8; ++lane) {
+  span[lane] = find_span_scalar(n, m, Knots, t8[lane]);
+ }
+ 
+ // allocate D_x[k], D_y[k], D_w[k] as __m256 for k=0..m
+ __m256 *D_x = (__m256*)malloc((size_t)(m + 1) * sizeof(__m256));
+ __m256 *D_y = (__m256*)malloc((size_t)(m + 1) * sizeof(__m256));
+ __m256 *D_w = (__m256*)malloc((size_t)(m + 1) * sizeof(__m256));
+ if (!D_x || !D_y || !D_w) {
+  // allocation failed: write zeros to output and return
+  for (int lane = 0; lane < 8; ++lane) { out[lane].X = 0.0f; out[lane].Y = 0.0f; }
+  free(D_x); free(D_y); free(D_w);
+  return;
+ }
+ 
+ // initialize lanes: for k = 0..m, D_*[k] holds values for lanes 0..7 at that k
+ for (u32 k = 0; k <= m; ++k) {
+  f32 lane_x[8], lane_y[8], lane_w[8];
+  for (int lane = 0; lane < 8; ++lane) {
+   int j = span[lane];
+   u32 idx = (u32)( (int)j - (int)m + (int)k ); // careful with signed arithmetic
+   if (idx >= N_ctrl) {
+    lane_x[lane] = 0.0f; lane_y[lane] = 0.0f; lane_w[lane] = 0.0f;
+   } else {
+    lane_x[lane] = P[idx].X * W[idx];
+    lane_y[lane] = P[idx].Y * W[idx];
+    lane_w[lane] = W[idx];
+   }
+  }
+  // _mm256_set_ps takes arguments in order (w7,...,w0)
+  D_x[k] = _mm256_set_ps(lane_x[7], lane_x[6], lane_x[5], lane_x[4],
+                         lane_x[3], lane_x[2], lane_x[1], lane_x[0]);
+  D_y[k] = _mm256_set_ps(lane_y[7], lane_y[6], lane_y[5], lane_y[4],
+                         lane_y[3], lane_y[2], lane_y[1], lane_y[0]);
+  D_w[k] = _mm256_set_ps(lane_w[7], lane_w[6], lane_w[5], lane_w[4],
+                         lane_w[3], lane_w[2], lane_w[1], lane_w[0]);
+ }
+ 
+ // pack t into vector (t8[0] -> lane 0, etc.)
+ __m256 T = _mm256_set_ps(t8[7], t8[6], t8[5], t8[4], t8[3], t8[2], t8[1], t8[0]);
+ 
+ __m256 one = _mm256_set1_ps(1.0f);
+ 
+ // de Boor: for r=1..m, for k=m..r
+ for (u32 r = 1; r <= m; ++r) {
+  for (int k = (int)m; k >= (int)r; --k) {
+   // compute per-lane alpha values and pack into vector
+   f32 alpha_lane[8];
+   for (int lane = 0; lane < 8; ++lane) {
+    int j = span[lane];
+    u32 i = (u32)((int)j - (int)m + k);
+    // bounds-safety: if i or i + m + 1 - r out of range, treat den as zero
+    f32 num = t8[lane] - Knots[i];
+    f32 den = Knots[i + m + 1 - r] - Knots[i];
+    alpha_lane[lane] = (den == 0.0f) ? 0.0f : (num / den);
+   }
+   __m256 alpha = _mm256_set_ps(
+                                alpha_lane[7], alpha_lane[6], alpha_lane[5], alpha_lane[4],
+                                alpha_lane[3], alpha_lane[2], alpha_lane[1], alpha_lane[0]
+                                );
+   __m256 one_minus_alpha = _mm256_sub_ps(one, alpha);
+   
+   // vectorized de Boor step: D[k] = (1-alpha)*D[k-1] + alpha*D[k]
+   __m256 dx_k   = D_x[k];
+   __m256 dx_km1 = D_x[k-1];
+   __m256 dy_k   = D_y[k];
+   __m256 dy_km1 = D_y[k-1];
+   __m256 dw_k   = D_w[k];
+   __m256 dw_km1 = D_w[k-1];
+   
+   __m256 nx = _mm256_add_ps(_mm256_mul_ps(one_minus_alpha, dx_km1),
+                             _mm256_mul_ps(alpha, dx_k));
+   __m256 ny = _mm256_add_ps(_mm256_mul_ps(one_minus_alpha, dy_km1),
+                             _mm256_mul_ps(alpha, dy_k));
+   __m256 nw = _mm256_add_ps(_mm256_mul_ps(one_minus_alpha, dw_km1),
+                             _mm256_mul_ps(alpha, dw_k));
+   
+   D_x[k] = nx;
+   D_y[k] = ny;
+   D_w[k] = nw;
+  }
+ }
+ 
+ // result in D_x[m], D_y[m], D_w[m]
+ __m256 rx = D_x[m];
+ __m256 ry = D_y[m];
+ __m256 rw = D_w[m];
+ 
+ // divide: out = (rx/rw, ry/rw)
+ // compute reciprocal of rw (may produce INF if zero; caller can clamp)
+ __m256 inv_rw = _mm256_div_ps(_mm256_set1_ps(1.0f), rw);
+ __m256 outx = _mm256_mul_ps(rx, inv_rw);
+ __m256 outy = _mm256_mul_ps(ry, inv_rw);
+ 
+ // store results back to out[8]
+ f32 out_x[8], out_y[8];
+ _mm256_storeu_ps(out_x, outx); // stores lanes as out_x[0..7]
+ _mm256_storeu_ps(out_y, outy);
+ 
+ for (int lane = 0; lane < 8; ++lane) {
+  out[lane].X = out_x[lane];
+  out[lane].Y = out_y[lane];
+ }
+ 
+ free(D_x);
+ free(D_y);
+ free(D_w);
+}
 
 // NOTE(hbr): Those should be local conveniance internal, but impossible in C.
 inline internal f32 Hi(f32 *Ti, u32 I) { return Ti[I+1] - Ti[I]; }

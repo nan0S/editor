@@ -4775,7 +4775,7 @@ CalcBezierRational_MultiThreaded(v2 *Controls,
 }
 
 internal void
-CalcRationalBezier(v2 *Controls,
+CalcBezierRational(v2 *Controls,
                    f32 *Weights,
                    u32 PointCount,
                    u32 SampleCount,
@@ -4847,8 +4847,8 @@ CalcRationalBezier(v2 *Controls,
 }
 
 internal void
-CalcCubicBezier(cubic_bezier_point *Beziers, u32 PointCount,
-                u32 SampleCount, v2 *OutSamples)
+CalcBezierCubicSpline(cubic_bezier_point *Beziers, u32 PointCount,
+                      u32 SampleCount, v2 *OutSamples)
 {
  if (PointCount > 0)
  {
@@ -4996,6 +4996,49 @@ CalcNURBS_SSE(v2 *Controls,
  }
 }
 
+internal void
+CalcNURBS_AVX2(v2 *Controls,
+               f32 *Weights,
+               b_spline_knot_params KnotParams,
+               f32 *Knots,
+               u32 SampleCount,
+               f32 *Ts,
+               v2 *OutSamples)
+{
+ u32 Blocks = (SampleCount + 7) / 8;
+ u32 I = 0;
+ while (Blocks--)
+ {
+  f32 T8[8] = {};
+  for (u32 J = 0; J < 8; ++J)
+  {
+   if (I + J < SampleCount)
+   {
+    T8[J] = Ts[I + J];
+   }
+  }
+  v2 Out8[8] = {};
+  
+  NURBS_EvaluateAVX2(Controls,
+                     Weights,
+                     KnotParams.PartitionSize - 1,
+                     KnotParams.Degree,
+                     Knots,
+                     T8,
+                     Out8);
+  
+  for (u32 J = 0; J < 8; ++J)
+  {
+   if (I + J < SampleCount)
+   {
+    OutSamples[I + J] = Out8[J];
+   }
+  }
+  
+  I += 8;
+ }
+}
+
 struct calc_nurbs_work
 {
  v2 *Controls;
@@ -5008,6 +5051,19 @@ struct calc_nurbs_work
 };
 
 internal void
+CalcNURBS_Scalar_Work(void *UserData)
+{
+ calc_nurbs_work *Work = Cast(calc_nurbs_work *)UserData;
+ CalcNURBS_Scalar(Work->Controls,
+                  Work->Weights,
+                  Work->KnotParams,
+                  Work->Knots,
+                  Work->SampleCount,
+                  Work->Ts,
+                  Work->OutSamples);
+}
+
+internal void
 CalcNURBS_SSE_Work(void *UserData)
 {
  calc_nurbs_work *Work = Cast(calc_nurbs_work *)UserData;
@@ -5018,6 +5074,19 @@ CalcNURBS_SSE_Work(void *UserData)
                Work->SampleCount,
                Work->Ts,
                Work->OutSamples);
+}
+
+internal void
+CalcNURBS_AVX2_Work(void *UserData)
+{
+ calc_nurbs_work *Work = Cast(calc_nurbs_work *)UserData;
+ CalcNURBS_AVX2(Work->Controls,
+                Work->Weights,
+                Work->KnotParams,
+                Work->Knots,
+                Work->SampleCount,
+                Work->Ts,
+                Work->OutSamples);
 }
 
 internal void
@@ -5101,8 +5170,28 @@ CalcNURBS(v2 *Controls,
    CalcNURBS_SSE(Controls, Weights, KnotParams, Knots, SampleCount, Ts, OutSamples);
   }break;
   
+  case NURBS_Eval_AVX2: {
+   CalcNURBS_AVX2(Controls, Weights, KnotParams, Knots, SampleCount, Ts, OutSamples);
+  }break;
+  
   case NURBS_Eval_SSE_MultiThreaded: {
    CalcNURBS_MultiThreaded(Controls, Weights, KnotParams, Knots, SampleCount, Ts, OutSamples, CalcNURBS_SSE_Work);
+  }break;
+  
+  case NURBS_Eval_AVX2_MultiThreaded: {
+   CalcNURBS_MultiThreaded(Controls, Weights, KnotParams, Knots, SampleCount, Ts, OutSamples, CalcNURBS_AVX2_Work);
+  }break;
+  
+  case NURBS_Eval_Adaptive_MultiThreaded: {
+   work_queue_func *EvalFunc = 0;
+   
+   instruction_set_flags Flags = Platform.InstructionSetSupport();
+   if (0) {}
+   else if (Flags & InstructionSet_AVX2) EvalFunc = CalcNURBS_AVX2_Work;
+   else if (Flags & InstructionSet_SSE) EvalFunc = CalcNURBS_SSE_Work;
+   else EvalFunc = CalcNURBS_Scalar_Work;
+   
+   CalcNURBS_MultiThreaded(Controls, Weights, KnotParams, Knots, SampleCount, Ts, OutSamples, EvalFunc);
   }break;
   
   case NURBS_Eval_Count: InvalidPath;
@@ -5333,8 +5422,8 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
   case Curve_Bezier: {
    switch (Params->Bezier)
    {
-    case Bezier_Rational: {CalcRationalBezier(Controls, Weights, PointCount, SampleCount, OutSamples);}break;
-    case Bezier_CubicSpline: {CalcCubicBezier(Beziers, PointCount, SampleCount, OutSamples);}break;
+    case Bezier_Rational: {CalcBezierRational(Controls, Weights, PointCount, SampleCount, OutSamples);}break;
+    case Bezier_CubicSpline: {CalcBezierCubicSpline(Beziers, PointCount, SampleCount, OutSamples);}break;
     case Bezier_Count: InvalidPath;
    }
   } break;

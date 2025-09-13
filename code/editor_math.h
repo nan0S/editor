@@ -269,6 +269,7 @@ internal b_spline_knot_params   BSplineKnotParamsFromDegree(u32 Degree, u32 Cont
 // TODO(hbr): Inconsistent naming of variables but I don't have time now to change that
 internal v2 NURBS_EvaluateScalar(f32 T, v2 *Controls, f32 *Weights, b_spline_knot_params KnotParams, f32 *Knots);
 internal void NURBS_EvaluateSSE(v2 *P, f32 *W, u32 n, u32 m, f32 *Knots, f32 t4[4], v2 out[4]);
+internal void NURBS_EvaluateAVX2(v2 *P, f32 *W, u32 n, u32 m, f32 *Knots, f32 t8[8], v2 out[8]);
 
 //~ Collisions, intersections, geometry
 struct line_intersection

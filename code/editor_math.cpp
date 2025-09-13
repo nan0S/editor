@@ -1611,6 +1611,75 @@ CubicSplineEvaluateScalar(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N)
  return Result;
 }
 
+internal f32
+CubicSplineEvaluateScalarWithBinarySearch(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N)
+{
+ f32 Result = 0.0f;
+ 
+ if (N == 0) {} // NOTE(hbr): Nothing to do
+ else if (N == 1) { Result = Y[0]; } // NOTE(hbr): No interpolation in one point case
+ else
+ {
+  u32 I2 = 0;
+  for (I2 = N-2; I2 > 0; --I2)
+  {
+   if (T >= Ti[I2]) break;
+  }
+  
+  Assert(T >= Ti[0]);
+  u32 Left = 1, Right = N;
+  while (Left + 1 < Right)
+  {
+   u32 Mid = (Left + Right) >> 1;
+   if (T >= Ti[Mid-1]) Left = Mid;
+   else Right = Mid;
+  }
+  Assert(Left > 0);
+  u32 I = Left-1;
+  
+  Assert(I == I2);
+  
+  // NOTE(hbr): Maybe optimize Hi here and T-Ti
+  f32 Term1 = M[I+1] / (6.0f * Hi(Ti, I)) * Cube(T - Ti[I]);
+  f32 Term2 = M[I] / (6.0f * Hi(Ti, I)) * Cube(Ti[I+1] - T);
+  f32 Term3 = (Y[I+1] / Hi(Ti, I) - M[I+1] / 6.0f * Hi(Ti, I)) * (T - Ti[I]);
+  f32 Term4 = (Y[I] / Hi(Ti, I) - Hi(Ti, I) / 6.0f * M[I]) * (Ti[I+1] - T);
+  Result = Term1 + Term2 + Term3 + Term4;
+ }
+ 
+ return Result;
+}
+
+internal f32
+CubicSplineEvaluateScalarWithConstantSearch(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N, cubic_spline_evaluate_iterator *It)
+{
+ f32 R = 0.0f;
+ 
+ if (N == 0) {} // NOTE(hbr): Nothing to do
+ else if (N == 1) { R = Y[0]; } // NOTE(hbr): No interpolation in one point case
+ else
+ {
+  u32 I = It->I;
+  if (I < N-1 && T >= Ti[I]) ++I;
+  Assert(I > 0);
+  Assert(T >= Ti[I-1]);
+  Assert(T < Ti[I] || I == N-1);
+  
+  f32 One_Over_6 = 1.0f / 6.0f;
+  f32 h_I = Ti[I] - Ti[I-1];
+  
+  f32 A = One_Over_6 * M[I-1] * Cube(Ti[I] - T);
+  f32 B = One_Over_6 * M[I] * Cube(T - Ti[I-1]);
+  f32 C = (Y[I-1] - One_Over_6 * M[I-1] * Sqr(h_I)) * (Ti[I] - T);
+  f32 D = (Y[I] - One_Over_6 * M[I] * Sqr(h_I)) * (T - Ti[I-1]);
+  R = (A + B + C + D) / h_I;
+  
+  It->I = I;
+ }
+ 
+ return R;
+}
+
 // NOTE(hbr): O(n) time, O(1) memory versions
 internal v2
 BezierCurveEvaluate(f32 T, v2 *P, u32 N)

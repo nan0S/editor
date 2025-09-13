@@ -192,7 +192,11 @@ internal f32  NewtonEvaluate(f32 T, f32 *Beta, f32 *Ti, u32 N);
 //- Cubic Spline interpolation
 internal void CubicSplineNaturalM(f32 *M, f32 *Ti, f32 *Y, u32 N);
 internal void CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u32 N);
-internal f32  CubicSplineEvaluate_Scalar(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N);
+
+struct cubic_spline_evaluate_iterator { u32 I; };
+internal f32 CubicSplineEvaluateScalar(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N);
+internal f32 CubicSplineEvaluateScalarWithBinarySearch(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N);
+internal f32 CubicSplineEvaluateScalarWithConstantSearch(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N, cubic_spline_evaluate_iterator *It);
 
 //- Bezier curve
 struct bezier_lower_degree_inverse_degree_elevation

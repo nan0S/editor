@@ -4358,6 +4358,47 @@ CalcCubicSpline_Scalar(f32 *Xs,
  }
 }
 
+internal void
+CalcCubicSpline_ScalarWithBinarySearch(f32 *Xs,
+                                       f32 *Ys,
+                                       u32 PointCount,
+                                       f32 *Ti,
+                                       f32 *Mx,
+                                       f32 *My,
+                                       u32 SampleCount,
+                                       f32 *Ts,
+                                       v2 *OutSamples)
+{
+ ForEachIndex(SampleIndex, SampleCount)
+ {
+  f32 T = Ts[SampleIndex];
+  f32 X = CubicSplineEvaluateScalarWithBinarySearch(T, Mx, Ti, Xs, PointCount);
+  f32 Y = CubicSplineEvaluateScalarWithBinarySearch(T, My, Ti, Ys, PointCount);
+  OutSamples[SampleIndex] = V2(X, Y);
+ }
+}
+
+internal void
+CalcCubicSpline_ScalarWithConstantSearch(f32 *Xs,
+                                         f32 *Ys,
+                                         u32 PointCount,
+                                         f32 *Ti,
+                                         f32 *Mx,
+                                         f32 *My,
+                                         u32 SampleCount,
+                                         f32 *Ts,
+                                         v2 *OutSamples)
+{
+ cubic_spline_evaluate_iterator Itx = {}, Ity = {};
+ ForEachIndex(SampleIndex, SampleCount)
+ {
+  f32 T = Ts[SampleIndex];
+  f32 X = CubicSplineEvaluateScalarWithConstantSearch(T, Mx, Ti, Xs, PointCount, &Itx);
+  f32 Y = CubicSplineEvaluateScalarWithConstantSearch(T, My, Ti, Ys, PointCount, &Ity);
+  OutSamples[SampleIndex] = V2(X, Y);
+ }
+}
+
 struct calc_cubic_spline_work
 {
  f32 *Xs;
@@ -4372,7 +4413,7 @@ struct calc_cubic_spline_work
 };
 
 internal void
-CalcCubicSpline_Work(void *UserData)
+CalcCubicSpline_Scalar_Work(void *UserData)
 {
  calc_cubic_spline_work *Work = Cast(calc_cubic_spline_work *)UserData;
  CalcCubicSpline_Scalar(Work->Xs,
@@ -4384,6 +4425,21 @@ CalcCubicSpline_Work(void *UserData)
                         Work->SampleCount,
                         Work->Ts,
                         Work->OutSamples);
+}
+
+internal void
+CalcCubicSpline_ScalarWithBinarySearch_Work(void *UserData)
+{
+ calc_cubic_spline_work *Work = Cast(calc_cubic_spline_work *)UserData;
+ CalcCubicSpline_ScalarWithBinarySearch(Work->Xs,
+                                        Work->Ys,
+                                        Work->PointCount,
+                                        Work->Ti,
+                                        Work->Mx,
+                                        Work->My,
+                                        Work->SampleCount,
+                                        Work->Ts,
+                                        Work->OutSamples);
 }
 
 struct work_queue_blocks
@@ -4417,7 +4473,8 @@ CalcCubicSpline_MultiThreaded(f32 *Xs,
                               f32 *My,
                               u32 SampleCount,
                               f32 *Ts,
-                              v2 *OutSamples)
+                              v2 *OutSamples,
+                              work_queue_func *EvalWorkFunc)
 {
  ProfileFunctionBegin();
  
@@ -4449,7 +4506,7 @@ CalcCubicSpline_MultiThreaded(f32 *Xs,
   Work->Ts = TsAt;
   Work->OutSamples = OutSamplesAt;
   
-  Platform.WorkQueueAddEntry(WorkQueue, CalcCubicSpline_Work, Work);
+  Platform.WorkQueueAddEntry(WorkQueue, EvalWorkFunc, Work);
   
   TsAt += BlockSampleCount;
   OutSamplesAt += BlockSampleCount;
@@ -4470,6 +4527,8 @@ CalcCubicSpline(v2 *Controls,
                 u32 SampleCount,
                 v2 *OutSamples)
 {
+ ProfileFunctionBegin();
+ 
  if (PointCount > 0)
  {
   temp_arena Temp = TempArena(0);
@@ -4516,21 +4575,38 @@ CalcCubicSpline(v2 *Controls,
    T += Delta_T;
   }
   
-  switch (DEBUG_Vars->CubicSpline_EvalMethod)
+  ProfileBlock("CalcCubicSpline - Samples Block")
   {
-   case CubicSpline_Eval_Scalar: {
-    CalcCubicSpline_Scalar(SOA.Xs, SOA.Ys, PointCount, Ti, Mx, My, SampleCount, Ts, OutSamples);
-   }break;
-   
-   case CubicSpline_Eval_Scalar_MultiThreaded: {
-    CalcCubicSpline_MultiThreaded(SOA.Xs, SOA.Ys, PointCount, Ti, Mx, My, SampleCount, Ts, OutSamples);
-   }break;
-   
-   case CubicSpline_Eval_Count: InvalidPath;
+   switch (DEBUG_Vars->CubicSpline_EvalMethod)
+   {
+    case CubicSpline_Eval_Scalar: {
+     CalcCubicSpline_Scalar(SOA.Xs, SOA.Ys, PointCount, Ti, Mx, My, SampleCount, Ts, OutSamples);
+    }break;
+    
+    case CubicSpline_Eval_ScalarWithBinarySearch: {
+     CalcCubicSpline_ScalarWithBinarySearch(SOA.Xs, SOA.Ys, PointCount, Ti, Mx, My, SampleCount, Ts, OutSamples);
+    }break;
+    
+    case CubicSpline_Eval_ScalarWithConstantSearch: {
+     CalcCubicSpline_ScalarWithConstantSearch(SOA.Xs, SOA.Ys, PointCount, Ti, Mx, My, SampleCount, Ts, OutSamples);
+    }break;
+    
+    case CubicSpline_Eval_Scalar_MultiThreaded: {
+     CalcCubicSpline_MultiThreaded(SOA.Xs, SOA.Ys, PointCount, Ti, Mx, My, SampleCount, Ts, OutSamples, CalcCubicSpline_Scalar_Work);
+    }break;
+    
+    case CubicSpline_Eval_ScalarWithBinarySearch_MultiThreaded: {
+     CalcCubicSpline_MultiThreaded(SOA.Xs, SOA.Ys, PointCount, Ti, Mx, My, SampleCount, Ts, OutSamples, CalcCubicSpline_ScalarWithBinarySearch_Work);
+    }break;
+    
+    case CubicSpline_Eval_Count: InvalidPath;
+   }
   }
   
   EndTemp(Temp);
  }
+ 
+ ProfileEnd();
 }
 
 internal void

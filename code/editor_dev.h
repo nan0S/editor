@@ -69,12 +69,18 @@ StaticAssert(ArrayCount(Bezier_Eval_Names) == Bezier_Eval_Count, Bezier_Eval_Nam
 enum cubic_spline_eval_method : u32
 {
  CubicSpline_Eval_Scalar,
+ CubicSpline_Eval_ScalarWithBinarySearch,
+ CubicSpline_Eval_ScalarWithConstantSearch,
  CubicSpline_Eval_Scalar_MultiThreaded,
+ CubicSpline_Eval_ScalarWithBinarySearch_MultiThreaded,
  CubicSpline_Eval_Count
 };
 global read_only string CubicSpline_Eval_Names[] = {
  StrLit("CubicSpline_Eval_Scalar"),
+ StrLit("CubicSpline_Eval_ScalarWithBinarySearch"),
+ StrLit("CubicSpline_Eval_ScalarWithConstantSearch"),
  StrLit("CubicSpline_Eval_Scalar_MultiThreaded"),
+ StrLit("CubicSpline_Eval_ScalarWithBinarySearch_MultiThreaded"),
 };
 StaticAssert(ArrayCount(CubicSpline_Eval_Names) == CubicSpline_Eval_Count, CubicSpline_Eval_Names_AllDefined);
 

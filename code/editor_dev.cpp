@@ -255,11 +255,11 @@ DevUpdateAndRender(editor *Editor)
    
    InitEntityAsCurve(Entity, StrLit("Cubic Spline Benchmark"), CubicSplineCurveParams);
    entity_with_modify_witness Witness = BeginEntityModify(Entity);
-   AppendMultipleControlPoints(Editor, &Witness, 100);
+   AppendMultipleControlPoints(Editor, &Witness, 500);
    EndEntityModify(Witness);
    
    DEBUG_Vars->CubicSpline_BenchmarkEntity = Entity;
-   //DEBUG_Vars->CubicSpline_Benchmark = true;
+   DEBUG_Vars->CubicSpline_Benchmark = true;
   }
   
   DEBUG_Vars->MultiThreadedEvaluationBlockSize = 1024;

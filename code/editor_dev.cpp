@@ -23,6 +23,11 @@ RenderDevConsoleUI(editor *Editor)
    UI_TextF(false, "TransformAction: %p", Editor->SelectedEntityTransformState.TransformAction);
    UI_Combo(SafeCastToPtr(DEBUG_Vars->NURBS_EvalMethod, u32), NURBS_Eval_Count, NURBS_Eval_Names, StrLit("NURBS Eval Method"));
    UI_SliderUnsigned(&DEBUG_Vars->NURBS_MultithreadedEvaluationBlockSize, 1, 10000, StrLit("NURBS Multithreaded Evaluation Block Size"));
+   UI_Checkbox(&DEBUG_Vars->NURBS_Benchmark, StrLit("NURBS Benchmark"));
+   UI_Checkbox(&DEBUG_Vars->Parametric_Benchmark, StrLit("Parametric Benchmark"));
+   UI_SliderUnsigned(&DEBUG_Vars->ParametricCurveMaxTotalSamples, 0, 100000, StrLit("Parametric Curve Max Total Samples"));
+   UI_Combo(SafeCastToPtr(DEBUG_Vars->Parametric_EvalMethod, u32), Parametric_Eval_Count, Parametric_Eval_Names, StrLit("Parametric Eval Method"));
+   UI_SliderUnsigned(&DEBUG_Vars->Parametric_MultithreadedEvaluationBlockSize, 1, 10000, StrLit("Parametric Multithreaded Evaluation Block Size"));
   }
   UI_EndWindow();
  }
@@ -149,53 +154,81 @@ DevUpdateAndRender(editor *Editor)
  
  if (!DEBUG_Vars->Initialized)
  {
-  // NOTE(hbr): Create NURBS-benchmark
-  entity *Entity = AddEntity(Editor);
-  curve_params BSplineCurveParams = DefaultCurveParams();
-  BSplineCurveParams.Type = Curve_BSpline;
+  // NOTE(hbr): Create NURBS-curve benchmark
+  {  
+   entity *Entity = AddEntity(Editor);
+   curve_params BSplineCurveParams = DefaultCurveParams();
+   BSplineCurveParams.TotalSamples = 50000;
+   BSplineCurveParams.Type = Curve_BSpline;
 #if BUILD_DEBUG
-  BSplineCurveParams.BSpline.KnotParams.Degree = 15;
+   BSplineCurveParams.BSpline.KnotParams.Degree = 15;
 #else
-  BSplineCurveParams.BSpline.KnotParams.Degree = 26;
+   BSplineCurveParams.BSpline.KnotParams.Degree = 26;
 #endif
-  InitEntityAsCurve(Entity, StrLit("Benchmark"), BSplineCurveParams);
-  entity_with_modify_witness Witness = BeginEntityModify(Entity);
-  
-  u32 PointsPerSide = 100;
-  f32 Side = 1.0f;
-  f32 Delta = Side / PointsPerSide;
-  v2 Center = 0.5f * V2(Side, Side);
-  
-  for (u32 I = 1; I <= PointsPerSide; ++I)
-  {
-   v2 P = V2(I * Delta, 0.0f) - Center;
-   AppendControlPoint(Editor, &Witness, P);
+   InitEntityAsCurve(Entity, StrLit("NURBS Benchmark"), BSplineCurveParams);
+   entity_with_modify_witness Witness = BeginEntityModify(Entity);
+   
+   u32 PointsPerSide = 100;
+   f32 Side = 1.0f;
+   f32 Delta = Side / PointsPerSide;
+   v2 Center = 0.5f * V2(Side, Side);
+   
+   for (u32 I = 1; I <= PointsPerSide; ++I)
+   {
+    v2 P = V2(I * Delta, 0.0f) - Center;
+    AppendControlPoint(Editor, &Witness, P);
+   }
+   
+   for (u32 I = 1; I <= PointsPerSide; ++I)
+   {
+    v2 P = V2(Side, I * Delta) - Center;
+    AppendControlPoint(Editor, &Witness, P);
+   }
+   
+   for (u32 I = 1; I <= PointsPerSide; ++I)
+   {
+    v2 P = V2(Side - I * Delta, Side) - Center;
+    AppendControlPoint(Editor, &Witness, P);
+   }
+   
+   for (u32 I = 1; I <= PointsPerSide; ++I)
+   {
+    v2 P = V2(0, Side - I * Delta) - Center;
+    AppendControlPoint(Editor, &Witness, P);
+   }
+   
+   EndEntityModify(Witness);
+   
+   DEBUG_Vars->NURBS_BenchmarkEntity = Entity;
   }
   
-  for (u32 I = 1; I <= PointsPerSide; ++I)
+  // NOTE(hbr): Create Parametric-curve benchmark
   {
-   v2 P = V2(Side, I * Delta) - Center;
-   AppendControlPoint(Editor, &Witness, P);
+   entity *Entity = AddEntity(Editor);
+   
+   curve_params ParametricCurveParams = DefaultCurveParams();
+   ParametricCurveParams.Type = Curve_Parametric;
+   InitEntityAsCurve(Entity, StrLit("Parametric Benchmark"), ParametricCurveParams);
+   
+   curve *Curve = SafeGetCurve(Entity);
+   entity_with_modify_witness Witness = BeginEntityModify(Entity);
+   LoadParametricCurvePredefinedExample(Curve, ParametricCurvePredefinedExample_ButterflyCurve);
+   MarkEntityModified(&Witness);
+   EndEntityModify(Witness);
+   
+   DEBUG_Vars->Parametric_BenchmarkEntity = Entity;
   }
   
-  for (u32 I = 1; I <= PointsPerSide; ++I)
-  {
-   v2 P = V2(Side - I * Delta, Side) - Center;
-   AppendControlPoint(Editor, &Witness, P);
-  }
-  
-  for (u32 I = 1; I <= PointsPerSide; ++I)
-  {
-   v2 P = V2(0, Side - I * Delta) - Center;
-   AppendControlPoint(Editor, &Witness, P);
-  }
-  
-  EndEntityModify(Witness);
-  
-  DEBUG_Vars->BenchmarkEntity = Entity;
   DEBUG_Vars->NURBS_MultithreadedEvaluationBlockSize = 1024;
-  DEBUG_Vars->Initialized = true;
+  DEBUG_Vars->Parametric_MultithreadedEvaluationBlockSize = 1024;
+#if BUILD_DEV
+  DEBUG_Vars->ParametricCurveMaxTotalSamples = 50000;
+  DEBUG_Vars->Parametric_Benchmark = true;
+#else
+  DEBUG_Vars->ParametricCurveMaxTotalSamples = 5000;
+#endif
   
+  DEBUG_Vars->Initialized = true;
   
   Editor->ProfilerWindow = true;
   Editor->DiagnosticsWindow = true;
@@ -203,9 +236,19 @@ DevUpdateAndRender(editor *Editor)
   Editor->Profiler.ReferenceMs = 1000.0f / 30.0f;
  }
  
- entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->BenchmarkEntity);
- MarkEntityModified(&Witness);
- EndEntityModify(Witness);
+ if (DEBUG_Vars->NURBS_Benchmark)
+ { 
+  entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->NURBS_BenchmarkEntity);
+  MarkEntityModified(&Witness);
+  EndEntityModify(Witness);
+ }
+ 
+ if (DEBUG_Vars->Parametric_Benchmark)
+ { 
+  entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->Parametric_BenchmarkEntity);
+  MarkEntityModified(&Witness);
+  EndEntityModify(Witness);
+ }
  
  RenderDevConsoleUI(Editor);
 }

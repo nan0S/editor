@@ -1416,6 +1416,7 @@ internal parametric_curve_field *AllocParametricCurveVar(parametric_curve_resour
 internal void DeallocParametricCurveVar(parametric_curve_resources *Resources, parametric_curve_field *Var);
 internal b32 ParametricCurveResourcesHasFreeAddditionalVar(parametric_curve_resources *Resources);
 internal b32 IsParametricCurveVarActive(parametric_curve_field *Var);
+internal void LoadParametricCurvePredefinedExample(curve *Curve, parametric_curve_predefined_example_type PredefinedExample);
 
 //- misc
 internal curve_params DefaultCurveParams(void);

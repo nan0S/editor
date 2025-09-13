@@ -1241,49 +1241,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
          {
           if (UI_Button(StrLit("Load Example")))
           {
-           parametric_curve_predefined_example Example = ParametricCurvePredefinedExamples[PredefinedExample];
-           
-           FillCharBuffer(Resources->X_Equation.Equation, Example.X_Equation);
-           FillCharBuffer(Resources->Y_Equation.Equation, Example.Y_Equation);
-           
-           FillCharBuffer(Resources->MinT_Var.VarName, Example.Min_T.Name);
-           FillCharBuffer(Resources->MaxT_Var.VarName, Example.Max_T.Name);
-           
-           FillCharBuffer(Resources->MinT_Var.Equation, Example.Min_T.Equation);
-           FillCharBuffer(Resources->MaxT_Var.Equation, Example.Max_T.Equation);
-           
-           Resources->MinT_Var.EquationOrDragFloatMode_Equation = Example.Min_T.EquationMode;
-           Resources->MinT_Var.DragValue = Example.Min_T.Value;
-           
-           Resources->MaxT_Var.EquationOrDragFloatMode_Equation = Example.Max_T.EquationMode;
-           Resources->MaxT_Var.DragValue = Example.Max_T.Value;
-           
-           // TODO(hbr): First deallocate everything
-           ForEachElement(AdditionalVarIndex, Resources->AdditionalVars)
-           {
-            parametric_curve_field *Var = Resources->AdditionalVars + AdditionalVarIndex;
-            if (IsParametricCurveVarActive(Var))
-            {
-             DeallocParametricCurveVar(Resources, Var);
-            }
-           }
-           
-           ForEachElement(AdditionalVar, Example.AdditionalVars)
-           {
-            parametric_curve_predefined_example_var *SrcVar = Example.AdditionalVars + AdditionalVar;
-            if (SrcVar->Name.Count > 0)
-            {
-             parametric_curve_field *DstVar = AllocParametricCurveVar(Resources);
-             Assert(DstVar);
-             
-             FillCharBuffer(DstVar->VarName, SrcVar->Name);
-             FillCharBuffer(DstVar->Equation, SrcVar->Equation);
-             
-             DstVar->EquationOrDragFloatMode_Equation = SrcVar->EquationMode;
-             DstVar->DragValue = SrcVar->Value;
-            }
-           }
-           
+           LoadParametricCurvePredefinedExample(Curve, PredefinedExample);
            CrucialEntityParamChanged = true;
           }
          }
@@ -1637,7 +1595,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
        
        if (IsCurveTotalSamplesMode(Curve))
        {
-        CrucialEntityParamChanged |= UI_SliderInteger(SafeCastToPtr(CurveParams->TotalSamples, i32), 1, 5000, StrLit("Total Samples"));
+        CrucialEntityParamChanged |= UI_SliderInteger(SafeCastToPtr(CurveParams->TotalSamples, i32), 1, DEBUG_Vars->ParametricCurveMaxTotalSamples, StrLit("Total Samples"));
         if (ResetCtxMenu(StrLit("Samples")))
         {
          CurveParams->TotalSamples = DefaultParams->TotalSamples;

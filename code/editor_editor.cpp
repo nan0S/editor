@@ -4942,10 +4942,92 @@ ParametricCurveVarValue(parametric_curve_field *Var)
 }
 
 internal void
+CalcParametric_SingleThreaded(parametric_equation_expr *X_Expr,
+                              parametric_equation_expr *Y_Expr,
+                              u32 SampleCount,
+                              f32 *Ts,
+                              v2 *OutSamples)
+{
+ ForEachIndex(SampleIndex, SampleCount)
+ {
+  f32 T = Ts[SampleIndex];
+  
+  f32 X = ParametricEquationEvalWithT(X_Expr, T);
+  f32 Y = ParametricEquationEvalWithT(Y_Expr, T);
+  
+  OutSamples[SampleIndex] = V2(X, Y);
+ }
+}
+
+struct calc_parametric_work
+{
+ parametric_equation_expr *X_Expr;
+ parametric_equation_expr *Y_Expr;
+ u32 SampleCount;
+ f32 *Ts;
+ v2 *OutSamples;
+};
+
+internal void
+CalcParametric_Work(void *UserData)
+{
+ calc_parametric_work *Work = Cast(calc_parametric_work *)UserData;
+ CalcParametric_SingleThreaded(Work->X_Expr, Work->Y_Expr, Work->SampleCount, Work->Ts, Work->OutSamples);
+}
+
+internal void
+CalcParametric_MultiThreaded(parametric_equation_expr *X_Expr,
+                             parametric_equation_expr *Y_Expr,
+                             u32 SampleCount,
+                             f32 *Ts,
+                             v2 *OutSamples)
+{
+ ProfileFunctionBegin();
+ 
+ temp_arena Temp = TempArena(0);
+ work_queue *WorkQueue = GetCtx()->HighPriorityQueue;
+ 
+ // NOTE(hbr): 256 selected experimentally
+ work_queue_blocks Blocks = WorkQueueCalculateBlocks(WorkQueue, SampleCount, 256);
+ u32 BlockCount = Blocks.BlockCount;
+ u32 BlockSize = Blocks.BlockSize;
+ u32 SamplesLeft = SampleCount;
+ f32 *TsAt = Ts;
+ v2 *OutSamplesAt = OutSamples;
+ 
+ calc_parametric_work *Works = PushArray(Temp.Arena, BlockCount, calc_parametric_work);
+ 
+ ForEachIndex(BlockIndex, BlockCount)
+ {
+  u32 BlockSampleCount = Min(SamplesLeft, BlockSize);
+  
+  calc_parametric_work *Work = Works + BlockIndex;
+  Work->X_Expr = X_Expr;
+  Work->Y_Expr = Y_Expr;
+  Work->SampleCount = BlockSampleCount;
+  Work->Ts = TsAt;
+  Work->OutSamples = OutSamplesAt;
+  
+  Platform.WorkQueueAddEntry(WorkQueue, CalcParametric_Work, Work);
+  
+  TsAt += BlockSampleCount;
+  OutSamplesAt += BlockSampleCount;
+  SamplesLeft -= BlockSampleCount;
+ }
+ 
+ Platform.WorkQueueCompleteAllWork(WorkQueue);
+ 
+ EndTemp(Temp);
+ 
+ ProfileEnd();
+}
+
+internal void
 CalcParametric(arena *Arena,
                parametric_curve_resources *Parametric,
                u32 SampleCount, v2 *OutSamples)
 {
+ ProfileFunctionBegin();
  
  temp_arena Temp = TempArena(Arena);
  
@@ -4986,21 +5068,29 @@ CalcParametric(arena *Arena,
  
  f32 T = MinT;
  f32 DeltaT = (MaxT - MinT) / (SampleCount - 1);
- 
- for (u32 SampleIndex = 0;
-      SampleIndex	< SampleCount;
-      ++SampleIndex)
+ f32 *Ts = PushArrayNonZero(Temp.Arena, SampleCount, f32);
+ ForEachIndex(SampleIndex, SampleCount)
  {
-  f32 X = ParametricEquationEvalWithT(X_Expr, T);
-  f32 Y = ParametricEquationEvalWithT(Y_Expr, T);
-  
-  v2 Point = V2(X, Y);
-  OutSamples[SampleIndex] = Point;
-  
+  Ts[SampleIndex] = T;
   T += DeltaT;
  }
  
+ switch (DEBUG_Vars->Parametric_EvalMethod)
+ {
+  case Parametric_Eval_SingleThreaded: {
+   CalcParametric_SingleThreaded(X_Expr, Y_Expr, SampleCount, Ts, OutSamples);
+  }break;
+  
+  case Parametric_Eval_MultiThreaded: {
+   CalcParametric_MultiThreaded(X_Expr, Y_Expr, SampleCount, Ts, OutSamples);
+  }break;
+  
+  case Parametric_Eval_Count: InvalidPath;
+ }
+ 
  EndTemp(Temp);
+ 
+ ProfileEnd();
 }
 
 internal void
@@ -5419,4 +5509,52 @@ IsParametricCurveVarActive(parametric_curve_field *Var)
 {
  b32 Result = (Var->Id != 0);
  return Result;
+}
+
+internal void
+LoadParametricCurvePredefinedExample(curve *Curve, parametric_curve_predefined_example_type PredefinedExample)
+{
+ parametric_curve_resources *Resources = &Curve->ParametricResources;
+ parametric_curve_predefined_example Example = ParametricCurvePredefinedExamples[PredefinedExample];
+ 
+ FillCharBuffer(Resources->X_Equation.Equation, Example.X_Equation);
+ FillCharBuffer(Resources->Y_Equation.Equation, Example.Y_Equation);
+ 
+ FillCharBuffer(Resources->MinT_Var.VarName, Example.Min_T.Name);
+ FillCharBuffer(Resources->MaxT_Var.VarName, Example.Max_T.Name);
+ 
+ FillCharBuffer(Resources->MinT_Var.Equation, Example.Min_T.Equation);
+ FillCharBuffer(Resources->MaxT_Var.Equation, Example.Max_T.Equation);
+ 
+ Resources->MinT_Var.EquationOrDragFloatMode_Equation = Example.Min_T.EquationMode;
+ Resources->MinT_Var.DragValue = Example.Min_T.Value;
+ 
+ Resources->MaxT_Var.EquationOrDragFloatMode_Equation = Example.Max_T.EquationMode;
+ Resources->MaxT_Var.DragValue = Example.Max_T.Value;
+ 
+ // TODO(hbr): First deallocate everything
+ ForEachElement(AdditionalVarIndex, Resources->AdditionalVars)
+ {
+  parametric_curve_field *Var = Resources->AdditionalVars + AdditionalVarIndex;
+  if (IsParametricCurveVarActive(Var))
+  {
+   DeallocParametricCurveVar(Resources, Var);
+  }
+ }
+ 
+ ForEachElement(AdditionalVar, Example.AdditionalVars)
+ {
+  parametric_curve_predefined_example_var *SrcVar = Example.AdditionalVars + AdditionalVar;
+  if (SrcVar->Name.Count > 0)
+  {
+   parametric_curve_field *DstVar = AllocParametricCurveVar(Resources);
+   Assert(DstVar);
+   
+   FillCharBuffer(DstVar->VarName, SrcVar->Name);
+   FillCharBuffer(DstVar->Equation, SrcVar->Equation);
+   
+   DstVar->EquationOrDragFloatMode_Equation = SrcVar->EquationMode;
+   DstVar->DragValue = SrcVar->Value;
+  }
+ }
 }

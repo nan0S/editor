@@ -1584,6 +1584,69 @@ CubicSplinePeriodicM(f32 *M, f32 *Ti, f32 *Y, u32 N)
  }
 }
 
+internal void
+CubicSplinePeriodicM_Optimized(f32 *M, f32 *Ti, f32 *Y, u32 N)
+{
+ temp_arena Temp = TempArena(0);
+ 
+ i32 n = N-1;
+ 
+ f32 *q = PushArrayNonZero(Temp.Arena, N, f32);
+ f32 *u = PushArrayNonZero(Temp.Arena, N, f32);
+ f32 *p = PushArrayNonZero(Temp.Arena, N, f32);
+ f32 *s = PushArrayNonZero(Temp.Arena, N, f32);
+ f32 *r = PushArrayNonZero(Temp.Arena, N, f32);
+ f32 *v = PushArrayNonZero(Temp.Arena, N, f32);
+ 
+ q[0] = u[0] = 0;
+ s[0] = 1;
+ for (i32 k = 1; k <= n-1; ++k)
+ {
+  f32 h_k = Ti[k] - Ti[k-1];
+  f32 h_k_1 = Ti[k+1] - Ti[k];
+  f32 lambda_k = h_k / (h_k + h_k_1);
+  
+  f32 beta[3];
+  NewtonBeta(beta, Ti + (k-1), Y + (k-1), 3);
+  f32 d_k = 6.0f * beta[2];
+  
+  p[k] = lambda_k * q[k-1] + 2;
+  q[k] = (lambda_k - 1) / p[k];
+  s[k] = -lambda_k * s[k-1] / p[k];
+  u[k] = (d_k - lambda_k * u[k-1]) / p[k];
+ }
+ 
+ r[n] = 1;
+ v[n] = 0;
+ for (i32 k = n-1; k >= 1; --k)
+ {
+  r[k] = q[k] * r[k+1] + s[k];
+  v[k] = q[k] * v[k+1] + u[k];
+ }
+ 
+ f32 beta[3];
+ f32 ts[3] = { Ti[n-1], Ti[n], Ti[n] + (Ti[n] - Ti[n-1]) };
+ f32 ys[3] = { Y[n-1], Y[n], Y[1] };
+ NewtonBeta(beta, ts, ys, 3);
+ f32 d_n = 6.0f * beta[2];
+ 
+ f32 h_n = Ti[n] - Ti[n-1];
+ f32 h_1 = Ti[1] - Ti[0];
+ f32 h_n_1 = h_1;
+ f32 lambda_n = h_n / (h_n + h_n_1);
+ 
+ f32 num = d_n - (1 - lambda_n) * v[1] - lambda_n * v[n-1];
+ f32 den = 2 + (1 - lambda_n) * r[1] + lambda_n * r[n-1];
+ M[n] = M[0] = num / den;
+ 
+ for (i32 k = 1; k <= n-1; ++k)
+ {
+  M[k] = q[k] * M[k-1] + s[k] * M[n] + u[k];
+ }
+ 
+ EndTemp(Temp);
+}
+
 internal f32
 CubicSplineEvaluateScalar(f32 T, f32 *M, f32 *Ti, f32 *Y, u32 N)
 {

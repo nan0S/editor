@@ -4559,8 +4559,20 @@ CalcCubicSpline(v2 *Controls,
    } break;
    
    case CubicSpline_Periodic: {
-    CubicSplinePeriodicM(Mx, Ti, SOA.Xs, PointCount);
-    CubicSplinePeriodicM(My, Ti, SOA.Ys, PointCount);
+    switch (DEBUG_Vars->CubicSplinePeriodicM_EvalMethod)
+    {
+     case CubicSplinePeriodicM_Eval_Base: {
+      CubicSplinePeriodicM(Mx, Ti, SOA.Xs, PointCount);
+      CubicSplinePeriodicM(My, Ti, SOA.Ys, PointCount);
+     }break;
+     
+     case CubicSplinePeriodicM_Eval_Optimized: {
+      CubicSplinePeriodicM_Optimized(Mx, Ti, SOA.Xs, PointCount);
+      CubicSplinePeriodicM_Optimized(My, Ti, SOA.Ys, PointCount);
+     }break;
+     
+     case CubicSplinePeriodicM_Eval_Count: InvalidPath;
+    }
    } break;
    
    case CubicSpline_Count: InvalidPath;

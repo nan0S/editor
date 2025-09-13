@@ -35,6 +35,11 @@ RenderDevConsoleUI(editor *Editor)
    
    UI_Checkbox(&DEBUG_Vars->CubicSpline_Benchmark, StrLit("Cubic Spline Benchmark"));
    UI_Combo(SafeCastToPtr(DEBUG_Vars->CubicSpline_EvalMethod, u32), CubicSpline_Eval_Count, CubicSpline_Eval_Names, StrLit("Cubic Spline Eval Method"));
+   
+   UI_Combo(SafeCastToPtr(DEBUG_Vars->CubicSplinePeriodicM_EvalMethod, u32),
+            CubicSplinePeriodicM_Eval_Count,
+            CubicSplinePeriodicM_Eval_Names,
+            StrLit("Cubic Spline Periodic M Eval Method"));
   }
   UI_EndWindow();
  }

@@ -84,6 +84,18 @@ global read_only string CubicSpline_Eval_Names[] = {
 };
 StaticAssert(ArrayCount(CubicSpline_Eval_Names) == CubicSpline_Eval_Count, CubicSpline_Eval_Names_AllDefined);
 
+enum cubic_spline_periodic_m_eval_method : u32
+{
+ CubicSplinePeriodicM_Eval_Base,
+ CubicSplinePeriodicM_Eval_Optimized,
+ CubicSplinePeriodicM_Eval_Count
+};
+global read_only string CubicSplinePeriodicM_Eval_Names[] = {
+ StrLit("CubicSplinePeriodicM_Eval_Base"),
+ StrLit("CubicSplinePeriodicM_Eval_Optimized"),
+};
+StaticAssert(ArrayCount(CubicSplinePeriodicM_Eval_Names) == CubicSplinePeriodicM_Eval_Count, CubicSplinePeriodicM_Eval_Names_AllDefined);
+
 struct debug_vars
 {
  b32 Initialized;
@@ -105,6 +117,8 @@ struct debug_vars
  cubic_spline_eval_method CubicSpline_EvalMethod;
  
  u32 MultiThreadedEvaluationBlockSize;
+ 
+ cubic_spline_periodic_m_eval_method CubicSplinePeriodicM_EvalMethod;
  
  b32 DevConsole;
  b32 ParametricEquationDebugMode;

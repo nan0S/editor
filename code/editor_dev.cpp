@@ -198,6 +198,8 @@ DevUpdateAndRender(editor *Editor)
  
  if (!DEBUG_Vars->Initialized)
  {
+  
+#if BUILD_DEV
   // NOTE(hbr): Create NURBS curve benchmark
   {  
    entity *Entity = AddEntity(Editor);
@@ -216,7 +218,9 @@ DevUpdateAndRender(editor *Editor)
    
    DEBUG_Vars->NURBS_BenchmarkEntity = Entity;
   }
+#endif
   
+#if BUILD_DEV
   // NOTE(hbr): Create Parametric curve benchmark
   {
    entity *Entity = AddEntity(Editor);
@@ -233,7 +237,9 @@ DevUpdateAndRender(editor *Editor)
    
    DEBUG_Vars->Parametric_BenchmarkEntity = Entity;
   }
+#endif
   
+#if BUILD_DEV
   // NOTE(hbr): Create Bezier curve benchmark
   {
    entity *Entity = AddEntity(Editor);
@@ -249,7 +255,9 @@ DevUpdateAndRender(editor *Editor)
    
    DEBUG_Vars->Bezier_BenchmarkEntity = Entity;
   }
+#endif
   
+#if BUILD_DEV
   // NOTE(hbr): Create Cubic Spline curve benchmark
   {
    entity *Entity = AddEntity(Editor);
@@ -264,55 +272,71 @@ DevUpdateAndRender(editor *Editor)
    EndEntityModify(Witness);
    
    DEBUG_Vars->CubicSpline_BenchmarkEntity = Entity;
-   DEBUG_Vars->CubicSpline_Benchmark = true;
   }
-  
-  DEBUG_Vars->MultiThreadedEvaluationBlockSize = 1024;
+#endif
   
 #if BUILD_DEV
   DEBUG_Vars->ParametricCurveMaxTotalSamples = 50000;
+  DEBUG_Vars->DevConsole = true;
+  Editor->Profiler.ReferenceMs = 1000.0f / 30.0f;
+  Editor->ProfilerWindow = true;
+  Editor->DiagnosticsWindow = true;
 #else
   DEBUG_Vars->ParametricCurveMaxTotalSamples = 5000;
 #endif
   
-  DEBUG_Vars->Initialized = true;
+  DEBUG_Vars->NURBS_EvalMethod = NURBS_Eval_Adaptive_MultiThreaded;
+  DEBUG_Vars->Parametric_EvalMethod = Parametric_Eval_MultiThreaded;
+  DEBUG_Vars->Bezier_EvalMethod = Bezier_Eval_Adaptive_MultiThreaded;
+  DEBUG_Vars->CubicSpline_EvalMethod = CubicSpline_Eval_ScalarWithBinarySearch_MultiThreaded;
+  DEBUG_Vars->CubicSplinePeriodicM_EvalMethod = CubicSplinePeriodicM_Eval_Base;
+  DEBUG_Vars->MultiThreadedEvaluationBlockSize = 1024;
   
-  Editor->ProfilerWindow = true;
-  Editor->DiagnosticsWindow = true;
-  DEBUG_Vars->DevConsole = true;
-  Editor->Profiler.ReferenceMs = 1000.0f / 30.0f;
+  DEBUG_Vars->Initialized = true;
  }
  
- SetEntityVisibility(DEBUG_Vars->NURBS_BenchmarkEntity, DEBUG_Vars->NURBS_Benchmark);
- if (DEBUG_Vars->NURBS_Benchmark)
- { 
-  entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->NURBS_BenchmarkEntity);
-  MarkEntityModified(&Witness);
-  EndEntityModify(Witness);
+ if (DEBUG_Vars->NURBS_BenchmarkEntity)
+ {
+  SetEntityVisibility(DEBUG_Vars->NURBS_BenchmarkEntity, DEBUG_Vars->NURBS_Benchmark);
+  if (DEBUG_Vars->NURBS_Benchmark)
+  { 
+   entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->NURBS_BenchmarkEntity);
+   MarkEntityModified(&Witness);
+   EndEntityModify(Witness);
+  }
  }
  
- SetEntityVisibility(DEBUG_Vars->Parametric_BenchmarkEntity, DEBUG_Vars->Parametric_Benchmark);
- if (DEBUG_Vars->Parametric_Benchmark)
- { 
-  entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->Parametric_BenchmarkEntity);
-  MarkEntityModified(&Witness);
-  EndEntityModify(Witness);
+ if (DEBUG_Vars->Parametric_BenchmarkEntity)
+ {
+  SetEntityVisibility(DEBUG_Vars->Parametric_BenchmarkEntity, DEBUG_Vars->Parametric_Benchmark);
+  if (DEBUG_Vars->Parametric_Benchmark)
+  { 
+   entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->Parametric_BenchmarkEntity);
+   MarkEntityModified(&Witness);
+   EndEntityModify(Witness);
+  }
  }
  
- SetEntityVisibility(DEBUG_Vars->Bezier_BenchmarkEntity, DEBUG_Vars->Bezier_Benchmark);
- if (DEBUG_Vars->Bezier_Benchmark)
- { 
-  entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->Bezier_BenchmarkEntity);
-  MarkEntityModified(&Witness);
-  EndEntityModify(Witness);
+ if (DEBUG_Vars->Bezier_BenchmarkEntity)
+ {
+  SetEntityVisibility(DEBUG_Vars->Bezier_BenchmarkEntity, DEBUG_Vars->Bezier_Benchmark);
+  if (DEBUG_Vars->Bezier_Benchmark)
+  { 
+   entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->Bezier_BenchmarkEntity);
+   MarkEntityModified(&Witness);
+   EndEntityModify(Witness);
+  }
  }
  
- SetEntityVisibility(DEBUG_Vars->CubicSpline_BenchmarkEntity, DEBUG_Vars->CubicSpline_Benchmark);
- if (DEBUG_Vars->CubicSpline_Benchmark)
- { 
-  entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->CubicSpline_BenchmarkEntity);
-  MarkEntityModified(&Witness);
-  EndEntityModify(Witness);
+ if (DEBUG_Vars->CubicSpline_BenchmarkEntity)
+ {
+  SetEntityVisibility(DEBUG_Vars->CubicSpline_BenchmarkEntity, DEBUG_Vars->CubicSpline_Benchmark);
+  if (DEBUG_Vars->CubicSpline_Benchmark)
+  { 
+   entity_with_modify_witness Witness = BeginEntityModify(DEBUG_Vars->CubicSpline_BenchmarkEntity);
+   MarkEntityModified(&Witness);
+   EndEntityModify(Witness);
+  }
  }
  
  RenderDevConsoleUI(Editor);

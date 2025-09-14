@@ -498,7 +498,11 @@ LoadEmptyProject(editor *Editor)
  AllocEditorResources(Editor);
  
  editor_serializable_state SerializableState = {};
+#if BUILD_DEV
+ SerializableState.BackgroundColor = SerializableState.DefaultBackgroundColor = RGBA_U8(255, 255, 255);
+#else
  SerializableState.BackgroundColor = SerializableState.DefaultBackgroundColor = RGBA_U8(21, 21, 21);
+#endif
  SerializableState.CollisionToleranceClip = 0.04f;
  SerializableState.RotationRadiusClip = 0.1f;
  SerializableState.CurveDefaultParams = DefaultCurveParams();
@@ -5489,6 +5493,8 @@ CalcParametric(arena *Arena,
 internal void
 CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
 {
+ ProfileFunctionBegin();
+ 
  temp_arena Temp = TempArena(0);
  
  curve_points_static *Points = GetCurvePoints(Curve);
@@ -5558,6 +5564,8 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
  }
  
  EndTemp(Temp);
+ 
+ ProfileEnd();
 }
 
 // TODO(hbr): This function needs some serious refactoring.
@@ -5648,23 +5656,26 @@ RecomputeCurve(curve *Curve)
  b_spline_convex_hull *BSplineConvexHulls = 0;
  if (IsBSplineCurve(Curve))
  {
-  b_spline_knot_params BSpline = GetBSplineParams(Curve).KnotParams;
-  u32 Degree = BSpline.Degree;
-  Assert(Degree <= ControlCount);
-  u32 ConvexHullCount = ControlCount - Degree;
-  b_spline_convex_hull *Hulls = PushArray(ComputeArena, ConvexHullCount, b_spline_convex_hull);
-  ForEachIndex(ConvexHullIndex, ConvexHullCount)
-  {
-   u32 PointCount = Degree + 1;
-   v2 *Points = PushArray(ComputeArena, PointCount, v2);
-   PointCount = CalcConvexHull(PointCount, Controls + ConvexHullIndex, Points);
-   vertex_array Vertices = ComputeVerticesOfThickLine(ComputeArena, PointCount, Points, Params->DrawParams.BSplinePartialConvexHull.Width, true);
-   b_spline_convex_hull *Hull = Hulls + ConvexHullIndex;
-   Hull->Points = Points;
-   Hull->Vertices = Vertices;
+  ProfileBlock("B-Spline Stuff in RecomputeCurve")
+  {   
+   b_spline_knot_params BSpline = GetBSplineParams(Curve).KnotParams;
+   u32 Degree = BSpline.Degree;
+   Assert(Degree <= ControlCount);
+   u32 ConvexHullCount = ControlCount - Degree;
+   b_spline_convex_hull *Hulls = PushArray(ComputeArena, ConvexHullCount, b_spline_convex_hull);
+   ForEachIndex(ConvexHullIndex, ConvexHullCount)
+   {
+    u32 PointCount = Degree + 1;
+    v2 *Points = PushArray(ComputeArena, PointCount, v2);
+    PointCount = CalcConvexHull(PointCount, Controls + ConvexHullIndex, Points);
+    vertex_array Vertices = ComputeVerticesOfThickLine(ComputeArena, PointCount, Points, Params->DrawParams.BSplinePartialConvexHull.Width, true);
+    b_spline_convex_hull *Hull = Hulls + ConvexHullIndex;
+    Hull->Points = Points;
+    Hull->Vertices = Vertices;
+   }
+   BSplineConvexHullCount = ConvexHullCount;
+   BSplineConvexHulls = Hulls;
   }
-  BSplineConvexHullCount = ConvexHullCount;
-  BSplineConvexHulls = Hulls;
  }
  
  Curve->CurveSampleCount = SampleCount;

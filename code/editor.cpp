@@ -554,7 +554,7 @@ InterpolateAnimationCurve(animating_curves_state *Animation, v2 *Samples)
    
    case CurveReconstructionMethod_CubicSpline: {
     Params.Type = Curve_CubicSpline;
-    Params.CubicSpline = CubicSpline_Periodic;
+    Params.CubicSpline = CubicSpline_Natural;
    }break;
    
    case CurveReconstructionMethod_CubicBezier: {

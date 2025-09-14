@@ -558,6 +558,8 @@ CalcConvexHull(u32 PointCount, v2 *Points, v2 *OutPoints)
 internal vertex_array
 ComputeVerticesOfThickLine(arena *Arena, u32 PointCount, v2 *LinePoints, f32 Width, b32 Loop)
 {
+ ProfileFunctionBegin();
+ 
  u32 N = PointCount;
  if (Loop) N += 2;
  
@@ -700,6 +702,8 @@ ComputeVerticesOfThickLine(arena *Arena, u32 PointCount, v2 *LinePoints, f32 Wid
  Result.VertexCount = VertexIndex;
  Result.Vertices = Vertices;
  Result.Primitive = Primitive_TriangleStrip;
+ 
+ ProfileEnd();
  
  return Result;
 }

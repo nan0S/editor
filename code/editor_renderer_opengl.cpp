@@ -787,6 +787,8 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
  GL_CALL(glEnable(GL_DEBUG_OUTPUT));
  GL_CALL(glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS));
  
+ //GL_CALL(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE));
+ 
  GLuint DummyVAO;
  GL_CALL(OpenGL->glGenVertexArrays(1, &DummyVAO));
  GL_CALL(OpenGL->glBindVertexArray(DummyVAO));

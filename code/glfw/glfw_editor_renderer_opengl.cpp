@@ -14,7 +14,11 @@ GLFWRendererInit(arena *Arena, renderer_memory *Memory, GLFWwindow *Window)
  glfwMakeContextCurrent(Window);
  if (gl3wInit() == 0)
  {
+#if BUILD_DEV
   glfwSwapInterval(0);
+#else
+  glfwSwapInterval(1);
+#endif
   
 #define OpenGLFunction(Name) OpenGL->Name = Name
   OpenGLFunction(glGenVertexArrays);

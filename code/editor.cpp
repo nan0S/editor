@@ -291,11 +291,12 @@ UpdateAndRenderDegreeLowering(editor *Editor, rendering_entity_handle Handle)
       {
        v2 NewControlPoint = Lerp(Lowering->LowerDegree.P_I, Lowering->LowerDegree.P_II, Lowering->MixParameter);
        f32 NewControlPointWeight = Lerp(Lowering->LowerDegree.W_I, Lowering->LowerDegree.W_II, Lowering->MixParameter);
+       v2 NewControlPointWorld = LocalToWorldEntityPosition(Entity, NewControlPoint);
        
        control_point_handle MiddlePoint = ControlPointHandleFromIndex(Lowering->LowerDegree.MiddlePointIndex);
        SetControlPoint(&Witness,
                        MiddlePoint,
-                       NewControlPoint,
+                       NewControlPointWorld,
                        NewControlPointWeight);
       }
       

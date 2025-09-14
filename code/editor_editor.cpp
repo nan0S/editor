@@ -4457,7 +4457,7 @@ WorkQueueCalculateBlocks(work_queue *WorkQueue, u32 ComputeCount, u32 RequestBlo
  u32 RequestBlockCount = (ComputeCount + RequestBlockSize - 1) / RequestBlockSize;
  u32 FreeEntries = Platform.WorkQueueFreeEntryCount(WorkQueue);
  u32 ActualBlockCount = Min(RequestBlockCount, FreeEntries);
- u32 ActualBlockSize = (ComputeCount + ActualBlockCount - 1) / ActualBlockCount;
+ u32 ActualBlockSize = SafeDiv0(ComputeCount + ActualBlockCount - 1, ActualBlockCount);
  
  work_queue_blocks Result = {};
  Result.BlockCount = ActualBlockCount;

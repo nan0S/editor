@@ -13,8 +13,8 @@ Platform_MakeWorkQueues(work_queue *LowPriorityQueue, work_queue *HighPriorityQu
 {
  u32 ProcCount = OS_ProcCount();
  
- u32 LowPriorityThreadCount = ProcCount * 1/4;
- u32 HighPriorityThreadCount = ProcCount * 3/4;
+ u32 LowPriorityThreadCount = 1;
+ u32 HighPriorityThreadCount = ProcCount - 1;
  LowPriorityThreadCount = ClampBot(LowPriorityThreadCount, 1);
  HighPriorityThreadCount = ClampBot(HighPriorityThreadCount, 1);
  

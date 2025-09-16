@@ -3133,7 +3133,7 @@ AreCurvesCompatibleForMerging(curve *Curve0, curve *Curve1, curve_merge_method M
    
    case Curve_NURBS: {
     if (Concat) Compatible = true;
-    else WhyIncompatible = StrLit("B-spline curves" Concat_Str);
+    else WhyIncompatible = StrLit("NURBS curves" Concat_Str);
    }break;
    
    case Curve_Parametric: {WhyIncompatible = StrLit("parametric curves cannot be merged");}break;

@@ -1018,7 +1018,7 @@ RenderDrawParamsUI(string Label, draw_params *Params, draw_params *Default, b32 
   Changed |= UI_ColorPicker(&Params->Color, StrLit("Color"));
   if (ResetCtxMenu(StrLit("ColorReset")))
   {
-   Params->Color = Params->Color;
+   Params->Color = Default->Color;
    Changed = true;
   }
  }
@@ -1319,7 +1319,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
                             "points between two consecutive knot points.\n"
                             "Drawn convex hull is dependent on currently\n"
                             "selected control point and a degree of the\n"
-                            "B-spline curve."));
+                            "curve."));
          }
          
          //-@ render b-spline knots ui
@@ -1634,12 +1634,12 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       
       if (IsBSplineCurve(Curve))
       {
-       CrucialEntityParamChanged |= RenderDrawParamsUI(StrLit("B-Spline Knots"),
+       CrucialEntityParamChanged |= RenderDrawParamsUI(StrLit("Partition Knots"),
                                                        &CurveParams->DrawParams.BSplineKnots,
                                                        &DefaultParams->DrawParams.BSplineKnots,
                                                        true);
        
-       CrucialEntityParamChanged |= RenderDrawParamsUI(StrLit("B-Spline Partial Convex Hull"),
+       CrucialEntityParamChanged |= RenderDrawParamsUI(StrLit("NURBS Partial Convex Hull"),
                                                        &CurveParams->DrawParams.BSplinePartialConvexHull,
                                                        &DefaultParams->DrawParams.BSplinePartialConvexHull,
                                                        false);

@@ -127,6 +127,7 @@ internal f32 Dot(v2 U, v2 V);
 internal f32 Cross(v2 U, v2 V);
 internal v2 Hadamard(v2 A, v2 B);
 internal v2 ProjectOnto(v2 U, v2 Onto);
+internal v2 Perp(v2 V);
 
 typedef u32 hull_point_count32;
 internal hull_point_count32 CalcConvexHull(u32 PointCount, v2 *Points, v2 *OutPoints);

@@ -1,5 +1,5 @@
 internal void
-RenderDevConsoleUI(editor *Editor)
+RenderDevConsoleUI(editor *Editor, render_group *RenderGroup)
 {
  camera *Camera = &Editor->Camera;
  
@@ -40,6 +40,11 @@ RenderDevConsoleUI(editor *Editor)
             CubicSplinePeriodicM_Eval_Count,
             CubicSplinePeriodicM_Eval_Names,
             StrLit("Cubic Spline Periodic M Eval Method"));
+   
+   if (UI_Checkbox(&DEBUG_Vars->PolygonModeIsWireFrame, StrLit("Wire Frame")))
+   {
+    SetPolygonMode(RenderGroup, DEBUG_Vars->PolygonModeIsWireFrame);
+   }
   }
   UI_EndWindow();
  }
@@ -192,7 +197,7 @@ AppendMultipleControlPoints(editor *Editor, entity_with_modify_witness *Witness,
 }
 
 internal void
-DevUpdateAndRender(editor *Editor)
+DevUpdateAndRender(editor *Editor, render_group *RenderGroup)
 {
  DEBUG_Vars = &Editor->DEBUG_Vars;
  
@@ -339,5 +344,5 @@ DevUpdateAndRender(editor *Editor)
   }
  }
  
- RenderDevConsoleUI(Editor);
+ RenderDevConsoleUI(Editor, RenderGroup);
 }

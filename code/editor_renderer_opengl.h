@@ -180,6 +180,8 @@ struct opengl
  
  u32 MaxTextureSlots;
  
+ b32 PolygonModeIsWireFrame;
+ 
 #define OpenGLFunction(Name) func_##Name *Name
  OpenGLFunction(glGenVertexArrays);
  OpenGLFunction(glBindVertexArray);

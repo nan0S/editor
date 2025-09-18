@@ -5,6 +5,7 @@ struct editor;
 struct parametric_equation_expr;
 struct exponential_animation;
 struct entity;
+struct render_group;
 
 enum nurbs_eval_method : u32
 {
@@ -126,10 +127,12 @@ struct debug_vars
  b32 ShowSampleCurvePoints;
  
  u32 ParametricCurveMaxTotalSamples;
+ 
+ b32 PolygonModeIsWireFrame;
 };
 global debug_vars *DEBUG_Vars;
 
-internal void DevUpdateAndRender(editor *Editor);
+internal void DevUpdateAndRender(editor *Editor, render_group *RenderGroup);
 internal void UI_ParametricEquationExpr(parametric_equation_expr *Expr, string Label);
 internal void UI_ExponentialAnimation(exponential_animation *Anim);
 

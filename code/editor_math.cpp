@@ -272,6 +272,13 @@ ProjectOnto(v2 U, v2 Onto)
  return Result;
 }
 
+internal v2
+Perp(v2 V)
+{
+ v2 Result = V2(-V.Y, V.X);
+ return Result;
+}
+
 inline internal rotation2d
 Rotation2D(f32 X, f32 Y)
 {
@@ -556,7 +563,7 @@ CalcConvexHull(u32 PointCount, v2 *Points, v2 *OutPoints)
 // TODO(hbr): Loop logic is very ugly but works. Clean it up.
 // Might have only work because we need only loop on convex hull order points.
 internal vertex_array
-ComputeVerticesOfThickLine(arena *Arena, u32 PointCount, v2 *LinePoints, f32 Width, b32 Loop)
+StrokeTessellate_CustomWithoutOverlap(arena *Arena, u32 PointCount, v2 *LinePoints, f32 Width, b32 Loop)
 {
  ProfileFunctionBegin();
  
@@ -705,6 +712,134 @@ ComputeVerticesOfThickLine(arena *Arena, u32 PointCount, v2 *LinePoints, f32 Wid
  
  ProfileEnd();
  
+ return Result;
+}
+
+//#define ComputeVerticesOfThickLine StrokeTessellate_MiterMethod
+#define ComputeVerticesOfThickLine StrokeTessellate_CustomWithoutOverlap
+
+inline v2 Normalize(const v2& V) {
+ f32 Len = SqrtF32(V.X*V.X + V.Y*V.Y);
+ if (Len > 1e-6f) {
+  return { V.X / Len, V.Y / Len };
+ }
+ return {0,0};
+}
+
+internal vertex_array StrokeTessellate_SimpleWithOverlap(arena* Arena, u32 PointCount, v2* Points,
+                                                         f32 Width, b32 Loop)
+{
+ vertex_array Result = {};
+ if (PointCount < 2) {
+  return Result;
+ }
+ 
+ f32 HalfW = Width * 0.5f;
+ u32 Segments = (Loop ? PointCount : PointCount - 1);
+ 
+ // 2 triangles (6 verts) per segment
+ u32 MaxVerts = Segments * 6;
+ v2* Verts = PushArray(Arena, MaxVerts, v2);
+ u32 VertCount = 0;
+ 
+ for (u32 i = 0; i < Segments; i++) {
+  u32 I0 = i;
+  u32 I1 = (i+1) % PointCount;
+  
+  v2 P0 = Points[I0];
+  v2 P1 = Points[I1];
+  
+  v2 Dir = Normalize(P1 - P0);
+  v2 Offset = Perp(Dir) * HalfW;
+  
+  // Quad corners
+  v2 A = P0 + Offset;
+  v2 B = P0 - Offset;
+  v2 C = P1 + Offset;
+  v2 D = P1 - Offset;
+  
+  // Two triangles
+  Verts[VertCount++] = A;
+  Verts[VertCount++] = B;
+  Verts[VertCount++] = C;
+  
+  Verts[VertCount++] = C;
+  Verts[VertCount++] = B;
+  Verts[VertCount++] = D;
+ }
+ 
+ Result.VertexCount = VertCount;
+ Result.Vertices = Verts;
+ Result.Primitive = Primitive_Triangles;
+ 
+ return Result;
+}
+
+internal vertex_array
+StrokeTessellate_MiterMethod(arena* Arena, u32 PointCount, v2* Points,
+                             f32 Width, b32 Loop)
+{
+ vertex_array Result = {};
+ if (PointCount < 2) return Result;
+ 
+ f32 HalfW = Width * 0.5f;
+ u32 MaxVerts = PointCount * 6;
+ v2* Verts = PushArray(Arena, MaxVerts, v2);
+ u32 VertCount = 0;
+ 
+ for (u32 i = 0; i < PointCount; i++)
+ {
+  u32 I0 = i;
+  u32 I1 = (i + 1) % PointCount;
+  u32 I2 = (i + 2) % PointCount;
+  
+  if (!Loop && I2 == 0) break;
+  
+  v2 P0 = Points[I0];
+  v2 P1 = Points[I1];
+  v2 P2 = Points[I2];
+  
+  // Directions
+  v2 Dir0 = Normalize(P1 - P0);
+  v2 Dir1 = Normalize(P2 - P1);
+  
+  // Perpendiculars
+  v2 Perp0 = Perp(Dir0) * HalfW;
+  v2 Perp1 = Perp(Dir1) * HalfW;
+  
+  // Miter
+  v2 Tangent = Normalize(Dir0 + Dir1);
+  v2 Miter = Perp(Tangent);
+  
+  f32 Dot = Miter.X * Perp0.X + Miter.Y * Perp0.Y;
+  if (Dot < 0.0001f) Dot = 1.0f; // Avoid division by zero
+  f32 MiterLength = HalfW / Dot;
+  
+  // Clamp miter for very sharp angles
+  f32 MaxMiter = 4.0f * HalfW;
+  if (MiterLength > MaxMiter) MiterLength = MaxMiter;
+  
+  Miter = Miter * MiterLength;
+  
+  // Quad vertices for this joint
+  v2 A = P1 + Miter;
+  v2 B = P1 - Miter;
+  v2 C = P0 + Perp0;
+  v2 D = P0 - Perp0;
+  
+  // Two triangles per quad
+  Verts[VertCount++] = C;
+  Verts[VertCount++] = D;
+  Verts[VertCount++] = A;
+  
+  Verts[VertCount++] = A;
+  Verts[VertCount++] = D;
+  Verts[VertCount++] = B;
+ }
+ 
+ Result.VertexCount = VertCount;
+ Result.Vertices = Verts;
+ Result.Primitive = Primitive_Triangles;
  return Result;
 }
 

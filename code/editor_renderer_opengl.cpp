@@ -787,8 +787,6 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
  GL_CALL(glEnable(GL_DEBUG_OUTPUT));
  GL_CALL(glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS));
  
- //GL_CALL(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE));
- 
  GLuint DummyVAO;
  GL_CALL(OpenGL->glGenVertexArrays(1, &DummyVAO));
  GL_CALL(OpenGL->glBindVertexArray(DummyVAO));
@@ -895,6 +893,7 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
  ProfileFunctionBegin();
  
  render_frame *RenderFrame = &OpenGL->RenderFrame;
+ RenderFrame->PolygonModeIsWireFrame = OpenGL->PolygonModeIsWireFrame;
  
  if (GlobalRendererCodeReloadedOrRendererInitialized)
  {
@@ -1010,6 +1009,19 @@ internal void
 OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
 {
  ProfileFunctionBegin();
+ 
+ if (!!OpenGL->PolygonModeIsWireFrame != !!Frame->PolygonModeIsWireFrame)
+ {
+  OpenGL->PolygonModeIsWireFrame = Frame->PolygonModeIsWireFrame;
+  if (OpenGL->PolygonModeIsWireFrame)
+  {
+   GL_CALL(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE));
+  }
+  else
+  {
+   GL_CALL(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
+  }
+ }
  
  renderer_transfer_queue *Queue = &Memory->RendererQueue;
  GLuint *Textures = OpenGL->Textures;

@@ -4372,8 +4372,6 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
  
  BeginEditorFrame(Editor);
  
- DevUpdateAndRender(Editor);
- 
  render_group RenderGroup_ = {};
  render_group *RenderGroup = &RenderGroup_;
  {
@@ -4382,6 +4380,8 @@ EditorUpdateAndRenderImpl(editor_memory *Memory, platform_input_output *Input, s
                                   Camera->P, Camera->Rotation, Camera->Zoom,
                                   Editor->BackgroundColor);
  }
+ 
+ DevUpdateAndRender(Editor, RenderGroup);
  
  ProcessImageLoadingTasks(Editor);
  ProcessInputEvents(Editor, Input, RenderGroup);

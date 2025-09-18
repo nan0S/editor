@@ -346,3 +346,9 @@ ResetTransform(render_group *RenderGroup)
  
  ProfileEnd();
 }
+
+internal void
+SetPolygonMode(render_group *Group, b32 WireFrame)
+{
+ Group->Frame->PolygonModeIsWireFrame = WireFrame;
+}

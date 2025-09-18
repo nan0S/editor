@@ -34,6 +34,11 @@ important:
 - extracing animated bezier curve perfectly
 - saving to PNG
 - save every time interval
+- fix artifacts when moving the curve
+- curve type - not "Interpolation"
+- add 2**5 to the parametric example
+- relative paths to images when saving
+- example scene
 
 maybe:
 - better error msgs when curves fail to merge

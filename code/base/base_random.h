@@ -8,10 +8,10 @@ struct random_series
 
 #if 0
 // NOTE(hbr): If ever widen it to 4x lanes, then these are good seeds
-uint32 E0 = 78953890,
-uint32 E1 = 235498,
-uint32 E2 = 893456,
-uint32 E3 = 93453080
+uint32 E0 = 78953890;
+uint32 E1 = 235498;
+uint32 E2 = 893456;
+uint32 E3 = 93453080;
 #endif
 
 inline internal random_series

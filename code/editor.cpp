@@ -755,91 +755,6 @@ UpdateAndRenderEntities(editor *Editor, render_group *RenderGroup)
  }
 }
 
-#if 0
-struct update_and_render_parametric_curve_var_result
-{
- b32 Changed;
- b32 Remove;
-};
-enum update_parametric_curve_var_mode
-{
- UpdateParametricCurveVar_Static,
- UpdateParametricCurveVar_Dynamic,
-};
-internal update_and_render_parametric_curve_var_result
-UpdateAndRenderParametricCurveVar(parametric_curve_field *Var,
-                                  update_parametric_curve_var_mode Mode)
-{
- b32 VarChanged = false;
- 
- if (Var->EquationOrDragFloatMode_Equation)
- {
-  char_buffer *VarEquation = CharBufferFromStringId(GetCtx()->StrStore, Var->VarEquation);
-  VarChanged = UI_InputText2(VarEquation, 0, StrLit("##Equation"));
- }
- else
- {
-  VarChanged |= UI_DragFloat(&Var->DragValue, 0, 0, 0, StrLit("##Drag"));
- }
- 
- b32 Remove = false;
- if (Mode == UpdateParametricCurveVar_Dynamic)
- {
-  UI_SameRow();
-  Remove = UI_Button(StrLit("-"));
- }
- 
- b32 SwapMode = false;
- { 
-  string ButtonLabel = {};
-  string TooltipContents = {};
-  if (Var->EquationOrDragFloatMode_Equation)
-  {
-   ButtonLabel = StrLit("E");
-   TooltipContents = StrLit("Switch to drag");
-  }
-  else
-  {
-   ButtonLabel = StrLit("D");
-   TooltipContents = StrLit("Switch to equation");
-  }
-  
-  UI_SameRow();
-  SwapMode = UI_Button(ButtonLabel);
-  if (UI_IsItemHovered())
-  {
-   UI_Tooltip(TooltipContents);
-  }
- }
- 
- if ((Var->EquationOrDragFloatMode_Equation) && Var->Cached.EquationFail)
- {
-  UI_Colored(UI_Color_Text, RedColor)
-  {
-   UI_SameRow();
-   UI_Text(false, Var->Cached.EquationErrorMessage);
-  }
- }
- 
- if (SwapMode)
- {
-  VarChanged = true;
-  Var->EquationOrDragFloatMode_Equation = !Var->EquationOrDragFloatMode_Equation;
- }
- 
- if (Remove)
- {
-  VarChanged = true;
- }
- 
- update_and_render_parametric_curve_var_result Result = {};
- Result.Changed = VarChanged;
- Result.Remove = Remove;
- 
- return Result;
-}
-#endif
-
 internal changed_b32
 RenderParametricCurveFieldUI(parametric_curve_resources *Resources,
                              parametric_curve_field *Field,
@@ -1118,45 +1033,6 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       EndEntityTransform(Editor, SelectedTransform->TransformAction);
       SelectedTransform->TransformAction = 0;
      }
-     
-#if 0     
-     if (ModifyActivated && ModifyDeactivated)
-     {
-      // NOTE(hbr): If two things happened in the same frame, then if we already were tracking
-      // something, then we should just continue. Otherwise, quickly begin tracking and end.
-      if (SelectedTransform->TransformAction == 0)
-      {
-       tracked_action *Transform = BeginEntityTransform(Editor, Entity);
-       EndEntityTransform(Editor, Transform);
-      }
-      else
-      {
-       // NOTE(hbr): Nothing to do
-      }
-     }
-     else if (ModifyActivated && !ModifyDeactivated)
-     {
-      Assert(SelectedTransform->TransformAction == 0);
-      if (SelectedTransform->TransformAction == 0)
-      {
-       SelectedTransform->TransformAction = BeginEntityTransform(Editor, Entity);
-      }
-     }
-     else if (!ModifyActivated && ModifyDeactivated)
-     {
-      Assert(SelectedTransform->TransformAction);
-      // NOTE(hbr): Assert but be extra safe for production. Zero-is-initialization would be great here
-      // but we don't have it everywhere unfortunately.
-      if (SelectedTransform->TransformAction)
-      {
-       
-      }
-     }
-     else
-     {
-      // NOTE(hbr): Nothing to do
-     }
-#endif
      
      {     
       b32 Visible = IsEntityVisible(Entity);

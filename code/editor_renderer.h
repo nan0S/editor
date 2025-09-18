@@ -119,8 +119,6 @@ internal void PushImage(render_group *Group, scale2d Dim, render_texture_handle 
 internal f32 ClipSpaceLengthToWorldSpace(render_group *RenderGroup, f32 Clip);
 internal void SetTransform(render_group *RenderGroup, mat3 Model, f32 ZOffset);
 internal void ResetTransform(render_group *RenderGroup);
-
-// TODO(hbr): remove this, debug
 internal void SetPolygonMode(render_group *RenderGroup, b32 WireFrame);
 
 enum renderer_transfer_op_type

@@ -1078,8 +1078,8 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       UI_SeparatorText(StrLit("Curve"));
       UI_LabelF("Curve")
       {
-       CrucialEntityParamChanged |= UI_Combo(SafeCastToPtr(CurveParams->Type, u32), Curve_Count, CurveTypeNames, StrLit("Interpolation"));
-       if (ResetCtxMenu(StrLit("InterpolationReset")))
+       CrucialEntityParamChanged |= UI_Combo(SafeCastToPtr(CurveParams->Type, u32), Curve_Count, CurveTypeNames, StrLit("Type"));
+       if (ResetCtxMenu(StrLit("TypeReset")))
        {
         CurveParams->Type = DefaultParams->Type;
         CrucialEntityParamChanged = true;

@@ -29,16 +29,19 @@
 TODO features:
 
 crucial:
+- fix artifacts when moving the curve
+- relative paths to images when saving
+
+- make the example scene and include screenshot of it
+- add power to the parametric curve example in thesis
+- add headers to all source files
+- retake the screenshots with the selected window UI, because "Interpoaltion" -> "Type" changes
+- retake screenshots of degree reduction because the UI also slighly changed
 
 important:
 - extracing animated bezier curve perfectly
 - saving to PNG
 - save every time interval
-- fix artifacts when moving the curve
-- curve type - not "Interpolation"
-- add 2**5 to the parametric example
-- relative paths to images when saving
-- example scene
 
 maybe:
 - better error msgs when curves fail to merge
@@ -53,6 +56,7 @@ maybe:
 - multiselect curves to change it's parameters at once - for example change line width/color, also maybe to move them at once
   - resize "handles" for images
  - don't recompute animation every frame, clean up the code, while it's not messy per-se, there is a lot of unnecessary paths that result in something very fragile
+
 
  TODO bugs:
 

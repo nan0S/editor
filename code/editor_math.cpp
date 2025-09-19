@@ -2412,7 +2412,7 @@ CalculateAlphaN(v2 *P, u32 N)
 }
 
 internal void
-BezierCurveLowerDegreeUniformNormOptimal(v2 *P, f32 *W, u32 N)
+BezierCurveLowerDegreeUniformNormOptimal(v2 *P, u32 N)
 {
  if (N > 0)
  {
@@ -2450,8 +2450,17 @@ BezierCurveLowerDegreeUniformNormOptimal(v2 *P, f32 *W, u32 N)
    beta_i *= (-1) * (i - 0.5f) / (n - i + 0.5f);
   }
   
+  temp_arena Temp = TempArena(0);
+  f32 *W = PushArrayNonZero(Temp.Arena, N, f32);
+  for (u32 i = 0; i < N; ++i)
+  {
+   W[i] = 1.0f;
+  }
+  
   bezier_lower_degree_inverse_degree_elevation Lower = BezierCurveLowerDegreeUsingInverseDegreeElevation(P, W, N);
   //Assert(!Lower.Failure);
+  
+  EndTemp(Temp);
  }
 }
 

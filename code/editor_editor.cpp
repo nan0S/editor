@@ -569,7 +569,7 @@ AllocEntityInternal(entity_store *Store, b32 DontTrack, entity *From)
  // entities other than curves.
  Curve->Points = AllocCurvePointsFromStore(GetCtx()->CurvePointsStore);
  Curve->ComputeArena = AllocArenaFromStore(GetCtx()->ArenaStore, Megabytes(32));
- Curve->DegreeLowering.Arena = AllocArenaFromStore(GetCtx()->ArenaStore, Megabytes(32));
+ Curve->DegreeReduction.Arena = AllocArenaFromStore(GetCtx()->ArenaStore, Megabytes(32));
  
  if (!DontTrack)
  {
@@ -1098,35 +1098,21 @@ SupplyCurve(choose_2_curves_state *Choosing, entity *Curve)
 }
 
 internal void
-BeginLoweringBezierCurveDegree(editor *Editor, curve_degree_lowering_state *Lowering)
+BeginCurveDegreeReduction(curve_degree_reduction *Reduction)
 {
- arena *Arena = Lowering->Arena;
- bezier_curve_degree_reduction_method Method = Lowering->Method;
- StructZero(Lowering);
- Lowering->Arena = Arena;
- Lowering->Stage = BezierCurveDegreeReductionStage_ChoosingMethod;
- Lowering->Method = Method;
+ curve_degree_reduction_method Method = Reduction->Method;
+ arena *Arena = Reduction->Arena;
+ ClearArena(Arena);
+ StructZero(Reduction);
+ Reduction->Stage = CurveDegreeReductionStage_ChoosingMethod;
+ Reduction->Method = Method;
+ Reduction->Arena = Arena;
 }
 
 internal void
-EndLoweringBezierCurveDegree(editor *Editor,
-                             curve_degree_lowering_state *Lowering,
-                             b32 GoBack, string GoBackMsg)
+EndCurveDegreeReduction(curve_degree_reduction *Reduction)
 {
- ClearArena(Lowering->Arena);
- if (Lowering->OriginalCurvePoints)
- {
-  DeallocCurvePoints(Editor, Lowering->OriginalCurvePoints);
- }
- if (GoBack)
- {
-  BeginLoweringBezierCurveDegree(Editor, Lowering);
-  Lowering->DisplayMsg = GoBackMsg;
- }
- else
- {
-  Lowering->Stage = BezierCurveDegreeReductionStage_NotActive;
- }
+ Reduction->Stage = CurveDegreeReductionStage_None;
 }
 
 internal void
@@ -1827,6 +1813,8 @@ Undo(editor *Editor)
   {
    b32 AllowDeactived = (Action->Type == TrackedAction_RemoveEntity);
    entity *Entity = EntityFromHandle(Action->Entity, AllowDeactived);
+   
+   OS_PrintDebugF("Entity: %p %p %p\n", Entity, Action, Group);
    // NOTE(hbr): Deselecting entity if zero
    b32 AllowZero = (Action->Type == TrackedAction_SelectEntity);
    if (Entity || AllowZero)
@@ -2096,7 +2084,7 @@ DeallocEntity(entity_store *Store, entity *Entity)
  image *Image = &Entity->Image;
  
  DeallocArenaFromStore(GetCtx()->ArenaStore, Curve->ComputeArena);
- DeallocArenaFromStore(GetCtx()->ArenaStore, Curve->DegreeLowering.Arena);
+ DeallocArenaFromStore(GetCtx()->ArenaStore, Curve->DegreeReduction.Arena);
  DeallocStringFromStore(GetCtx()->StrStore, Curve->ParametricResources.X_Equation.Equation);
  DeallocStringFromStore(GetCtx()->StrStore, Curve->ParametricResources.Y_Equation.Equation);
  

@@ -169,183 +169,186 @@ UpdateAndRenderPointTracking(rendering_entity_handle Handle)
  }
 }
 
-internal void
-UpdateAndRenderDegreeLowering(editor *Editor, rendering_entity_handle Handle)
+internal b32
+IsCurveEligibleForDegreeReduction(curve *Curve)
 {
- entity *Entity = Handle.Entity;
- render_group *RenderGroup = Handle.RenderGroup;
+ curve_params *P = &Curve->Params;
+ b32 Eligible = ((P->Type == Curve_Bezier) && (P->Bezier == Bezier_Rational));
+ return Eligible;
+}
+
+internal void
+UpdateAndRenderDegreeReductionUI(editor *Editor, entity_with_modify_witness *Witness, render_group *RenderGroup)
+{
+ entity *Entity = Witness->Entity;
+ curve *Curve = SafeGetCurve(Entity);
+ curve_degree_reduction *Reduction = &Curve->DegreeReduction;
+ curve_degree_reduction_stage Stage = Reduction->Stage;
  
- if (Entity->Type == Entity_Curve)
+ switch (Stage)
  {
-  curve *Curve = SafeGetCurve(Entity);
-  curve_params *CurveParams = &Curve->Params;
-  curve_degree_lowering_state *Lowering = &Curve->DegreeLowering;
-  entity_with_modify_witness Witness = BeginEntityModify(Entity);
-  curve_points_store *CurvePointsStore = Editor->CurvePointsStore;
+  case CurveDegreeReductionStage_None: {}break;
   
-  if (Lowering->Stage != BezierCurveDegreeReductionStage_NotActive)
-  {
-   b32 IsDegreeLoweringWindowOpen = true;
-   b32 FinishThisLowering = false;
-   b32 GoBack = false;
-   string GoBackMsg = NilStr;
+  case CurveDegreeReductionStage_ChoosingMethod: {
+   UI_Combo(SafeCastToPtr(Reduction->Method, u32),
+            CurveDegreeReductionMethod_Count,
+            CurveDegreeReductionMethodNames,
+            StrLit("Method"));
    
-   if(UI_BeginWindow(&IsDegreeLoweringWindowOpen,
-                     UIWindowFlag_AutoResize,
-                     StrLit("Degree Reduction")))
+   curve_degree_reduction_method Method = Reduction->Method;
+   b32 ReductionDisabled = false;
+   string DisabledMsg = {};
+   
+   switch (Method)
    {
-    if (!StrIsEmpty(Lowering->DisplayMsg))
+    case CurveDegreeReductionMethod_InverseDegreeElevation: {}break;
+    
+    case CurveDegreeReductionMethod_UniformNormOptimal: {
+     curve_points_static *Points = GetCurvePoints(Curve);
+     u32 PointCount = Points->ControlPointCount;
+     f32 *Weights = Points->ControlPointWeights;
+     
+     for (u32 I = 0; I < PointCount; ++I)
+     {
+      if (Weights[0] != Weights[I])
+      {
+       ReductionDisabled = true;
+       DisabledMsg = StrLit("Degree reduction through uniform norm optimization\n"
+                            "only available for polynomial Bezier curves. This\n"
+                            "curve is rational since it has non-uniform weights.");
+       break;
+      }
+     }
+    }break;
+    
+    case CurveDegreeReductionMethod_Count: InvalidPath;
+   }
+   
+   UI_Disabled(ReductionDisabled)
+   {
+    b32 Reduce = UI_Button(StrLit("Reduce!"));
+    if (!StrIsEmpty(DisabledMsg) && UI_IsItemHovered())
     {
-     UI_Text(false, Lowering->DisplayMsg);
+     UI_Tooltip(DisabledMsg);
     }
     
-    b32 StillChoosingMethod = (Lowering->Stage == BezierCurveDegreeReductionStage_ChoosingMethod);
-    UI_BeginDisabled(!StillChoosingMethod);
-    UI_Combo(SafeCastToPtr(Lowering->Method, u32),
-             BezierCurveDegreeLoweringMethod_Count,
-             BezierCurveDegreeLoweringMethodNames,
-             StrLit("Method"));
-    UI_EndDisabled();
+    curve_points_static *Points = GetCurvePoints(Curve);
+    u32 PointCount = Points->ControlPointCount;
     
-    switch (Lowering->Stage)
-    {
-     case BezierCurveDegreeReductionStage_ChoosingMethod: {
-      if (UI_Button(StrLit("Reduce!")))
-      {
-       curve *Curve = SafeGetCurve(Entity);
-       Assert(IsRegularBezierCurve(Curve));
+    if (Reduce && PointCount > 0)
+    {    
+     begin_modify_curve_points_static_tracked_result Modify = BeginModifyCurvePointsTracked(Editor,
+                                                                                            Witness,
+                                                                                            PointCount - 1,
+                                                                                            ModifyCurvePointsWhichPoints_ControlPointsAndWeights);
+     curve_points_modify_handle ModifyPoints = Modify.ModifyPoints;
+     tracked_action *ModifyAction = Modify.ModifyAction;
+     b32 ReductionSuccess = false;
+     
+     switch (Method)
+     {
+      case CurveDegreeReductionMethod_InverseDegreeElevation: {
        
-       curve_points_static *Points = CurvePointsFromId(CurvePointsStore, Curve->Points);
+       curve_points_static *OriginalPoints = PushStructNonZero(Reduction->Arena, curve_points_static);
+       CopyCurvePointsFromCurve(Curve, CurvePointsDynamicFromStatic(OriginalPoints));
        
-       u32 PointCount = Points->ControlPointCount;
-       if (PointCount > 0)
+       bezier_lower_degree_inverse_degree_elevation InverseElevation =
+        BezierCurveLowerDegreeUsingInverseDegreeElevation(ModifyPoints.ControlPoints,
+                                                          ModifyPoints.Weights,
+                                                          PointCount);
+       
+       if (InverseElevation.Failure)
        {
-        begin_modify_curve_points_static_tracked_result Modify = BeginModifyCurvePointsTracked(Editor, &Witness, PointCount - 1, ModifyCurvePointsWhichPoints_ControlPointsAndWeights);
-        curve_points_modify_handle ModifyPoints = Modify.ModifyPoints;
-        tracked_action *ModifyAction = Modify.ModifyAction;
+        f32 Middle_T = 0.5f;
         
-        switch (Lowering->Method)
-        {
-         case BezierCurveDegreeLoweringMethod_InverseOfDegreeElevation: {
-          curve_points_static *OriginalPoints = AllocCurvePoints(Editor);
-          CopyCurvePointsFromCurve(Curve, CurvePointsDynamicFromStatic(OriginalPoints));
-          
-          bezier_lower_degree_inverse_degree_elevation LowerDegree = BezierCurveLowerDegreeUsingInverseDegreeElevation(ModifyPoints.ControlPoints, ModifyPoints.Weights, PointCount);
-          
-          if (LowerDegree.Failure)
-          {
-           Lowering->Stage = BezierCurveDegreeReductionStage_InverseDegreeElevationFailed;
-           Lowering->OriginalCurvePoints = OriginalPoints;
-           Lowering->OriginalCurveVertices = CopyLineVertices(Lowering->Arena, Curve->CurveVertices);
-           f32 T = 0.5f;
-           Lowering->LowerDegree = LowerDegree;
-           Lowering->MixParameter = T;
-           ModifyPoints.ControlPoints[LowerDegree.MiddlePointIndex] = Lerp(LowerDegree.P_I, LowerDegree.P_II, T);
-           ModifyPoints.Weights[LowerDegree.MiddlePointIndex] = Lerp(LowerDegree.W_I, LowerDegree.W_II, T);
-          }
-          else
-          {
-           DeallocCurvePoints(Editor, OriginalPoints);
-           Lowering->Stage = BezierCurveDegreeReductionStage_Succeeded;
-          }
-         }break;
-         
-         case BezierCurveDegreeLoweringMethod_UniformNormOptimal: {
-          BezierCurveLowerDegreeUniformNormOptimal(ModifyPoints.ControlPoints, ModifyPoints.Weights, PointCount);
-          Lowering->Stage = BezierCurveDegreeReductionStage_Succeeded;
-         }break;
-         
-         case BezierCurveDegreeLoweringMethod_Count: InvalidPath;
-        }
+        Reduction->Stage = CurveDegreeReductionStage_InverseDegreeElevationFixing;
+        Reduction->FailedInverseElevation = InverseElevation;
+        Reduction->MiddlePointMix = Middle_T;
+        Reduction->OriginalCurvePoints = OriginalPoints;
+        Reduction->OriginalCurveVertices = CopyLineVertices(Reduction->Arena, Curve->CurveVertices);
         
-        EndModifyCurvePointsTracked(Editor, ModifyAction, ModifyPoints);
+        Assert(InverseElevation.MiddlePointIndex < PointCount);
+        ModifyPoints.ControlPoints[InverseElevation.MiddlePointIndex] = Lerp(InverseElevation.P_I,
+                                                                             InverseElevation.P_II,
+                                                                             Middle_T);
+        ModifyPoints.Weights[InverseElevation.MiddlePointIndex] = Lerp(InverseElevation.W_I,
+                                                                       InverseElevation.W_II,
+                                                                       Middle_T);
        }
-      }
-     }break;
-     
-     case BezierCurveDegreeReductionStage_InverseDegreeElevationFailed: {
-      
-      UI_Text(true, StrLit("Degree reduction"));
-      UI_SameRow();
-      UI_Colored(UI_Color_Text, RedColor)
-      {
-       UI_Text(true, StrLit("failed"));
-      }
-      UI_SameRow();
-      UI_Text(true, StrLit("."));
-      UI_Text(true, StrLit("Tweak the mix parameter to fit the curve manually."));
-      
-      b32 MixChanged = UI_SliderFloat(&Lowering->MixParameter, 0.0f, 1.0f, StrLit("Mix"));
-      
-      b32 Accept = UI_Button(StrLit("Accept"));
-      UI_SameRow();
-      b32 Revert = UI_Button(StrLit("Revert"));
-      
-      Assert(CurveParams->Type == Curve_Bezier);
-      
-      //-
-      curve_points_static *Points = GetCurvePoints(Curve);
-      Assert(Lowering->LowerDegree.MiddlePointIndex < Points->ControlPointCount);
-      
-      if (MixChanged)
-      {
-       v2 NewControlPoint = Lerp(Lowering->LowerDegree.P_I, Lowering->LowerDegree.P_II, Lowering->MixParameter);
-       f32 NewControlPointWeight = Lerp(Lowering->LowerDegree.W_I, Lowering->LowerDegree.W_II, Lowering->MixParameter);
-       v2 NewControlPointWorld = LocalToWorldEntityPosition(Entity, NewControlPoint);
+       else
+       {
+        ReductionSuccess = true;
+       }
        
-       control_point_handle MiddlePoint = ControlPointHandleFromIndex(Lowering->LowerDegree.MiddlePointIndex);
-       SetControlPoint(&Witness,
-                       MiddlePoint,
-                       NewControlPointWorld,
-                       NewControlPointWeight);
-      }
+      }break;
       
-      if (Revert)
-      {
-       curve_points_static *Points = Lowering->OriginalCurvePoints;
-       Assert(Points);
-       SetCurvePointsTracked(Editor, &Witness, CurvePointsHandleFromCurvePointsStatic(Points));
-      }
+      case CurveDegreeReductionMethod_UniformNormOptimal: {
+       BezierCurveLowerDegreeUniformNormOptimal(ModifyPoints.ControlPoints, PointCount);
+       ReductionSuccess = false;
+      }break;
       
-      rgba Color = Curve->Params.DrawParams.Line.Color;
-      Color.A *= 0.5f;
-      PushVertexArray(RenderGroup,
-                      Lowering->OriginalCurveVertices.Vertices,
-                      Lowering->OriginalCurveVertices.VertexCount,
-                      Lowering->OriginalCurveVertices.Primitive,
-                      Color,
-                      GetCurvePartVisibilityZOffset(CurvePartVisibility_LineShadow));
-      
-      if (Accept || Revert)
-      {
-       GoBack = true;
-       FinishThisLowering = true;
-      }
-     }break;
+      case CurveDegreeReductionMethod_Count: InvalidPath;
+     }
      
-     case BezierCurveDegreeReductionStage_Succeeded: {
-      GoBack = true;
-      GoBackMsg = StrLit("Degree reduction succeeded!");
-      FinishThisLowering = true;
-     }break;
+     if (ReductionSuccess)
+     {
+      ClearArena(Reduction->Arena);
+     }
      
-     case BezierCurveDegreeReductionStage_NotActive: InvalidPath;
+     EndModifyCurvePointsTracked(Editor, ModifyAction, ModifyPoints);
     }
    }
-   UI_EndWindow();
-   
-   if (!IsDegreeLoweringWindowOpen)
-   {
-    GoBack = false;
-    FinishThisLowering = true;
-   }
-   if (FinishThisLowering)
-   {
-    EndLoweringBezierCurveDegree(Editor, Lowering, GoBack, GoBackMsg);
-   }
-  }
+  }break;
   
-  EndEntityModify(Witness);
+  case CurveDegreeReductionStage_InverseDegreeElevationFixing: {
+   
+   UI_Text(true, StrLit("Degree reduction"));
+   UI_SameRow();
+   UI_Colored(UI_Color_Text, RedColor)
+   {
+    UI_Text(true, StrLit("failed"));
+   }
+   UI_SameRow();
+   UI_Text(true, StrLit("."));
+   UI_Text(true, StrLit("Tweak the mix parameter to fit the curve manually."));
+   
+   b32 MixChanged = UI_SliderFloat(&Reduction->MiddlePointMix, 0.0f, 1.0f, StrLit("Mix"));
+   
+   b32 Accept = UI_Button(StrLit("Accept"));
+   UI_SameRow();
+   b32 Revert = UI_Button(StrLit("Revert"));
+   
+   if (MixChanged)
+   {
+    bezier_lower_degree_inverse_degree_elevation InverseElevation = Reduction->FailedInverseElevation;
+    f32 MiddlePointMix= Reduction->MiddlePointMix;
+    
+    v2 NewControlPoint = Lerp(InverseElevation.P_I,
+                              InverseElevation.P_II,
+                              MiddlePointMix);
+    
+    f32 NewControlPointWeight = Lerp(InverseElevation.W_I,
+                                     InverseElevation.W_II,
+                                     MiddlePointMix);
+    
+    v2 NewControlPointWorld = LocalToWorldEntityPosition(Entity, NewControlPoint);
+    control_point_handle MiddlePoint = ControlPointHandleFromIndex(InverseElevation.MiddlePointIndex);
+    SetControlPoint(Witness, MiddlePoint, NewControlPointWorld, NewControlPointWeight);
+   }
+   
+   if (Revert)
+   {
+    curve_points_static *Points = Reduction->OriginalCurvePoints;
+    Assert(Points);
+    SetCurvePointsTracked(Editor, Witness, CurvePointsHandleFromCurvePointsStatic(Points));
+   }
+   
+   if (Accept || Revert)
+   {
+    BeginCurveDegreeReduction(Reduction);
+   }
+   
+  }break;
  }
 }
 
@@ -734,6 +737,25 @@ UpdateAndRenderAnimatingCurves(editor *Editor,
 }
 
 internal void
+UpdateAndRenderDegreeReduction(editor *Editor, rendering_entity_handle Handle)
+{
+ render_group *RenderGroup = Handle.RenderGroup;
+ entity *Entity = Handle.Entity;
+ curve *Curve = &Entity->Curve;
+ curve_degree_reduction *Reduction = &Curve->DegreeReduction;
+ 
+ if ((Entity->Type == Entity_Curve) &&
+     (Reduction->Stage == CurveDegreeReductionStage_InverseDegreeElevationFixing))
+ {
+  vertex_array Vertices = Reduction->OriginalCurveVertices;
+  rgba Color = Curve->Params.DrawParams.Line.Color;
+  Color.A *= 0.5f;
+  PushVertexArray(RenderGroup, Vertices.Vertices, Vertices.VertexCount, Vertices.Primitive,
+                  Color, GetCurvePartVisibilityZOffset(CurvePartVisibility_LineShadow));
+ }
+}
+
+internal void
 UpdateAndRenderEntities(editor *Editor, render_group *RenderGroup)
 {
  entity_array Entities = AllEntityArrayFromStore(Editor->EntityStore);
@@ -747,8 +769,8 @@ UpdateAndRenderEntities(editor *Editor, render_group *RenderGroup)
    rendering_entity_handle Handle = BeginRenderingEntity(Entity, RenderGroup);
    
    RenderEntity(Handle);
-   UpdateAndRenderDegreeLowering(Editor, Handle);
    UpdateAndRenderPointTracking(Handle);
+   UpdateAndRenderDegreeReduction(Editor, Handle);
    
    EndRenderingEntity(Handle);
   }
@@ -1385,17 +1407,6 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
         {
          UI_Tooltip(StrLit("Elevate Bezier curve degree, while maintaining shape"));
         }
-        
-        UI_SameRow();
-        
-        if (UI_Button(StrLit("Reduce Degree")))
-        {
-         BeginLoweringBezierCurveDegree(Editor, &Curve->DegreeLowering);
-        }
-        if (UI_IsItemHovered())
-        {
-         UI_Tooltip(StrLit("Reduce Bezier curve degree"));
-        }
        }
       }
      }
@@ -1453,6 +1464,32 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
       if (Tracking->Type && Changed)
       {
        SetTrackingPointFraction(&EntityWitness, Fraction);
+      }
+     }
+     
+     if (Curve && IsCurveEligibleForDegreeReduction(Curve))
+     {
+      UI_Label(StrLit("DegreeReduction"))
+      {
+       curve_degree_reduction *Reduction = &Curve->DegreeReduction;
+       b32 DegreeReductionEnabled = (Reduction->Stage != CurveDegreeReductionStage_None);
+       
+       if (UI_Checkbox(&DegreeReductionEnabled, StrLit("##DegreeReductionEnabled")))
+       {
+        b32 Enable = DegreeReductionEnabled;
+        if (Enable)
+        {
+         BeginCurveDegreeReduction(Reduction);
+        }
+        else
+        {
+         EndCurveDegreeReduction(Reduction);
+        }
+       }
+       UI_SameRow();
+       UI_SeparatorText(StrLit("Reduce Degree"));
+       
+       UpdateAndRenderDegreeReductionUI(Editor, &EntityWitness, RenderGroup);
       }
      }
      

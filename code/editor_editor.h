@@ -229,38 +229,6 @@ struct curve_points_handle
  f32 *BSplineKnots;
 };
 
-enum bezier_curve_degree_reduction_method : u32
-{
- BezierCurveDegreeLoweringMethod_InverseOfDegreeElevation,
- BezierCurveDegreeLoweringMethod_UniformNormOptimal,
- BezierCurveDegreeLoweringMethod_Count,
-};
-global read_only string BezierCurveDegreeLoweringMethodNames[] =
-{
- StrLit("Inverse Degree Elevation"),
- StrLit("Uniform Norm Optimal"),
-};
-
-enum bezier_curve_degree_reduction_stage
-{
- BezierCurveDegreeReductionStage_NotActive,
- BezierCurveDegreeReductionStage_ChoosingMethod,
- BezierCurveDegreeReductionStage_InverseDegreeElevationFailed,
- BezierCurveDegreeReductionStage_Succeeded,
-};
-
-struct curve_degree_lowering_state
-{
- bezier_curve_degree_reduction_stage Stage;
- bezier_curve_degree_reduction_method Method;
- arena *Arena;
- curve_points_static *OriginalCurvePoints;
- vertex_array OriginalCurveVertices;
- bezier_lower_degree_inverse_degree_elevation LowerDegree;
- f32 MixParameter;
- string DisplayMsg;
-};
-
 typedef u32 translate_curve_point_flags;
 enum
 {
@@ -563,6 +531,41 @@ struct b_spline_knot_handle
  u32 __Index;
 };
 
+enum curve_degree_reduction_stage
+{
+ CurveDegreeReductionStage_None,
+ CurveDegreeReductionStage_ChoosingMethod,
+ CurveDegreeReductionStage_InverseDegreeElevationFixing,
+};
+
+enum curve_degree_reduction_method : u32
+{
+ CurveDegreeReductionMethod_InverseDegreeElevation,
+ CurveDegreeReductionMethod_UniformNormOptimal,
+ CurveDegreeReductionMethod_Count,
+};
+global read_only string CurveDegreeReductionMethodNames[] = {
+ StrLit("Inverse Degree Elevation"),
+ StrLit("Uniform Norm Optimal"),
+};
+StaticAssert(ArrayCount(CurveDegreeReductionMethodNames) == CurveDegreeReductionMethod_Count,
+             CurveDegreeReductionMethodNames_AllDefined);
+
+struct curve_degree_reduction
+{
+ curve_degree_reduction_stage Stage;
+ curve_degree_reduction_method Method;
+ string MessageToDisplay;
+ b32 IsMessageSuccessful;
+ 
+ bezier_lower_degree_inverse_degree_elevation FailedInverseElevation;
+ f32 MiddlePointMix;
+ 
+ arena *Arena;
+ curve_points_static *OriginalCurvePoints;
+ vertex_array OriginalCurveVertices;
+};
+
 struct curve
 {
  curve_params Params; // used to compute curve shape from (might be still validated and not used "as-is")
@@ -570,8 +573,8 @@ struct curve
  b_spline_params ComputedBSplineParams;
  
  point_tracking_along_curve_state PointTracking;
- curve_degree_lowering_state DegreeLowering;
  parametric_curve_resources ParametricResources;
+ curve_degree_reduction DegreeReduction;
  
  // all points are in local space
  curve_points_id Points;
@@ -1257,6 +1260,10 @@ struct editor
  editor_command_node *EditorCommandsTail;
  editor_command_node *FreeEditorCommandNode;
  
+ curve_degree_reduction *FreeDegreeReduction;
+ curve_degree_reduction *DegreeReductionsHead;
+ curve_degree_reduction *DegreeReductionsTail;
+ 
  frame_stats FrameStats;
  
  union {
@@ -1486,9 +1493,9 @@ internal b32 AnimationWantsInput(animating_curves_state *Animation);
 internal void BeginChoosing2Curves(choose_2_curves_state *Choosing);
 internal b32 SupplyCurve(choose_2_curves_state *Choosing, entity *Curve);
 
-//- lowering bezier curve degree
-internal void BeginLoweringBezierCurveDegree(editor *Editor, curve_degree_lowering_state *Lowering);
-internal void EndLoweringBezierCurveDegree(editor *Editor, curve_degree_lowering_state *Lowering, b32 CompletelyEnd);
+//- degree reduction
+internal void BeginCurveDegreeReduction(curve_degree_reduction *Reduction);
+internal void EndCurveDegreeReduction(curve_degree_reduction *Reduction);
 
 //- click states
 internal void BeginMovingEntity(editor_left_click_state *Left, editor *Editor, entity *Entity);

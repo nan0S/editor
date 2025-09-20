@@ -56,8 +56,13 @@ PushVertexArray(render_group *Group,
  render_frame *Frame = Group->Frame;
  if (Frame->LineCount < Frame->MaxLineCount)
  {
+  arena *Arena = Frame->Arena;
+  
+  v2 *VerticesCopy = PushArrayNonZero(Arena, VertexCount, v2);
+  ArrayCopy(VerticesCopy, Vertices, VertexCount);
+  
   render_line *Line = Frame->Lines + Frame->LineCount++;
-  Line->Vertices = Vertices;
+  Line->Vertices = VerticesCopy;
   Line->VertexCount = VertexCount;
   Line->Primitive = Primitive;
   Line->Color = Color;

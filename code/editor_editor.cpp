@@ -1814,7 +1814,6 @@ Undo(editor *Editor)
    b32 AllowDeactived = (Action->Type == TrackedAction_RemoveEntity);
    entity *Entity = EntityFromHandle(Action->Entity, AllowDeactived);
    
-   OS_PrintDebugF("Entity: %p %p %p\n", Entity, Action, Group);
    // NOTE(hbr): Deselecting entity if zero
    b32 AllowZero = (Action->Type == TrackedAction_SelectEntity);
    if (Entity || AllowZero)

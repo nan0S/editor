@@ -791,6 +791,8 @@ OpenGLInit(opengl *OpenGL, arena *Arena, renderer_memory *Memory)
  GL_CALL(OpenGL->glGenVertexArrays(1, &DummyVAO));
  GL_CALL(OpenGL->glBindVertexArray(DummyVAO));
  
+ OpenGL->RenderFrame.Arena = AllocArena(Gigabytes(64));
+ 
  //- allocate texutre indices
  {
   u32 TextureCount = Memory->Limits.MaxTextureCount + 1;
@@ -894,6 +896,8 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
  
  render_frame *RenderFrame = &OpenGL->RenderFrame;
  RenderFrame->PolygonModeIsWireFrame = OpenGL->PolygonModeIsWireFrame;
+ 
+ ClearArena(RenderFrame->Arena);
  
  if (GlobalRendererCodeReloadedOrRendererInitialized)
  {

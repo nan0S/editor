@@ -74,6 +74,8 @@ struct render_vertex
 
 struct render_frame
 {
+ arena *Arena;
+ 
  u32 LineCount;
  render_line *Lines;
  u32 MaxLineCount;

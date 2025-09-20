@@ -17,19 +17,19 @@ struct curve_points_id
 
 enum curve_type : u32
 {
+ Curve_Polynomial,
  Curve_CubicSpline,
  Curve_Bezier,
- Curve_Polynomial,
- Curve_Parametric,
  Curve_NURBS,
+ Curve_Parametric,
  Curve_Count
 };
 global read_only string CurveTypeNames[] = {
+ StrLitComp("Polynomial"),
  StrLitComp("Cubic Spline"),
  StrLitComp("Bezier"),
- StrLitComp("Polynomial"),
+ StrLitComp("NURBS"),
  StrLitComp("Parametric"),
- StrLitComp("NURBS")
 };
 StaticAssert(ArrayCount(CurveTypeNames) == Curve_Count, CurveTypeNamesDefined);
 

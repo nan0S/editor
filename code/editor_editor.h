@@ -582,6 +582,7 @@ struct curve
  arena *ComputeArena;
  u32 CurveSampleCount;
  v2 *CurveSamples;
+ f32 *Ts;
  u32 ConvexHullCount;
  v2 *ConvexHullPoints;
  vertex_array CurveVertices;

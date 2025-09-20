@@ -503,7 +503,7 @@ LoadEmptyProject(editor *Editor)
 #else
  SerializableState.BackgroundColor = SerializableState.DefaultBackgroundColor = RGBA_U8(21, 21, 21);
 #endif
- SerializableState.CollisionToleranceClip = 0.04f;
+ SerializableState.CollisionToleranceClip = 0.10f;
  SerializableState.RotationRadiusClip = 0.1f;
  SerializableState.CurveDefaultParams = DefaultCurveParams();
  SerializableState.EntityListWindow = true;
@@ -2516,6 +2516,8 @@ CheckCollisionWithEntities(editor *Editor, v2 AtP, f32 Tolerance)
       u32 PartitionSize = GetBSplineParams(Curve).KnotParams.PartitionSize;
       v2 *PartitionKnotPoints = BSplinePartitionKnots;
       point_draw_info KnotPointInfo = GetBSplinePartitionKnotPointDrawInfo(Entity);
+      f32 MinSignedDistance = F32_INF;
+      u32 MinPartitionKnotIndex = 0;
       
       // NOTE(hbr): Skip first and last points because they are not moveable
       for (u32 PartitionKnotIndex = 1;
@@ -2523,13 +2525,22 @@ CheckCollisionWithEntities(editor *Editor, v2 AtP, f32 Tolerance)
            ++PartitionKnotIndex)
       {
        v2 Knot = PartitionKnotPoints[PartitionKnotIndex];
-       if (PointCollision(LocalAtP, Knot, KnotPointInfo.Radius))
+       
+       f32 CollisionRadius = KnotPointInfo.Radius + KnotPointInfo.OutlineThickness + Tolerance;
+       f32 SignedDistance = PointDistanceSquaredSigned(LocalAtP, Knot, CollisionRadius);
+       
+       if (SignedDistance < MinSignedDistance)
        {
-        Result.Entity = Entity;
-        Result.Flags |= Collision_BSplineKnot;
-        Result.BSplineKnot = BSplineKnotHandleFromPartitionKnotIndex(Curve, PartitionKnotIndex);
-        break;
+        MinSignedDistance = SignedDistance;
+        MinPartitionKnotIndex = PartitionKnotIndex;
        }
+      }
+      
+      if (MinSignedDistance < 0)
+      {
+       Result.Entity = Entity;
+       Result.Flags |= Collision_BSplineKnot;
+       Result.BSplineKnot = BSplineKnotHandleFromPartitionKnotIndex(Curve, MinPartitionKnotIndex);
       }
      }
     } break;
@@ -2817,11 +2828,12 @@ inline internal control_point_handle
 ControlPointIndexFromCurveSampleIndex(curve *Curve, u32 CurveSampleIndex)
 {
  Assert(!IsCurveTotalSamplesMode(Curve));
+ control_point_handle Control = ControlPointHandleZero();
  u32 Index = SafeDiv0(CurveSampleIndex, Curve->Params.SamplesPerControlPoint);
  curve_points_static *Points = GetCurvePoints(Curve);
  Assert(Index < Points->ControlPointCount);
  Index = ClampTop(Index, Points->ControlPointCount - 1);
- control_point_handle Control = ControlPointHandleFromIndex(Index);
+ Control = ControlPointHandleFromIndex(Index);
  return Control;
 }
 
@@ -4115,6 +4127,8 @@ SetBSplineKnotPoint(entity_with_modify_witness *EntityWitness,
  Assert(Moveable);
  if (Moveable)
  {
+  KnotFraction = Clamp(KnotFraction, KnotParams.A, KnotParams.B);
+  
   for (u32 Index = KnotIndex;
        Index > 0;
        --Index)
@@ -4854,7 +4868,8 @@ CalcBezierRational_MultiThreaded(v2 *Controls,
 }
 
 internal void
-CalcBezierRational(v2 *Controls,
+CalcBezierRational(curve *Curve,
+                   v2 *Controls,
                    f32 *Weights,
                    u32 PointCount,
                    u32 SampleCount,
@@ -4864,15 +4879,17 @@ CalcBezierRational(v2 *Controls,
  
  temp_arena Temp = TempArena(0);
  
+ arena *ComputeArena = Curve->ComputeArena;
  f32 T = 0.0f;
  // NOTE(hbr): We assume the interval is always [0,1]
  f32 Delta_T = 1.0f / (SampleCount - 1);
- f32 *Ts = PushArrayNonZero(Temp.Arena, SampleCount, f32);
+ f32 *Ts = PushArrayNonZero(ComputeArena, SampleCount, f32);
  ForEachIndex(SampleIndex, SampleCount)
  {
   Ts[SampleIndex] = T;
   T += Delta_T;
  }
+ Curve->Ts = Ts;
  
  switch (DEBUG_Vars->Bezier_EvalMethod)
  {
@@ -5503,7 +5520,7 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
   case Curve_Bezier: {
    switch (Params->Bezier)
    {
-    case Bezier_Rational: {CalcBezierRational(Controls, Weights, PointCount, SampleCount, OutSamples);}break;
+    case Bezier_Rational: {CalcBezierRational(Curve, Controls, Weights, PointCount, SampleCount, OutSamples);}break;
     case Bezier_CubicSpline: {CalcBezierCubicSpline(Beziers, PointCount, SampleCount, OutSamples);}break;
     case Bezier_Count: InvalidPath;
    }
@@ -5528,14 +5545,51 @@ CalcCurve(curve *Curve, u32 SampleCount, v2 *OutSamples)
    
    Curve->BSplinePartitionKnots = PartitionKnots;
    
-   f32 T = KnotParams.A;
-   f32 Delta_T = (KnotParams.B - KnotParams.A) / (SampleCount - 1);
-   f32 *Ts = PushArrayNonZero(Temp.Arena, SampleCount, f32);
-   ForEachIndex(SampleIndex, SampleCount)
+   f32 *Ts = PushArrayNonZero(ComputeArena, SampleCount, f32);
+   // NOTE(hbr): Calculate sample point fractions
    {
-    Ts[SampleIndex] = T;
-    T += Delta_T;
+    u32 SegmentCount = PartitionSize - 1;
+    u32 SamplesPerSegment = (SampleCount - 1) / SegmentCount;
+    u32 SampleIndex = 0;
+    f32 *Knot_Ts = BSplineKnots + Degree;
+    
+    f32 T = KnotParams.A;
+    
+    for (u32 I = 0;
+         I < SegmentCount;
+         ++I)
+    {
+     f32 A = Knot_Ts[I];
+     f32 B = Knot_Ts[I+1];
+     
+     f32 Delta_T = (B - A) / SamplesPerSegment;
+     ForEachIndex(J, SamplesPerSegment)
+     {
+      Ts[SampleIndex++] = T;
+      T += Delta_T;
+     }
+     
+    }
+    
+    // NOTE(hbr): Pure safety, make sure we end at KnotParams.B
+    if (SampleIndex < SampleCount)
+    {
+     while (SampleIndex < SampleCount)
+     {
+      Ts[SampleIndex++] = KnotParams.B;
+     }
+    }
+    else
+    {
+     if (SampleCount > 0)
+     {
+      Ts[SampleCount - 1] = KnotParams.B;
+     }
+    }
+    
+    Curve->Ts = Ts;
    }
+   
    CalcNURBS(Controls,
              Weights,
              KnotParams,

@@ -31,10 +31,27 @@ MovePointAlongCurve(curve *Curve, v2 *TranslateInput, f32 *PointFractionInput, b
  
  u32 SampleCount = Curve->CurveSampleCount;
  v2 *Samples = Curve->CurveSamples;
- f32 DeltaFraction = 1.0f / (SampleCount - 1);
+ f32 *Ts = Curve->Ts;
+ //f32 DeltaFraction = 1.0f / (SampleCount - 1);
  
- f32 PointIndexFloat = Fraction * (SampleCount - 1);
- u32 PointIndex = Cast(u32)(Forward ? FloorF32(PointIndexFloat) : CeilF32(PointIndexFloat));
+ u32 PointIndex = 0;
+ if (Forward)
+ {
+  while (PointIndex < SampleCount && Ts[PointIndex + 1] <= Fraction)
+  {
+   ++PointIndex;
+  }
+ }
+ else
+ {
+  while (PointIndex + 1 < SampleCount && Ts[PointIndex] < Fraction)
+  {
+   ++PointIndex;
+  }
+ }
+ 
+ //f32 PointIndexFloat = Fraction * (SampleCount - 1);
+ //u32 PointIndex = Cast(u32)(Forward ? FloorF32(PointIndexFloat) : CeilF32(PointIndexFloat));
  PointIndex = ClampTop(PointIndex, SampleCount - 1);
  
  i32 DirSign = (Forward ? 1 : -1);
@@ -55,8 +72,11 @@ MovePointAlongCurve(curve *Curve, v2 *TranslateInput, f32 *PointFractionInput, b
    f32 AlongCurveLength = Norm(AlongCurve);
    f32 InvAlongCurveLength = 1.0f / AlongCurveLength;
    f32 Projection = Clamp01(Dot(AlongCurve, Translate) * InvAlongCurveLength * InvAlongCurveLength);
+   
+   f32 DeltaFraction = Ts[PointIndex] - Ts[PrevPointIndex];
+   
    Translate -= Projection * AlongCurve;
-   Fraction += DirSign * Projection * DeltaFraction;
+   Fraction += Projection * DeltaFraction;
    
    if (Projection < 1.0f)
    {
@@ -1071,7 +1091,7 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
        string SelectedStr = (ControlPointHandleMatch(Selected, ControlPointHandleZero()) ?
                              StrLit("None") :
                              StrF(Temp.Arena, "%u", IndexFromControlPointHandle(Selected)));
-       UI_TextF(false, "Selected Control Point Index: %S", SelectedStr);
+       UI_TextF(false, "Selected Control Point: %S", SelectedStr);
        EndTemp(Temp);
       }
       
@@ -2728,7 +2748,7 @@ ProcessInputEvents(editor *Editor,
     }
     else if (Collision.Flags & Collision_CurveLine)
     {
-     if (UsesControlPoints(CollisionCurve))
+     if (UsesControlPoints(CollisionCurve) && !AreBSplineKnotsVisible(CollisionCurve))
      {
       control_point_handle ControlPoint = ControlPointIndexFromCurveSampleIndex(CollisionCurve, Collision.CurveSampleIndex);
       u32 PointIndex = IndexFromControlPointHandle(ControlPoint);

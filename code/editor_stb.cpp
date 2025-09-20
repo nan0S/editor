@@ -1,3 +1,13 @@
+/* ========================================================================
+   Parametric Curve Editor
+   Master's Thesis by Hubert Obrzut
+   Supervisor: Paweł Woźny
+   University of Wrocław
+   Faculty of Mathematics and Computer Science
+   Institute of Computer Science
+   Date: September 2025
+   ======================================================================== */
+
 internal image_info
 MakeImageInfo(u32 Width, u32 Height, u32 Channels)
 {

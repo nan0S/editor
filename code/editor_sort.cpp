@@ -1,3 +1,13 @@
+/* ========================================================================
+   Parametric Curve Editor
+   Master's Thesis by Hubert Obrzut
+   Supervisor: Paweł Woźny
+   University of Wrocław
+   Faculty of Mathematics and Computer Science
+   Institute of Computer Science
+   Date: September 2025
+   ======================================================================== */
+
 inline internal sort_entry_array
 AllocSortEntryArray(arena *Arena, u32 MaxCount, sort_order Order)
 {

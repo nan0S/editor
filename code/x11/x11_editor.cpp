@@ -1,3 +1,13 @@
+/* ========================================================================
+   Parametric Curve Editor
+   Master's Thesis by Hubert Obrzut
+   Supervisor: Paweł Woźny
+   University of Wrocław
+   Faculty of Mathematics and Computer Science
+   Institute of Computer Science
+   Date: September 2025
+   ======================================================================== */
+
 #include "base/base_ctx_crack.h"
 #include "base/base_core.h"
 #include "base/base_string.h"
@@ -77,7 +87,7 @@ X11KeyCodeToPlatformKey(Display *Display, unsigned int KeyCode)
  {
   unsigned int Code = 0;
 #define AddMapping(KeySym, Key) Code = XKeysymToKeycode(Display, KeySym); Assert(Code < ArrayCount(Mapping)); Mapping[Code] = Key
-
+  
   AddMapping(XK_F1, PlatformKey_F1);
   AddMapping(XK_F2, PlatformKey_F2);
   AddMapping(XK_F3, PlatformKey_F3);
@@ -125,12 +135,12 @@ X11KeyCodeToPlatformKey(Display *Display, unsigned int KeyCode)
   AddMapping(XK_space, PlatformKey_Space);
   AddMapping(XK_Tab, PlatformKey_Tab);
   AddMapping(XK_Delete, PlatformKey_Delete);
-
-  #undef AddMapping
-
+  
+#undef AddMapping
+  
   Calculated = true;
  }
-
+ 
  platform_key Result = Mapping[KeyCode];
  return Result;
 }
@@ -149,7 +159,7 @@ X11MouseButtonToPlatformKey(Display *Display, unsigned int Button)
 #undef AddMapping
   Calculated = true;
  }
-
+ 
  platform_key Result = Mapping[Button];
  return Result;
 }
@@ -163,7 +173,7 @@ LinuxPushPlatformEvent(linux_platform_input *Input, platform_event_type Type)
   Result = Input->Events + Input->EventCount++;
   Result->Type = Type;
  }
-
+ 
  return Result;
 }
 
@@ -193,7 +203,7 @@ X11ProcessEvent(linux_platform_input *LinuxInput, Display *Display, Window Windo
     PlatformEvent->Key = X11KeyCodeToPlatformKey(Display, Event->xkey.keycode);
    }
   }break;
-
+  
   case ButtonPress:
   case ButtonRelease: {
    platform_event_type Type = (Event->type == ButtonPress ? PlatformEvent_Press : PlatformEvent_Release);
@@ -203,7 +213,7 @@ X11ProcessEvent(linux_platform_input *LinuxInput, Display *Display, Window Windo
     PlatformEvent->Key = X11MouseButtonToPlatformKey(Display, Event->xbutton.button);
    }
   }break;
-
+  
   case MotionNotify: {
    platform_event *PlatformEvent = LinuxPushPlatformEvent(LinuxInput, PlatformEvent_MouseMove);
    if (PlatformEvent)
@@ -216,7 +226,7 @@ X11ProcessEvent(linux_platform_input *LinuxInput, Display *Display, Window Windo
     PlatformEvent->ClipSpaceMouseP = V2(ClipX, ClipY);
    }
   }break;
-
+  
   case KeymapNotify: {
    XRefreshKeyboardMapping(&Event->xmapping);
   }break;
@@ -224,7 +234,7 @@ X11ProcessEvent(linux_platform_input *LinuxInput, Display *Display, Window Windo
   case DestroyNotify: {
    LinuxPushPlatformEvent(LinuxInput, PlatformEvent_WindowClose);
   }break;
-
+  
   case ClientMessage: {
 			if (Cast(unsigned long int)Event->xclient.data.l[0] == AtomWMDeleteWindow) {
     LinuxPushPlatformEvent(LinuxInput, PlatformEvent_WindowClose);
@@ -243,12 +253,12 @@ main(int ArgCount, char *Argv[])
  } 
  ThreadCtxEquip(Arenas, ArrayCount(Arenas));
  arena *Arena = Arenas[0];
-
+ 
  Display *Display = XOpenDisplay(0);
  if (Display)
  {
   x11_renderer_function_table RendererFunctions = {};
-
+  
   Window Window = 0;
   renderer *Renderer = 0;
   {
@@ -262,24 +272,24 @@ main(int ArgCount, char *Argv[])
    Renderer = RendererInit.Renderer;
   }
   XStoreName(Display, Window, "Parametrics Curves Editor");
-
+  
   renderer_memory _RendererMemory = {};
   renderer_memory *RendererMemory = &_RendererMemory;
   // TODO(hbr): initialize renderer memory
-
+  
   long EventMask = (KeyPressMask | KeyReleaseMask | KeymapStateMask | ButtonPressMask | ButtonReleaseMask | PointerMotionMask);
   XSelectInput(Display, Window, EventMask);
-
+  
   Atom AtomWMDeleteWindow = XInternAtom(Display, "WM_DELETE_WINDOW", False);
 	 XSetWMProtocols(Display, Window, &AtomWMDeleteWindow, 1);
   
   XMapWindow(Display, Window);
-
+  
   if (Window)
   {
    b32 Running = true;
    linux_platform_input LinuxInput = {};
-
+   
    while (Running)
    {
     //- process input
@@ -307,11 +317,11 @@ main(int ArgCount, char *Argv[])
      char const *KeyName = PlatformKeyNames[Event->Key];
      OS_PrintDebugF("%s %s\n", EventName, KeyName);
     }
-
+    
     platform_input Input = {};
     Input.EventCount = LinuxInput.EventCount;
     Input.Events = LinuxInput.Events;
-
+    
     for (u32 EventIndex = 0;
          EventIndex < Input.EventCount;
          ++EventIndex)
@@ -326,7 +336,7 @@ main(int ArgCount, char *Argv[])
       Running = false;
      }
     }
-
+    
     v2u WindowDim = X11GetWindowDims(Display, Window);
     render_frame *Frame = RendererFunctions.BeginFrame(Renderer, RendererMemory, WindowDim);
     RendererFunctions.EndFrame(Renderer, RendererMemory, Frame);
@@ -337,6 +347,6 @@ main(int ArgCount, char *Argv[])
  {
   // TODO(hbr): error handling
  }
-
+ 
  return 0;
 }

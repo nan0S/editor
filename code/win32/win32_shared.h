@@ -1,4 +1,0 @@
-#ifndef WIN32_SHARED_H
-#define WIN32_SHARED_H
-
-#endif //WIN32_SHARED_H

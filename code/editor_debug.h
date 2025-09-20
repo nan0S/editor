@@ -1,4 +1,0 @@
-#ifndef EDITOR_DEBUG_H
-#define EDITOR_DEBUG_H
-
-#endif //EDITOR_DEBUG_H

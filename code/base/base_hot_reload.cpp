@@ -1,3 +1,13 @@
+/* ========================================================================
+   Parametric Curve Editor
+   Master's Thesis by Hubert Obrzut
+   Supervisor: Paweł Woźny
+   University of Wrocław
+   Faculty of Mathematics and Computer Science
+   Institute of Computer Science
+   Date: September 2025
+   ======================================================================== */
+
 internal hot_reload_library
 MakeHotReloadableLibrary(arena *Arena, string LibraryPath, char const **FunctionNames,
                          void **FunctionTable, void **TempFunctionTable, u32 FunctionCount)

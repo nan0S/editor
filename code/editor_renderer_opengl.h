@@ -12,6 +12,7 @@ typedef void func_glVertexAttribDivisor(GLuint index, GLuint divisor);
 typedef void func_glGenBuffers(GLsizei n, GLuint *buffers);
 typedef void func_glBindBuffer(GLenum target, GLuint buffer);
 typedef void func_glBufferData(GLenum target, GLsizeiptr size, const void *data, GLenum usage);
+typedef void func_glBufferSubData(GLenum target, GLintptr offset, GLsizeiptr size, const void *data);
 typedef void func_glDrawBuffers(GLsizei n, const GLenum *bufs);
 typedef void func_glDrawArrays(GLenum mode, GLint first, GLsizei count);
 typedef void func_glDrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsizei instancecount);
@@ -193,6 +194,7 @@ struct opengl
  OpenGLFunction(glGenBuffers);
  OpenGLFunction(glBindBuffer);
  OpenGLFunction(glBufferData);
+ OpenGLFunction(glBufferSubData);
  OpenGLFunction(glDrawBuffers);
  OpenGLFunction(glCreateProgram);
  OpenGLFunction(glCreateShader);

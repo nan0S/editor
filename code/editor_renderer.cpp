@@ -84,24 +84,34 @@ PushCircle(render_group *Group,
  ProfileFunctionBegin();
  
  render_frame *Frame = Group->Frame;
- if (Frame->CircleCount < Frame->MaxCircleCount)
+ arena *Arena = Frame->Arena;
+ 
+ render_circle_batch *Batch = Frame->CircleBatchTail;
+ if (Batch == 0 || Batch->Count >= ArrayCount(Batch->Circles))
  {
-  render_circle *Circle = Frame->Circles + Frame->CircleCount++;
-  
-  f32 TotalRadius = Radius + OutlineThickness;
-  f32 RadiusProper = Radius / TotalRadius;
-  
-  mat3 Model = Identity3x3();
-  Model = Translate3x3(Model, P);
-  Model = Scale3x3(Model, TotalRadius);
-  Model = Group->ModelXForm * Model;
-  
-  Circle->Z = ZOffset;
-  Circle->Model = ColMajor3x3From3x3(Model);
-  Circle->RadiusProper = RadiusProper;
-  Circle->Color = Color;
-  Circle->OutlineColor = OutlineColor;
+  Batch = PushStruct(Arena, render_circle_batch);
+  QueuePush(Frame->CircleBatchHead,
+            Frame->CircleBatchTail,
+            Batch);
  }
+ 
+ Assert(Batch->Count < ArrayCount(Batch->Circles));
+ 
+ render_circle *Circle = Batch->Circles + Batch->Count++;
+ 
+ f32 TotalRadius = Radius + OutlineThickness;
+ f32 RadiusProper = Radius / TotalRadius;
+ 
+ mat3 Model = Identity3x3();
+ Model = Translate3x3(Model, P);
+ Model = Scale3x3(Model, TotalRadius);
+ Model = Group->ModelXForm * Model;
+ 
+ Circle->Z = ZOffset;
+ Circle->Model = ColMajor3x3From3x3(Model);
+ Circle->RadiusProper = RadiusProper;
+ Circle->Color = Color;
+ Circle->OutlineColor = OutlineColor;
  
  ProfileEnd();
 }

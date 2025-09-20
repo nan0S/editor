@@ -65,10 +65,6 @@ Platform_MakeRendererMemory(arena *PermamentArena,
  RendererMemory.LineBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxLineCount, render_line);
  
  // TODO(hbr): Tweak these parameters
- RendererMemory.MaxCircleCount = 4096;
- RendererMemory.CircleBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxCircleCount, render_circle);
- 
- // TODO(hbr): Tweak these parameters
  RendererMemory.MaxImageCount = Limits->MaxTextureCount;
  RendererMemory.ImageBuffer = PushArrayNonZero(PermamentArena, RendererMemory.MaxImageCount, render_image);
  

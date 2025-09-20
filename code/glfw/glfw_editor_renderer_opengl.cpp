@@ -31,6 +31,7 @@ GLFWRendererInit(arena *Arena, renderer_memory *Memory, GLFWwindow *Window)
   OpenGLFunction(glGenBuffers);
   OpenGLFunction(glBindBuffer);
   OpenGLFunction(glBufferData);
+  OpenGLFunction(glBufferSubData);
   OpenGLFunction(glDrawBuffers);
   OpenGLFunction(glCreateProgram);
   OpenGLFunction(glCreateShader);

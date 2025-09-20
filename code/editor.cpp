@@ -391,6 +391,8 @@ UpdateBouncingParam(bouncing_parameter *Bouncing, f32 dt)
 internal void
 RenderEntity(rendering_entity_handle Handle)
 {
+ ProfileFunctionBegin();
+ 
  entity *Entity = Handle.Entity;
  render_group *RenderGroup = Handle.RenderGroup;
  
@@ -524,21 +526,27 @@ RenderEntity(rendering_entity_handle Handle)
    
    if (CurveParams->SamplesVisible)
    {
+    ProfileBegin("Rendering Curve Samples");
+    
     v2 *Samples = Curve->CurveSamples;
     u32 SampleCount = Curve->CurveSampleCount;
     rgba GradientA = RGBA_U8(255, 0, 144);
     rgba GradientB = RGBA_U8(155, 200, 0);
+    
     ForEachIndex(SampleIndex, SampleCount)
     {
      v2 Sample = Samples[SampleIndex];
      f32 T = Cast(f32)SampleIndex / (SampleCount - 1);
      rgba Color = Lerp(GradientA, GradientB, T);
+     
      PushCircle(RenderGroup,
                 Sample,
                 CurveParams->DrawParams.Points.Radius,
                 Color,
                 GetCurvePartVisibilityZOffset(CurvePartVisibility_CurveSamplePoint));
     }
+    
+    ProfileEnd();
    }
   } break;
   
@@ -549,6 +557,8 @@ RenderEntity(rendering_entity_handle Handle)
   
   case Entity_Count: InvalidPath; break;
  }
+ 
+ ProfileEnd();
 }
 
 internal void
@@ -777,6 +787,8 @@ UpdateAndRenderDegreeReduction(editor *Editor, rendering_entity_handle Handle)
 internal void
 UpdateAndRenderEntities(editor *Editor, render_group *RenderGroup)
 {
+ ProfileFunctionBegin();
+ 
  entity_array Entities = AllEntityArrayFromStore(Editor->EntityStore);
  for (u32 EntityIndex = 0;
       EntityIndex < Entities.Count;
@@ -794,6 +806,8 @@ UpdateAndRenderEntities(editor *Editor, render_group *RenderGroup)
    EndRenderingEntity(Handle);
   }
  }
+ 
+ ProfileEnd();
 }
 
 internal changed_b32

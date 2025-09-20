@@ -72,6 +72,13 @@ struct render_vertex
  rgba Color;
 };
 
+struct render_circle_batch
+{
+ render_circle_batch *Next;
+ u32 Count;
+ render_circle Circles[1024];
+};
+
 struct render_frame
 {
  arena *Arena;
@@ -80,9 +87,8 @@ struct render_frame
  render_line *Lines;
  u32 MaxLineCount;
  
- u32 CircleCount;
- render_circle *Circles;
- u32 MaxCircleCount;
+ render_circle_batch *CircleBatchHead;
+ render_circle_batch *CircleBatchTail;
  
  u32 ImageCount;
  render_image *Images;
@@ -193,9 +199,6 @@ struct renderer_memory
  
  render_line *LineBuffer;
  u32 MaxLineCount;
- 
- render_circle *CircleBuffer;
- u32 MaxCircleCount;
  
  render_image *ImageBuffer;
  u32 MaxImageCount;

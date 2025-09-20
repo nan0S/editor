@@ -930,9 +930,8 @@ OpenGLBeginFrame(opengl *OpenGL, renderer_memory *Memory, v2u WindowDim)
  RenderFrame->LineCount = 0;
  RenderFrame->Lines = Memory->LineBuffer;
  RenderFrame->MaxLineCount = Memory->MaxLineCount;
- RenderFrame->CircleCount = 0;
- RenderFrame->Circles = Memory->CircleBuffer;
- RenderFrame->MaxCircleCount = Memory->MaxCircleCount;
+ RenderFrame->CircleBatchHead = 0;
+ RenderFrame->CircleBatchTail = 0;
  RenderFrame->ImageCount = 0;
  RenderFrame->Images = Memory->ImageBuffer;
  RenderFrame->MaxImageCount = Memory->MaxImageCount;
@@ -1172,11 +1171,28 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
   GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, QuadVBO));
   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertP_AttrLoc, v2, E, 0);
   
+  u32 TotalCircles = 0;
+  ListIter(Batch, Frame->CircleBatchHead, render_circle_batch)
+  {
+   TotalCircles += Batch->Count;
+  }
+  
   GL_CALL(OpenGL->glBindBuffer(GL_ARRAY_BUFFER, CircleVBO));
   GL_CALL(OpenGL->glBufferData(GL_ARRAY_BUFFER,
-                               Frame->CircleCount * SizeOf(Frame->Circles[0]),
-                               Frame->Circles,
+                               TotalCircles * SizeOf(render_circle),
+                               0,
                                GL_DYNAMIC_DRAW));
+  
+  u32 Offset = 0;
+  ListIter(Batch, Frame->CircleBatchHead, render_circle_batch)
+  {
+   OpenGL->glBufferSubData(GL_ARRAY_BUFFER,
+                           Offset * SizeOf(render_circle),
+                           Batch->Count * SizeOf(render_circle),
+                           Batch->Circles);
+   
+   Offset += Batch->Count;
+  }
   
   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertZ_AttrLoc, render_circle, Z, 1);
   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertModel0_AttrLoc, render_circle, Model.M.Rows[0], 1);
@@ -1187,7 +1203,7 @@ OpenGLEndFrame(opengl *OpenGL, renderer_memory *Memory, render_frame *Frame)
   GLFloatAttribPointerAndDivisor(OpenGL, Prog->Attributes.VertOutlineColor_AttrLoc, render_circle, OutlineColor, 1);
   
   // TODO(hbr): use draw elements
-  GL_CALL(OpenGL->glDrawArraysInstanced(GL_TRIANGLES, 0, 6, Frame->CircleCount));
+  GL_CALL(OpenGL->glDrawArraysInstanced(GL_TRIANGLES, 0, 6, TotalCircles));
   
   UseProgramEnd(OpenGL, Prog);
   

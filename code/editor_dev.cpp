@@ -16,7 +16,6 @@ RenderDevConsoleUI(editor *Editor, render_group *RenderGroup)
                      "blabla blab lablablablab lablabla blablablablablablablablablabla");
    }
    UI_Checkbox(&DEBUG_Vars->ParametricEquationDebugMode, StrLit("Parametric Equation Debug Mode Enabled"));
-   UI_Checkbox(&DEBUG_Vars->ShowSampleCurvePoints, StrLit("Show Sample Curve Points"));
    UI_ExponentialAnimation(&Camera->Animation);
    UI_TextF(false, "DrawnGridLinesCount=%u", DEBUG_Vars->DrawnGridLinesCount);
    UI_TextF(false, "String Store String Count: %u\n", GetCtx()->StrStore->StrCount);

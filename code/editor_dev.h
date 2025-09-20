@@ -124,7 +124,6 @@ struct debug_vars
  b32 DevConsole;
  b32 ParametricEquationDebugMode;
  u32 DrawnGridLinesCount;
- b32 ShowSampleCurvePoints;
  
  u32 ParametricCurveMaxTotalSamples;
  

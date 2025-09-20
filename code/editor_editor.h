@@ -141,6 +141,7 @@ struct curve_params
  curve_draw_params DrawParams;
  u32 SamplesPerControlPoint;
  u32 TotalSamples;
+ b32 SamplesVisible;
 };
 StaticAssert(SizeOf(MemberOf(curve_params, DrawParams)) ==
              SizeOf(MemberOf(curve_params, DrawParams.All)),

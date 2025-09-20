@@ -522,8 +522,7 @@ RenderEntity(rendering_entity_handle Handle)
     }
    }
    
-   // TODO(hbr): remove
-   if (DEBUG_Vars->ShowSampleCurvePoints)
+   if (CurveParams->SamplesVisible)
    {
     v2 *Samples = Curve->CurveSamples;
     u32 SampleCount = Curve->CurveSampleCount;
@@ -1544,6 +1543,12 @@ RenderSelectedEntityUI(editor *Editor, render_group *RenderGroup)
          CurveParams->SamplesPerControlPoint = DefaultParams->SamplesPerControlPoint;
          CrucialEntityParamChanged = true;
         }
+       }
+       
+       UI_Checkbox(&CurveParams->SamplesVisible, StrLit("Samples Visible"));
+       if (ResetCtxMenu(StrLit("SamplesVisible")))
+       {
+        CurveParams->SamplesVisible = DefaultParams->SamplesVisible;
        }
       }
       

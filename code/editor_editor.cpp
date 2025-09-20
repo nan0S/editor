@@ -503,7 +503,7 @@ LoadEmptyProject(editor *Editor)
 #else
  SerializableState.BackgroundColor = SerializableState.DefaultBackgroundColor = RGBA_U8(21, 21, 21);
 #endif
- SerializableState.CollisionToleranceClip = 0.10f;
+ SerializableState.CollisionToleranceClip = 0.06f;
  SerializableState.RotationRadiusClip = 0.1f;
  SerializableState.CurveDefaultParams = DefaultCurveParams();
  SerializableState.EntityListWindow = true;

@@ -2304,7 +2304,7 @@ RenderHelpUI(editor *Editor)
     }
    }
    
-   UI_SetNextItemOpen(false, UICond_Once);
+   UI_SetNextItemOpen(true, UICond_Once);
    if (UI_CollapsingHeader(StrLit("Parmetric Expression Language")))
    {
     UI_Text(true, StrLit("The expression language supports standard arithmetic operators "

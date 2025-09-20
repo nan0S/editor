@@ -717,6 +717,9 @@ StrokeTessellate_CustomWithoutOverlap(arena *Arena, u32 PointCount, v2 *LinePoin
 
 //#define ComputeVerticesOfThickLine StrokeTessellate_MiterMethod
 #define ComputeVerticesOfThickLine StrokeTessellate_CustomWithoutOverlap
+//#define ComputeVerticesOfThickLine StrokeTessellate_SimpleWithOverlap
+//#define ComputeVerticesOfThickLine BuildPolylineMiter
+
 
 inline v2 Normalize(const v2& V) {
  f32 Len = SqrtF32(V.X*V.X + V.Y*V.Y);
@@ -842,6 +845,73 @@ StrokeTessellate_MiterMethod(arena* Arena, u32 PointCount, v2* Points,
  Result.Primitive = Primitive_Triangles;
  return Result;
 }
+
+static inline v2 V2Add(v2 a, v2 b) { v2 r = {a.X + b.X, a.Y + b.Y}; return r; }
+static inline v2 V2Sub(v2 a, v2 b) { v2 r = {a.X - b.X, a.Y - b.Y}; return r; }
+static inline v2 V2Scale(v2 a, f32 s) { v2 r = {a.X * s, a.Y * s}; return r; }
+static inline v2 V2Div(v2 a, f32 s) { v2 r = {a.X / s, a.Y / s}; return r; }
+
+static inline f32 V2Dot(v2 a, v2 b) { return a.X * b.X + a.Y * b.Y; }
+static inline f32 V2Length(v2 a) { return sqrtf(V2Dot(a, a)); }
+static inline v2 V2Normalize(v2 a)
+{
+ f32 len = V2Length(a);
+ if (len > 1e-6f)
+  return V2Div(a, len);
+ v2 zero = {0, 0};
+ return zero;
+}
+static inline v2 V2Perp(v2 a) { v2 r = {-a.Y, a.X}; return r; }
+
+internal vertex_array BuildPolylineMiter(arena *Arena, u32 PointCount, v2 *Points, f32 LineWidth, b32 Loop)
+{
+ vertex_array Result = {};
+ if (PointCount < 2)
+  return Result;
+ 
+ f32 HalfWidth = LineWidth * 0.5f;
+ 
+ // Allocate worst-case buffer (2 verts per point)
+ v2 *verts = PushArray(Arena, PointCount * 2, v2);
+ u32 vertCount = 0;
+ 
+ for (u32 i = 0; i < PointCount; ++i)
+ {
+  v2 prevDir = {0, 0};
+  v2 nextDir = {0, 0};
+  
+  if (i > 0)
+   prevDir = V2Normalize(V2Sub(Points[i], Points[i - 1]));
+  if (i + 1 < PointCount)
+   nextDir = V2Normalize(V2Sub(Points[i + 1], Points[i]));
+  
+  v2 tangent = V2Normalize(V2Add(prevDir, nextDir));
+  v2 normal;
+  
+  if (V2Length(tangent) < 1e-6f) // straight or sharp turn
+  {
+   tangent = (i > 0) ? prevDir : nextDir;
+   normal = V2Perp(tangent);
+  }
+  else
+  {
+   normal = V2Perp(tangent);
+  }
+  
+  f32 denom = V2Dot(normal, V2Perp(prevDir));
+  f32 miterLength = (fabsf(denom) > 1e-6f) ? HalfWidth / denom : HalfWidth;
+  v2 miter = V2Scale(normal, miterLength);
+  
+  verts[vertCount++] = V2Add(Points[i], miter);
+  verts[vertCount++] = V2Sub(Points[i], miter);
+ }
+ 
+ Result.VertexCount = vertCount;
+ Result.Vertices = verts;
+ Result.Primitive = Primitive_TriangleStrip;
+ return Result;
+}
+
 
 internal void
 EquidistantPoints(f32 *Ti, u32 N, f32 A, f32 B)

@@ -1,31 +1,51 @@
 #ifndef EDITOR_PARAMETRIC_EQUATION_H
 #define EDITOR_PARAMETRIC_EQUATION_H
 
+#define ParametricEquationIdentifierClasses \
+X(Trigonometry) \
+X(Arithmetic) \
+X(Exponential) \
+X(Constant) \
+X(Variable)
+
+enum parametric_equation_identifier_class
+{
+#define X(_ClassName) ParametricEquationIdentifierClass_##_ClassName,
+ ParametricEquationIdentifierClasses
+#undef X
+ ParametricEquationIdentifierClass_Count,
+};
+global read_only string ParametricEquationIdentifierClassNames[] = {
+#define X(_ClassName) StrLitComp(#_ClassName),
+ ParametricEquationIdentifierClasses
+#undef X
+};
+
 #define ParametricEquationIdentifiers \
-X(sin, 1) \
-X(cos, 1) \
-X(tan, 1) \
-X(asin, 1) \
-X(acos, 1) \
-X(atan, 1) \
-X(atan2, 1) \
-X(floor, 1) \
-X(ceil, 1) \
-X(round, 1) \
-X(mod, 2) \
-X(pow, 2) \
-X(sqrt, 1) \
-X(exp, 1) \
-X(log, 1) \
-X(log10, 1) \
-X(sinh, 1) \
-X(cosh, 1) \
-X(tanh, 1) \
-X(pi, 0) \
-X(tau, 0) \
-X(euler, 0) \
-X(t, 0) \
-X(var, 0) // this is just regular user-defined variable but we have to define all the types
+X(sin, 1, Trigonometry) \
+X(cos, 1, Trigonometry) \
+X(tan, 1, Trigonometry) \
+X(asin, 1, Trigonometry) \
+X(acos, 1, Trigonometry) \
+X(atan, 1, Trigonometry) \
+X(atan2, 1, Trigonometry) \
+X(floor, 1, Arithmetic) \
+X(ceil, 1, Arithmetic) \
+X(round, 1, Arithmetic) \
+X(mod, 2, Arithmetic) \
+X(pow, 2, Exponential) \
+X(sqrt, 1, Exponential) \
+X(exp, 1, Exponential) \
+X(log, 1, Exponential) \
+X(log10, 1, Exponential) \
+X(sinh, 1, Trigonometry) \
+X(cosh, 1, Trigonometry) \
+X(tanh, 1, Trigonometry) \
+X(pi, 0, Constant) \
+X(tau, 0, Constant) \
+X(euler, 0, Constant) \
+X(t, 0, Variable) \
+X(var, 0, Variable) // this is just regular user-defined variable but we have to define all the types
 
 enum parametric_equation_token_type
 {
@@ -48,20 +68,26 @@ enum parametric_equation_token_type
 };
 
 global string ParametricEquationIdentifierNames[] = {
-#define X(_Func, _ArgCount) StrLitComp(#_Func),
+#define X(_Func, _ArgCount, _Class) StrLitComp(#_Func),
  ParametricEquationIdentifiers
 #undef X
 };
 
 global u32 ParametricEquationIdentifierArgCounts[] = {
-#define X(_Func, _ArgCount) _ArgCount,
+#define X(_Func, _ArgCount, _Class) _ArgCount,
+ ParametricEquationIdentifiers
+#undef X
+};
+
+global read_only parametric_equation_identifier_class ParametricEquationIdentifierClass[] = {
+#define X(_Func, _ArgCount, _Class) ParametricEquationIdentifierClass_##_Class,
  ParametricEquationIdentifiers
 #undef X
 };
 
 enum parametric_equation_identifier_type
 {
-#define X(_Func, _ArgCount) ParametricEquationIdentifier_##_Func,
+#define X(_Func, _ArgCount, _Class) ParametricEquationIdentifier_##_Func,
  ParametricEquationIdentifiers
 #undef X
  ParametricEquationIdentifier_Count

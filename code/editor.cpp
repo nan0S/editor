@@ -1908,26 +1908,19 @@ RenderHelpUI(editor *Editor)
  temp_arena Temp = TempArena(0);
  if (Editor->HelpWindow)
  {
-  if (UI_BeginWindow(&Editor->HelpWindow, UIWindowFlag_AutoResize, StrLit("Help")))
+  if (UI_BeginWindow(&Editor->HelpWindow, 0, StrLit("Help")))
   {
-   UI_TextF(false, "Welcome to");
-   UI_SameRow();
-   UI_Colored(UI_Color_Text, GreenColor)
-   {
-    UI_TextF(false, "%S", EditorAppName);
-   }
-   UI_SameRow();
-   UI_TextF(false, "- parametric curve editor. Here is the editor's quick overview and tutorial.");
-   
+   UI_TextF(true, "Welcome to %S, a parametric curve editor. Here's a quick overview and tutorial.", EditorAppName);
    UI_NewRow();
-   UI_Text(false,
-           StrLit("Controls are made to be as intuitive as possible. Read this tutorial, but\n"
-                  "there is no need to understand everything. Note which keys and mouse buttons\n"
-                  "might do something interesting and go experiment as soon as possible instead."));
+   UI_Text(true,
+           StrLit("The controls are designed to be as intuitive as possible. "
+                  "Give this tutorial a read, but don’t worry about memorizing everything. "
+                  "Just note which keys and mouse buttons might do something useful, "
+                  "and start experimenting right away."));
    UI_NewRow();
-   UI_Text(false,
-           StrLit("NOTE: Most things that apply to curves and curve manipulation (i.e.\n"
-                  "move/select/delete) also apply to images, or in general - entities.\n\n"));
+   UI_Text(true,
+           StrLit("NOTE: Most actions that apply to curves (move, select, delete) "
+                  "also apply to images—or more generally, to all entities.\n\n"));
    
    // NOTE(hbr): I have no fucking idea why I need to pass true here and not false what I would expect.
    // It's literally the opposite behaviour of what I'm expecting even thgough I checked ImGui expectes
@@ -1935,14 +1928,13 @@ RenderHelpUI(editor *Editor)
    UI_SetNextItemOpen(true, UICond_Once);
    if (UI_CollapsingHeader(StrLit("UI tutorial")))
    {
-    UI_Text(false, StrLit("ImGui was used to create UI for this application. Those already\n"
-                          "familiar with this library can skip this tutorial. Otherwise, let's\n"
-                          "go through basic UI widgets and functionalities used throughout the\n"
-                          "application:"));
+    UI_Text(true, StrLit("The UI is built with ImGui. "
+                         "If you’re already familiar with it, you can skip this tutorial. "
+                         "Otherwise, let’s go over the basic widgets and features used in this application:"));
     
     UI_SeparatorText(StrLit("Widgets"));
     
-    UI_Text(false, StrLit("HINT: Right click on different widgets and see what happens!"));
+    UI_Text(true, StrLit("HINT: Right-click on different widgets to see what happens!"));
     
     //- buttons/checkboxes
     {    
@@ -1975,7 +1967,7 @@ RenderHelpUI(editor *Editor)
      
      UI_HelpMarkerWithTooltip(StrLit("Hello, World!"));
      UI_SameRow();
-     UI_Text(false, StrLit("Hover over the question mark!"));
+     UI_Text(true, StrLit("Hover over the question mark!"));
     }
     
     //- text input
@@ -2001,7 +1993,7 @@ RenderHelpUI(editor *Editor)
      if (ResetCtxMenu(StrLit("ResetDrag"))) {StructZero(&Scalar);}
      UI_DragFloat2(&Vector, 0, 0, 0, StrLit("Drag to adjust vector values!"));
      if (ResetCtxMenu(StrLit("ResetDrag2"))) {StructZero(&Vector);}
-     UI_Text(false, StrLit("HINT: Double click on the \"drag\" field to input the value directly!"));
+     UI_Text(true, StrLit("HINT: Double click on the \"drag\" field to input the value directly!"));
     }
     
     //- color picker
@@ -2009,8 +2001,8 @@ RenderHelpUI(editor *Editor)
      local rgba Color = {};
      UI_ColorPicker(&Color, StrLit("Pick color!"));
      if (ResetCtxMenu(StrLit("ResetColor"))) {StructZero(&Color);}
-     UI_Text(false, StrLit("HINT: Click on the small color preview to open color picker!"));
-     UI_Text(false, StrLit("HINT: You can also \"drag\" individual RGBA components!"));
+     UI_Text(true, StrLit("HINT: Click on the small color preview to open color picker!"));
+     UI_Text(true, StrLit("HINT: You can also \"drag\" individual RGBA components!"));
     }
     
     //- combo
@@ -2093,7 +2085,7 @@ RenderHelpUI(editor *Editor)
       }
       if (IsMsg)
       {
-       UI_Text(false, Msg);
+       UI_Text(true, Msg);
       }
      }
     }
@@ -2101,23 +2093,21 @@ RenderHelpUI(editor *Editor)
     //- windows
     {
      local b32 WindowIsOpen = false;
-     if (UI_Button(StrLit("Click me to spawn a new window!")))
+     if (UI_Button(StrLit("Click me to open a new window!")))
      {
       WindowIsOpen = true;
      }
      if (WindowIsOpen)
      {
-      if (UI_BeginWindow(&WindowIsOpen, 0, StrLit("UI Tutorial window (drag me around!)")))
+      if (UI_BeginWindow(&WindowIsOpen, 0, StrLit("UI Tutorial Window (drag me around!)")))
       {
-       UI_Text(false, StrLit("HINT: Click on the downward-pointing arrow in the top-left\n"
-                             "corner to \"collapse/expand\" the window."));
-       UI_Text(false, StrLit("HINT: Use the handle in the bottom-right corner to resize the window."));
-       UI_Text(false, StrLit("HINT: Use \"X\" button in the top-right corner to close the window."));
-       UI_Text(false, StrLit("HINT: Drag the window to move it around."));
+       UI_Text(true, StrLit("HINT: Click the arrow in the top-left corner to collapse or expand the window."));
+       UI_Text(true, StrLit("HINT: Drag the handle in the bottom-right corner to resize."));
+       UI_Text(true, StrLit("HINT: Click the \"X\" in the top-right corner to close the window."));
+       UI_Text(true, StrLit("HINT: Drag the title bar to move the window around."));
       }
       UI_EndWindow();
      }
-     
     }
     
     //- tabs
@@ -2125,13 +2115,13 @@ RenderHelpUI(editor *Editor)
      UI_BeginTabBar(StrLit("Tabs"));
      if (UI_BeginTabItem(StrLit("Tab A (click on me!)")))
      {
-      UI_Text(false, StrLit("This is content of Tab A"));
+      UI_Text(true, StrLit("This is content of Tab A"));
       UI_EndTabItem();
      }
      
      if (UI_BeginTabItem(StrLit("Tab B (click on me!)")))
      {
-      UI_Text(false, StrLit("Entirely different content - Tab B"));
+      UI_Text(true, StrLit("Entirely different content - Tab B"));
       UI_EndTabItem();
      }
      UI_EndTabBar();
@@ -2155,53 +2145,53 @@ RenderHelpUI(editor *Editor)
        {
         case EditorCommand_New: {
          Description = StrLit("New project");
-        }break;
+        } break;
         case EditorCommand_Open: {
-         Description = StrLit("Open file (new project or image)");
-        }break;
+         Description = StrLit("Open project or image");
+        } break;
         case EditorCommand_Save: {
          Description = StrLit("Save project");
-        }break;
+        } break;
         case EditorCommand_SaveAs: {
          Description = StrLit("Save project as");
-        }break;
+        } break;
         case EditorCommand_Quit: {
-         Description = StrLit("Quit");
-        }break;
+         Description = StrLit("Quit application");
+        } break;
         case EditorCommand_ToggleDevConsole: {
          Description = StrLit("Toggle developer console");
-        }break;
+        } break;
         case EditorCommand_Delete: {
-         Description = StrLit("Delete currently selected curve control point or currently\nselected entity (depends on what is the current selection)");
-        }break;
+         Description = StrLit("Delete selected control point or entity (depending on selection)");
+        } break;
         case EditorCommand_Duplicate: {
          Description = StrLit("Duplicate selected entity");
-        }break;
+        } break;
         case EditorCommand_ToggleProfiler: {
-         Description = StrLit("Toggle profiling frames");
-        }break;
+         Description = StrLit("Toggle performance profiler");
+        } break;
         case EditorCommand_Undo: {
-         Description = StrLit("Undo action");
-        }break;
+         Description = StrLit("Undo");
+        } break;
         case EditorCommand_Redo: {
-         Description = StrLit("Redo action");
-        }break;
+         Description = StrLit("Redo");
+        } break;
         case EditorCommand_ToggleUI: {
-         Description = StrLit("Toggle UI");
-        }break;
+         Description = StrLit("Toggle UI visibility");
+        } break;
         case EditorCommand_ToggleFullscreen: {
-         Description = StrLit("Toggle fullscreen");
-        }break;
+         Description = StrLit("Toggle fullscreen mode");
+        } break;
         case EditorCommand_ToggleDiagnostics: {
-         Description = StrLit("Toggle diagnostics");
-        }break;
+         Description = StrLit("Toggle diagnostics overlay");
+        } break;
         
         case EditorCommand_Count: InvalidPath;
        }
        
        UI_TableNextRow();
        UI_TableSetColumnIndex(0);
-       UI_Text(false, Description);
+       UI_Text(true, Description);
        UI_TableSetColumnIndex(1);
        ForEachIndex(ShortcutIndex, Group->Count)
        {
@@ -2210,7 +2200,7 @@ RenderHelpUI(editor *Editor)
         if (ShortcutIndex > 0)
         {
          UI_SameRow();
-         UI_Text(false, StrLit("or"));
+         UI_Text(true, StrLit("or"));
          UI_SameRow();
         }
         UI_Text(false, ShortcutString);
@@ -2227,84 +2217,72 @@ RenderHelpUI(editor *Editor)
     if (UI_BeginTree(StrLit("Left button")))
     {
      UI_NewRow();
-     UI_Text(false, StrLit("Add/move/select control points."));
+     UI_Text(true, StrLit("Add, move, or select control points."));
      UI_NewRow();
      
-     UI_Text(false, StrLit("In more details:"));
-     UI_BulletText(StrLit("clicking on curve control point selects that curve and that control point"));
-     UI_BulletText(StrLit("clicking on curve line inserts control point inside that curve"));
-     UI_BulletText(StrLit("clicking outside of curve (\"on nothing\"), while curve is selected, appends new control point to that curve"));
-     UI_BulletText(StrLit("clicking outside of curve (\"on nothing\"), while no curve is selected, creates a new curve with one control\n"
-                          "point in that spot"));
-     UI_BulletText(StrLit("notice that left mouse click always adds new control point or selects existing one"));
-     UI_BulletText(StrLit("clicking and holding moves that control point until mouse button is released"));
-     UI_BulletText(StrLit("while splitting Bezier curve, clicking and holding on split point, moves that point along that curve"));
-     UI_BulletText(StrLit("while visualizing De Casteljau's Algorithm, clicking and holding final point, moves that point along that curve"));
+     UI_Text(true, StrLit("In detail:"));
+     UI_BulletText(StrLit("Click a control point to select that curve and point."));
+     UI_BulletText(StrLit("Click a curve line to insert a control point into the curve."));
+     UI_BulletText(StrLit("Click empty space while a curve is selected to append a control point."));
+     UI_BulletText(StrLit("Click empty space with no curve selected to create a new curve with one control point."));
+     UI_BulletText(StrLit("Left-click always selects or adds a control point."));
+     UI_BulletText(StrLit("Click and hold to move a control point until released."));
+     UI_BulletText(StrLit("While splitting a Bézier curve, click and hold the split point to slide it along the curve."));
+     UI_BulletText(StrLit("While visualizing De Casteljau’s algorithm, click and hold the final point to move it along the curve."));
+     UI_BulletText(StrLit("When B-Spline knots are visible, click and hold the knot to move it along the curve."));
      
      UI_NewRow();
-     
      UI_EndTree();
     }
     
     if (UI_BeginTree(StrLit("Left button + Left Ctrl")))
     {
      UI_NewRow();
-     UI_Text(false,
-             StrLit("Work on curve level, not individual control points level. Move/select\n"
-                    "curves themselves."));
+     UI_Text(true, StrLit("Work at the curve level instead of individual control points. Move or select entire curves."));
      UI_NewRow();
      
-     
-     UI_Text(false, StrLit("In more detail:"));
-     UI_BulletText(StrLit("clicking on curve (either curve line or curve control point) selects it"));
-     UI_BulletText(StrLit("clicking and holding anywhere while curve is selected, moves it"));
-     UI_BulletText(StrLit("clicking and holding while no curve is selected, results in the same action\n"
-                          "as if Left Ctrl was not held - new curve with one control point is added"));
+     UI_Text(true, StrLit("In detail:"));
+     UI_BulletText(StrLit("Click a curve (line or control point) to select it."));
+     UI_BulletText(StrLit("Click and hold anywhere to move the selected curve."));
+     UI_BulletText(StrLit("Click and hold with no curve selected behaves as if Ctrl is not held—creates a new curve with one control point."));
      
      UI_NewRow();
-     
      UI_EndTree();
     }
     
     if (UI_BeginTree(StrLit("Left button + Left Alt")))
     {
      UI_NewRow();
-     UI_Text(false,
-             StrLit("When creating precise curve shape, one sometimes wants to add new control point\n"
-                    "that might be close or directly on the curve line. Normally clicking there, inserts\n"
-                    "new control point inside that curve. Use Left Alt to override it and *always*\n"
-                    "append instead."));
+     UI_Text(true, StrLit("For precise editing, Left Alt overrides the default insert behavior and *always* appends a new control point."));
      UI_NewRow();
      
-     UI_Text(false, StrLit("In more detail:"));
-     UI_BulletText(StrLit("clicking anywhere while curve is selected, *always* appends a new control point to it"));
-     UI_BulletText(StrLit("clicking anywhere while no curve is selected, creates a new curve with one control point in that spot"));
+     UI_Text(true, StrLit("In detail:"));
+     UI_BulletText(StrLit("Click anywhere while a curve is selected to *always* append a new control point."));
+     UI_BulletText(StrLit("Click anywhere with no curve selected to create a new curve with one control point."));
      
      UI_NewRow();
-     
      UI_EndTree();
     }
     
     if (UI_BeginTree(StrLit("Right button")))
     {
      UI_NewRow();
-     UI_Text(false, StrLit("Remove/deselect control points."));
+     UI_Text(true, StrLit("Remove or deselect control points."));
      UI_NewRow();
      
-     UI_Text(false, StrLit("In more detail:"));
-     UI_BulletText(StrLit("clicking on control point deletes it and selects that curve"));
-     UI_BulletText(StrLit("clicking outside of curve (\"on nothing\") deselects currently selected curve (if one exists)"));
-     UI_BulletText(StrLit("while splitting Bezier curve, clicking on split point, actually splits the curve"));
+     UI_Text(true, StrLit("In detail:"));
+     UI_BulletText(StrLit("Click a control point to delete it and select that curve."));
+     UI_BulletText(StrLit("Click empty space to deselect the current curve (if one is selected)."));
+     UI_BulletText(StrLit("While splitting a Bézier curve, click the split point to finalize the split."));
      
      UI_NewRow();
-     
      UI_EndTree();
     }
     
-    if (UI_BeginTree(StrLit("Right button + Left Control")))
+    if (UI_BeginTree(StrLit("Right button + Left Ctrl")))
     {
      UI_NewRow();
-     UI_Text(false, StrLit("Remove/deselect curves."));
+     UI_Text(true, StrLit("Remove or deselect entire curves."));
      UI_NewRow();
      
      UI_EndTree();
@@ -2313,22 +2291,78 @@ RenderHelpUI(editor *Editor)
     if (UI_BeginTree(StrLit("Middle button (+ Left Ctrl)")))
     {
      UI_NewRow();
-     UI_Text(false, StrLit("Manipulate the camera."));
+     UI_Text(true, StrLit("Manipulate the camera."));
      UI_NewRow();
      
-     UI_Text(false, StrLit("In more detail:"));
-     UI_BulletText(StrLit("clicking and holding moves the camera"));
-     UI_BulletText(StrLit("clicking and holding with Left Ctrl rotates the camera around"));
-     UI_BulletText(StrLit("scrolling (un)zooms the camera"));
+     UI_Text(true, StrLit("In detail:"));
+     UI_BulletText(StrLit("Click and hold to pan the camera."));
+     UI_BulletText(StrLit("Click and hold with Left Ctrl to rotate the camera."));
+     UI_BulletText(StrLit("Scroll to zoom in or out."));
      
      UI_NewRow();
-     
      UI_EndTree();
+    }
+   }
+   
+   UI_SetNextItemOpen(false, UICond_Once);
+   if (UI_CollapsingHeader(StrLit("Parmetric Expression Language")))
+   {
+    UI_Text(true, StrLit("The expression language supports standard arithmetic operators "
+                         "(including exponentiation, written as either ** or ^). It also "
+                         "provides a variety of built-in mathematical functions."));
+    
+    struct per_parametric_equation_identififer_class
+    {
+     u32 Count;
+     string Names[128];
+    };
+    per_parametric_equation_identififer_class PerClass[ParametricEquationIdentifierClass_Count] = {};
+    u32 IdentifierCount = ArrayCount(ParametricEquationIdentifierNames);
+    
+    ForEachIndex(IdentifierIndex, IdentifierCount)
+    {
+     string Name = ParametricEquationIdentifierNames[IdentifierIndex];
+     parametric_equation_identifier_class Class = ParametricEquationIdentifierClass[IdentifierIndex];
+     per_parametric_equation_identififer_class *ForClass = PerClass + Class;
+     
+     if (ForClass->Count < ArrayCount(ForClass->Names))
+     {
+      ForClass->Names[ForClass->Count++] = Name;
+     }
+    }
+    
+    UI_NewRow();
+    
+    UI_Text(true, StrLit("Available built-in functions:"));
+    ForEachEnumVal(Class,
+                   ParametricEquationIdentifierClass_Count,
+                   parametric_equation_identifier_class)
+    {
+     // NOTE(hbr): This is a special class, not really visible to the user, we don't want
+     // to display it in the help menu.
+     if (Class != ParametricEquationIdentifierClass_Variable)
+     {
+      per_parametric_equation_identififer_class *ForClass = PerClass + Class;
+      
+      string_list List = {};
+      ForEachIndex(Index, ForClass->Count)
+      {
+       StrListPush(Temp.Arena, &List, ForClass->Names[Index]);
+      }
+      
+      string_list_join_options Opts = {};
+      Opts.Sep = StrLit(", ");
+      string Joined = StrListJoin(Temp.Arena, &List, Opts);
+      
+      string ClassName = ParametricEquationIdentifierClassNames[Class];
+      UI_BulletTextF("%S: %S", ClassName, Joined);
+     }
     }
    }
   }
   UI_EndWindow();
  }
+ 
  EndTemp(Temp);
 }
 
@@ -2673,6 +2707,11 @@ RenderAnimatingCurvesUI(editor *Editor)
   UI_EndWindow();
  }
 }
+
+internal b32
+TryChangeProject(editor *Editor,
+                 change_project_method ChangeHow,
+                 b32 ForceLoad);
 
 internal void
 ProcessInputEvents(editor *Editor,
@@ -3063,7 +3102,28 @@ ProcessInputEvents(editor *Editor,
   {
    Eat = true;
    v2 AtP = Unproject(RenderGroup, Event->ClipSpaceMouseP);
-   TryLoadImages(Editor, Event->FileCount, Event->FilePaths, AtP);
+   
+   
+   if (Event->FileCount == 1)
+   {
+    string FilePath = Event->FilePaths[0];
+    string Extension = StrAfterLastDot(FilePath);
+    if (StrEqual(Extension, EditorSessionFileExtension))
+    {
+     change_project_method Change = {};
+     Change.Type = ChangeProjectMethod_LoadProjectFromFile;
+     Change.FilePath = FilePath;
+     TryChangeProject(Editor, Change, false);
+    }
+    else
+    {
+     TryLoadImages(Editor, Event->FileCount, Event->FilePaths, AtP);
+    }
+   }
+   else
+   {
+    TryLoadImages(Editor, Event->FileCount, Event->FilePaths, AtP);
+   }
   }
   
   if (!Eat && Event->Type == PlatformEvent_WindowClose)

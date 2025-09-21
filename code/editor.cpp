@@ -238,16 +238,21 @@ UpdateAndRenderDegreeReductionUI(editor *Editor, entity_with_modify_witness *Wit
      u32 PointCount = Points->ControlPointCount;
      f32 *Weights = Points->ControlPointWeights;
      
+     f32 MinWeight = +F32_INF;
+     f32 MaxWeight = -F32_INF;
+     
      for (u32 I = 0; I < PointCount; ++I)
      {
-      if (Weights[0] != Weights[I])
-      {
-       ReductionDisabled = true;
-       DisabledMsg = StrLit("Degree reduction through uniform norm optimization\n"
-                            "only available for polynomial Bezier curves. This\n"
-                            "curve is rational since it has non-uniform weights.");
-       break;
-      }
+      MinWeight = Min(MinWeight, Weights[I]);
+      MaxWeight = Max(MaxWeight, Weights[I]);
+     }
+     
+     if ((MaxWeight - MinWeight) > 1e-6)
+     {
+      ReductionDisabled = true;
+      DisabledMsg = StrLit("Degree reduction through uniform norm optimization\n"
+                           "only available for polynomial Bezier curves. This\n"
+                           "curve is rational since it has non-uniform weights.");
      }
     }break;
     

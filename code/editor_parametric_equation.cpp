@@ -1031,6 +1031,7 @@ EvalApplicationExpr(parametric_equation_identifier Identifier,
   case ParametricEquationIdentifier_pi:    {Result =        PiF32;}break;
   case ParametricEquationIdentifier_tau:   {Result =       TauF32;}break;
   case ParametricEquationIdentifier_euler: {Result =     EulerF32;}break;
+  case ParametricEquationIdentifier_eps:   {Result =        1e-6f;}break;
   
   case ParametricEquationIdentifier_t:     {
    Assert(Env->T_Mode == ParametricEquationT_BoundAndValueProvided);

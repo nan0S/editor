@@ -54,6 +54,7 @@ X(tanh, 1, Trigonometry) \
 X(pi, 0, Constant) \
 X(tau, 0, Constant) \
 X(euler, 0, Constant) \
+X(eps, 0, Constant) \
 X(t, 0, Variable) \
 X(var, 0, Variable) // this is just regular user-defined variable but we have to define all the types
 

@@ -544,7 +544,7 @@ Table[GLFWButton] = PlatformButton
 #endif
    
    b32 Running = true;
-   b32 RefreshRequested = true;
+   u32 RefreshCredits = 1;
    platform_clock Clock = Platform_MakeClock();
    
    while (Running)
@@ -573,13 +573,15 @@ Table[GLFWButton] = PlatformButton
      StructZero(&GLFWState->GLFWInput);
      ClearArena(GLFWState->InputArena);
      
-     if (RefreshRequested)
+     if (RefreshCredits > 0)
      {
       glfwPollEvents();
+      --RefreshCredits;
      }
      else
      {
       glfwWaitEvents();
+      RefreshCredits = 5;
      }
      
      if (glfwWindowShouldClose(Window))
@@ -631,7 +633,10 @@ Table[GLFWButton] = PlatformButton
     
     GLFWRendererEndFrame(Renderer, &RendererMemory, Frame);
     
-    RefreshRequested = Input.RefreshRequested;
+    if (Input.RefreshRequested)
+    {
+     RefreshCredits = Max(RefreshCredits, 1);
+    }
     
     if (!ProfilingStopped)
     {

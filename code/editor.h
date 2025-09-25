@@ -32,6 +32,15 @@
 #include "editor_const.h"
 #include "editor_ctx.h"
 
+/*
+ TODO(hbr): 
+
+- predefined loading doesn't work for flower petal curve
+- make button for making bezier curve polynomial in one click
+- transforming curves doesn't really work very very well
+
+*/
+
 struct rendering_entity_handle
 {
  entity *Entity;
@@ -62,7 +71,7 @@ global read_only editor_keyboard_shortcut_group EditorKeyboardShortcuts[] =
  {EditorCommand_ToggleDevConsole, {{PlatformKey_Backtick, NoKeyModifier}}, 1, true, false},
  {EditorCommand_Delete, {{PlatformKey_X, KeyModifierFlag(Ctrl)}, {PlatformKey_Delete, NoKeyModifier}}, 2, false, true},
  {EditorCommand_Duplicate, {{PlatformKey_D, KeyModifierFlag(Ctrl)}}, 1, false, true},
- {EditorCommand_ToggleProfiler, {{PlatformKey_Q, KeyModifierFlag(Ctrl)}}, 1, true, true},
+ {EditorCommand_ToggleProfiler, {{PlatformKey_Q, KeyModifierFlag(Ctrl)}}, 1, true, false},
  {EditorCommand_Undo, {{PlatformKey_Z, KeyModifierFlag(Ctrl)}}, 1, false, true},
  {EditorCommand_Redo, {{PlatformKey_R, KeyModifierFlag(Ctrl)}}, 1, false, true},
  {EditorCommand_ToggleUI, {{PlatformKey_Tab, NoKeyModifier}}, 1, false, true},

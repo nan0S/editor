@@ -516,6 +516,22 @@ Table[GLFWButton] = PlatformButton
    ImGuiIO.IniFilename = 0;
 #endif
    
+   
+#if 0   
+   {
+    ImGuiIO& io = ImGui::GetIO();
+    ImGuiStyle& style = ImGui::GetStyle();
+    
+    float scale = 1.7f;
+    
+    // Scale fonts
+    io.FontGlobalScale = scale;
+    
+    // Scale all UI element sizes
+    style.ScaleAllSizes(scale);
+   }
+#endif
+   
    //- init editor stuff
    editor_function_table EditorFunctions = {};
    editor_function_table TempEditorFunctions = {};
